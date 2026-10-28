@@ -3,13 +3,14 @@ declare(strict_types=1);
 
 function elc_hash(array $record):string {return hash('sha256',json_encode($record,JSON_THROW_ON_ERROR));}
 function elc_actor():array {return ['id'=>0,'username'=>'codex-owner-authorised-maintenance','full_name'=>'Codex maintenance authorised by Salman'];}
-function elc_totals(array $store,bool $payments=false):array {
+function elc_totals(array $store,bool $payments=false,bool $daily=false):array {
     $out=[];$store=alv_amendment_books($store);
     foreach((array)($store['journals']??[]) as $j){
         if(($j['status']??'')!=='Posted')continue;
         foreach((array)($j['lines']??[]) as $l){
             $code=(string)($l['account']??'');if($payments&&!in_array($code,['1110','1120','2400'],true))continue;
             $key=(string)($j['entity']??'').'|'.$code;
+            if($daily)$key.='|'.(string)($j['date']??'');
             if($payments)$key.='|'.(string)($j['date']??'').'|'.(string)($l['bankAccountId']??$l['cashAccountId']??$l['paymentAccountId']??$l['cardMasterId']??'');
             $out[$key]=($out[$key]??0)+(int)round(100*((float)($l['debit']??0)-(float)($l['credit']??0)));
         }
@@ -54,10 +55,24 @@ function elc_split_home(array $row,array $allocations,string $entity):array {
     if($remaining!==0||array_sum(array_map(static fn($p)=>(int)round($p['amount']*100),$pieces))!==$cents)throw new RuntimeException('Household split total changed.');
     return array_values($pieces);
 }
+function elc_home_detail(array $s,string $entity,string $key):string {
+    if(!in_array($key,['WATER_TANKER','GAS_CYLINDER','SOLAR_CLEANER'],true))throw new RuntimeException('Unapproved permanent household purpose.');
+    $id=$entity.'-HOME-DETAIL-'.$key;$a=sac_resolve($s,$entity,$id);if(($a['homeExpenseDetail']??'')!==$key||$a['parentCode']!=='6910')throw new RuntimeException('Permanent household purpose is not deployed.');return $id;
+}
+function elc_advances(array $s):array {
+    $out=[];foreach((array)($s['salaryAdvances']??[]) as $a){$row=[];foreach(['entity','masterId','person','date','recoveryFromMonth','amount','remaining','months','monthsRemaining','adjustments'] as $field){$v=$a[$field]??null;$row[$field]=is_int($v)||is_float($v)?number_format((float)$v,4,'.',''):$v;}$out[]=json_encode($row,JSON_THROW_ON_ERROR);}sort($out);return $out;
+}
+function elc_split_purposes(array $s,array $row,array $parts,string $entity):array {
+    if(($row['accountCode']??'')!=='6910'||($row['personalTreatment']??'')!=='COMPANY'||count($parts)<2||count($parts)>4)throw new RuntimeException('Only company-borne household rows support purpose splits.');
+    $weight=0;foreach($parts as $part){if(!is_int($part['weight']??null)||$part['weight']<1||$part['weight']>100)throw new RuntimeException('Invalid split weight.');$weight+=$part['weight'];}
+    $cents=(int)round($row['amount']*100);$out=[];$remainders=[];$allocated=0;
+    foreach($parts as $i=>$part){$category=$part['category']??'';$person=$part['expenseFor']??'';if(!in_array($category,['HOME','ARP'],true)||!in_array($person,['SHARED','FAM-SALMAN','FAM-TALHA','FAM-TAYYAB','FAM-ABU'],true)||($category==='ARP')!==($person==='FAM-ABU'))throw new RuntimeException('Invalid purpose allocation.');$value=intdiv($cents*$part['weight'],$weight);$allocated+=$value;$remainders[$i]=($cents*$part['weight'])%$weight;$sub=$category==='ARP'?$entity.'-EXPENSE-TYPE-ARP':(!empty($part['homeExpenseDetail'])?elc_home_detail($s,$entity,$part['homeExpenseDetail']):sac_home_id($entity,$person));$purpose=trim((string)($part['purposePrefix']??''));if(strlen($purpose)>80)throw new RuntimeException('Invalid purpose label.');$out[$i]=array_replace($row,['amount'=>$value/100,'category'=>$category,'expenseFor'=>$person,'expenseArea'=>'HOME','subaccountId'=>$sub,'purpose'=>$purpose!==''?$purpose.' — '.$row['purpose']:$row['purpose']]);}
+    arsort($remainders,SORT_NUMERIC);foreach(array_keys($remainders) as $i){if($allocated>=$cents)break;$out[$i]['amount']=round($out[$i]['amount']+.01,2);$allocated++;}if($allocated!==$cents||min(array_column($out,'amount'))<=0)throw new RuntimeException('Invalid purpose split total.');return array_values($out);
+}
 function elc_apply(array &$s,array $manifest,string $batch):array {
     if(isset($s['expenseLedgerMaintenance'][$batch]))return $s['expenseLedgerMaintenance'][$batch]+['duplicate'=>true];
     if(($manifest['version']??0)!==1||empty($manifest['rows'])||count($manifest['rows'])>100)throw new RuntimeException('Invalid correction manifest.');
-    $before=$s;$payments=elc_totals($s,true);$expected=elc_totals($s);$actor=elc_actor();$names=ev1_names();$groups=[];
+    $before=$s;$payments=elc_totals($s,true);$expected=elc_totals($s);$daily=elc_totals($s,false,true);$actor=elc_actor();$names=ev1_names();$groups=[];$allowedAdvances=[];
     foreach($manifest['rows'] as $entry){$fingerprint=(string)($entry['fingerprint']??'');if(!preg_match('/^[a-f0-9]{64}$/D',$fingerprint))throw new RuntimeException('Invalid source fingerprint.');$groups[$fingerprint][]=$entry;}
     $results=[];
     foreach($groups as $fingerprint=>$entries){
@@ -66,27 +81,33 @@ function elc_apply(array &$s,array $manifest,string $batch):array {
         $id=(string)array_key_first($matches);$old=$matches[$id];$entity=(string)$old['entity'];$original=$s['journals'][$old['journalId']]??null;
         if(!in_array($entity,['TTI','BRM'],true)||($old['expenseType']??'')!=='DIRECT'||!is_array($original)||!empty($old['cardStatementId'])||!empty($original['reversedByPostId'])||!empty($original['amendedByPostId']))throw new RuntimeException('Expense requires its original linked workflow.');
         $public=tt_accounts_public_post($s,$original);if(str_ends_with($public,'-03046'))throw new RuntimeException('Protected posting is outside this maintenance batch.');
-        $rows=(array)$old['expenseLines'];foreach($rows as &$row){if(($row['personalTreatment']??'COMPANY')!=='COMPANY')throw new RuntimeException('Personal recovery requires separate review.');$row['accountCode']=(string)$row['account'];}unset($row);
-        $monthly=false;$reasons=[];$narrationOverride=null;$splits=[];
+        $rows=(array)$old['expenseLines'];foreach($rows as &$row)$row['accountCode']=(string)$row['account'];unset($row);
+        foreach((array)($s['expensePersonalLinks']['EXPENSE|'.$id]['rows']??[]) as $recovery){if(!empty($recovery['advanceId']))$allowedAdvances[$recovery['advanceId']]=true;$advance=$s['salaryAdvances'][$recovery['advanceId']??'']??[];if(!empty($recovery['cashRecovered'])||!empty($recovery['periods'])||!empty($advance['adjustments']))throw new RuntimeException('Settled personal recovery requires separate review.');}
+
+        $monthly=false;$reasons=[];$narrationOverride=null;$splits=[];$purposeSplits=[];
         foreach($entries as $entry){
             if(array_key_exists('narration',$entry)){if(!is_string($entry['narration'])||strlen($entry['narration'])>900||($narrationOverride!==null&&$narrationOverride!==$entry['narration']))throw new RuntimeException('Invalid or conflicting owner-approved narration.');$narrationOverride=$entry['narration'];}
             $index=$entry['row']??null;if(!is_int($index)||!isset($rows[$index]))throw new RuntimeException('Reviewed expense row is unavailable.');
-            $change=(array)($entry['changes']??[]);$allowed=['account','category','expenseFor','personalTreatment','expenseArea','assetId','namedSubledger','monthlyFee'];
+            if(($rows[$index]['personalTreatment']??'COMPANY')!=='COMPANY')throw new RuntimeException('Personal allocation is outside this correction batch.');
+            $change=(array)($entry['changes']??[]);$allowed=['account','category','expenseFor','personalTreatment','expenseArea','assetId','namedSubledger','monthlyFee','homeExpenseDetail'];
             if(array_diff(array_keys($change),$allowed)||($change['personalTreatment']??'COMPANY')!=='COMPANY')throw new RuntimeException('Unexpected reclassification fields.');
             $from=(string)$rows[$index]['account'];$to=(string)($change['account']??$from);$amount=(int)round(100*(float)$rows[$index]['amount']);
             if(!in_array($to,['6910','5550','6400','6410','6610','6900','6700','7210'],true))throw new RuntimeException('Posting head is outside the owner-approved rules.');
             $expected[$entity.'|'.$from]=($expected[$entity.'|'.$from]??0)-$amount;$expected[$entity.'|'.$to]=($expected[$entity.'|'.$to]??0)+$amount;
-            $monthly=$monthly||!empty($change['monthlyFee']);$named=(string)($change['namedSubledger']??'');unset($change['monthlyFee'],$change['namedSubledger']);
+            $date=(string)$original['date'];$daily[$entity.'|'.$from.'|'.$date]=($daily[$entity.'|'.$from.'|'.$date]??0)-$amount;$daily[$entity.'|'.$to.'|'.$date]=($daily[$entity.'|'.$to.'|'.$date]??0)+$amount;
+            $monthly=$monthly||!empty($change['monthlyFee']);$named=(string)($change['namedSubledger']??'');$homeDetail=(string)($change['homeExpenseDetail']??'');unset($change['monthlyFee'],$change['namedSubledger'],$change['homeExpenseDetail']);
             $rows[$index]=array_replace($rows[$index],$change,['accountCode'=>$to,'subaccountId'=>'']);
             $category=(string)$rows[$index]['category'];$person=(string)($rows[$index]['expenseFor']??'SHARED');
-            if($named!=='')$rows[$index]['subaccountId']=elc_named($s,$entity,$named,$actor);
+            if($homeDetail!==''){if($to!=='6910'||$category!=='HOME')throw new RuntimeException('Household purpose requires Home Expense.');$rows[$index]['subaccountId']=elc_home_detail($s,$entity,$homeDetail);}
+            elseif($named!=='')$rows[$index]['subaccountId']=elc_named($s,$entity,$named,$actor);
             elseif($category==='HOME')$rows[$index]['subaccountId']=sac_home_id($entity,$person);
             elseif($category==='ARP')$rows[$index]['subaccountId']=$entity.'-EXPENSE-TYPE-ARP';
             else foreach(sac_accounts($s,$entity) as $a)if(($a['builtinCategory']??'')===$category&&$a['parentCode']===$to){$rows[$index]['subaccountId']=$a['id'];break;}
             if(array_key_exists('allocations',$entry)){if(!is_array($entry['allocations'])||isset($splits[$index]))throw new RuntimeException('Invalid or duplicate household split.');$splits[$index]=$entry['allocations'];}
+            if(array_key_exists('parts',$entry)){if(!is_array($entry['parts'])||isset($purposeSplits[$index])||isset($splits[$index]))throw new RuntimeException('Invalid duplicate purpose split.');$purposeSplits[$index]=$entry['parts'];}
             $reasons[]=(string)($entry['reason']??'Owner-approved expense classification');
         }
-        krsort($splits);foreach($splits as $index=>$allocation)array_splice($rows,$index,1,elc_split_home($rows[$index],$allocation,$entity));
+        $splitIndexes=array_unique(array_merge(array_keys($splits),array_keys($purposeSplits)));rsort($splitIndexes);foreach($splitIndexes as $index)array_splice($rows,$index,1,isset($purposeSplits[$index])?elc_split_purposes($s,$rows[$index],$purposeSplits[$index],$entity):elc_split_home($rows[$index],$splits[$index],$entity));
         $narration=(string)($old['paymentNarration']??$old['description']??'');
         if($monthly&&!str_contains(strtolower($narration),'monthly fee'))$narration='Monthly fee — Paid to '.(string)$old['payee'].($narration!==''?' — '.$narration:'');
         if($narrationOverride!==null)$narration=$narrationOverride;
@@ -94,7 +115,9 @@ function elc_apply(array &$s,array $manifest,string $batch):array {
         $tracking['paymentNarration']=$narration;
         $body=['id'=>$id,'recipientInNarration'=>true,'payee'=>$old['payee'],'paymentDate'=>$old['paymentDate'],'paymentAccountId'=>$old['paymentAccountId'],'reference'=>$old['reference']??'','amount'=>$old['amount'],'expenseLines'=>$rows,'paymentNarration'=>$narration,'reason'=>substr('Owner-approved reclassification: '.implode('; ',array_unique($reasons)),0,490)];
         $priorIds=array_keys($s['journals']);$result=dex_amend($s,$entity,$body,$actor,$names,$tracking);tt_accounts_track_bank_payment($s,$priorIds,$tracking);
+        foreach(array_diff(array_keys($s['journals']),$priorIds) as $jid){$reversed=(string)($s['journals'][$jid]['reversalOf']??'');if($reversed!==''&&isset($s['journals'][$reversed]))$s['journals'][$jid]['date']=$s['journals'][$reversed]['date'];}
         $new=$s['generalExpenses'][$result['generalExpenseId']];
+        foreach((array)($s['expensePersonalLinks']['EXPENSE|'.$new['id']]['rows']??[]) as $recovery)if(!empty($recovery['advanceId']))$allowedAdvances[$recovery['advanceId']]=true;
         if((int)round(100*(float)$new['amount'])!==(int)round(100*(float)$old['amount']))throw new RuntimeException('Original expense amount changed. No batch was saved.');
         foreach(['paymentDate','paymentAccountId','reference','payeeId'] as $key)if(($key!=='payeeId'||!empty($old[$key]))&&(($new[$key]??'')!==($old[$key]??'')))throw new RuntimeException('Original expense/payment identity changed: '.$key.'. No batch was saved.');
         if(($new['publicPostId']??'')!==$public)throw new RuntimeException('Original public posting identity changed.');
@@ -103,9 +126,12 @@ function elc_apply(array &$s,array $manifest,string $batch):array {
     $archived=!empty($manifest['archiveExpenseOnlyRecipients'])?elc_archive($s,$actor):[];
     if(elc_totals($s,true)!==$payments)throw new RuntimeException('Bank/cash/card balances or dates changed. No batch was saved.');
     $expected=array_filter($expected,static fn($n)=>$n!==0);ksort($expected);if(elc_totals($s)!==$expected)throw new RuntimeException('Ledger changes differ from the reviewed reclassification.');
-    foreach($before as $key=>$value)if(!in_array($key,['journals','generalExpenses','expenseAudit','expensePersonalLinks','paymentPayees','paymentPayeeAudit','accountSubaccounts','subaccountAudit','expenseLedgerMaintenance','revision'],true)&&serialize($s[$key]??null)!==serialize($value))throw new RuntimeException('An unrelated source register changed.');
+    $daily=array_filter($daily,static fn($n)=>$n!==0);ksort($daily);if(elc_totals($s,false,true)!==$daily)throw new RuntimeException('Historical daily ledger balances changed outside the approved classification.');
+    foreach(array_unique(array_merge(array_keys((array)($before['salaryAdvances']??[])),array_keys((array)($s['salaryAdvances']??[])))) as $advanceId)if(!isset($allowedAdvances[$advanceId])&&serialize($before['salaryAdvances'][$advanceId]??null)!==serialize($s['salaryAdvances'][$advanceId]??null))throw new RuntimeException('An unrelated remuneration advance changed.');
+    if(elc_advances($s)!==elc_advances($before))throw new RuntimeException('Remuneration recovery amounts, months or outstanding balances changed.');
+    foreach($before as $key=>$value)if(!in_array($key,['salaryAdvances','journals','generalExpenses','expenseAudit','expensePersonalLinks','paymentPayees','paymentPayeeAudit','accountSubaccounts','subaccountAudit','expenseLedgerMaintenance','revision'],true)&&serialize($s[$key]??null)!==serialize($value))throw new RuntimeException('An unrelated source register changed.');
     foreach(['TTI','BRM'] as $entity)pc_assert_balances($s,$entity);
-    $result=['ok'=>true,'batch'=>$batch,'corrections'=>$results,'archivedRecipients'=>$archived,'bankCashCardBalancesUnchanged'=>true,'originalAmountsDatesSourcesPreserved'=>true,'authorisedBy'=>'Salman','performedBy'=>$actor['username'],'completedAt'=>gmdate('c')];
+    $result=['ok'=>true,'batch'=>$batch,'corrections'=>$results,'archivedRecipients'=>$archived,'historicalDailyBalancesPreserved'=>true,'remunerationRecoveryBalancesUnchanged'=>true,'bankCashCardBalancesUnchanged'=>true,'originalAmountsDatesSourcesPreserved'=>true,'authorisedBy'=>'Salman','performedBy'=>$actor['username'],'completedAt'=>gmdate('c')];
     $s['expenseLedgerMaintenance'][$batch]=$result;return $result;
 }
 
