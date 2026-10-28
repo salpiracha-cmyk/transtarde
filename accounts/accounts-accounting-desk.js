@@ -120,6 +120,7 @@
     return order.map(key=>key==='jv'?{key:'jv',title:'J.V',actions:[]}:areas.find(a=>a.key===key)).filter(Boolean);
   };
 
+  for(const [areas,key] of [[pakistanAreas,'bank'],[tgAreas,'tg-bank']]) areas.find(a=>a.key===key)?.actions.push({title:'Third-party Payments Register',note:'Information only: received from, paid to, date and amount',special:'third-party-register'});
   function installStyle() {
     if (q('#ttAccountingDeskStyle')) return;
     const style = document.createElement('style');
@@ -216,6 +217,7 @@
     qa('.tt-editor-stage').forEach(e=>e.classList.remove('tt-editor-stage'));
     document.body.classList.remove('tt-modal-open');
     window.TT_EXPENSE_EDITOR?.claim('');
+    if(action.special==='third-party-register'){location.href='/accounts/third-party-register.php?entity='+encodeURIComponent(entity());return;}
     if(action.special==='exporter-sodas'){location.href='/directors/exporter-trading.php?origin=accounts&entity='+encodeURIComponent(entity());return;}
     if(action.special==='customer-receivables'){const company=entity();try{const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);if(current())openCustomerReceivables(data.customerReceivables);}catch(error){alert(error.message);}return;}
     if(action.native==='reports'&&['Receivables','Commodity','Shipment'].includes(action.find))return window.TT_REPORTS.open({Receivables:'balances',Commodity:'commodity',Shipment:'shipment'}[action.find]);
