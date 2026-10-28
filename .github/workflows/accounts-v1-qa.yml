@@ -127,6 +127,8 @@ jobs:
           node tests/accounts-v1/broker_brokery_master_test.js
           node tests/accounts-v1/planned_voucher_test.js
           php tests/accounts-v1/soda_completion_test.php
+          php tests/accounts-v1/soda_buying_fifo_test.php
+          php tests/accounts-v1/production_recovery_cost_test.php
           php tests/accounts-v1/company_party_choices_test.php
           php tests/accounts-v1/tg_account_scope_test.php
           python3 tests/accounts-v1/tg_bill_preview_test.py

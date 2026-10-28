@@ -4,6 +4,7 @@ require_once __DIR__.'/business_reports_core.php';
 require_once __DIR__.'/shipment_profitability_core.php';
 require_once __DIR__.'/accounts_ledger_visibility.php';
 require_once __DIR__.'/mill_recovery_cost.php';
+require_once __DIR__.'/soda_buying_for_core.php';
 
 function ss_lots(array $root):array {
     $out=[];foreach(['TTI','BRM'] as $e)foreach(dt_lots($root,$e) as $id=>$r){if(($r['pakistanExporter']??'')!==$e)continue;$out[$id]=$r+['costEntity'=>$e];}return $out;
@@ -91,13 +92,35 @@ function ss_recipe_goods(array $saved,float $mt):array {
     $mill=dt_milling_rate($i);$processing=gm_number($i['processingPKRPerKg']??0,'processing rate');$cost=$raw*($purchase+$mill+$processing)-$by;if($cost<0)throw new DomainException('By-product credit exceeds raw and production costs.');
     return ['amountPKR'=>round($cost,2),'basis'=>'Provisional · saved costing assumptions','source'=>$saved['id'].' · '.$saved['date'].' · '.$saved['name'],'rawKg'=>$raw,'finishedKg'=>$qty,'recoveryPct'=>$finished*100,'rawRate'=>$purchase,'rawValue'=>$raw*$purchase,'millingRate'=>$mill,'millingValue'=>$raw*$mill,'processingRate'=>$processing,'processingValue'=>$raw*$processing,'byproductValue'=>$by,'byproducts'=>$details,'costPerKg'=>$qty>0?$cost/$qty:null,'costPerMT'=>$mt>0?$cost/$mt:null];
 }
+/** Contract production must cover all own cargo, after external supplier loadings. */
+function ss_contract_own_kg(array $books,array $ops,string $entity,string $contract,string $date):float {
+    if(!isset($ops['values']['transtrade_export_v3_operational']))return 0.;$kg=0.;
+    foreach(ss_lots(br_root($ops)) as $lot){
+        if($lot['costEntity']!==$entity||$lot['contract']!==$contract||($lot['invoiceDate']??'')>$date)continue;
+        $external=0.;foreach((array)($books['exporterDeals']??[]) as $d){if(($d['entity']??'')!==$entity||($d['direction']??'')!=='PURCHASE')continue;
+            foreach((array)($d['loadings']??[]) as $l)if(($l['shipmentId']??'')===$lot['id']&&($l['date']??'')<=$date)$external+=(float)($l['quantityMT']??0)*1000;
+        }
+        $kg+=max(0,$lot['quantityMT']*1000-$external);
+    }
+    return $kg;
+}
 function ss_contract_goods(array $s,array $ops,array $lot,string $date,float $mt):array {
-    $runs=pc_op($ops,'tt30prod');$report=mr_attach_costs(mr_report($runs,['entity'=>$lot['costEntity'],'mode'=>'contract','contract'=>$lot['contract'],'to'=>$date]),$runs,mr_cost_sources($s,$ops,$lot['costEntity']));
+    $runs=pc_op($ops,'tt30prod');$report=mr_attach_costs(mr_report($runs,['entity'=>$lot['costEntity'],'mode'=>'contract','contract'=>$lot['contract'],'to'=>$date]),$runs,mr_cost_sources($s,$ops,$lot['costEntity'],true));
     $group=null;foreach($report['groups'] as $g)if($g['key']===$lot['contract'])$group=$g;
-    if(!$group||empty($group['cost']['available']))throw new DomainException($group['cost']['status']??'Actual raw/finished/by-product allocation is required for this contract, or select its saved costing.');
-    $qty=$mt*1000;if($group['readyKg']+.001<$qty)throw new DomainException('Shipment quantity exceeds the contract-linked finished production available to cost.');
+    $ready=sb_ready_pool($s,$lot['costEntity'],'EXPORT|'.$lot['contract'],$date);
+    if($ready['kg']>0){
+        $produced=$group?(float)$group['readyKg']:0.;
+        if($produced>0&&empty($group['cost']['available']))throw new DomainException($group['cost']['status']);
+        $kg=$ready['kg']+$produced;$value=$ready['value']+($group['cost']['readyRiceValue']??0);$needed=$mt*1000;
+        $shipped=ss_contract_own_kg($s,$ops,$lot['costEntity'],$lot['contract'],$date);
+        if(max($shipped,$needed)>$kg+.001)throw new DomainException('Contract shipments exceed received allocated purchases and finished production. Complete the SODA allocation / receipt.');
+        $amount=round($needed*$value/$kg,2);
+        return ['amountPKR'=>$amount,'source'=>implode(', ',$ready['sources']).($produced>0?'; contract production':''),'basis'=>'Management estimate · allocated accepted ready-rice receipts'.($ready['provisional']?' (final purchase bill pending)':' (finalized purchase bills)').($produced>0?'; FIFO production cost':''),'finishedKg'=>$needed,'costPerKg'=>$value/$kg,'costPerMT'=>$value/$kg*1000,'purchaseAllocatedKg'=>$ready['kg']];
+    }
+    if(!$group||empty($group['cost']['available']))throw new DomainException($group['cost']['status']??'Record actual production for this contract or link a received ready-rice SODA through Buying for.');
+    $qty=$mt*1000;$shipped=ss_contract_own_kg($s,$ops,$lot['costEntity'],$lot['contract'],$date);if($group['readyKg']+.001<max($qty,$shipped))throw new DomainException('Shipment quantity exceeds the contract-linked finished production available to cost.');
     $scale=$qty/$group['readyKg'];$cost=$group['cost'];$amount=round($cost['readyRiceValue']*$scale,2);$by=[];foreach($group['byproducts'] as $r)$by[]=['product'=>$r['product'],'kg'=>$r['kg']*$scale,'rate'=>$r['costPerKg'],'valuePKR'=>round($r['costValue']*$scale,2)];
-    return ['amountPKR'=>$amount,'source'=>implode(', ',array_column($group['runs'],'id')),'basis'=>$cost['status'],'finishedKg'=>$qty,'rawKg'=>$group['inputKg']*$scale,'recoveryPct'=>$group['readyKg']/$group['inputKg']*100,'rawRate'=>$cost['rawAverageCostPerKg'],'rawValue'=>$cost['rawValue']*$scale,'millingValue'=>$cost['fixedOverheadValue']*$scale,'processingValue'=>$cost['conversionValue']*$scale,'byproductValue'=>$cost['byProductValue']*$scale,'byproducts'=>$by,'costPerKg'=>$qty>0?$amount/$qty:null,'costPerMT'=>$mt>0?$amount/$mt:null,'millingLabel'=>'Allocated fixed mill overhead','processingLabel'=>'Recorded conversion costs / labelled management fallback'];
+    return ['amountPKR'=>$amount,'source'=>implode(', ',array_column($group['runs'],'id')),'basis'=>$cost['status'],'finishedKg'=>$qty,'fifoReceipts'=>array_merge(...array_map(static fn($r)=>$r['fifoLayers']??[],$group['raw'])),'rawKg'=>$group['inputKg']*$scale,'recoveryPct'=>$group['readyKg']/$group['inputKg']*100,'rawRate'=>$cost['rawAverageCostPerKg'],'rawValue'=>$cost['rawValue']*$scale,'millingValue'=>$cost['fixedOverheadValue']*$scale,'processingValue'=>$cost['conversionValue']*$scale,'byproductValue'=>$cost['byProductValue']*$scale,'byproducts'=>$by,'costPerKg'=>$qty>0?$amount/$qty:null,'costPerMT'=>$mt>0?$amount/$mt:null,'millingLabel'=>'Allocated fixed mill overhead','processingLabel'=>'Recorded conversion costs / labelled management fallback'];
 }
 function ss_goods(array $s,array $ops,array $lot,array $candidates,string $date,string $costingId):array {
     $mt=(float)$lot['quantityMT'];$externalMT=0.;foreach((array)($s['exporterDeals']??[]) as $d){
@@ -126,7 +149,7 @@ function ss_report(array $s,array $ops,array $root,string $date,string $id,bool 
     $real=ss_realization($s,$root,$lot,$ship,$candidates,$date,$rates);$expenses=ss_expenses($s,$lot,$candidates,$date,$rates);$holds=array_merge($real['holds'],$expenses['holds']);$rows=array_merge($real['rows'],$expenses['rows']);$goods=null;
     if($includeGoods){try{$goods=ss_goods($s,$ops,$lot,$candidates,$date,$costingId);$rows[]=ss_line('Cost of goods',null,-$goods['amountPKR'],$lot['quantityMT'],$goods['source'],$goods['basis']);}catch(DomainException $e){$holds[]=$e->getMessage();$rows[]=ss_line('Cost of goods',null,null,$lot['quantityMT'],'','Source required');}}
     $net=$holds||$real['netPKR']===null||$expenses['totalPKR']===null?null:round($real['netPKR']+$expenses['totalPKR']-($includeGoods?($goods['amountPKR']??0):0),2);$label=$includeGoods?'Shipment profit / (loss)':'Balance before cost of goods';
-    $rows[]=ss_line($label,null,$net,$lot['quantityMT'],'','Management result · cost completeness requires review');
+    $rows[]=ss_line($label,null,$net,$lot['quantityMT'],'',$holds?'Source details required':($includeGoods?($goods['basis']??'Calculated group result'):'Calculated group balance'));
     $costings=[];foreach((array)($s['directorCostings']??[]) as $r)if($r['entity']===$lot['costEntity']&&$r['date']<=$date&&strtoupper($r['input']['commodity']??'RICE')===strtoupper($lot['commodity']??'RICE'))$costings[]=['id'=>$r['id'],'name'=>$r['name'],'date'=>$r['date']];
-    return ['shipments'=>$choices,'statement'=>['shipment'=>$lot,'date'=>$date,'includeGoods'=>$includeGoods,'costingId'=>$costingId,'costings'=>$costings,'rows'=>$rows,'goods'=>$goods,'receiptSlices'=>$real['slices'],'rates'=>$rates,'unrealisedFX'=>$real['unrealisedFX'],'unrealisedMT'=>$real['unrealisedMT'],'resultPKR'=>$net,'marginPct'=>$includeGoods&&$net!==null&&$real['grossPKR']>0?round($net/$real['grossPKR']*100,2):null,'holds'=>array_values(array_unique($holds)),'notes'=>array_merge($real['notes'],['Includes linked actual costs only. Unbilled estimates remain in Estimated Bills; unlinked expenses require allocation before final sign-off.','This management report does not post or change company books. USD is shown only for original USD components; PKR-only lines are not back-converted.'])]];
+    return ['shipments'=>$choices,'statement'=>['shipment'=>$lot,'date'=>$date,'includeGoods'=>$includeGoods,'costingId'=>$costingId,'costings'=>$costings,'rows'=>$rows,'goods'=>$goods,'receiptSlices'=>$real['slices'],'rates'=>$rates,'unrealisedFX'=>$real['unrealisedFX'],'unrealisedMT'=>$real['unrealisedMT'],'resultPKR'=>$net,'marginPct'=>$includeGoods&&$net!==null&&$real['grossPKR']>0?round($net/$real['grossPKR']*100,2):null,'holds'=>array_values(array_unique($holds)),'notes'=>array_merge($real['notes'],['Goods cost uses original posted costs where available; otherwise it shows labelled accepted-purchase / FIFO production estimates. Unlinked expenses still require allocation.','This management report does not post or change company books. USD is shown only for original USD components; PKR-only lines are not back-converted.'])]];
 }
