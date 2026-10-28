@@ -395,6 +395,54 @@ require $argv[1];
         balances.append(ledger['closing'])
     assert balances[0]+balances[1]==balances[2]
     print('Separate Director remuneration/home payable ledgers reconcile to their combined parent without rewriting historical lines.')
+
+    # Canonical family views: two per son, one ARP, one-sided movements and no writes.
+    original_family_books=books.read_bytes();family_fixture=json.loads(original_family_books)
+    family_fixture['salaryMasters']['OFFICE-SALMAN']={'id':'OFFICE-SALMAN','entity':'TTI','name':'SALMAN','category':'OFFICE_STAFF','status':'Active'}
+    def family_journal(key,lines,narration):
+        family_fixture['journals'][key]={'id':key,'entity':'TTI','status':'Posted','date':'2027-02-15','narration':narration,'lines':lines,'meta':{}}
+    family_journal('PERSONAL', [{'account':'1230','debit':20000,'credit':0,'expenseFor':'FAM-SALMAN','personalRecovery':True},{'account':'6910','debit':0,'credit':20000,'personalRecovery':True}], 'Personal cost recoverable from Salman')
+    family_journal('PAY', [{'account':'2230','debit':10000,'credit':0,'salaryMasterId':'D'},{'account':'1120','debit':0,'credit':10000}], 'Allowance paid to Salman')
+    family_journal('INTERNAL', [{'account':'2230','debit':20000,'credit':0,'salaryMasterId':'D'},{'account':'1230','debit':0,'credit':20000,'salaryMasterId':'D'}], 'Internal adjustment, no second payment')
+    family_journal('SAMAD', [{'account':'6910','debit':30000,'credit':0,'expenseArea':'HOME','counterparty':'ABDUL SAMAD ABDUL AZIZ'},{'account':'1120','debit':0,'credit':30000}], 'SRP household costs')
+    family_journal('ARP', [{'account':'6910','debit':600,'credit':0,'expenseFor':'FAM-ABU','personalTreatment':'COMPANY'},{'account':'1120','debit':0,'credit':600}], 'ARP medical cost')
+    family_journal('REIMBURSE', [{'account':'REIMB-SALMAN','debit':0,'credit':5000},{'account':'6900','debit':5000,'credit':0}], 'Company expense paid personally by Salman')
+    family_journal('COMBINED', [{'account':'6210','debit':7000,'credit':0,'salaryMasterId':'D'},{'account':'2230','debit':0,'credit':7000,'salaryMasterId':'D'},{'account':'2230','debit':7000,'credit':0,'salaryMasterId':'D'},{'account':'1120','debit':0,'credit':7000}], 'Monthly entitlement and payment on one voucher')
+    family_journal('COMBINED-ZAKAT', [{'account':'6210','debit':5000,'credit':0,'salaryMasterId':'D','month':'2027-05'},{'account':'7210','debit':1000,'credit':0,'salaryMasterId':'D','month':'2027-05'},{'account':'2230','debit':0,'credit':6000,'salaryMasterId':'D','month':'2027-05'},{'account':'2230','debit':6000,'credit':0,'salaryMasterId':'D','month':'2027-05'},{'account':'1120','debit':0,'credit':6000}], 'Monthly entitlement, Zakat and payment on one voucher')
+    family_journal('OTHER-SALMAN', [{'account':'2230','debit':0,'credit':900,'salaryMasterId':'OFFICE-SALMAN'},{'account':'6200','debit':900,'credit':0,'salaryMasterId':'OFFICE-SALMAN'}], 'Different staff member sharing first name')
+    family_journal('ZERO', [{'account':'2230','debit':0,'credit':0,'salaryMasterId':'D'}], 'Zero line for review')
+    books.write_text(json.dumps(family_fixture));family_stable=books.read_bytes()
+    for code,expected in [('FAMILY|SALMAN|REMUNERATION',-50000),('FAMILY|SALMAN|HOME',330000),('FAMILY|ARP|EXPENSE',600)]:
+        status,statement=request('accounts_ledger_browser','?entity=TTI&category=other&account='+code+'&from=2027-01-01&to=2027-12-31');assert status==200,(status,statement)
+        assert statement['familyStatement'] and statement['closing']==expected,(code,statement)
+        assert all((r['debit']>0) != (r['credit']>0) for r in statement['rows'])
+        assert not any(r['voucher'] in ['INTERNAL','ZERO'] for r in statement['rows'])
+        catalog=[a['code'] for a in statement['accounts'] if not a.get('hiddenFamilyLedger')]
+        assert any(a['code']=='REIMB-SALMAN' and a['hiddenFamilyLedger'] for a in statement['accounts']),'Original reimbursement account must remain available to posting/correction tools'
+        assert len([c for c in catalog if c.startswith('FAMILY|SALMAN|')])==2
+        assert 'PAYROLL|D' not in catalog and 'PAYROLL|H' not in catalog and 'PAYROLL|OFFICE-SALMAN' in catalog and not any(c.startswith('DIRECTOR|') for c in catalog)
+        assert any(r['type']=='Zero-value posting line' for r in statement['ledgerReviews'])
+        if code.endswith('|REMUNERATION'):
+            assert len([r for r in statement['rows'] if r['voucher']=='COMBINED'])==2
+            assert len([r for r in statement['rows'] if r['voucher']=='COMBINED-ZAKAT' and max(r['debit'],r['credit'])==5000])==2
+        if code.endswith('|HOME'):assert any('Paid to ABDUL SAMAD ABDUL AZIZ' in r['narration'] for r in statement['rows'])
+    assert books.read_bytes()==family_stable
+    status,opening=request('accounts_ledger_browser','?entity=TTI&category=other&account=FAMILY|SALMAN|REMUNERATION&from=2027-03-01&to=2027-12-31');assert status==200 and opening['opening']==-50000 and opening['closing']==-50000 and not opening['rows']
+    # Zakat paid through payroll belongs to Donations, not personal remuneration.
+    zakat_fixture={'journals':{},'salaryMasters':{'Z':{'id':'Z','entity':'TTI','name':'TAYYAB','category':'DIRECTOR_REMUNERATION','monthlyAmount':75000,'zakatAmount':25000,'otherAllowance':0,'accountingTreatment':'STAFF_COST','status':'Active','effectiveFrom':'2026-07-01'}}}
+    books.write_text(json.dumps(zakat_fixture))
+    status,prepared=request('rent_salary_v2','?entity=TTI&month=2027-04',{'action':'prepare_month','csrf':'fixture','entity':'TTI','month':'2027-04'});assert status==200,(status,prepared)
+    status,rem=request('accounts_ledger_browser','?entity=TTI&category=other&account=FAMILY|TAYYAB|REMUNERATION&from=2027-01-01&to=2027-12-31');assert status==200 and rem['closing']==-75000,(status,rem)
+    prepared_bytes=books.read_bytes()
+    status,partial=request('rent_salary_v2','?entity=TTI&month=2027-04',{'action':'salary_payment','csrf':'fixture','entity':'TTI','month':'2027-04','masterId':'Z','amount':10000,'date':'2027-04-05','paymentAccountId':'CASH|TTI','requestKey':'family-partial-zakat-payment'});assert status==200,(status,partial)
+    status,unallocated=request('accounts_ledger_browser','?entity=TTI&category=other&account=FAMILY|TAYYAB|REMUNERATION&from=2027-01-01&to=2027-12-31');assert status==200 and unallocated['balanceUnavailable'] and unallocated['closing'] is None and unallocated['statementWarnings'],(status,unallocated)
+    books.write_bytes(prepared_bytes)
+    status,paid=request('rent_salary_v2','?entity=TTI&month=2027-04',{'action':'salary_payment','csrf':'fixture','entity':'TTI','month':'2027-04','masterId':'Z','amount':100000,'date':'2027-04-05','paymentAccountId':'CASH|TTI','requestKey':'family-zakat-payment'});assert status==200,(status,paid)
+    status,rem=request('accounts_ledger_browser','?entity=TTI&category=other&account=FAMILY|TAYYAB|REMUNERATION&from=2027-01-01&to=2027-12-31');assert status==200 and rem['closing']==0,(status,rem)
+    assert all(max(r['debit'],r['credit'])==75000 for r in rem['rows']),rem
+    books.write_bytes(original_family_books)
+    print('Canonical family remuneration/home/ARP statements: exact totals, one-sided rows, no internal double-count, recipient narration, opening and review flags; zero writes passed.')
+
     # Explicit Zakat wording wins over the ordinary Office/Home defaults, on
     # both the read-only accounting preview and the final original workflow.
     permissions['expenses']=['View','Create','Edit'];permissions['reports']=['View'];set_user()
