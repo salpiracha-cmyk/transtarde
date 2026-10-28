@@ -16,7 +16,7 @@ function rf_sources(array $books,array $ops,string $entity):array {
     usort($events,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:($a['priority']<=>$b['priority'])?:strcmp($a['id'],$b['id']));
     $layers=[];$uncertain=[];$out=[];
     foreach($events as $event){
-        $r=$event['row'];$mill=pc_norm((string)($r['locationName']??$r['source']['millName']??$r['source']['locationName']??''));$key=$mill.'|'.$r['varietyKey'].'|'.rf_type((string)($r['riceType']??$r['source']['riceType']??$r['variety']));
+        $r=$event['row'];$mill=pc_norm((string)($r['locationName']??$r['source']['millName']??$r['source']['locationName']??''));$key=$mill.'|'.$r['varietyKey'].'|'.rf_type((string)($r['riceType']??$r['source']['riceType']??'').' '.$r['variety']);
         if($event['priority']===0){$layers[$key][]=$r;continue;}
         if(!in_array(strtoupper((string)($r['source']['inputStage']??'RAW')),['','RAW'],true)){$out[$r['id']]=['available'=>false,'rawRate'=>0.,'rawValue'=>0.,'provisional'=>false,'layers'=>[],'status'=>'Reprocessing requires the actual input-stock cost'];continue;}
         $need=(float)$r['inputKg'];$value=0.;$remaining=$need;$trace=[];$provisional=false;$issue='';

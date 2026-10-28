@@ -41,6 +41,11 @@ assertTrue(array_column($fifo['P1']['layers'],'sourceKey')===['R1','R2'],'FIFO t
 receipt($books,'FUTURE','2026-10-06',100,90);assertTrue(!rf_sources($books,$ops,'TTI')['P3']['available'],'Future receipts never cover earlier production');
 $books['journals']['R1']['reversedByPostId']='REV';assertTrue(!rf_sources($books,$ops,'TTI')['P1']['available'],'Reversed receipt excluded');unset($books['journals']['R1']['reversedByPostId']);
 receipt($books,'PURCHASE','2026-10-02',2000,100,'Mill A','READY','TTI','S1');
+$books['purchaseSodas']['S1']['buyingForAllocations'][]=['targetId'=>'EXPORTER|D1','quantityKg'=>1000];
+receipt($books,'PURCHASE','2026-10-02',1500,100,'Mill A','READY','TTI','S1');
+closeTo(sb_ready_pool($books,'TTI','EXPORT|C1','2026-10-04')['kg'],1000,'Partial arrivals fill first reserved contract before general stock');
+closeTo(sb_ready_pool($books,'TTI','EXPORTER|D1','2026-10-04')['kg'],500,'Second allocation receives remaining physical cargo only');
+receipt($books,'PURCHASE','2026-10-02',2000,100,'Mill A','READY','TTI','S1');$books['purchaseSodas']['S1']['buyingForAllocations']=$a;
 $pool=sb_ready_pool($books,'TTI','EXPORT|C1','2026-10-04');closeTo($pool['kg'],1000,'Only reserved portion of physical receipt');closeTo($pool['value'],100000,'Ready cargo exact purchase cost');
 assertTrue(sb_ready_pool($books,'TTI','EXPORT|C1','2026-10-01')['kg']===0.,'No future ready purchases');assertTrue(sb_ready_pool($books,'BRM','EXPORT|C1','2026-10-04')['kg']===0.,'Ready purchase costs stay in legal books');
 unset($books['commodityBills']['PURCHASE']);assertTrue(sb_ready_pool($books,'TTI','EXPORT|C1','2026-10-04')['provisional'],'Unbilled accepted purchase remains labelled estimate');

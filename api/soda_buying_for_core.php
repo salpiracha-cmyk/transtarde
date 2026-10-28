@@ -45,13 +45,13 @@ function sb_ready_pool(array $books,string $entity,string $target,string $date):
     $pool=['kg'=>0.,'value'=>0.,'provisional'=>false,'sources'=>[]];$receipts=pc_receipts($books);
     foreach((array)($books['purchaseSodas']??[]) as $id=>$soda){
         if(($soda['entity']??'')!==$entity||($soda['productStage']??'')!=='READY'||($soda['status']??'')==='Cancelled')continue;
-        $reserved=0.;foreach((array)($soda['buyingForAllocations']??[]) as $a)if(($a['targetId']??'')===$target)$reserved+=(float)($a['quantityKg']??0);
+        $reserved=0.;$priorKg=0.;foreach((array)($soda['buyingForAllocations']??[]) as $a){if(($a['targetId']??'')===$target){$reserved=(float)($a['quantityKg']??0);break;}$priorKg+=(float)($a['quantityKg']??0);}
         if($reserved<=0)continue;$kg=0.;$value=0.;$provisional=false;$sources=[];
         foreach($receipts as $r){if($r['entity']!==$entity||$r['date']>$date)continue;
             if($r['sourceSodaId']!==(string)($soda['id']??$id)&&!($r['sourceSodaId']===''&&$r['soda']!==''&&$r['soda']===(string)($soda['sodaNo']??'')))continue;
             $kg+=$r['kg'];$value+=$r['value'];$provisional=$provisional||!$r['final'];$sources[]=$r['sourceKey'];
         }
-        if($kg<=0)continue;$share=min(1,$reserved/max(.001,(float)($soda['qtyToKg']??0),$kg));
+        if($kg<=0)continue;$share=min($reserved,max(0.,$kg-$priorKg))/$kg;
         $pool['kg']+=$kg*$share;$pool['value']+=$value*$share;$pool['provisional']=$pool['provisional']||$provisional;
         $pool['sources'][]=(string)($soda['sodaNo']??$id).' ['.implode(', ',$sources).']';
     }
