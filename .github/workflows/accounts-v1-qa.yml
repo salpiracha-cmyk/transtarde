@@ -36,7 +36,6 @@ jobs:
           python3 tests/accounts-v1/staff_payment_amend_http_test.py
           php tests/accounts-v1/directors_trading_test.php
           php tests/accounts-v1/exporter_soda_arrangements_test.php
-          node tests/accounts-v1/exporter_soda_arrangements_ui_test.js
           python3 tests/accounts-v1/directors_trading_endpoint_test.py
           python3 tests/accounts-v1/director_cost_defaults_test.py
           php tests/accounts-v1/group_management_test.php
@@ -380,6 +379,7 @@ jobs:
           node tests/accounts-v1/sales_tax_output_ui_test.js
           node tests/accounts-v1/director_simple_costing_browser_test.js
           node tests/accounts-v1/directors_trading_ui_test.js
+          node tests/accounts-v1/exporter_soda_arrangements_ui_test.js
           node tests/accounts-v1/director_simple_costing_test.js
           node tests/accounts-v1/director_cashflow_output_test.js
           node tests/accounts-v1/business_reports_browser_test.js
