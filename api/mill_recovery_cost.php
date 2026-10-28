@@ -2,11 +2,11 @@
 declare(strict_types=1);
 require_once __DIR__.'/production_costing_core.php';
 require_once __DIR__.'/management_costing_core.php';
-require_once __DIR__.'/raw_fifo_core.php';
 
 /** Reuse the costing engines; report reads never save rates or post journals. */
 function mr_cost_sources(array $accounts,array $ops,string $entity,bool $fifo=false):array {
     $management=[];foreach(mc_build($accounts,$ops,$entity) as $sheet)$management[$sheet['date'].'|'.$sheet['varietyKey']]=$sheet;
+    if($fifo)require_once __DIR__.'/raw_fifo_core.php';
     $fifoSources=$fifo?rf_sources($accounts,$ops,$entity):[];
     $map=[];
     foreach(pc_calculate($accounts,$ops,$entity)['groups'] as $g){
