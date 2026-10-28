@@ -31,8 +31,10 @@ invalid(fn()=>sb_validate([['targetId'=>'EXPORT|C1','quantityKg'=>2500]],$ready,
 assertTrue(sb_validate([['targetId'=>'EXPORT|C1','quantityKg'=>2000]],$ready,3000,$targets,$books,'TTI','S1')[0]['quantityKg']===2000.,'Amend excludes own old allocation');
 receipt($books,'R1','2026-10-01',1000,60);receipt($books,'R2','2026-10-02',1000,80);
 receipt($books,'WRONGMILL','2026-10-01',10000,1,'Mill B');receipt($books,'READY','2026-10-01',10000,1,'Mill A','READY');receipt($books,'BRM','2026-10-01',10000,1,'Mill A','RAW','BRM');
-$runs=[production('P1','2026-10-03',1500),production('P2','2026-10-04',500),production('P3','2026-10-05',10)];$ops['values']['tt30prod']=json_encode($runs);
+$reprocess=production('REPROCESS','2026-10-02',100);$reprocess['inputStage']='READY';
+$runs=[$reprocess,production('P1','2026-10-03',1500),production('P2','2026-10-04',500),production('P3','2026-10-05',10)];$ops['values']['tt30prod']=json_encode($runs);
 $before=serialize([$books,$ops]);$fifo=rf_sources($books,$ops,'TTI');
+assertTrue(!$fifo['REPROCESS']['available'],'Reprocessing neither consumes nor contaminates raw FIFO');
 closeTo($fifo['P1']['rawValue'],100000,'FIFO consumes oldest 1000 at 60 then 500 at 80');closeTo($fifo['P2']['rawValue'],40000,'Second run consumes remainder once');assertTrue(!$fifo['P3']['available'],'No reuse, other mill, ready rice or other company');
 assertTrue(array_column($fifo['P1']['layers'],'sourceKey')===['R1','R2'],'FIFO trace keeps original receipt identities');
 receipt($books,'FUTURE','2026-10-06',100,90);assertTrue(!rf_sources($books,$ops,'TTI')['P3']['available'],'Future receipts never cover earlier production');

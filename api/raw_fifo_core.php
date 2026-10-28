@@ -18,10 +18,10 @@ function rf_sources(array $books,array $ops,string $entity):array {
     foreach($events as $event){
         $r=$event['row'];$mill=pc_norm((string)($r['locationName']??$r['source']['millName']??$r['source']['locationName']??''));$key=$mill.'|'.$r['varietyKey'].'|'.rf_type((string)($r['riceType']??$r['source']['riceType']??$r['variety']));
         if($event['priority']===0){$layers[$key][]=$r;continue;}
+        if(!in_array(strtoupper((string)($r['source']['inputStage']??'RAW')),['','RAW'],true)){$out[$r['id']]=['available'=>false,'rawRate'=>0.,'rawValue'=>0.,'provisional'=>false,'layers'=>[],'status'=>'Reprocessing requires the actual input-stock cost'];continue;}
         $need=(float)$r['inputKg'];$value=0.;$remaining=$need;$trace=[];$provisional=false;$issue='';
         if($mill==='')$issue='FIFO receipt / production mill is missing';
         elseif(empty($r['inputComplete']))$issue='Actual raw input is missing for FIFO';
-        elseif(!in_array(strtoupper((string)($r['source']['inputStage']??'RAW')),['','RAW'],true))$issue='Reprocessing requires the actual input-stock cost';
         elseif(!empty($uncertain[$key]))$issue='Earlier raw consumption is incomplete in this mill / variety';
         foreach($layers[$key]??[] as $index=>$layer){
             if($remaining<=.001)break;$kg=min($remaining,(float)$layer['kg']);if($kg<=0)continue;

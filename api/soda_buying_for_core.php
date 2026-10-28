@@ -9,7 +9,7 @@ function sb_targets(array $ops,array $books,string $entity):array {
     foreach(dt_contracts($root,dt_lots($root,$entity),$entity) as $contract){
         $ref=(string)$contract['ref'];$source=null;foreach($root['contracts'] as $c)if(($c['ref']??'')===$ref)$source=$c;
         if(!$source||!empty($source['cancelled'])||($source['status']??'')==='Cancelled')continue;
-        $out['EXPORT|'.$ref]=['id'=>'EXPORT|'.$ref,'kind'=>'EXPORT','reference'=>$ref,'customer'=>is_scalar($source['customer']??$source['buyer']??'')?(string)($source['customer']??$source['buyer']??''):'','product'=>(string)($source['product']??''),'commodity'=>(string)($source['commodity']??'RICE'),'quantityKg'=>(float)($contract['quantityMT']??0)*1000];
+        $out['EXPORT|'.$ref]=['id'=>'EXPORT|'.$ref,'kind'=>'EXPORT','reference'=>$ref,'customer'=>is_scalar($source['customer']??$source['buyer']??'')?(string)($source['customer']??$source['buyer']??''):'','product'=>(string)($source['product']??''),'commodity'=>(string)($source['commodity']??'RICE'),'quantityKg'=>((float)($contract['quantityMT']??0)>0?(float)$contract['quantityMT']:(float)($source['containers']??0)*(float)($source['weightPer']??0))*1000];
     }
     foreach((array)($books['exporterDeals']??[]) as $id=>$d){
         if(($d['entity']??'')!==$entity||($d['direction']??'')!=='SALE'||($d['status']??'')==='Cancelled')continue;
