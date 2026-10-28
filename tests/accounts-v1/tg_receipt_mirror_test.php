@@ -39,6 +39,8 @@ $pending=tgr_items($historical);$backdated=$body;$backdated['requestKey']='histo
 $partial=$backdated;$partial['ids']=[$pending[0]['id']];$before=$historical;
 try{tgr_confirm($historical,$partial,[],$banks,$names,['USD'=>3.67]);throw new RuntimeException('Partial reopened group accepted');}catch(DomainException $e){}
 check($historical===$before,'Incomplete reopened group leaves journals untouched');
+$changedBasis=$historical;$changedBasis['journals']['LATER-DEPOSIT']=['id'=>'LATER-DEPOSIT','entity'=>'TG','status'=>'Posted','date'=>'2026-10-02','lines'=>[['account'=>'1110','bankAccountId'=>'USD','currency'=>'USD','debit'=>500,'credit'=>0,'bankDebit'=>100,'bankCredit'=>0]]];
+$basisReplacement=tgr_confirm($changedBasis,$backdated,[],$banks,$names,['USD'=>5]);check($changedBasis['journals'][$basisReplacement['journalId']]['totalCredit']===$s['journals'][$r['journalId']]['totalCredit'],'Correcting historical date retains original AED carrying basis despite later bank funds');
 $replacement=tgr_confirm($historical,$backdated,[],$banks,$names,['USD'=>3.67]);$reverseId=$historical['tgRemittances'][$r['id']]['reversalJournalId'];
 check($historical['journals'][$reverseId]['date']==='2026-10-02','Original reversal audit date remains immutable');
 check($historical['journals'][$r['journalId']]['amendedByPostId']===$replacement['journalId'],'Reopened correction links old and new posting');

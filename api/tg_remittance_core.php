@@ -76,6 +76,13 @@ function tgr_confirm(array &$s,array $b,array $u,array $banks,array $names,array
   foreach((array)($s['journals']??[]) as $entry)if(($entry['reversalOf']??'')===($reverse['id']??''))throw new DomainException('The correction reversal has already changed. Reopen its review.');
   $opposite=(array)($original['lines']??[]);foreach($opposite as &$line)foreach([['debit','credit'],['bankDebit','bankCredit'],['nativeDebit','nativeCredit']] as [$dr,$cr])if(isset($line[$dr])||isset($line[$cr]))[$line[$dr],$line[$cr]]=[$line[$cr]??0,$line[$dr]??0];unset($line);
   if(!$opposite||$opposite!=($reverse['lines']??[]))throw new DomainException('The correction reversal does not fully cancel the original remittance. Review its Post ID.');
+  // Keep the historical carrying basis on a correction; a later bank deposit
+  // must not silently revalue an otherwise unchanged original withdrawal.
+  foreach($original['lines'] as $line)if(($line['account']??'')==='1110'&&(float)($line['bankCredit']??0)>0){
+   $historicalRate=(float)($line['credit']??0)/(float)$line['bankCredit'];
+   if(empty($line['chargeType'])&&($line['bankAccountId']??'')===$first['bankAccountId'])$internal['principalRate']=$historicalRate;
+   if(!isset($internal['chargeRate'])&&!empty($line['chargeType'])&&($line['bankAccountId']??'')===(string)($b['chargeBankAccountId']??$first['bankAccountId']))$internal['chargeRate']=$historicalRate;
+  }
   $correction=$old;
  }
  $cur=$first['currency'];$balance=tgr_bank_balance($s,$first['bankAccountId'],$cur);$rate=$cur==='AED'?1:(float)($internal['principalRate']??$balance['carryingRate']);if($rate<=0)$rate=(float)($rates[$cur]??0);if($rate<=0)throw new DomainException('Set the TG '.$cur.'/AED exchange rate in Company Master.');
