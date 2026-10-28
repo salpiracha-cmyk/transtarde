@@ -342,7 +342,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await activate(page.locator('#tal-close'));
 
   await deskAction(page, 'routine', 'Pay Expense');
-  await expect(page.locator('#dexPayee')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#dexNarration')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#dexPerson')).toHaveCount(0);
   await expect(page.locator('#ttExpenseDesk [data-post]')).toBeDisabled();
   await activate(page.locator('#ttExpenseDesk [data-add]'));

@@ -124,8 +124,17 @@ require $argv[1];
     invalid={**mixed,'requestKey':'purpose-invalid-0001','reference':'MIX-2','expenseLines':[{'category':'FUEL','assetId':'CAR-BRM','purpose':'Wrong company','amount':90}]}
     assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
     invalid['expenseLines'][0]['assetId']='';invalid['requestKey']='purpose-invalid-0002'
-    assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
+    status,untagged=request('expenses_v1','?entity=TTI',invalid);assert status==200,(status,untagged)
+    journal=json.loads(books.read_text())['journals'][untagged['result']['journalId']];assert journal['lines'][0]['account']=='6610' and not journal['lines'][0].get('assetId')
+    books.write_bytes(before)
     invalid['expenseLines'][0].update(category='OTHER',accountCode='6610');invalid['requestKey']='purpose-invalid-0003'
+    status,untagged=request('expenses_v1','?entity=TTI',invalid);assert status==200,(status,untagged)
+    books.write_bytes(before)
+    invalid['expenseLines'][0].update(category='CAR_REPAIRS',accountCode='6410');invalid['requestKey']='untagged-repairs'
+    status,untagged=request('expenses_v1','?entity=TTI',invalid);assert status==200,(status,untagged)
+    journal=json.loads(books.read_text())['journals'][untagged['result']['journalId']];assert journal['lines'][0]['account']=='6410' and not journal['lines'][0].get('assetId')
+    books.write_bytes(before)
+    invalid['expenseLines'][0].update(category='VEHICLE_TAX',accountCode='6620');invalid['requestKey']='untagged-tax'
     assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
     # Expense purpose remains independent of the existing person's first category.
     office={**mixed,'requestKey':'purpose-office-0001','reference':'MIX-3','amount':10,'expenseLines':[{'category':'OFFICE','purpose':'Stationery','amount':10}]}
@@ -530,6 +539,35 @@ require $argv[1];
     assert not any(p.get('name')=='Government of Pakistan / FBR' and p.get('accountCode')=='6900' for p in json.loads(books.read_text()).get('paymentPayees',{}).values()),'WHT-only deposits must not create an ordinary-expense default for the government'
     print('Custom rent/other WHT subsidiaries, bank/cash sources, tax-category/company guards, preview and retry passed.')
     print('Manual rent WHT, net payment, separate challan liability clearance, prepaid allocation and zero-write retry/preview passed.')
+    # Narration replaces the recipient entry; the explicitly chosen subledger owns the expense.
+    status,setup=request('accounts_subaccounts','?entity=TTI');assert status==200
+    status,setup=request('accounts_subaccounts','?entity=TTI',{'csrf':'fixture','entity':'TTI','operation':'add','name':'Fixture named service ledger','parentCode':'6700','parentId':'','taxCategory':'NONE','active':True,'revision':setup['revision'],'requestKey':'named-expense-ledger'})
+    assert status==200,(status,setup)
+    named_id=setup['result'].get('subaccountId') or setup['result'].get('id')
+    named={'action':'pay_expense','csrf':'fixture','entity':'TTI','requestKey':'narration-only-recipient','recipientInNarration':True,'payee':'','paymentDate':'2026-10-27','paymentAccountId':'CASH|TTI','reference':'NARRATION-LEDGER-1','amount':25,'paymentNarration':'Paid to fixture service company for tax advice','expenseLines':[{'category':'PROFESSIONAL','subaccountId':named_id,'accountCode':'6700','purpose':'Tax advice','amount':25}]}
+    before=json.loads(books.read_text());status,result=request('expenses_v1','?entity=TTI',named);assert status==200,(status,result)
+    saved=json.loads(books.read_text());record=saved['generalExpenses'][result['result']['generalExpenseId']];journal=saved['journals'][result['result']['journalId']]
+    assert record['payee']=='' and record['payeeId']=='' and record['recipientInNarration']
+    assert saved.get('paymentPayees',{})==before.get('paymentPayees',{}),'Narration must not manufacture a named recipient account'
+    assert journal['lines'][0]['subaccountId']==named_id and journal['lines'][0]['account']=='6700'
+    assert journal['narration']==named['paymentNarration'].upper(),journal['narration']
+    status,ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+named_id+'&from=2026-07-01&to=2026-12-31');assert status==200 and len(ledger['rows'])==1,(status,ledger)
+    stable=books.read_bytes();status,retry=request('expenses_v1','?entity=TTI',named);assert status==200 and books.read_bytes()==stable
+    amended={**named,'action':'amend_expense','id':record['id'],'requestKey':'narration-ledger-amend','reason':'Correct narration only','paymentNarration':'Paid to fixture service company — corrected details'}
+    status,result=request('expenses_v1','?entity=TTI',amended);assert status==200,(status,result)
+    saved=json.loads(books.read_text());replacement=saved['generalExpenses'][result['result']['generalExpenseId']]
+    assert replacement['expenseLines'][0]['subaccountId']==named_id and replacement['paymentAccountId']=='CASH|TTI'
+    assert saved['generalExpenses'][record['id']]['status']=='Amended'
+    status,setup=request('accounts_subaccounts','?entity=TTI');assert status==200
+    home_parent=next(a for a in setup['subaccounts'] if a.get('homePerson')=='FAM-SALMAN')
+    status,setup=request('accounts_subaccounts','?entity=TTI',{'csrf':'fixture','entity':'TTI','operation':'add','name':'Fixture home tuition ledger','parentCode':'6910','parentId':home_parent['id'],'taxCategory':'NONE','active':True,'revision':setup['revision'],'requestKey':'home-tuition-child'})
+    assert status==200,(status,setup)
+    home_id=setup['result'].get('subaccountId') or setup['result'].get('id')
+    home_payment={**named,'requestKey':'named-home-child','reference':'NARRATION-HOME-1','paymentNarration':'Company-borne home tuition','expenseLines':[{'category':'HOME','accountCode':'6910','subaccountId':home_id,'purpose':'Home tuition','amount':25,'expenseFor':'SHARED','personalTreatment':'COMPANY'}]}
+    status,result=request('expenses_v1','?entity=TTI',home_payment);assert status==200,(status,result)
+    saved=json.loads(books.read_text());row=saved['generalExpenses'][result['result']['generalExpenseId']]['expenseLines'][0]
+    assert row['expenseFor']=='FAM-SALMAN' and row['personalTreatment']=='COMPANY' and row['subaccountId']==home_id
+    print('Narration-only recipient, explicit named subledger, ledger projection, no fabricated payee, retry and amendment passed.')
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:
         books.write_text('{broken JSON');bad=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500;assert books.read_bytes()==bad
     print('Direct expense endpoint, correction, deletion, retry and permissions passed.')
