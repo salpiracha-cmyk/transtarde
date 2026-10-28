@@ -63,7 +63,7 @@ function elc_apply(array &$s,array $manifest,string $batch):array {
             $change=(array)($entry['changes']??[]);$allowed=['account','category','expenseFor','personalTreatment','expenseArea','assetId','namedSubledger','monthlyFee'];
             if(array_diff(array_keys($change),$allowed)||($change['personalTreatment']??'COMPANY')!=='COMPANY')throw new RuntimeException('Unexpected reclassification fields.');
             $from=(string)$rows[$index]['account'];$to=(string)($change['account']??$from);$amount=(int)round(100*(float)$rows[$index]['amount']);
-            if(!in_array($to,['6910','5550','6410','6610','6900','6700'],true))throw new RuntimeException('Posting head is outside the owner-approved rules.');
+            if(!in_array($to,['6910','5550','6400','6410','6610','6900','6700'],true))throw new RuntimeException('Posting head is outside the owner-approved rules.');
             $expected[$entity.'|'.$from]=($expected[$entity.'|'.$from]??0)-$amount;$expected[$entity.'|'.$to]=($expected[$entity.'|'.$to]??0)+$amount;
             $monthly=$monthly||!empty($change['monthlyFee']);$named=(string)($change['namedSubledger']??'');unset($change['monthlyFee'],$change['namedSubledger']);
             $rows[$index]=array_replace($rows[$index],$change,['accountCode'=>$to,'subaccountId'=>'']);
