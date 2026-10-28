@@ -5,7 +5,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),{chromium}=requ
  page.on('pageerror',e=>errors.push(e.message));
  const source=fs.readFileSync('accounts/third-party-register.php','utf8');
  const html=source.slice(source.indexOf('<!doctype html>')).replace(/<\?php[\s\S]*?\?>|<\?=[\s\S]*?\?>/g,'').replace(/<script[\s\S]*?<\/script>/g,'').replace(/<link[^>]*>/g,'');
- await page.route('http://register.test/**',r=>r.fulfill({contentType:'text/html',body:html}));await page.goto('http://register.test/');
+ await page.route('https://register.test/**',r=>r.fulfill({contentType:'text/html',body:html}));await page.goto('https://register.test/');
  await page.evaluate(()=>{
   document.querySelector('#company').innerHTML='<option>TTI</option><option>BRM</option>';
   document.querySelector('[name=currency]').innerHTML='<option>PKR</option><option>AED</option>';
@@ -22,9 +22,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),{chromium}=requ
    return {ok:true,json:async()=>({ok:true,rows:saved.filter(r=>r.entity===new URL(url,location.href).searchParams.get('entity')),canCreate:true,canEdit:true,canDelete:true})};
   };
  });
+ await page.addStyleTag({content:fs.readFileSync('brand-theme.css','utf8')});
  await page.addScriptTag({content:fs.readFileSync('brand-theme.js','utf8')});
  await page.addScriptTag({content:fs.readFileSync('accounts/third-party-register.js','utf8')});
- await page.locator('#newRecord').waitFor({state:'visible'});await page.locator('#newRecord').click();
+ await page.locator('#newRecord').waitFor({state:'visible'});await page.locator('#newRecord').click();assert.deepEqual(errors,[]);await page.locator('#entryPanel').waitFor({state:'visible'});
  await page.locator('[name=amount] + .tt-number-display').fill('1,500.50');await page.locator('[name=receivedFrom]').fill('<img src=x onerror=alert(1)>');await page.locator('[name=paidTo]').fill('Freight Company');await page.locator('[name=category]').selectOption('Freight Forwarder');
  assert.equal(await page.evaluate(()=>calls.filter(c=>c.method==='POST').length),0,'Typing never writes');
  await page.locator('#search').fill('nothing');await page.locator('#filters button').first().click();
