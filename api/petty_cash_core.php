@@ -69,6 +69,33 @@ function pc_manage(array &$s,string $e,array $b,array $u):array {
     $h['updatedAt']=gmdate('c');$h['updatedBy']=$u['username']??'';$s['pettyCashHolders'][$id]=$h;
     $s['pettyCashAudit'][]=['action'=>'HOLDER_'.$op,'before'=>$old,'after'=>$h,'by'=>$u['username']??'','at'=>gmdate('c')];return ['holderId'=>$id];
 }
+/** The same household identities and personal treatment used by Pay Expense. */
+function pc_expense_row(array $s,string $e,array $b,float $amount,string $note):array {
+    $category=(string)($b['expenseCategory']??'OFFICE');
+    if(!in_array($category,['OFFICE','HOME','ARP'],true))throw new DomainException('Choose business, home or ARP expense.');
+    $row=['category'=>$category,'accountCode'=>(string)($b['accountCode']??''),'amount'=>$amount,'purpose'=>$note,'expenseArea'=>'OFFICE','expenseFor'=>'SHARED','personalTreatment'=>'COMPANY'];
+    if($category==='HOME'){
+        $person=(string)($b['expenseFor']??'SHARED');
+        if(!in_array($person,['SHARED','FAM-SALMAN','FAM-TALHA','FAM-TAYYAB'],true))throw new DomainException('Choose the home expense beneficiary.');
+        $row=array_replace($row,['accountCode'=>'6910','subaccountId'=>sac_home_id($e,$person),'expenseArea'=>'HOME','expenseFor'=>$person,'personalTreatment'=>(string)($b['personalTreatment']??'COMPANY')]);
+    }elseif($category==='ARP'){
+        $id=(string)($b['arpSubaccountId']??$e.'-EXPENSE-TYPE-ARP');$sub=sac_resolve($s,$e,$id);
+        if($id!==$e.'-EXPENSE-TYPE-ARP'&&!in_array($e.'-EXPENSE-TYPE-ARP',$sub['ancestorIds'],true))throw new DomainException('Choose an ARP expense subledger in these company books.');
+        $row=array_replace($row,['accountCode'=>'6910','subaccountId'=>$id,'expenseArea'=>'HOME','expenseFor'=>'FAM-ABU','personalTreatment'=>(string)($b['personalTreatment']??'COMPANY')]);
+    }
+    // Validate before posting; the canonical engine applies recoveries once.
+    pex_fields($row);return $row;
+}
+function pc_expense_choices(array $s,string $e):array {
+    $homes=[];$arp=[];
+    foreach(sac_accounts($s,$e) as $id=>$raw){
+        if(!isset($raw['homePerson'])&&$id!==$e.'-EXPENSE-TYPE-ARP'&&($raw['parentCode']??'')!=='6910')continue;
+        $a=sac_resolve($s,$e,(string)$id,false);if(!$a['active'])continue;
+        if(isset($a['homePerson']))$homes[]=['id'=>$a['homePerson'],'name'=>$a['name']];
+        if($id===$e.'-EXPENSE-TYPE-ARP'||in_array($e.'-EXPENSE-TYPE-ARP',$a['ancestorIds'],true))$arp[]=['id'=>$id,'name'=>$a['path']];
+    }
+    return ['homeLedgers'=>$homes,'arpSubaccounts'=>$arp];
+}
 function pc_post(array &$s,string $e,array $b,array $u,array $names):array {
     $date=ev1_date((string)($b['date']??''));$type=(string)($b['type']??'');$from=(string)($b['from']??'');$source=$type==='RECEIPT'?null:pc_account($s,$e,$from);$amount=ev1_amount($b['amount']??0);
     $note=trim((string)($b['narration']??''));if($note===''||strlen($note)>500)throw new DomainException('Enter a narration of up to 500 characters.');
@@ -84,7 +111,7 @@ function pc_post(array &$s,string $e,array $b,array $u,array $names):array {
     }elseif($type==='EXPENSE'){
         if(str_contains($from,'|STAFF|')&&empty($b['confirmed']))throw new DomainException('Confirm the staff spending amount before settling.');
         $payee=trim((string)($b['payee']??''));if($payee==='')throw new DomainException('Enter who was paid, or the cash holder for a verbal settlement.');
-        $result=dex_post($s,$e,['paymentDate'=>$date,'paymentAccountId'=>$from,'payee'=>$payee,'paymentNarration'=>$note,'expenseLines'=>[['category'=>'OFFICE','accountCode'=>(string)($b['accountCode']??''),'amount'=>$amount,'purpose'=>$note,'expenseArea'=>'OFFICE','expenseFor'=>'SHARED','personalTreatment'=>'COMPANY']]],$u,$names,[]);
+        $result=dex_post($s,$e,['paymentDate'=>$date,'paymentAccountId'=>$from,'payee'=>$payee,'paymentNarration'=>$note,'expenseLines'=>[pc_expense_row($s,$e,$b,$amount,$note)]],$u,$names,[]);
     }elseif($type==='TRANSFER'){
         $to=(string)($b['to']??'');$destination=pc_account($s,$e,$to,true);if($from===$to)throw new DomainException('Choose different cash accounts.');
         $credit=$from==='CASH|'.$e?ev1_line('1120',0,$amount,$names,['cashAccountId'=>$from,'paymentAccountId'=>$from,'subledger'=>'Office Petty Cash','currency'=>'PKR']):pc_credit($s,$e,$from,$amount,$names);
@@ -97,5 +124,5 @@ function pc_post(array &$s,string $e,array $b,array $u,array $names):array {
 function pc_payload(array $s,string $e,array $u):array {
     $holders=[];foreach(pc_holders($s,$e) as $h)$holders[]=$h+['balance'=>pc_balance($s,$e,$h['id'])];
     $chart=[];$names=ev1_names();foreach(sac_entity_chart($s,$e) as $code=>$head)if(($head['class']??'')==='Expense'&&!in_array($head['level']??'',['heading','system'],true)&&isset($names[(string)$code]))$chart[]=['id'=>(string)$code,'name'=>$head['name']];
-    return ['ok'=>true,'entity'=>$e,'revision'=>(int)($s['revision']??0),'officeBalance'=>pc_balance($s,$e,'CASH|'.$e),'holders'=>$holders,'staff'=>array_values(pc_staff($s,$e)),'rows'=>pc_rows($s,$e),'receiptBanks'=>array_values(array_map(static fn($b)=>['id'=>$b['id'],'name'=>tt_bank_choice_label($b['bankName'],$b['currency'],$b['accountNumber'],$b['iban'],$b['accountTitle'])],array_filter(ev1_banks(),static fn($b)=>$b['entity']===$e&&in_array($b['accountType'],['Company Account','Proprietor / Owner Account','Personal Account'],true)&&$b['currency']==='PKR'&&tt_bank_can_transact($b['id'])))),'receiptHeads'=>arc_heads($s,$e),'receiptRefundHeads'=>arc_heads($s,$e,'EXPENSE_REFUND'),'receiptSubaccounts'=>array_values(array_filter(array_map(static fn($a)=>sac_resolve($s,$e,$a['id'],false),sac_accounts($s,$e)),static fn($a)=>$a['active'])),'expenseHeads'=>$chart,'canCreate'=>tt_user_can_module_action($u,'Accounts','expenses','Create')&&tt_user_can_access_entity($u,$e,'Create'),'canEdit'=>tt_user_can_module_action($u,'Accounts','expenses','Edit')&&tt_user_can_access_entity($u,$e,'Edit')];
+    return pc_expense_choices($s,$e)+['ok'=>true,'entity'=>$e,'revision'=>(int)($s['revision']??0),'officeBalance'=>pc_balance($s,$e,'CASH|'.$e),'holders'=>$holders,'staff'=>array_values(pc_staff($s,$e)),'rows'=>pc_rows($s,$e),'receiptBanks'=>array_values(array_map(static fn($b)=>['id'=>$b['id'],'name'=>tt_bank_choice_label($b['bankName'],$b['currency'],$b['accountNumber'],$b['iban'],$b['accountTitle'])],array_filter(ev1_banks(),static fn($b)=>$b['entity']===$e&&in_array($b['accountType'],['Company Account','Proprietor / Owner Account','Personal Account'],true)&&$b['currency']==='PKR'&&tt_bank_can_transact($b['id'])))),'receiptHeads'=>arc_heads($s,$e),'receiptRefundHeads'=>arc_heads($s,$e,'EXPENSE_REFUND'),'receiptSubaccounts'=>array_values(array_filter(array_map(static fn($a)=>sac_resolve($s,$e,$a['id'],false),sac_accounts($s,$e)),static fn($a)=>$a['active'])),'expenseHeads'=>$chart,'canCreate'=>tt_user_can_module_action($u,'Accounts','expenses','Create')&&tt_user_can_access_entity($u,$e,'Create'),'canEdit'=>tt_user_can_module_action($u,'Accounts','expenses','Edit')&&tt_user_can_access_entity($u,$e,'Edit')];
 }
