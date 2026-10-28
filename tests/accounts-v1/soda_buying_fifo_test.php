@@ -20,7 +20,7 @@ $ops=['values'=>['transtrade_export_v3_operational'=>json_encode($root)]];
 $targets=sb_targets($ops,$books,'TTI');assertTrue(array_column($targets,'id')===['EXPORT|C1','EXPORTER|D1'],'Only own export and local exporter sale contracts');
 $ready=['productStage'=>'READY','commodity'=>'RICE','baseVariety'=>'IRRI-6'];$raw=array_replace($ready,['productStage'=>'RAW']);
 assertTrue(sb_validate([],$ready,1000,$targets)===[],'Blank remains general stock');
-$a=[['targetId'=>'EXPORT|C1','quantityKg'=>1000]];
+$a=[['targetId'=>'EXPORT|C1','quantityKg'=>1000.0]];
 assertTrue(sb_validate($a,$ready,2000,$targets)===$a,'Partial allocation keeps remainder general');
 invalid(fn()=>sb_validate($a,$raw,2000,$targets),'Raw rice cannot select buying for');
 invalid(fn()=>sb_validate($a,$ready,999,$targets),'No SODA over-allocation');
