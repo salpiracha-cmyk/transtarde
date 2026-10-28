@@ -18,10 +18,11 @@ if(!str_starts_with(basename(__DIR__),'tti-mill-handoff-'))throw new RuntimeExce
 require __DIR__.'/repo/auth_store.php';$password=bin2hex(random_bytes(20));$masters=tt_default_masters();
 $masters['mills']=[['id'=>'mills-1','values'=>['TTI Rice Mills','','Own Mill','','','Active','','TTI']],['id'=>'mills-2','values'=>['QA Receiving Mill','','Own Mill','','','Active','','TTI']]];
 $masters['business_parties']=array_values(array_filter($masters['business_parties']??[],static fn($r)=>strtolower(trim((string)($r['values'][0]??'')))!=='k-electric'));
+$masters['business_parties'][]=['id'=>'QA-EXPORTER','values'=>['Fixture fellow exporter','','Fellow Exporter','','','','','','','','Active']];
 $masters['business_parties'][]=['id'=>'QA-KE','values'=>['K-Electric','','Service Provider','','','','','','','','Active']];
 $user=['id'=>1000,'username'=>'qaowner','full_name'=>'QA Mill Handoff','role'=>'Super Admin','permissions'=>['Mill'=>'all','Accounts'=>'all','Directors'=>'all','Exports'=>'all'],'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($password,PASSWORD_DEFAULT),'master_access'=>true];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>[$user],'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]]));
-file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>['tt32stockadj'=>json_encode([['id'=>'fixture-opening','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','openingStock'=>true,'readyRiceKg'=>1000,'brand'=>'IRRI-6 White Rice — SOURCE','stockName'=>'IRRI-6 White Rice — SOURCE']]),'tt30mills'=>json_encode([['id'=>1,'name'=>'TTI Rice Mills','entity'=>'TTI','type'=>'Own / Default'],['id'=>2,'name'=>'QA Receiving Mill','entity'=>'TTI','type'=>'Own']]),'tt30bags'=>json_encode([['id'=>100,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'QA PRODUCTION','size'=>'50 kg','bagType'=>'PP','ordered'=>100,'received'=>100,'poNo'=>'QA-PO','poLineKey'=>'L1']]),'tt33bagreceipts'=>json_encode([['id'=>101,'bagId'=>100,'date'=>'2026-10-01','qty'=>100]])],'meta'=>[]]));
+file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>['tt32stockadj'=>json_encode([['id'=>'fixture-opening','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','openingStock'=>true,'readyRiceKg'=>1000,'brand'=>'IRRI-6 White Rice — SOURCE','stockName'=>'IRRI-6 White Rice — SOURCE'],['id'=>'fixture-exporter-opening','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','openingStock'=>true,'readyRiceKg'=>1000,'brand'=>'QA BRAND','stockName'=>'QA BRAND']]),'tt30mills'=>json_encode([['id'=>1,'name'=>'TTI Rice Mills','entity'=>'TTI','type'=>'Own / Default'],['id'=>2,'name'=>'QA Receiving Mill','entity'=>'TTI','type'=>'Own']]),'tt30bags'=>json_encode([['id'=>100,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'QA PRODUCTION','size'=>'50 kg','bagType'=>'PP','ordered'=>100,'received'=>100,'poNo'=>'QA-PO','poLineKey'=>'L1']]),'tt33bagreceipts'=>json_encode([['id'=>101,'bagId'=>100,'date'=>'2026-10-01','qty'=>100]])],'meta'=>[]]));
 file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['revision'=>0,'journals'=>new stdClass(),'supplierBills'=>new stdClass()]));
 file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$password,'dataDir'=>TT_DATA_DIR]));
 '''
@@ -90,10 +91,19 @@ def run():
             local.locator('[onclick="closeMill()"]').click();local.locator('#activeBody').filter(has_text='Closed by Mill').wait_for()
             mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click();mill.evaluate("openPanel('local')");local=mill.frame_locator('#partySaleWrap iframe');local.locator('#activeBody').filter(has_text='Closed by Mill').wait_for()
             mill.evaluate("openPanel('local');saleType('exporter')")
-            for field,value in {'#exBuyer':'Fixture fellow exporter','#exBrand':'QA BRAND','#exSaleQty':'500','#exRate':'10'}.items():mill.locator(field).fill(value)
-            mill.locator('[onclick="saveExporterSale()"]').click();mill.locator('#savedExporterSales').filter(has_text='Fixture fellow exporter').wait_for()
+            # The commercial SODA is created in Directors, never in the Mill rate form.
+            assert not mill.locator('#exBuyer').is_visible()
+            director=context.new_page();director.goto(base+'/directors/exporter-trading.php');director.get_by_role('button',name='+ New SODA',exact=True).click()
+            director.locator('#dtDealForm [name=partyId]').select_option('QA-EXPORTER')
+            for field,value in {'price':'10','quantityMT':'0.5','product':'QA BRAND','terms':'Exporter handles bags and collection; Mill records physical dispatch only.'}.items():director.locator('#dtDealForm [name='+field+']').fill(value)
+            director.get_by_role('button',name='Save SODA',exact=True).click();director.locator('#dtMessage').filter(has_text='Saved.').wait_for()
+            mill.locator('#directorExporterCompany').select_option('TTI');mill.locator('#directorExporterRefresh').click()
+            choice=mill.locator('#directorExporterDeal option').filter(has_text='Fixture fellow exporter');choice.wait_for(state='attached');soda_id=choice.get_attribute('value');mill.locator('#directorExporterDeal').select_option(soda_id)
+            mill.locator('#directorExporterStock').select_option('QA BRAND');mill.locator('#directorExporterBagTare').fill('100');mill.locator('#directorExporterUse').click();mill.locator('#savedExporterSales').filter(has_text='Fixture fellow exporter').wait_for()
+            director.close()
             mill.locator('#exTruck').fill('QA-303');mill.locator('#exBags').fill('10');mill.locator('#exGross').fill('501');mill.locator('[onclick="addExporterContainer()"]').click();mill.wait_for_function("document.querySelector('#exTruck').value === ''")
-            op=context.request.get(base+'/api/operations.mysql.php').json();exporter=json.loads(op['values']['tt35exportersale']);assert len(exporter)==1 and len(exporter[0]['containers'])==1 and exporter[0]['containers'][0]['net']==500
+            op=context.request.get(base+'/api/operations.mysql.php').json();exporter=json.loads(op['values']['tt35exportersale']);assert len(exporter)==1 and len(exporter[0]['containers'])==1 and exporter[0]['containers'][0]['net']==500 and exporter[0]['exporterDealId']==soda_id
+            saved=context.request.get(base+'/api/directors_trading.php?entity=TTI').json();linked=next(d for d in saved['deals'] if d['id']==soda_id);assert linked['working']['loadedMT']==.5 and linked['working']['remainingMT']==0 and linked['bookBalancePKR']==0,linked
             with context.expect_page() as printed:mill.locator('#exContainerTable').get_by_role('button',name='Print Gate Pass',exact=True).click()
             popup=printed.value;popup.locator('.serial').filter(has_text='GP-000002').wait_for();body=popup.locator('body').inner_text().lower();assert 'local sale to exporter gate pass' in body and 'fixture fellow exporter' in body,body;assert popup.locator('.pass').evaluate('e=>e.getBoundingClientRect().height*25.4/96')<140;popup.close()
             mill.locator('[onclick="closeExporterSale()"]').click();mill.locator('#savedExporterSales').filter(has_text='Closed').wait_for()
@@ -133,7 +143,7 @@ def run():
             popup=printed.value;popup.locator('.serial').filter(has_text='GP-000003').wait_for();popup.close()
             assert not errors,errors
             browser.close()
-        print('PASS native Used Bags failure/retry/reload, operational petty expense, arrival and duplicate-request persistence, Local Sales save/payment/load/printed gate/close/reload, exporter close/reload, atomic PALTAI lost-ack replay, native Pohanch retry and print weights/dates; fixture only')
+        print('PASS native Used Bags failure/retry/reload, operational petty expense, arrival and duplicate-request persistence, Local Sales save/payment/load/printed gate/close/reload, Directors local SODA -> Mill selection/truck/weights -> gate pass -> Directors quantities -> close/reload, atomic PALTAI lost-ack replay, native Pohanch retry and print weights/dates; fixture only')
     finally:
         if server:server.terminate();server.wait(timeout=5)
         if log:log.close()
