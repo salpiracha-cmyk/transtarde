@@ -34,6 +34,7 @@
       {title:'Bill Posting', note:'Broker or Supplier → Soda → saved/printed Pohanch → final bill', special:'arrival-bills', native:'purchases', then:'[data-purchase="commodity"]'},
       {title:'Supplier/Broker Payment', note:'Plan commodity payments or post an on-account payment', special:'payment-plan'},
       {title:'Pay Broker', note:'Independent brokerage outside purchase bills', special:'broker-payment-plan'},
+      {title:'Fellow-exporter SODAs & Accounts', note:'Local ex-mill sales, customer advances and shipment partnership settlements', special:'exporter-sodas'},
       {title:'Local Sales & Receipts', note:'Mill sale approvals and linked receipts awaiting Accounts action', native:'receivables', find:'Local'}
     ]},
     {key:'bank', glyph:'▦', title:'Bank & Cash', note:'Bank payments, receipts, transfers and reconciliation', actions:[
@@ -215,6 +216,7 @@
     qa('.tt-editor-stage').forEach(e=>e.classList.remove('tt-editor-stage'));
     document.body.classList.remove('tt-modal-open');
     window.TT_EXPENSE_EDITOR?.claim('');
+    if(action.special==='exporter-sodas'){location.href='/directors/exporter-trading.php?origin=accounts&entity='+encodeURIComponent(entity());return;}
     if(action.special==='customer-receivables'){const company=entity();try{const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);if(current())openCustomerReceivables(data.customerReceivables);}catch(error){alert(error.message);}return;}
     if(action.native==='reports'&&['Receivables','Commodity','Shipment'].includes(action.find))return window.TT_REPORTS.open({Receivables:'balances',Commodity:'commodity',Shipment:'shipment'}[action.find]);
     if(action.native==='reports'&&['Trial Balance','Profit','Balance Sheet'].includes(action.find))return window.TT_REPORTS.open(({Trial:'tb',Profit:'pl',Balance:'bs'})[String(action.find||'').split(' ')[0]]||'tb');

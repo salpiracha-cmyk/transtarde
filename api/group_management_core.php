@@ -171,7 +171,9 @@ function gm_cashflow_source(array $state,string $date,?array $bankMasters=null,?
     require_once __DIR__.'/expense_estimates_core.php';
     require_once __DIR__.'/shipment_estimates_core.php';
     $operationValues??=se_read_values();
-    return gm_cashflow_scope(ee_cashflow(shipment_estimates_source(cfp_invoices(cfp_rows(cfn_source(gm_cashflow_scope(gm_financial_source($state,$date,$bankMasters,true)),$state,$date,$bankMasters),$state,$masters),$state,$date,$exports),$state,$exports,$operationValues,$date),$state,$date));
+    $result=gm_cashflow_scope(ee_cashflow(shipment_estimates_source(cfp_invoices(cfp_rows(cfn_source(gm_cashflow_scope(gm_financial_source($state,$date,$bankMasters,true)),$state,$date,$bankMasters),$state,$masters),$state,$date,$exports),$state,$exports,$operationValues,$date),$state,$date));
+    require_once __DIR__.'/directors_trading_core.php';
+    return dt_loaded_cashflow($result,$state,$exports,$operationValues,$date);
 }
 function gm_cashflow_scope(array $source):array {
     foreach($source['rows'] as &$row){

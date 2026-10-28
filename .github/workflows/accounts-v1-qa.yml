@@ -35,6 +35,7 @@ jobs:
           node tests/security/live_credential_artifact_test.js
           python3 tests/accounts-v1/staff_payment_amend_http_test.py
           php tests/accounts-v1/directors_trading_test.php
+          php tests/accounts-v1/exporter_soda_arrangements_test.php
           python3 tests/accounts-v1/directors_trading_endpoint_test.py
           python3 tests/accounts-v1/director_cost_defaults_test.py
           php tests/accounts-v1/group_management_test.php
@@ -274,6 +275,9 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/inventory-venv"
           "$RUNNER_TEMP/inventory-venv/bin/pip" -q install playwright==1.55.0
           "$RUNNER_TEMP/inventory-venv/bin/playwright" install --with-deps chromium
+      - name: Native Mill SODA handoff and gate passes
+        run: |
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_operational_save_browser_test.py
       - name: Salary month HTTP and browser flow
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
@@ -378,6 +382,7 @@ jobs:
           node tests/accounts-v1/sales_tax_output_ui_test.js
           node tests/accounts-v1/director_simple_costing_browser_test.js
           node tests/accounts-v1/directors_trading_ui_test.js
+          node tests/accounts-v1/exporter_soda_arrangements_ui_test.js
           node tests/accounts-v1/director_simple_costing_test.js
           node tests/accounts-v1/director_cashflow_output_test.js
           node tests/accounts-v1/business_reports_browser_test.js
@@ -474,7 +479,6 @@ jobs:
           python3 tests/security/export_document_permissions_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_source_handoff_browser_test.py
-          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_operational_save_browser_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/group_daily_browser_test.py
       - name: Bank entries, finance and subaccounts browser flow
         env:

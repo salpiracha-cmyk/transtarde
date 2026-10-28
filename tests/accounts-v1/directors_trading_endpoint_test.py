@@ -104,3 +104,21 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  status,error=req({'action':'queue_candidate','sourceKey':'EXPORTER|'+own['ref'],'saleDate':'2026-10-02','entity':'TTI','product':'IRRI READY','loadedKg':40000,'ratePerKg':100,'amount':4000000},_endpoint='local');assert status==422 and 'Directors' in error['error'],(status,error)
  assert path.read_bytes()==before_duplicate and (root/'data/operations.json').read_bytes()==ops_before,'Duplicate protection or settlement changed original Mill stock'
  print('PASS Directors trading endpoint: scoped reads, original stores, CSRF, permissions, company restrictions, duplicate keys, stale versions, posted settlement, partial payment and cost linkage')
+ # Local ex-mill SODA: shared Accounts route, bank advance, real Mill loading and no export invoice.
+ local={'entity':'TTI','date':'2026-10-01','partyId':'KAS','direction':'SALE','arrangement':'EX_MILL','currency':'PKR','incoterm':'EX_MILL','price':109000,'priceUnit':'KG','quantityMT':3500,'fobEstimateUSDPerMT':0,'bankEstimatePct':0,'fx':1,'reference':'HKM-LOCAL','product':'IRRI READY','bagRatePKRPerKg':1,'recoveryPct':60,'terms':'HKM handles bags and collections; buyer Chaudry Shafiq narration only.'}
+ status,d=req({'action':'save_deal',**local},origin='accounts');assert status==200,d
+ local_id=d['result']['id'];local_advance={'action':'advance','id':local_id,'version':1,'amountPKR':5000000,'bankId':'CASH|TTI','reference':'HKM-BANK-ADV','requestKey':'local-advance-stable-key'}
+ status,d=req(local_advance,origin='accounts');assert status==200,d;advance_post=d['result']['postId']
+ status,retry=req(local_advance,origin='accounts');assert status==200 and retry['result']['postId']==advance_post,retry
+ deal=next(x for x in d['deals'] if x['id']==local_id);assert deal['bookBalancePKR']==-5000000 and deal['working']['loadedMT']==0,deal
+ assert req({'action':'advance','id':local_id,'version':2,'amountPKR':10,'bankId':'CASH|TTI','reference':'STAFF'},origin='mill',mode='mill')[0]==403
+ status,millfeed=req(origin='mill',mode='mill');visible=next(x for x in millfeed['deals'] if x['id']==local_id);assert visible['arrangement']=='EX_MILL' and 'price' not in visible and 'terms' not in visible,visible
+ assert local_id not in [x['id'] for x in req(origin='exports',mode='exports')[1]['deals']],'Local ex-mill offered as an export invoice contribution'
+ local_native={'ref':local_id+'|MILL|M1','exporterDealId':local_id,'entity':'TTI','millId':'M1','millName':'Own Mill','date':'2026-10-01','qty':3500000,'displayName':'IRRI READY','containers':[{'id':'HK-TRUCK1','date':'2026-10-02','net':40000}]}
+ operations['values']['tt35exportersale']=json.dumps([own,local_native]);(root/'data/operations.json').write_text(json.dumps(operations));local_ops_before=(root/'data/operations.json').read_bytes()
+ status,d=req({'action':'review_local','id':local_id,'version':2,'bagDeductionPKR':40000,'reviewConfirmed':True},origin='accounts');assert status==200,d
+ status,d=req({'action':'post_settlement','id':local_id,'version':3,'exceptionNote':'Director-reviewed local SODA'},origin='accounts');assert status==200,d
+ deal=next(x for x in d['deals'] if x['id']==local_id);assert deal['bookBalancePKR']==-680000,deal
+ assert len(deal['account'])==2 and deal['loadings']==[],deal
+ assert (root/'data/operations.json').read_bytes()==local_ops_before,'Advance/settlement changed Mill stock'
+ print('PASS local SODA endpoint: shared Accounts, hidden Mill prices, stable advance retry, original trucks, reviewed bags, customer credit and no export invoice requirement')
