@@ -26,7 +26,7 @@
     } catch (_) { pendingReceipt = null; sessionStorage.removeItem(pendingKey()); }
   }
 
-  function toast(message, ok = true) {if(!ok){const inline=q('#ttExportReceiptDialog [data-er-error]');if(inline){inline.textContent=message;inline.hidden=false;window.TT_FORM_VIEWPORT?.open(q('#ttExportReceiptDialog .tter-dialog'));return;}}if(!ok&&window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(message);
+  function toast(message, ok = true, inlineError = true) {if(!ok&&inlineError){const inline=q('#ttExportReceiptDialog [data-er-error]');if(inline){inline.textContent=message;inline.hidden=false;window.TT_FORM_VIEWPORT?.open(q('#ttExportReceiptDialog .tter-dialog'));return;}}if(!ok&&inlineError&&window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(message);
     let el = q('#ttExportReceiptToast');
     if (!el) { el = document.createElement('div'); el.id = 'ttExportReceiptToast'; el.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100220;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003'; document.body.appendChild(el); }
     el.style.background = ok ? '#147a5b' : '#a93a34'; el.textContent = message; el.hidden = false; clearTimeout(el._t); el._t = setTimeout(() => { el.hidden = true; }, 3800);
@@ -331,7 +331,7 @@
       if (!response.ok || !result.ok) throw new Error(result.error || 'Export receipt could not be posted.');
       await postShortfalls(result.receipt,classification,currentShortfallNote,body.bankAdviceFileRef || body.bankAdvicePaperRef);
       savePending(null);amendmentOf='';amendmentReason='';
-      toast(`Receipt ${result.receipt.id} posted.${result.ratesSaved===false?' Charge percentages could not be saved to the master; review them there.':''}`,result.ratesSaved!==false); payerType = ''; payer = ''; forwardBookingId='';selectedTgPayment=null; partialReceipt=false; chosen.clear(); deductions = []; await load(); pendingBanner(); if(window.TT_POST_CONFIRMATION){closeForm();}else{render();offerReceiptPrint(result.receipt);} window.TT_BANK_ACCOUNTS_UI?.reload?.();
+      toast(`Receipt ${result.receipt.id} posted.${result.ratesSaved===false?' Charge percentages could not be saved to the master; review them there.':''}`,result.ratesSaved!==false,false); payerType = ''; payer = ''; forwardBookingId='';selectedTgPayment=null; partialReceipt=false; chosen.clear(); deductions = []; await load(); pendingBanner(); if(window.TT_POST_CONFIRMATION){closeForm();}else{render();offerReceiptPrint(result.receipt);} window.TT_BANK_ACCOUNTS_UI?.reload?.();
     } catch (error) { toast(pendingReceipt ? `Receipt ${pendingReceipt.receipt.id} posted. TG settlement needs review: ${String(error.message || error)}` : String(error.message || error),false); if (pendingReceipt) render(); else { button.disabled = false; button.textContent = 'POST RECEIPT'; } } finally {postingReceipt=false;if(button.isConnected){button.textContent='POST RECEIPT';}calc();}
   }
   async function openForm(paymentId = '', amendId = '') {forwardBookingId='';
