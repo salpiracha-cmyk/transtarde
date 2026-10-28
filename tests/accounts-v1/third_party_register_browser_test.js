@@ -1,0 +1,45 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),{chromium}=require('playwright');
+(async()=>{const browser=await chromium.launch({headless:true});try{
+ const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ const source=fs.readFileSync('accounts/third-party-register.php','utf8');
+ const html=source.slice(source.indexOf('<!doctype html>')).replace(/<\?php[\s\S]*?\?>|<\?=[\s\S]*?\?>/g,'').replace(/<script[\s\S]*?<\/script>/g,'').replace(/<link[^>]*>/g,'');
+ await page.route('http://register.test/**',r=>r.fulfill({contentType:'text/html',body:html}));await page.goto('http://register.test/');
+ await page.evaluate(()=>{
+  document.querySelector('#company').innerHTML='<option>TTI</option><option>BRM</option>';
+  document.querySelector('[name=currency]').innerHTML='<option>PKR</option><option>AED</option>';
+  window.TT_THIRD_PARTY_REGISTER={entity:'TTI',csrf:'fixture',today:'2026-10-28'};
+  window.calls=[];window.saved=[];window.failSave=false;window.prints=0;window.print=()=>prints++;
+  window.confirm=()=>true;window.prompt=()=> 'Duplicate entry';
+  window.fetch=async(url,options={})=>{
+   calls.push({url,method:options.method||'GET',body:options.body?JSON.parse(options.body):null});
+   const b=calls.at(-1).body;
+   if(b&&failSave)return {ok:false,json:async()=>({ok:false,error:'Please try again'})};
+   if(b?.action==='create')saved.push({...b,id:'TPR-fixture',version:1});
+   if(b?.action==='edit')saved=saved.map(r=>r.id===b.id?{...r,...b,version:r.version+1}:r);
+   if(b?.action==='delete')saved=saved.filter(r=>r.id!==b.id);
+   return {ok:true,json:async()=>({ok:true,rows:saved.filter(r=>r.entity===new URL(url,location.href).searchParams.get('entity')),canCreate:true,canEdit:true})};
+  };
+ });
+ await page.addScriptTag({content:fs.readFileSync('brand-theme.js','utf8')});
+ await page.addScriptTag({content:fs.readFileSync('accounts/third-party-register.js','utf8')});
+ await page.locator('#newRecord').waitFor({state:'visible'});await page.locator('#newRecord').click();
+ await page.locator('[name=amount]').fill('1,500.50');await page.locator('[name=receivedFrom]').fill('<img src=x onerror=alert(1)>');await page.locator('[name=paidTo]').fill('Freight Company');await page.locator('[name=category]').selectOption('Freight Forwarder');
+ assert.equal(await page.evaluate(()=>calls.filter(c=>c.method==='POST').length),0,'Typing never writes');
+ await page.locator('#search').fill('nothing');await page.locator('#filters button').first().click();
+ assert.equal(await page.locator('[name=paidTo]').inputValue(),'Freight Company','Filters preserve the open draft');
+ await page.locator('#clearFilters').click();await page.evaluate(()=>failSave=true);await page.locator('#save').click();await page.locator('#formError').getByText('Please try again').waitFor();
+ assert.equal(await page.locator('[name=amount]').inputValue(),'1,500.50','Failed save preserves values');
+ const key=await page.evaluate(()=>calls.at(-1).body.requestKey);await page.evaluate(()=>failSave=false);await page.locator('#save').click();await page.locator('#entryPanel').waitFor({state:'hidden'});
+ assert.equal(await page.evaluate(()=>calls.at(-1).body.requestKey),key,'Explicit retry keeps the save identity');
+ assert.equal(await page.locator('#rows img').count(),0,'Party names are escaped');assert.match(await page.locator('#rows').innerText(),/1,500.50/);
+ await page.locator('[data-edit]').click();await page.locator('[name=reference]').fill('CHQ-42');await page.locator('[name=reason]').fill('Add cheque number');await page.locator('#save').click();await page.locator('#entryPanel').waitFor({state:'hidden'});
+ assert.match(await page.locator('#rows').innerText(),/CHQ-42/);
+ const count=await page.evaluate(()=>calls.filter(c=>c.method==='POST').length);await page.locator('#print').click();assert.equal(await page.evaluate(()=>prints),1);assert.equal(await page.evaluate(()=>calls.filter(c=>c.method==='POST').length),count,'Printing never writes');
+ await page.locator('[data-delete]').click();await page.waitForFunction(()=>saved.length===0);assert.match(await page.locator('#rows').innerText(),/No register records/);
+ await page.locator('#newRecord').click();await page.locator('[name=paidTo]').fill('Unfinished');await page.locator('#cancel').click();await page.locator('#entryPanel').waitFor({state:'hidden'});
+ assert.equal(await page.evaluate(()=>calls.filter(c=>c.method==='POST').length),count+1,'Cancel never writes');
+ assert(await page.evaluate(()=>calls.every(c=>c.url.startsWith('/api/third_party_register.php'))),'No financial endpoint is called');assert.deepEqual(errors,[]);
+ console.log('PASS third-party register: manual saves only, preserved drafts/retries, escaped parties, explicit edit/delete and no accounting API calls');
+}finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1)});

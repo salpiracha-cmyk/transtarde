@@ -27,6 +27,8 @@ jobs:
           php tests/document-ai/backend_test.php
       - name: Internal SODA allocation and raw FIFO regressions
         run: |
+          php tests/accounts-v1/third_party_register_test.php
+          python3 tests/accounts-v1/third_party_register_http_test.py
           php tests/accounts-v1/expense_reminder_cycles_test.php
           php tests/accounts-v1/soda_buying_fifo_test.php
           php tests/accounts-v1/production_recovery_cost_test.php
@@ -444,6 +446,7 @@ jobs:
           node tests/accounts-v1/tg_navigation_scope_test.js
           node tests/accounts-v1/expense_forms_browser_test.js
           node tests/accounts-v1/cancellation_reason_ui_test.js
+          node tests/accounts-v1/third_party_register_browser_test.js
           node tests/accounts-v1/post_register_browser_test.js
           node tests/accounts-v1/bank_ledger_name_search_browser_test.js
           node tests/accounts-v1/company_context_guard_browser_test.js
