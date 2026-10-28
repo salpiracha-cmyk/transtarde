@@ -10,9 +10,9 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     (root / 'sessions').mkdir()
     private = root / 'transtrade_private'
     private.mkdir()
-    for name in ['document_filenames.php','auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
+    for name in ['inventory_reconciliation.php','document_filenames.php','auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['supplier_opening_core.php','accounts_payees.php','bank_entries.php','bank_entries_core.php','mill_cash_core.php','mill_cash_ledger.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php','accounts_reports.php', 'accounts_reports_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','jv_decisions_core.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_receipts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','expense_estimates_core.php','bag_read_scope.php','operations_scope.php','export_permission_policy.php','petty_cash_core.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','company_investments_core.php','salary_master_store.php', 'accounts_posting_preview.php', 'tg_native_currency.php']:
+    for name in ['bank_sales_receipts_core.php','local_sales_scope.php','mill_recovery_core.php','arrival_withdrawal_core.php','paltai_core.php','supplier_opening_core.php','accounts_payees.php','bank_entries.php','bank_entries_core.php','mill_cash_core.php','mill_cash_ledger.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php','accounts_reports.php', 'accounts_reports_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','jv_decisions_core.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_receipts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','expense_estimates_core.php','bag_read_scope.php','operations_scope.php','export_permission_policy.php','petty_cash_core.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','company_investments_core.php','salary_master_store.php', 'accounts_posting_preview.php', 'tg_native_currency.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -231,6 +231,68 @@ require $argv[1];
     assert [(l['account'],l['debit'],l['credit']) for l in distribution['result']['journal']['lines']]==[('2100',75,0),('1110',0,75)]
     assert request('accounts_reports',report_query)[1]['profitAndLoss']==before_pl,'Collection and fund distribution must not create or refund the owner Zakat expense'
     _,fund_ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+fund_id+'&from=2026-10-01&to=2026-10-31');assert fund_ledger['closing']==-125 and len(fund_ledger['rows'])==2
+    # Other Receipt types use the shared Add/Edit/Delete subaccount lifecycle.
+    receipt_type,_=good('accounts_subaccounts',operation='add',name='Auction proceeds',parentCode='4400',taxCategory='NONE',receiptType=True)
+    receipt_type_id=receipt_type['result']['subaccountId']
+    assert next(a for a in receipt_type['subaccounts'] if a['id']==receipt_type_id)['receiptType']
+    before=books.read_bytes();assert mutate('accounts_subaccounts',operation='add',name='Invalid receipt expense',parentCode='6900',receiptType=True)[0]==422 and books.read_bytes()==before
+    typed,typed_body=good(action='post',type='RECEIPT',bankId='BANK-1',date='2026-10-13',amount=750,reference='OTHER-TYPED-RECEIPT',receiptKind='OTHER',receiptTypeId=receipt_type_id,payee='Auction buyer')
+    typed_journal=typed['result']['journal'];assert typed_journal['meta']['receiptTypeId']==receipt_type_id
+    assert typed_journal['lines'][0]['account']=='4400' and typed_journal['lines'][0]['subaccountId']==receipt_type_id
+    before=books.read_bytes();assert request('bank_entries','?entity=TTI',typed_body)[0]==200 and books.read_bytes()==before
+    good('accounts_subaccounts',operation='edit',id=receipt_type_id,name='Auction receipts',parentCode='4400',taxCategory='NONE',receiptType=True)
+    assert json.loads(books.read_text())['journals'][typed_journal['id']]==typed_journal,'Editing receipt types must preserve historical receipts'
+    before=books.read_bytes();assert mutate('accounts_subaccounts',operation='edit',id=receipt_type_id,name='Wrong accounting treatment',parentCode='3100',receiptType=True)[0]==422 and books.read_bytes()==before
+    good('accounts_subaccounts',operation='delete',id=receipt_type_id)
+    before=books.read_bytes();assert mutate('bank_entries',action='post',type='RECEIPT',bankId='BANK-1',date='2026-10-13',amount=1,reference='DELETED-TYPE',receiptKind='OTHER',receiptTypeId=receipt_type_id,payee='Buyer')[0]==422 and books.read_bytes()==before
+    assert json.loads(books.read_text())['journals'][typed_journal['id']]==typed_journal
+    # Linked receipts must update the original SODA, including advances, with one bank movement.
+    user['permissions']['Accounts']['customer']=['View','Create','Edit']
+    user['permissions']['Accounts']['group-reports']=['View','Approve']
+    set_user()
+    state=json.loads(books.read_text())
+    state['exporterDeals']={'HK':{'id':'HK','entity':'TTI','partyId':'HKM','party':'Haji Khushi Mohammed','reference':'HKM-3500','product':'5% White Rice','direction':'SALE','date':'2026-10-01','version':1,'payments':[]},'OTHER':{'id':'OTHER','entity':'BRM','partyId':'HKM','party':'Wrong books','reference':'BRM','direction':'SALE','date':'2026-10-01'},'KH':{'id':'KH','entity':'TTI','partyId':'KHAN','party':'Khan Rice Mills','reference':'KHAN-AMT','direction':'PURCHASE','date':'2026-10-01'}}
+    state['journals']['LOCAL-ORIGINAL']={'id':'LOCAL-ORIGINAL','entity':'TTI','date':'2026-10-01','status':'Posted','sourceType':'LOCAL_SALE_APPROVED','meta':{'soda':'LS-1','party':'Local Customer','product':'Rice'},'lines':[{'account':'1220','debit':1000,'credit':0,'soda':'LS-1','party':'Local Customer'}]}
+    books.write_text(json.dumps(state))
+    (private/'operations.json').write_text(json.dumps({'values':{'tt35localsales':json.dumps([{'soda':'LS-1','party':'Local Customer','entity':'TTI','date':'2026-10-01','millName':'TTI Rice Mills','product':'Rice'},{'soda':'LS-ADV','party':'Another Local Customer','entity':'TTI','date':'2026-10-01','millName':'TTI Rice Mills','product':'Broken'},{'soda':'BRM-ONLY','party':'Wrong books','entity':'BRM','date':'2026-10-01','millName':'BRM'}])}}))
+    before=books.read_bytes()
+    status,sources=request('bank_entries','?entity=TTI&view=receipt-sources&receiptKind=LOCAL_SALE')
+    assert status==200 and {x['id'] for x in sources['rows']}=={'LS-1','LS-ADV'},sources
+    assert books.read_bytes()==before
+    base={'action':'post','type':'RECEIPT','bankId':'BANK-1','date':'2026-10-14','amount':1200,'receiptKind':'LOCAL_SALE','receiptPartyId':'Local Customer','receiptSodaId':'LS-1','reference':'LOCAL-BANK-RECEIPT'}
+    preview,_=good(**base,preview=True)
+    assert books.read_bytes()==before and len(preview['previews'])==1
+    local,local_body=good(**base)
+    lines=local['result']['journal']['lines']
+    assert [(l['account'],l['debit'],l['credit']) for l in lines]==[('1110',1200,0),('1220',0,1000),('2510',0,200)]
+    assert all(l.get('soda')=='LS-1' for l in lines if l['account']!='1110')
+    before=books.read_bytes();assert request('bank_entries','?entity=TTI',local_body)[0]==200 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**base,'receiptPartyId':'Another Local Customer','reference':'BAD-PARTY'})[0]==422 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**base,'receiptSodaId':'BRM-ONLY','reference':'BAD-BOOKS'})[0]==422 and books.read_bytes()==before
+    good(action='reverse',journalId=local['result']['journalId'],date='2026-10-15',reason='Reverse linked local receipt')
+    rows=request('bank_entries','?entity=TTI&view=receipt-sources&receiptKind=LOCAL_SALE')[1]['rows']
+    assert next(x for x in rows if x['id']=='LS-1')['openReceivable']==1000
+    advanced,_=good(**{**base,'receiptPartyId':'Another Local Customer','receiptSodaId':'LS-ADV','reference':'LOCAL-ADVANCE'})
+    assert [l['account'] for l in advanced['result']['journal']['lines']]==['1110','2510']
+    fellow={**base,'receiptKind':'FELLOW_EXPORTER','receiptPartyId':'HKM','receiptSodaId':'HK','amount':5000000,'reference':'HKM-ACTUAL-ADVANCE'}
+    before=books.read_bytes();preview,_=good(**fellow,preview=True);assert books.read_bytes()==before
+    received,received_body=good(**fellow);journal=received['result']['journal'];lines=journal['lines']
+    assert [(l['account'],l['debit'],l['credit']) for l in lines]==[('1230',0,5000000),('1110',5000000,0)]
+    assert all(l['exporterDealId']=='HK' for l in lines) and journal['meta']['customerAdvance']
+    assert json.loads(books.read_text())['exporterDeals']['HK']['version']==2
+    before=books.read_bytes();assert request('bank_entries','?entity=TTI',received_body)[0]==200 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**fellow,'receiptPartyId':'KHAN','reference':'MISMATCH'})[0]==422 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**fellow,'receiptSodaId':'OTHER','reference':'OTHER-BOOKS'})[0]==422 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**fellow,'bankId':'BANK-USD','exchangeRate':280,'reference':'FX-BLOCK'})[0]==422 and books.read_bytes()==before
+    sources=request('bank_entries','?entity=TTI&view=receipt-sources&receiptKind=FELLOW_EXPORTER')[1]['rows']
+    assert [x['id'] for x in sources]==['HK'] and sources[0]['customerAdvance']==5000000
+    good(action='reverse',journalId=journal['id'],date='2026-10-15',reason='Reverse linked fellow receipt')
+    sources=request('bank_entries','?entity=TTI&view=receipt-sources&receiptKind=FELLOW_EXPORTER')[1]['rows']
+    assert sources[0]['customerAdvance']==0
+    user['permissions']['Accounts']['group-reports']=['View'];set_user();before=books.read_bytes()
+    assert mutate('bank_entries',**{**fellow,'reference':'NO-APPROVE'})[0]==422 and books.read_bytes()==before
+    user['permissions']['Accounts']['customer']=[];set_user()
+    assert request('bank_entries','?entity=TTI&view=receipt-sources&receiptKind=LOCAL_SALE')[0]==422 and books.read_bytes()==before
     for endpoint in ['bank_entries','accounts_subaccounts']:
         books.write_text('{broken JSON');before=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500 and books.read_bytes()==before
     print('Bank entries, finance, subaccounts, expense/JV/ledger/report links, retries, corrections, permissions and corrupt-store protection passed.')

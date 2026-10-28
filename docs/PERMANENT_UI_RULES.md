@@ -711,6 +711,14 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 - Preserve original stock/mill/brand for dispatched goods. Actual per-loading bag tare is retained for historical weights. Production must be recorded into the instructed finished stock before dispatch; do not consume another output or a by-product merely because it is available.
 
 
+## Bank receipts against sales — owner clarification, 28 October 2026
+
+- Bank Receipt offers Local Sales Receipt and Fellow Exporter Receipt, with the customer/exporter followed by a dropdown of that party’s saved SODAs in the selected company. Hide generic credit-head and free-text payee inputs for these linked receipts.
+- Post the actual receipt once against the original sale control account, carrying the party and SODA identity to bank books, sales accounts and cash flow. Excess or pre-loading customer money is an advance, never new sales revenue or stock movement. Preserve receipt review, retry protection, company/location permissions and original SODA approval rights.
+
+- Other Receipts has a named receipt-type selector and Add / Edit / Delete manager beside it. Reuse the company’s shared subaccount register and its master permissions; each type credits its approved non-expense head. Managing types preserves the open bank-receipt draft. Delete archives future use while retaining original receipts and their accounting snapshots; posted types cannot silently move to a new accounting head.
+
+
 ## Linked TG remittance and Pakistan credit-advice dates — 28 October 2026
 
 - Edit on a TG remittance or TG-funded Pakistan credit advice offers a date-only correction in that company’s posting screen. The other company’s dates, amounts, bank charges, rates and invoice/advance applications remain unchanged. Keep the native source links and public Post ID, audit a balanced reversal/replacement, and synchronise a corrected Pakistan receipt date to Exports.

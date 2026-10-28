@@ -151,6 +151,7 @@ function sac_master(array &$s,string $e,array $b,array $u):array {
   }
   $head=$chart[$parent]??null;
   if(!$head||(!empty($head['legacyOnly'])&&(!$old||$old['parentCode']!==$parent))||in_array($head['level']??'',['heading','system'],true)||in_array($parent,['1110','1120','1130','1430','1440','1610','2610'],true))throw new DomainException('Select a valid posting head. Bank, investment and finance registers manage their own accounts.');
+  $receiptType=!empty($b['receiptType'])||!empty($old['receiptType']);if($receiptType&&(!in_array($head['class'],['Asset','Liability','Equity','Revenue','Income'],true)||in_array($parent,['1100','1110','1120','1430','1440','1610','2610','3300','3400'],true)))throw new DomainException('Choose a valid receipt credit account. Expense refunds use their separate receipt nature.');
   $classification=(string)($b['expenseClassification']??$old['expenseClassification']??'');if(!empty($b['expenseType'])){if(!in_array($classification,['MILL','HOME','OFFICE','EXPORT'],true)||$head['class']!=='Expense')throw new DomainException('Choose Milling / Production, Home, Office or General Export.');$valid=match($classification){'EXPORT'=>$parent==='5550','MILL'=>str_starts_with($parent,'5')&&$parent!=='5550','HOME'=>$parent==='6910','OFFICE'=>!str_starts_with($parent,'5')&&$parent!=='6910'};if(!$valid)throw new DomainException('Choose a parent under the selected expense classification.');}
   if(!empty($old['builtinCategory'])&&($parent!==$old['parentCode']||$parentId!==''))throw new DomainException('Standard expense types keep their posting head. Add a new type for a different classification.');
   if($old&&$parent!==$old['parentCode']){
@@ -163,6 +164,7 @@ function sac_master(array &$s,string $e,array $b,array $u):array {
   foreach(sac_accounts($s,$e) as $other)if($other['id']!==$id&&sac_normal($other['name'])===sac_normal($name))throw new DomainException('This subaccount name already exists. Edit or reactivate it.');
   if($op==='add')$id=far_next((array)($s['accountSubaccounts']??[]),'SUB');
   $a=['id'=>$id,'entity'=>$e,'name'=>$name,'expenseClassification'=>$classification]+array_intersect_key($old??[],array_flip(['builtinCategory','homePerson']))+['parentCode'=>$parent,'parentId'=>$parentId,'taxCategory'=>$tax,'active'=>!array_key_exists('active',$b)||(bool)$b['active']];
+  if($receiptType)$a['receiptType']=true;
   // A subtree moves together. Its rows keep stable IDs and its vouchers keep saved treatment.
   if($old&&$old['parentCode']!==$parent)foreach(sac_subtree($s,$e,$id) as $child){
    $r=sac_accounts($s,$e)[$child];$r['parentCode']=$parent;if(!in_array($parent,['1260','2300'],true))$r['taxCategory']='NONE';$s['accountSubaccounts'][$child]=$r;
