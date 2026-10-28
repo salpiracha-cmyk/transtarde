@@ -21,8 +21,9 @@ function eiv_capture(array &$s,string $entity,array $b,array $u,array $names,boo
     if($number===''||strlen($number)>180||$payee===''||strlen($payee)>180)throw new InvalidArgumentException('Enter the supplier and original invoice number (up to 180 characters each).');
     $profile=null;foreach(sac_expense_recipients($s,$entity) as $p)if(sac_normal($p['name'])===sac_normal($payee)){$profile=$p;$payee=$p['name'];break;}
     if(!empty($b['payeeId'])&&(!$profile||$profile['id']!==$b['payeeId']))throw new InvalidArgumentException('Choose the current supplier identity.');
-    $notes=trim((string)($b['notes']??''));if(strlen($notes)>1000)throw new InvalidArgumentException('Notes must be no longer than 1000 characters.');
-    $extra=['notes'=>$notes];
+    $notes=trim((string)($b['notes']??$old['notes']??''));if(strlen($notes)>1000)throw new InvalidArgumentException('Notes must be no longer than 1000 characters.');
+    $narration=trim((string)($b['paymentNarration']??$old['paymentNarration']??''));if(strlen($narration)>900)throw new InvalidArgumentException('Narration is too long.');
+    $extra=['notes'=>$notes,'paymentNarration'=>$narration];
     if($utility){
         $type=ev1_utility_type((string)($b['utilityType']??''));$owned=ev1_bill_location($b,$entity);$month=ev1_month((string)($b['billMonth']??''));$master=trim((string)($b['utilityMasterId']??''));
         ev1_validate_utility_provider($payee);
@@ -50,7 +51,7 @@ function eiv_capture(array &$s,string $entity,array $b,array $u,array $names,boo
     $recipient=$profile['id']??'EXP|'.sac_normal($payee);$meta=$extra+['expenseInvoiceId'=>$id,'supplierBillId'=>$id,'payee'=>$payee,'party'=>$payee,'payeeId'=>$recipient,'billMonth'=>$month,'invoiceNo'=>$number,'expenseLines'=>$rows];$lines=[];
     foreach($rows as $row){$fields=$row;unset($fields['account'],$fields['accountName'],$fields['amount']);$lines[]=ev1_line($row['account'],$row['amount'],0,$names,$fields+$extra+['counterparty'=>$payee,'expenseRecipientId'=>$recipient,'expenseInvoiceId'=>$id,'expensePurpose'=>$row['purpose']??'','subledger'=>$row['purpose']??'','expenseCategory'=>$row['category']??'OTHER']);}
     $lines[]=ev1_line('2130',0,$amount,$names,['counterparty'=>$payee,'supplierBillId'=>$id,'expenseInvoiceId'=>$id]);
-    $jid=ev1_journal($s,$entity,$date,$utility?'UTILITY_INVOICE':'EXPENSE_INVOICE',$number,'Supplier invoice — '.$payee.' — '.$number,$lines,$u,$meta);
+    $jid=ev1_journal($s,$entity,$date,$utility?'UTILITY_INVOICE':'EXPENSE_INVOICE',$number,'Supplier invoice — '.$payee.' — '.$number.($narration!==''?' — '.$narration:''),$lines,$u,$meta);
     $personal=pex_apply($s,$entity,'EXPENSE-INVOICE|'.$id,$rows,$date,$jid,$u,$names);
     $s['supplierBills'][$id]=$extra+['id'=>$id,'entity'=>$entity,'expenseInvoice'=>true,'invoiceKind'=>$utility?'UTILITY':'GENERAL','category'=>$utility?'UTILITIES':'SERVICE','payeeId'=>$recipient,'vendor'=>$payee,'broker'=>$payee,'billNo'=>$number,'invoiceNo'=>$number,'reference'=>$number,'billDate'=>$date,'dueDate'=>$due,'billMonth'=>$month,'amount'=>$amount,'supplierPayableTotal'=>$amount,'payableAccount'=>'2130','receiptAllocations'=>[['sourceKey'=>'EXPENSE|'.$id,'supplierPayableShare'=>$amount]],'expenseLines'=>$rows,'personalLink'=>'EXPENSE-INVOICE|'.$id,'personalJournalIds'=>$personal['journalIds'],'journalId'=>$jid,'postingJournalIds'=>array_merge((array)($old['postingJournalIds']??[]),[$jid]),'status'=>'Posted','createdAt'=>$old['createdAt']??gmdate('c'),'createdBy'=>$old['createdBy']??($u['full_name']??$u['username']??''),'updatedAt'=>gmdate('c')];
     if($old){$public=tt_accounts_public_post($s,$s['journals'][$old['journalId']]);$s['journals'][$old['journalId']]['amendedByPostId']=$jid;$s['journals'][$jid]['meta']['publicPostId']=$public;$s['journals'][$jid]['meta']['amendmentOfPostId']=$old['journalId'];$s['journals'][$jid]['meta']['amendmentNote']='Invoice corrected — '.trim((string)$b['reason']);foreach($personal['journalIds'] as $pid)$s['journals'][$pid]['meta']['publicPostId']=$public;if(isset($s['expensePersonalLinks']['EXPENSE-INVOICE|'.$id]))$s['expensePersonalLinks']['EXPENSE-INVOICE|'.$id]['publicPostId']=$public;$s['expenseAudit'][]=['action'=>'AMEND_EXPENSE_INVOICE','entity'=>$entity,'id'=>$id,'before'=>$old,'reason'=>$b['reason'],'at'=>gmdate('c'),'by'=>$u['username']??''];}
@@ -64,6 +65,42 @@ function eiv_cancel(array &$s,string $entity,array $b,array $u,array $names): ar
     foreach($ids as $rid)if($s['journals'][$rid]['date']<$old['billDate'])$s['journals'][$rid]['date']=$old['billDate'];
     $s['supplierBills'][$id]['status']='Cancelled';$s['supplierBills'][$id]['cancellationReason']=$reason;$s['expenseAudit'][]=['action'=>'CANCEL_EXPENSE_INVOICE','entity'=>$entity,'id'=>$id,'before'=>$old,'reason'=>$reason,'at'=>gmdate('c'),'by'=>$u['username']??''];
     return ['invoiceId'=>$id,'journalId'=>$ids[0],'status'=>'Cancelled'];
+}
+
+/** One explicit save captures the bill and its initial settlement under the Accounts lock. */
+function dex_record_bill(array &$s,string $entity,array $b,array $u,array $names,array $tracking): array {
+    if(!in_array($entity,['TTI','BRM'],true))throw new InvalidArgumentException('Use the native-currency supplier bill workflow for TG.');
+    if(!empty($b['id'])||!empty($b['invoiceId']))throw new InvalidArgumentException('Correct the original bill or payment through its original form.');
+    $paid=$b['paidNow']??null;
+    if(!is_numeric($paid)||!is_finite((float)$paid)||(float)$paid<0)throw new InvalidArgumentException('Pay now must be zero or a positive amount.');
+    $paid=round((float)$paid,2);[$rows,$total]=dex_rows($b['expenseLines']??null,$names,$s,$entity);
+    if($paid>$total)throw new InvalidArgumentException('Pay now cannot exceed the total bill.');
+    if(empty($b['maintainPartyAccount']))throw new InvalidArgumentException('Choose a party account for this bill.');
+    $party=trim((string)($b['payee']??''));$profile=null;
+    foreach(sac_expense_recipients($s,$entity) as $p)if(sac_normal($p['name'])===sac_normal($party)){$profile=$p;break;}
+    if(!$profile)throw new InvalidArgumentException('Choose an existing party or explicitly add the party first.');
+    if(!empty($b['payeeId'])&&$b['payeeId']!==$profile['id'])throw new InvalidArgumentException('Choose the current party identity.');
+    $date=ev1_date((string)($b['paymentDate']??''),'Bill / payment date');
+    $narration=trim((string)($b['paymentNarration']??''));if(strlen($narration)>900)throw new InvalidArgumentException('Narration is too long.');
+    // An internal reference is assigned only on the final explicit posting, never on opening the form.
+    $number=trim((string)($b['invoiceNo']??''));if($number==='')$number=ev1_id((array)($s['supplierBills']??[]),'EINV');
+    $input=$b;$input['paymentAccountId']='';unset($input['bankPaymentMethod']);
+    $input=array_replace($input,['payee'=>$profile['name'],'payeeId'=>$profile['id'],'invoiceDate'=>$date,'invoiceNo'=>$number,'dueDate'=>$b['dueDate']??$date,'billMonth'=>substr($date,0,7),'notes'=>$narration]);
+    $result=eiv_capture($s,$entity,$input,$u,$names);$billId=$result['invoiceId'];
+    $s['supplierBills'][$billId]['maintainPartyAccount']=true;
+    if($paid===0.0)return $result+['paidNow'=>0,'outstanding'=>$total];
+    $source=trim((string)($b['paymentAccountId']??''));
+    $credit=ev1_card_charge_credit($s,$entity,$source,$paid,$date,$names);dex_check_cheque($s,$entity,$source,$tracking);
+    $sid=ev1_id((array)($s['supplierSettlements']??[]),'SP');
+    $allocation=['billId'=>$billId,'sourceKey'=>'EXPENSE|'.$billId,'billNo'=>$number,'amount'=>$paid,'paidAmount'=>$paid,'discountAmount'=>0,'withholding'=>0,'category'=>'SERVICE','broker'=>$profile['name'],'payableAccount'=>'2130','balanceAfter'=>round($total-$paid,2)];
+    $mode=str_starts_with($source,'CASH|')?'CASH':(str_starts_with($source,'CARD|')?'CARD':'BANK');
+    $meta=array_replace($tracking,['settlementId'=>$sid,'broker'=>$profile['name'],'allocations'=>[$allocation],'paymentMode'=>$mode,'paymentAccountId'=>$source,'paymentNarration'=>$narration,'expenseBillInitialPayment'=>true,'paymentSourceLabel'=>(string)($credit['cashAccountName']??$credit['counterparty']??$source)]);
+    if($mode==='BANK')$meta['bankAccountId']=$source;
+    if($mode==='CASH')$meta['cashAccountId']=$source;
+    $reference=trim((string)($b['reference']??''))?:$number;
+    $jid=ev1_journal($s,$entity,$date,'SUPPLIER_PAYMENT',$reference,'Supplier payment — '.$profile['name'].($narration!==''?' — '.$narration:''),[ev1_line('2130',$paid,0,$names,['counterparty'=>$profile['name'],'supplierBillId'=>$billId]),array_replace($credit,$tracking)],$u,$meta);
+    $s['supplierSettlements'][$sid]=array_replace($meta,['id'=>$sid,'entity'=>$entity,'date'=>$date,'type'=>'Bank / Cash Supplier Payment','amount'=>$paid,'withholding'=>0,'discountAmount'=>0,'netPayment'=>$paid,'reference'=>$reference,'journalId'=>$jid,'status'=>'Posted','createdAt'=>gmdate('c'),'createdBy'=>$u['full_name']??$u['username']??'Accounts']);
+    return $result+['settlementId'=>$sid,'paymentJournalId'=>$jid,'paidNow'=>$paid,'outstanding'=>round($total-$paid,2)];
 }
 
 /** One recipient and one payment source; every expense has its own debit leg. */

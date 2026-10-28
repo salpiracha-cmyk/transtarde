@@ -731,7 +731,9 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 ## Expense narration and optional named subledgers — 28 October 2026
 
 - Ordinary expense payments have no separate Paid to field. Enter recipient/payment details in narration. Do not infer or manufacture a named recipient account from free text.
-- Each expense row offers an optional existing subledger and an explicit Add subledger action under the expense type. A chosen named subledger owns that account's expense balance. Creating a subledger must retain the payment draft and must not post a payment.
+- Owner refinement: ordinary expense rows do not expose a subledger selector. A single optional Maintain a party account tick opens the existing-party choice and a small Add party form. Party identity is independent of the expense head. Creating a party preserves the expense draft and never submits it. Preserve historical subaccount selections and explicitly selected expense types.
+- Total bill fills Pay now until the user edits Pay now. Partial/unpaid bills require an explicit party; one final reviewed save atomically captures the full supplier invoice and the initial payment, using the canonical supplier settlement allocations. Later payment clears the same payable without another expense. Narration follows Pay from. Family/ARP costs keep the existing household, beneficiary and cost-bearer flow without an extra party choice for ordinary fully paid expenses.
+- Historical expense-only recipients are omitted from ledger-name choices while their saved entries, original names, dates, subaccounts and audit remain intact. Parties with genuine balance-account history remain available even after settlement. Wrong monetary classifications require the original audited correction flow, never a report-time rewrite.
 - Preserve stored recipient references on historical amendments. Unpaid invoices retain their supplier-ledger identity for later settlement.
 - Fuel and car repairs can be posted without specifying a vehicle. A supplied vehicle must still belong to the company. Vehicle tax retains its vehicle and tax-period validation.
 

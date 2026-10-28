@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=require('playwright');
 (async()=>{
- const browser=await chromium.launch({headless:true});
+ const browser=await chromium.launch({headless:true,...(process.env.TT_BROWSER_EXECUTABLE?{executablePath:process.env.TT_BROWSER_EXECUTABLE}:{})});
  try{
  const page=await browser.newPage({viewport:{width:1100,height:800}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('http://fixture.test/**',r=>r.fulfill({contentType:'text/html',body:'<!doctype html><div id="expenseEditor"></div>'}));await page.goto('http://fixture.test');await page.addStyleTag({content:fs.readFileSync('brand-theme.css','utf8')});
@@ -12,7 +12,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
  window.fetch=async(url,options={})=>{if(options.body){posts.push(JSON.parse(options.body));return{ok:false,json:async()=>({ok:false,error:'Fixture rejects without saving'})}}return{ok:true,json:async()=>structuredClone(fixture)}};window.TT_SUPPLIER_SETTLEMENT_UI={openBills(...args){window.paid=args}};
  });
  for(const path of ['accounts/accounts-form-layout.js','accounts/accounts-row-controls.js','accounts/expense-editor-owner.js','accounts/cheque-date-ui.js','accounts/bank-payment-details.js','accounts/expenses-v1-ui.js','accounts/expense-desk-ui.js','brand-theme.js'])await page.addScriptTag({content:fs.readFileSync(path,'utf8')});
- await page.evaluate(()=>TT_EXPENSE_DESK.open());await page.selectOption('[data-invoice-mode]','INVOICE');assert(await page.locator('[data-invoice-number]').isVisible());assert.equal(await page.locator('#dexPayAccount').isVisible(),false);assert(await page.locator('#dexPayAccount').isDisabled());
+ await page.evaluate(()=>TT_EXPENSE_DESK.open());await page.selectOption('[data-invoice-mode]','INVOICE',{force:true});assert(await page.locator('[data-invoice-number]').isVisible());assert.equal(await page.locator('#dexPayAccount').isVisible(),false);assert(await page.locator('#dexPayAccount').isDisabled());
  await page.fill('#dexPayee','Fixture Services');await page.fill('[data-invoice-number]','INV-NEW');await page.fill('[data-invoice-due]','2026-12-31');await page.fill('[data-amount]','1000.08');await page.click('[data-post]');await page.waitForFunction(()=>posts.length===1);const post=await page.evaluate(()=>posts[0]);assert.equal(post.action,'capture_expense_invoice');assert.equal(post.paymentAccountId,'');assert(!post.bankPaymentMethod);assert(await page.locator('[data-invoice-number]').isVisible());
  await page.evaluate(()=>TT_EXPENSE_DESK.invoices());await page.fill('[data-filter-party]','Fixture');assert.match(await page.locator('[data-invoice-rows]').textContent(),/INV-ORIGINAL/);const downloadPromise=page.waitForEvent('download');await page.click('[data-csv]');const download=await downloadPromise,stream=await download.createReadStream();let chunks=[];for await(const chunk of stream)chunks.push(chunk);const csv=Buffer.concat(chunks).toString('utf8');assert.match(csv,/Supplier.*\r\n/);assert.match(csv,/INV-ORIGINAL/);assert.match(csv,/"0.08"/);
  await page.click('[data-edit-invoice]');assert.equal(await page.locator('[data-invoice-number]').inputValue(),'INV-ORIGINAL');assert.equal(await page.locator('[data-amount]').inputValue(),'1000.08');assert(await page.locator('[data-invoice-mode]').isDisabled());assert.equal(await page.locator('#dexPayAccount').isVisible(),false);

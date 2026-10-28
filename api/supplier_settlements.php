@@ -364,6 +364,14 @@ try{
             if($issuing){$chequeDate=ss_date((string)($body['chequeDate']??''));if($chequeDate<$date)ss_respond(['ok'=>false,'error'=>'Cheque date cannot be before issue date.'],422);foreach((array)$store['supplierSettlements'] as $prior)if(is_array($prior)&&($prior['entity']??'')===$entity&&($prior['bankAccountId']??'')===$bankId&&strcasecmp((string)($prior['chequeNo']??''),$bankReference)===0&&$bankReference!==''&&isset($prior['chequeIssueJournalId']))ss_respond(['ok'=>false,'error'=>'This cheque number has already been issued on this bank.'],409);}
             $sourceMeta=[];$sourceLabel='';
             if($mode==='BANK'){$bank=ss_require_pkr_bank(ss_bank_source($store,$entity,$bankId,'payment'));$creditLine=$issuing?ss_line('2180',0,$prepared['netPayment'],$catalog):ss_line('1110',0,$prepared['netPayment'],$catalog,['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]);$sourceMeta=['paymentMode'=>'BANK','bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceLabel=$bank['bankName'].' — '.$bank['accountTitle'];}
+            elseif($mode==='EXPENSE_SOURCE'){
+                require_once __DIR__.'/expense_payment_source.php';
+                $sourceId=(string)($amendingPayment['paymentAccountId']??'');
+                if(!$amendingPayment||empty($amendingPayment['expenseBillInitialPayment'])||!(str_starts_with($sourceId,'CARD|')||str_starts_with($sourceId,'CASH|'.$entity.'|STAFF|')))throw new DomainException('Reopen the original expense payment before retaining this source.');
+                try{$creditLine=esp_card_charge_credit($store,$entity,$sourceId,$prepared['netPayment'],$date,array_map(static fn($a)=>is_array($a)?(string)($a['name']??''):(string)$a,$catalog));}catch(InvalidArgumentException $error){throw new DomainException($error->getMessage());}
+                $sourceMeta=['paymentMode'=>str_starts_with($sourceId,'CARD|')?'CARD':'CASH','paymentAccountId'=>$sourceId,'expenseBillInitialPayment'=>true];if(str_starts_with($sourceId,'CASH|'))$sourceMeta['cashAccountId']=$sourceId;
+                $sourceLabel=(string)($creditLine['cashAccountName']??$creditLine['counterparty']??$sourceId);
+            }
             elseif($mode==='CASH'){$cash=ss_cash_source($store,$entity,'payment');$creditLine=ss_line('1120',0,$prepared['netPayment'],$catalog,['cashAccountId'=>$cash['id']]);$sourceMeta=['paymentMode'=>'CASH','cashAccountId'=>$cash['id']];$sourceLabel='Cash / Petty Cash';}
             elseif($mode==='THIRD_PARTY'&&!empty($body['simpleBillPayment'])){$relationship=strtoupper(trim((string)($body['payerRelationship']??'')));$payer=trim((string)($body['payer']??''));if($payer==='')ss_respond(['ok'=>false,'error'=>'Select who paid on behalf of the company.'],422);if(!in_array($relationship,['CUSTOMER_RECEIVABLE','CUSTOMER_ADVANCE','OTHER_THIRD_PARTY','FAMILY_STAFF'],true))ss_respond(['ok'=>false,'error'=>'Select the third-party relationship.'],422);$credit=ss_advance_credit_account($relationship,$payer);$creditLine=ss_line($credit,0,$prepared['netPayment'],$catalog,['counterparty'=>$payer,'subledger'=>$payer]);$sourceMeta=['paymentMode'=>'THIRD_PARTY','payer'=>$payer,'payerRelationship'=>$relationship];$sourceLabel=$payer;}
             else ss_respond(['ok'=>false,'error'=>'Select an actual Bank Account or Cash payment source.'],422);
@@ -403,6 +411,7 @@ try{
             $result=$store['supplierSettlements'][$result['id']];$result['publicPostId']=$public;
             $store['supplierPaymentAmendmentRequests'][$amendKey]=['hash'=>$amendHash,'result'=>$result];
         }
+        if(($body['paymentMode']??'')==='EXPENSE_SOURCE')pc_assert_balances($store,$entity);
         tt_posting_preview_exit($body,$store,$previewBefore);$store['revision']=(int)($store['revision']??0)+1;$encoded=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Accounts storage write failed.');
     }finally{flock($h,LOCK_UN);fclose($h);}
     if(isset($millPaymentLease))($millPaymentLease['release'])();

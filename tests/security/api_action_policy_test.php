@@ -42,6 +42,7 @@ $cases=[
     ['expenses_v1.php',['action'=>'resolve_estimated_bill'],'expenses',['Edit']],
     ['expenses_v1.php',['action'=>'cancel_estimated_bill'],'expenses',['Edit']],
     ['expenses_v1.php',['action'=>'pay_expense'],'expenses',['Create']],
+    ['expenses_v1.php',['action'=>'record_expense_bill'],'expenses',['Create']],
     ['expenses_v1.php',['action'=>'amend_expense'],'expenses',['Edit']],
     ['expenses_v1.php',['action'=>'cancel_expense_invoice'],'expenses',['Edit']],
     ['payment_plans.php',['action'=>'post'],'supplier',['Create']],
