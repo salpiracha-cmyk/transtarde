@@ -127,7 +127,7 @@ try{
         $result=elc_apply($s,$manifest,$batch);$result['mode']=$mode;$result['businessFilesWritten']=0;$result['beforeSourceSha256']=hash('sha256',$raw);
         if($mode==='APPLY'&&empty($result['duplicate'])){
             $dir=TT_DATA_DIR.'/expense-maintenance-safety';if(!is_dir($dir)&&!mkdir($dir,0700))throw new RuntimeException('Private safety workspace unavailable.');
-            if(is_link($dir)||count(glob($dir.'/before-*.json.gz')?:[])>=3)throw new RuntimeException('Safety copies require review before another batch.');
+            if(is_link($dir)||count(glob($dir.'/before-*.json.gz')?:[])>=7)throw new RuntimeException('Safety copies require review before another batch.');
             $backup=$dir.'/before-'.$batch.'.json.gz';$compressed=gzencode($raw,6);if($compressed===false||hash('sha256',gzdecode($compressed))!==hash('sha256',$raw))throw new RuntimeException('Safety snapshot verification failed.');
             $backupHandle=fopen($backup,'x');if(!$backupHandle)throw new RuntimeException('Safety snapshot already exists; review before retrying.');try{if(fwrite($backupHandle,$compressed)!==strlen($compressed)||!fflush($backupHandle))throw new RuntimeException('Safety snapshot failed.');}finally{fclose($backupHandle);}chmod($backup,0600);
             if(hash('sha256',(string)gzdecode((string)file_get_contents($backup)))!==hash('sha256',$raw))throw new RuntimeException('Saved safety snapshot verification failed.');

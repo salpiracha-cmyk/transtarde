@@ -2,141 +2,52 @@
   "version": 1,
   "rows": [
     {
-      "fingerprint": "6c50e49ad366ff1737c18644c34c500b4a805fe35240647ab2359b0c7b74ddf8",
+      "fingerprint": "d56d7c93801e488435e0f70e96b4874a4c0988e81f287b241aa0d86dbac28095",
       "row": 0,
       "changes": {
         "account": "6910",
         "category": "HOME",
-        "expenseFor": "FAM-SALMAN",
+        "expenseFor": "FAM-TAYYAB",
         "personalTreatment": "COMPANY",
         "expenseArea": "HOME"
       },
-      "reason": "Owner-confirmed household allocation and original payment treatment"
+      "reason": "Owner final clarification: household fee split is 50 percent Tayyab, 25 percent Talha and 25 percent Salman"
     },
     {
-      "fingerprint": "04c0ae804d8ecab342dd1ab26c5e6bfae9f899927117d49c516cc3fe57aaef68",
-      "row": 0,
-      "changes": {
-        "account": "7210",
-        "category": "DONATION",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed household allocation and original payment treatment",
-      "narration": "Paid to Mochie"
-    },
-    {
-      "fingerprint": "cf2301602c54d380b31bfced20bddefb3eab20cc9bbccac32a3468897491059f",
-      "row": 0,
+      "fingerprint": "d56d7c93801e488435e0f70e96b4874a4c0988e81f287b241aa0d86dbac28095",
+      "row": 1,
       "changes": {
         "account": "6910",
-        "category": "ARP",
-        "expenseFor": "FAM-ABU",
+        "category": "HOME",
+        "expenseFor": "FAM-TALHA",
         "personalTreatment": "COMPANY",
         "expenseArea": "HOME"
       },
-      "reason": "Owner-confirmed household allocation and original payment treatment"
+      "reason": "Owner final clarification: household fee split is 50 percent Tayyab, 25 percent Talha and 25 percent Salman"
     },
     {
-      "fingerprint": "be836d5dc757a9ee6e879b2dbe116a3b9368bdda743f1651dfd52bec0e5f424a",
-      "row": 0,
-      "changes": {
-        "account": "6910",
-        "category": "ARP",
-        "expenseFor": "FAM-ABU",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "HOME"
-      },
-      "reason": "Owner-confirmed household allocation and original payment treatment"
-    },
-    {
-      "fingerprint": "c224d9c46c54fb90362bb42aa6219061b0cb9b4f8005d0ca4d9b54f6f13c8140",
-      "row": 0,
-      "changes": {
-        "account": "6910",
-        "category": "ARP",
-        "expenseFor": "FAM-ABU",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "HOME"
-      },
-      "reason": "Owner-confirmed household allocation and original payment treatment"
-    },
-    {
-      "fingerprint": "7afe08ba228e3ef11665b1cebda2b3d572d692d16f235d14400fa89461f58f9e",
-      "row": 0,
-      "changes": {
-        "account": "6910",
-        "category": "ARP",
-        "expenseFor": "FAM-ABU",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "HOME"
-      },
-      "reason": "Owner-confirmed household allocation and original payment treatment"
-    },
-    {
-      "fingerprint": "e435f513f71eafe9d829217e48d76f243461990b48b6711db7d208c2bf9b1bd9",
+      "fingerprint": "2d6345d0f96b88f7623d31855b5f0ada2a8bcd0bd0503d00b6206fcd3ac155b4",
       "row": 0,
       "changes": {
         "account": "6910",
         "category": "HOME",
-        "expenseFor": "FAM-SALMAN",
+        "expenseFor": "FAM-TAYYAB",
         "personalTreatment": "COMPANY",
         "expenseArea": "HOME"
       },
-      "reason": "Owner-confirmed household allocation and original payment treatment"
+      "reason": "Owner final clarification: household fee split is 50 percent Tayyab, 25 percent Talha and 25 percent Salman"
     },
     {
-      "fingerprint": "d2c25b7395934d3dd449331b7cf26acb4dd0709f003baef11545c524bacf6e20",
-      "row": 0,
+      "fingerprint": "2d6345d0f96b88f7623d31855b5f0ada2a8bcd0bd0503d00b6206fcd3ac155b4",
+      "row": 1,
       "changes": {
         "account": "6910",
         "category": "HOME",
-        "expenseFor": "SHARED",
+        "expenseFor": "FAM-TALHA",
         "personalTreatment": "COMPANY",
         "expenseArea": "HOME"
       },
-      "allocations": [
-        {
-          "expenseFor": "FAM-TALHA",
-          "percent": 50
-        },
-        {
-          "expenseFor": "FAM-TAYYAB",
-          "percent": 25
-        },
-        {
-          "expenseFor": "FAM-SALMAN",
-          "percent": 25
-        }
-      ],
-      "reason": "Owner-confirmed 50/25/25 company-borne household fee allocation"
-    },
-    {
-      "fingerprint": "d685bb69e501568907a28cbfc5aa381d6e67411f2507e5d1549a65666c32326d",
-      "row": 0,
-      "changes": {
-        "account": "6910",
-        "category": "HOME",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "HOME"
-      },
-      "allocations": [
-        {
-          "expenseFor": "FAM-TALHA",
-          "percent": 50
-        },
-        {
-          "expenseFor": "FAM-TAYYAB",
-          "percent": 25
-        },
-        {
-          "expenseFor": "FAM-SALMAN",
-          "percent": 25
-        }
-      ],
-      "reason": "Owner-confirmed 50/25/25 company-borne household fee allocation"
+      "reason": "Owner final clarification: household fee split is 50 percent Tayyab, 25 percent Talha and 25 percent Salman"
     }
   ],
   "archiveExpenseOnlyRecipients": false
