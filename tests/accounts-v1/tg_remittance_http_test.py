@@ -226,7 +226,14 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
      assert visible_input.bounding_box()['width']>=180, 'Full TG amount needs a readable mobile column'
      assert visible_input.evaluate('el=>el.scrollWidth<=el.clientWidth+1'), 'TG amount text must fit without horizontal clipping'
 
-    page.locator('#erPost').click();page.locator('#ttExportReceiptToast').filter(has_text='posted').wait_for()
+    page.locator('#erPost').click()
+    try:
+     page.wait_for_function("""() => document.querySelector('#ttExportReceiptToast')?.textContent.includes('posted') || document.querySelector('[data-er-error]')?.textContent.trim()""")
+    except Exception as failure:
+     raise AssertionError('Receipt result missing. Inline error: '+str(page.locator('[data-er-error]').all_text_contents())+'; status: '+str(page.locator('#erPostStatus').all_text_contents())+'; button: '+str(page.locator('#erPost').all_text_contents())) from failure
+    inline_error=page.locator('[data-er-error]').inner_text()
+    assert not inline_error, 'Actual receipt form failed: '+inline_error
+    page.locator('#ttExportReceiptToast').filter(has_text='posted').wait_for()
     saved_ui=json.loads((root/'data/accounts.json').read_text());receipt_ui=next(x for x in saved_ui['exportReceipts'].values() if x['bankAdviceRef']=='BASKET-UI')
     assert receipt_ui['tgPaymentTotal']==350 and receipt_ui['foreignAmount']==340 and receipt_ui['correspondentPkrAmount']==2800
     assert req()[1]['items'][0]['amountNative']==350 and next(x for x in req()[1]['banks'] if x['id']=='USD')['balance']['posted']==0

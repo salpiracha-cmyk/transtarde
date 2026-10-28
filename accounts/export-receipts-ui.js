@@ -28,7 +28,7 @@
 
   function toast(message, ok = true) {if(!ok){const inline=q('#ttExportReceiptDialog [data-er-error]');if(inline){inline.textContent=message;inline.hidden=false;window.TT_FORM_VIEWPORT?.open(q('#ttExportReceiptDialog .tter-dialog'));return;}}if(!ok&&window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(message);
     let el = q('#ttExportReceiptToast');
-    if (!el) { el = document.createElement('div'); el.id = 'ttExportReceiptToast'; el.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100090;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003'; document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'ttExportReceiptToast'; el.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100220;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003'; document.body.appendChild(el); }
     el.style.background = ok ? '#147a5b' : '#a93a34'; el.textContent = message; el.hidden = false; clearTimeout(el._t); el._t = setTimeout(() => { el.hidden = true; }, 3800);
   }
   async function get(url) {
