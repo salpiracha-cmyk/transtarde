@@ -44,6 +44,16 @@ function elc_archive(array &$s,array $actor):array {
     }
     return $archived;
 }
+function elc_split_home(array $row,array $allocations,string $entity):array {
+    if(($row['accountCode']??'')!=='6910'||($row['category']??'')!=='HOME'||($row['personalTreatment']??'')!=='COMPANY'||count($allocations)!==3)throw new RuntimeException('Only an explicit three-household company-borne Home split is supported.');
+    $cents=(int)round(100*(float)$row['amount']);$sum=0;$seen=[];$pieces=[];$remainders=[];$allocated=0;
+    foreach($allocations as $i=>$a){$person=$a['expenseFor']??'';$percent=$a['percent']??null;if(!in_array($person,['FAM-TALHA','FAM-TAYYAB','FAM-SALMAN'],true)||isset($seen[$person])||!is_int($percent)||$percent<1||$percent>100)throw new RuntimeException('Invalid household percentage allocation.');$seen[$person]=true;$sum+=$percent;$value=intdiv($cents*$percent,100);$allocated+=$value;$remainders[$i]=($cents*$percent)%100;$pieces[$i]=array_replace($row,['amount'=>$value/100,'expenseFor'=>$person,'expenseArea'=>'HOME','subaccountId'=>sac_home_id($entity,$person)]);}
+    if($sum!==100)throw new RuntimeException('Household percentages must total exactly 100.');
+    arsort($remainders,SORT_NUMERIC);$remaining=$cents-$allocated;foreach(array_keys($remainders) as $i){if($remaining<=0)break;$pieces[$i]['amount']=round($pieces[$i]['amount']+.01,2);$remaining--;}
+    foreach($pieces as $piece)if($piece['amount']<=0)throw new RuntimeException('Each household allocation must be positive.');
+    if($remaining!==0||array_sum(array_map(static fn($p)=>(int)round($p['amount']*100),$pieces))!==$cents)throw new RuntimeException('Household split total changed.');
+    return array_values($pieces);
+}
 function elc_apply(array &$s,array $manifest,string $batch):array {
     if(isset($s['expenseLedgerMaintenance'][$batch]))return $s['expenseLedgerMaintenance'][$batch]+['duplicate'=>true];
     if(($manifest['version']??0)!==1||empty($manifest['rows'])||count($manifest['rows'])>100)throw new RuntimeException('Invalid correction manifest.');
@@ -57,7 +67,7 @@ function elc_apply(array &$s,array $manifest,string $batch):array {
         if(!in_array($entity,['TTI','BRM'],true)||($old['expenseType']??'')!=='DIRECT'||!is_array($original)||!empty($old['cardStatementId'])||!empty($original['reversedByPostId'])||!empty($original['amendedByPostId']))throw new RuntimeException('Expense requires its original linked workflow.');
         $public=tt_accounts_public_post($s,$original);if(str_ends_with($public,'-03046'))throw new RuntimeException('Protected posting is outside this maintenance batch.');
         $rows=(array)$old['expenseLines'];foreach($rows as &$row){if(($row['personalTreatment']??'COMPANY')!=='COMPANY')throw new RuntimeException('Personal recovery requires separate review.');$row['accountCode']=(string)$row['account'];}unset($row);
-        $monthly=false;$reasons=[];$narrationOverride=null;
+        $monthly=false;$reasons=[];$narrationOverride=null;$splits=[];
         foreach($entries as $entry){
             if(array_key_exists('narration',$entry)){if(!is_string($entry['narration'])||strlen($entry['narration'])>900||($narrationOverride!==null&&$narrationOverride!==$entry['narration']))throw new RuntimeException('Invalid or conflicting owner-approved narration.');$narrationOverride=$entry['narration'];}
             $index=$entry['row']??null;if(!is_int($index)||!isset($rows[$index]))throw new RuntimeException('Reviewed expense row is unavailable.');
@@ -73,8 +83,10 @@ function elc_apply(array &$s,array $manifest,string $batch):array {
             elseif($category==='HOME')$rows[$index]['subaccountId']=sac_home_id($entity,$person);
             elseif($category==='ARP')$rows[$index]['subaccountId']=$entity.'-EXPENSE-TYPE-ARP';
             else foreach(sac_accounts($s,$entity) as $a)if(($a['builtinCategory']??'')===$category&&$a['parentCode']===$to){$rows[$index]['subaccountId']=$a['id'];break;}
+            if(array_key_exists('allocations',$entry)){if(!is_array($entry['allocations'])||isset($splits[$index]))throw new RuntimeException('Invalid or duplicate household split.');$splits[$index]=$entry['allocations'];}
             $reasons[]=(string)($entry['reason']??'Owner-approved expense classification');
         }
+        krsort($splits);foreach($splits as $index=>$allocation)array_splice($rows,$index,1,elc_split_home($rows[$index],$allocation,$entity));
         $narration=(string)($old['paymentNarration']??$old['description']??'');
         if($monthly&&!str_contains(strtolower($narration),'monthly fee'))$narration='Monthly fee — Paid to '.(string)$old['payee'].($narration!==''?' — '.$narration:'');
         if($narrationOverride!==null)$narration=$narrationOverride;

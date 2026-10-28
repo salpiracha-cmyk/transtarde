@@ -85,6 +85,58 @@
         "expenseArea": "HOME"
       },
       "reason": "Owner-confirmed household allocation and original payment treatment"
+    },
+    {
+      "fingerprint": "d2c25b7395934d3dd449331b7cf26acb4dd0709f003baef11545c524bacf6e20",
+      "row": 0,
+      "changes": {
+        "account": "6910",
+        "category": "HOME",
+        "expenseFor": "SHARED",
+        "personalTreatment": "COMPANY",
+        "expenseArea": "HOME"
+      },
+      "allocations": [
+        {
+          "expenseFor": "FAM-TALHA",
+          "percent": 50
+        },
+        {
+          "expenseFor": "FAM-TAYYAB",
+          "percent": 25
+        },
+        {
+          "expenseFor": "FAM-SALMAN",
+          "percent": 25
+        }
+      ],
+      "reason": "Owner-confirmed 50/25/25 company-borne household fee allocation"
+    },
+    {
+      "fingerprint": "d685bb69e501568907a28cbfc5aa381d6e67411f2507e5d1549a65666c32326d",
+      "row": 0,
+      "changes": {
+        "account": "6910",
+        "category": "HOME",
+        "expenseFor": "SHARED",
+        "personalTreatment": "COMPANY",
+        "expenseArea": "HOME"
+      },
+      "allocations": [
+        {
+          "expenseFor": "FAM-TALHA",
+          "percent": 50
+        },
+        {
+          "expenseFor": "FAM-TAYYAB",
+          "percent": 25
+        },
+        {
+          "expenseFor": "FAM-SALMAN",
+          "percent": 25
+        }
+      ],
+      "reason": "Owner-confirmed 50/25/25 company-borne household fee allocation"
     }
   ],
   "archiveExpenseOnlyRecipients": false
