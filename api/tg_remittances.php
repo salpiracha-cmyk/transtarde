@@ -3,6 +3,8 @@ declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_bank_payment.php';
 require_once __DIR__.'/tg_remittance_core.php';
+require_once __DIR__.'/accounts_linked_edit_core.php';
+require_once __DIR__.'/accounts_posting_preview.php';
 require_once __DIR__.'/tg_native_currency.php';
 require_once __DIR__.'/accounts_reference.php';
 require_once __DIR__.'/fi_credit_advice_link.php';
@@ -38,12 +40,23 @@ try{
    if(!$rights)$rights[is_array($previous)&&!empty($previous['legacyReversalPostIds'])?'Edit':'Create']=true;
    foreach(array_keys($rights) as $right)if(!tt_api_icon_write_allowed($u,'tg_remittances.php',$b,$right,'TG'))tgr_out(['ok'=>false,'error'=>'The corresponding TG remittance and company action permission is required.'],403);
   }
-  if($write){if(($b['action']??'')==='reopen')$result=tgr_reopen($s,$b,$u);elseif(($b['action']??'')==='confirm')$result=tgr_confirm($s,$b,$u,$banks,$names,$rates);else throw new DomainException('Choose POST to confirm the remittance.');$s['revision']=(int)($s['revision']??0)+1;
+  if($write&&($b['action']??'')==='amend'){
+   $key=(string)($b['requestKey']??'');$identity='TG|'.($u['id']??0).'|'.$key;$hash=hash('sha256',json_encode(array_diff_key($b,['preview'=>true])));$prior=$s['tgRemittanceAmendmentRequests'][$identity]??null;
+   if($prior){if($prior['hash']!==$hash)throw new DomainException('This correction request was already used with different details.');tgr_out($prior['response']);}
+   if(!preg_match('/^[a-zA-Z0-9-]{16,80}$/',$key)||(int)($b['expectedRevision']??-1)!==(int)($s['revision']??0))throw new DomainException('Accounts changed. Reopen the full remittance form before saving.');
+   $reason=trim((string)($b['reason']??''));if(mb_strlen($reason)<5||mb_strlen($reason)>300)throw new DomainException('Enter a correction reason of 5–300 characters.');
+   $before=array_keys((array)$s['journals']);$context=ale_begin_remit($s,(string)($b['remittanceId']??''),$u,$reason);
+   $charge=tgr_money($b['chargeAmount']??0,'bank charge');$b['vatAmount']=round($charge*tt_company_vat_rate('TG',5)/100,2);
+   $catalog=[];foreach($names as $code=>$name)$catalog[$code]=['name'=>$name];$result=ale_finish_remit($s,$context,$u,$catalog,$b);tt_posting_preview_exit($b,$s,$before);
+   $s['revision']=(int)($s['revision']??0)+1;$s['tgRemittanceAmendmentRequests'][$identity]=['hash'=>$hash,'response'=>['ok'=>true,'posted'=>$result,'revision'=>$s['revision']]];
+   $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Could not save remittance correction.');
+  }
+  elseif($write){if(($b['action']??'')==='reopen')$result=tgr_reopen($s,$b,$u);elseif(($b['action']??'')==='confirm')$result=tgr_confirm($s,$b,$u,$banks,$names,$rates);else throw new DomainException('Choose POST to confirm the remittance.');$s['revision']=(int)($s['revision']??0)+1;
    $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Could not save remittance.');
   }
   if(is_array($result)&&isset($result['journalId'],$s['journals'][$result['journalId']]))$result['publicPostId']=tt_accounts_public_post($s,$s['journals'][$result['journalId']]);
   $items=tgr_items($s);foreach($items as &$x)$x['fingerprint']=tgr_fingerprint($x);unset($x);
   foreach($banks as &$bank)$bank['balance']=tgr_bank_balance($s,$bank['id'],$bank['currency']);unset($bank);
  }finally{flock($h,LOCK_UN);fclose($h);}
- tgr_out(['ok'=>true,'entity'=>'TG','items'=>$items,'banks'=>array_values($banks),'posted'=>$result,'history'=>array_values((array)($s['tgRemittances']??[])),'csrf'=>function_exists('tt_csrf_token')?tt_csrf_token():null]);
+ tgr_out(['ok'=>true,'entity'=>'TG','revision'=>(int)($s['revision']??0),'items'=>$items,'banks'=>array_values($banks),'posted'=>$result,'history'=>array_values((array)($s['tgRemittances']??[])),'csrf'=>function_exists('tt_csrf_token')?tt_csrf_token():null]);
 }catch(DomainException $e){tgr_out(['ok'=>false,'error'=>$e->getMessage()],422);}catch(Throwable $e){error_log('TG remittance: '.$e->getMessage());tgr_out(['ok'=>false,'error'=>'TG remittance could not be saved. Reopen the review and try again.'],500);}

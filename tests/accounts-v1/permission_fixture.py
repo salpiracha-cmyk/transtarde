@@ -23,6 +23,9 @@ def append_permission_helpers(root):
     repo = Path(__file__).resolve().parents[2]
     if any((Path(root)/'api'/name).exists() for name in ['export_receipts.php','bag_purchases.php','accounts_receipt_file.php','bag_bill_file.php']):
         shutil.copy(repo/'pending_uploads.php', Path(root)/'pending_uploads.php')
+        if (Path(root)/'api'/'export_receipts.php').exists():
+            for name in ['accounts_linked_edit_core.php','intercompany_advance_core.php','accounts_posting_preview.php']:
+                shutil.copy(repo/'api'/name,Path(root)/'api'/name)
     if any((Path(root)/'api'/name).exists() for name in ['local_sales_control.php','local_sales_payments.php']):
         for name in ['inventory_reconciliation.php','product_stage.php']:
             shutil.copy(repo/name,Path(root)/name)

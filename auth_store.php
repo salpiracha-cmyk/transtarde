@@ -987,7 +987,7 @@ function tt_api_write_grants(string $endpoint,array $body): ?array {
     if($endpoint==='monthly_tax.php'){if(($body['action']??$_POST['action']??'')==='status')return [['Accounts','purchases','Edit'],['Accounts','expenses','Edit']];return [['Accounts',str_starts_with((string)($body['source']??$_POST['source']??''),'bag:')?'purchases':'expenses','Edit']];}
     if($endpoint==='bag_transfers.php')return [['Mill','newbags','Create']];
     if($endpoint==='mill_source_amend.php')return [['Mill',($body['collection']??'')==='tt38reprocessbills'?'reprocessbill':'labour','Edit']];
-    if($endpoint==='bank_entries.php'){$right=($body['action']??'')==='reverse'?'Edit':(($body['action']??'')==='facility'?(($body['operation']??'add')==='delete'?'Delete':(($body['operation']??'add')==='edit'?'Edit':'Create')):'Create');return [['Accounts','cashbank',$right]];}
+    if($endpoint==='bank_entries.php'){$right=in_array($body['action']??'',['reverse','amend'],true)?'Edit':(($body['action']??'')==='facility'?(($body['operation']??'add')==='delete'?'Delete':(($body['operation']??'add')==='edit'?'Edit':'Create')):'Create');return [['Accounts','cashbank',$right]];}
     if($endpoint==='accounts_subaccounts.php'){$right=($body['operation']??'add')==='delete'?'Delete':(in_array($body['operation']??'add',['edit','move_head'],true)?'Edit':'Create');return [['Accounts','masters',$right]];}
     if($endpoint==='bank_direct_entries.php'&&strtoupper((string)($body['type']??''))==='SAVING_PROFIT')return [['Accounts','cashbank'],['Accounts','reconciliation']];
     $routes=[
@@ -1098,7 +1098,7 @@ function tt_api_write_actions(string $endpoint,array $body): ?array {
     if($endpoint==='local_sales_payments.php')return match($action){'queue_payment'=>['Create','Edit'],'approve_payment','reject_payment'=>['Edit'],default=>[]};
     if($endpoint==='local_sales_entity_rule.php')return ['Edit'];
     if($endpoint==='tg_bank_transactions.php')return in_array($action,['post_payment','post_receipt','apply_advance'],true)?['Create']:[];
-    if($endpoint==='tg_remittances.php')return match($action){'confirm'=>['Create','Edit'],'reopen'=>['Edit'],default=>[]};
+    if($endpoint==='tg_remittances.php')return match($action){'confirm'=>['Create','Edit'],'reopen','amend'=>['Edit'],default=>[]};
     if(in_array($endpoint,['bag_purchases.php','nonwoven_bag_bills.php'],true))return match($action){
         'create_historical_bill'=>[!empty($body['amendBillId'])?'Edit':'Create'],
         'create_bill','create_general_bill','try_post_bill','pay_bill'=>['Create'],
@@ -1166,6 +1166,7 @@ function tt_post_workflow_icons(array $journal): array {
     $source=(string)($journal['meta']['originalSourceType']??$journal['sourceType']??'');
     if(in_array($source,['EXPORT_FOREIGN_RECEIPT','EXPORT_REALIZATION_BANK_DEBITS'],true))return ['customer','cashbank'];
     if($source==='TG_REMITTANCE_CONFIRMED')return ['tg'];
+    if($source==='INTERCOMPANY_ADVANCE_APPLIED')return ($journal['entity']??'')==='TG'?['supplier','tg']:['customer','cashbank'];
     if($source==='BANK_RECON_DIRECT_ENTRY'&&($journal['meta']['bankDirectType']??'')==='SAVING_PROFIT')return ['cashbank','reconciliation'];
     $groups=[
         'expenses'=>['EXPENSE_INVOICE','UTILITY_INVOICE','UTILITY_PAYMENT','EXPENSE_REIMBURSEMENT_CAPTURE','EXPENSE_REIMBURSEMENT_SETTLE','CREDIT_CARD_PAYMENT','CREDIT_CARD_STATEMENT','CREDIT_CARD_STATEMENT_AMENDMENT','EXPORT_EXPENSE_PAYMENT','GENERAL_EXPENSE_PAYMENT','DONATION_PAYMENT','RENT_MONTHLY_ACCRUAL','RENT_PAYMENT','SALARY_ADVANCE','SALARY_BATCH_PAYMENT','SALARY_MONTHLY_ACCRUAL','SALARY_PAYMENT','SALARY_MONTH_COMPLETED'],

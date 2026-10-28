@@ -719,11 +719,14 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 - Other Receipts has a named receipt-type selector and Add / Edit / Delete manager beside it. Reuse the company’s shared subaccount register and its master permissions; each type credits its approved non-expense head. Managing types preserves the open bank-receipt draft. Delete archives future use while retaining original receipts and their accounting snapshots; posted types cannot silently move to a new accounting head.
 
 
-## Linked TG remittance and Pakistan credit-advice dates — 28 October 2026
+## Full original entry forms on Edit — owner clarification, 28 October 2026
 
-- Edit on a TG remittance or TG-funded Pakistan credit advice offers a date-only correction in that company’s posting screen. The other company’s dates, amounts, bank charges, rates and invoice/advance applications remain unchanged. Keep the native source links and public Post ID, audit a balanced reversal/replacement, and synchronise a corrected Pakistan receipt date to Exports. Retain bank reconciliation line identities and matched tax certificates; require certificate review before moving a matched deduction outside its certified period.
-- Require the original workflow and company Edit right, a correction reason, a green server-validated review and a fresh saved-date check. A corrected date cannot follow an existing advance application or escape a used forward-booking window.
-- Failed validation and cancelled review retain the same form, entered values and originating posting screen. Opening an edit never reopens/reverses a confirmed remittance or reserves another bank deduction. Full amount/allocation changes still use their protected original workflow.
+- Every Edit action reopens the respective original entry form with its saved fields and selections populated. A reported date error is an example, not authority to replace the full form with a date-only substitute. Apply by source/workflow to past and future records; never special-case named Post IDs.
+- Post ID Edit routes credit advice and its generated deduction entries to the full Credit Advice form, TG remittance to the full Remittance form, Bank Entry to the full Bank Entry form, and investment transactions to their saved Investment Entry form. Retain other native source editors; generic journals use their journal form.
+- Opening Edit is read-only. A linked correction reverses and replaces under one Accounts lock only after a reason, server-validated green review and final confirmation. Retain public Post IDs, original snapshots, immutable journals, source links and actor/reason history. Preview, cancellation, errors and stale requests do not leave a pending reversal or a second bank reserve.
+- Pakistan receipt amounts, bank, rate, deductions, retention and invoice/advance allocations recalculate through the native receipt engine; the confirmed TG principal and source links update in the same transaction. Keep each company's saved date unless that form explicitly changes it. Preserve applied shipments and recalculate their non-cash valuation effects; reject insufficient advances or inconsistent chronology before any write.
+- Require Edit for each affected company/workflow. Retain tax-certificate matches and cleared bank identities when unchanged; require unmatching/unclearing before changing their certified amounts/periods or cleared bank details. Native source validation, facility chronology, shipment allocations and forward-booking capacity remain enforced.
+- Failed validation and cancelled review retain the full form, entered values and originating posting screen. Closing a linked edit returns to that same screen and filter. Do not send users between TG and TTI just to correct their own company's entry.
 
 ## Expense narration and optional named subledgers — 28 October 2026
 
@@ -731,3 +734,4 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 - Each expense row offers an optional existing subledger and an explicit Add subledger action under the expense type. A chosen named subledger owns that account's expense balance. Creating a subledger must retain the payment draft and must not post a payment.
 - Preserve stored recipient references on historical amendments. Unpaid invoices retain their supplier-ledger identity for later settlement.
 - Fuel and car repairs can be posted without specifying a vehicle. A supplied vehicle must still belong to the company. Vehicle tax retains its vehicle and tax-period validation.
+
