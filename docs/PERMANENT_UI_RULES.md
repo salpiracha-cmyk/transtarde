@@ -709,3 +709,9 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 - Accounts / Directors issues the SODA's production instruction: assigned mill, brand or unbranded, exact finished output/stock name, packing/bag tare, brief or full specification and operational notes. Financial settlement narration remains private to Accounts / Directors.
 - Mill staff selects a SODA grouped by party or brand. That opens the read-only instruction and the truck/container, bag and actual-weight gate-pass entry directly. There is no separate commercial, company, stock-source or quantity-allocation setup at the mill. Selecting/opening a SODA creates no saved loading, stock movement or accounting record. The first explicit Save Loading creates the original physical record using the issued instruction.
 - Preserve original stock/mill/brand for dispatched goods. Actual per-loading bag tare is retained for historical weights. Production must be recorded into the instructed finished stock before dispatch; do not consume another output or a by-product merely because it is available.
+
+
+## Bank receipts against sales — owner clarification, 28 October 2026
+
+- Bank Receipt offers Local Sales Receipt and Fellow Exporter Receipt, with the customer/exporter followed by a dropdown of that party’s saved SODAs in the selected company. Hide generic credit-head and free-text payee inputs for these linked receipts.
+- Post the actual receipt once against the original sale control account, carrying the party and SODA identity to bank books, sales accounts and cash flow. Excess or pre-loading customer money is an advance, never new sales revenue or stock movement. Preserve receipt review, retry protection, company/location permissions and original SODA approval rights.
