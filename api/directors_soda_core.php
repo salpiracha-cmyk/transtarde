@@ -67,7 +67,9 @@ function dt_raw_cover(array $s,string $date):array {
 function dt_loaded_cashflow(array $source,array $s,array $root,array $values,string $date):array {
     $native=se_rows($values,'tt35exportersale');
     foreach(['TTI','BRM'] as $entity){$lots=dt_lots($root,$entity);foreach(dt_cashflow($s,$lots,$entity,$date,$native) as $f){$d=$s['exporterDeals'][$f['id']]??null;if(!$d||!in_array($d['arrangement'],['EX_MILL','PARTNERSHIP'],true))continue;
-        $n=$f['loadedForecastOnlyPKR'];$missing=empty($f['estimateComplete']);if(abs($n)<.005&&!$missing)continue;$row=se_row('SODA|'.$d['id'],$entity,$d['party'],($d['reference']?:$d['id']).' — loaded SODA settlement','PKR',abs($n),$date,'Loaded quantity estimate less posted settlement; receipts and payments remain in the original party balance.',['account'=>$d['direction']==='SALE'?'1230':'2140','exporterDealId'=>$d['id']]);$row['amount']=$row['originalAmount']=$missing?null:$n;$source['rows'][]=$row;
+        $n=$f['loadedForecastOnlyPKR'];$missing=empty($f['estimateComplete']);if(abs($n)<.005&&!$missing)continue;$row=se_row('SODA|'.$d['id'],$entity,$d['party'],$d['party'].' — SODA '.($d['reference']?:$d['id']).' · ESTIMATE · '.($f['remainingMT']>0?'partial loading ':'loaded ').$f['loadedMT'].' / '.$d['quantityMT'].' MT','PKR',abs($n),$date,'Loaded quantity estimate less posted settlement; receipts and payments remain in the original party balance.',['account'=>$d['direction']==='SALE'?'1230':'2140','exporterDealId'=>$d['id'],'estimateStatus'=>'ESTIMATE','narration'=>'Estimated net '.($d['direction']==='SALE'?'receipt':'payment').' for saved loading; posted settlements replace this estimate.']);$row['amount']=$row['originalAmount']=$missing?null:$n;$source['rows'][]=$row;
         foreach($f['warnings'] as $warning)$source['warnings'][]=$d['party'].' — '.$warning;
     }}return $source;
 }
+
+require_once __DIR__.'/directors_soda_production.php';

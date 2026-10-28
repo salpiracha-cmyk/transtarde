@@ -122,3 +122,14 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  assert len(deal['account'])==2 and deal['loadings']==[],deal
  assert (root/'data/operations.json').read_bytes()==local_ops_before,'Advance/settlement changed Mill stock'
  print('PASS local SODA endpoint: shared Accounts, hidden Mill prices, stable advance retry, original trucks, reviewed bags, customer credit and no export invoice requirement')
+
+ status,choices=req(view='production',origin='accounts');assert status==200 and choices['mills'],choices
+ instruction={'action':'production_instruction','id':local_id,'version':4,'productionMillId':choices['mills'][0]['id'],'productionStockName':'IRRI READY','brand':'','specificationMode':'FULL','fullSpecification':'White rice 5% broken, packing as agreed.','productionNotes':'HKM provides bags.','productionBagTareGrams':100}
+ assert req(instruction,origin='mill',mode='mill')[0]==403
+ journal_count=len(json.loads(path.read_text())['journals'])
+ status,d=req(instruction,origin='accounts');assert status==200,d
+ sent=next(x for x in d['deals'] if x['id']==local_id);assert sent['productionReady'] and sent['fullSpecification']==instruction['fullSpecification'],sent
+ assert len(json.loads(path.read_text())['journals'])==journal_count,'Issuing a production instruction posted money'
+ feed=req(origin='mill',mode='mill')[1];sent=next(x for x in feed['deals'] if x['id']==local_id);assert sent['productionReady'] and sent['productionStockName']=='IRRI READY' and 'price' not in sent and 'terms' not in sent,sent
+ assert req({**instruction,'version':5,'productionStockName':'OTHER'},origin='accounts')[0]==422,'Dispatched stock was reassigned'
+ print('PASS Accounts/Directors production instruction -> read-only Mill feed; full specification, permission boundaries, no financial write and historical route protection')

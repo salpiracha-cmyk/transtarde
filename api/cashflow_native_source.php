@@ -9,7 +9,7 @@ function cfn_identity(array $j,array $l):string {
     $code=(string)($l['account']??'');$m=(array)($j['meta']??[]);
     $party=(string)($l['counterparty']??$l['party']??$l['partyName']??$l['supplier']??$l['broker']??$l['customer']??'');
     $bank=(string)($l['bankAccountId']??$l['paymentAccountId']??($code==='1110'?($m['bankAccountId']??$m['paymentAccountId']??''):''));
-    return 'BOOK-'.substr(hash('sha256',($j['entity']??'').'|'.$code.'|'.$bank.'|'.$party.'|'.($l['subaccountId']??'')),0,24);
+    return 'BOOK-'.substr(hash('sha256',($j['entity']??'').'|'.$code.'|'.$bank.'|'.$party.'|'.($l['subaccountId']??'').(in_array($code,['1230','2140'],true)&&($l['exporterDealId']??$m['exporterDealId']??'')!==''?'|SODA|'.($l['exporterDealId']??$m['exporterDealId']):'')),0,24);
 }
 function cfn_receivable_line(array $state,array $j,array $line,int|string $index):array {
     if(($line['account']??'')!=='1210')return $line;
