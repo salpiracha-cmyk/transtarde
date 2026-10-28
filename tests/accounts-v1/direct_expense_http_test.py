@@ -398,6 +398,7 @@ require $argv[1];
 
     # Canonical family views: two per son, one ARP, one-sided movements and no writes.
     original_family_books=books.read_bytes();family_fixture=json.loads(original_family_books)
+    family_fixture['salaryMasters']['OFFICE-SALMAN']={'id':'OFFICE-SALMAN','entity':'TTI','name':'SALMAN','category':'OFFICE_STAFF','status':'Active'}
     def family_journal(key,lines,narration):
         family_fixture['journals'][key]={'id':key,'entity':'TTI','status':'Posted','date':'2027-02-15','narration':narration,'lines':lines,'meta':{}}
     family_journal('PERSONAL', [{'account':'1230','debit':20000,'credit':0,'expenseFor':'FAM-SALMAN','personalRecovery':True},{'account':'6910','debit':0,'credit':20000,'personalRecovery':True}], 'Personal cost recoverable from Salman')
@@ -408,6 +409,7 @@ require $argv[1];
     family_journal('REIMBURSE', [{'account':'REIMB-SALMAN','debit':0,'credit':5000},{'account':'6900','debit':5000,'credit':0}], 'Company expense paid personally by Salman')
     family_journal('COMBINED', [{'account':'6210','debit':7000,'credit':0,'salaryMasterId':'D'},{'account':'2230','debit':0,'credit':7000,'salaryMasterId':'D'},{'account':'2230','debit':7000,'credit':0,'salaryMasterId':'D'},{'account':'1120','debit':0,'credit':7000}], 'Monthly entitlement and payment on one voucher')
     family_journal('COMBINED-ZAKAT', [{'account':'6210','debit':5000,'credit':0,'salaryMasterId':'D','month':'2027-05'},{'account':'7210','debit':1000,'credit':0,'salaryMasterId':'D','month':'2027-05'},{'account':'2230','debit':0,'credit':6000,'salaryMasterId':'D','month':'2027-05'},{'account':'2230','debit':6000,'credit':0,'salaryMasterId':'D','month':'2027-05'},{'account':'1120','debit':0,'credit':6000}], 'Monthly entitlement, Zakat and payment on one voucher')
+    family_journal('OTHER-SALMAN', [{'account':'2230','debit':0,'credit':900,'salaryMasterId':'OFFICE-SALMAN'},{'account':'6200','debit':900,'credit':0,'salaryMasterId':'OFFICE-SALMAN'}], 'Different staff member sharing first name')
     family_journal('ZERO', [{'account':'2230','debit':0,'credit':0,'salaryMasterId':'D'}], 'Zero line for review')
     books.write_text(json.dumps(family_fixture));family_stable=books.read_bytes()
     for code,expected in [('FAMILY|SALMAN|REMUNERATION',-50000),('FAMILY|SALMAN|HOME',330000),('FAMILY|ARP|EXPENSE',600)]:
@@ -417,7 +419,7 @@ require $argv[1];
         assert not any(r['voucher'] in ['INTERNAL','ZERO'] for r in statement['rows'])
         catalog=[a['code'] for a in statement['accounts']]
         assert len([c for c in catalog if c.startswith('FAMILY|SALMAN|')])==2
-        assert not any(c.startswith('PAYROLL|') or c.startswith('DIRECTOR|') for c in catalog)
+        assert 'PAYROLL|D' not in catalog and 'PAYROLL|H' not in catalog and 'PAYROLL|OFFICE-SALMAN' in catalog and not any(c.startswith('DIRECTOR|') for c in catalog)
         assert any(r['type']=='Zero-value posting line' for r in statement['ledgerReviews'])
         if code.endswith('|REMUNERATION'):
             assert len([r for r in statement['rows'] if r['voucher']=='COMBINED'])==2

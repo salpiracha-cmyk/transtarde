@@ -499,6 +499,7 @@ function sac_family_statement(array $s,string $entity,string $account,string $fr
   $meta=(array)($j['meta']??[]);$amount=0.0;$zakatAccrued=0.0;$hasRemuneration=false;$controlDebit=0.0;$controlCredit=0.0;$entitlementCost=0.0;$cashPaid=0.0;foreach((array)($j['lines']??[]) as $cashLine)if(in_array($cashLine['account']??'',['1110','1120'],true))$cashPaid+=(float)($cashLine['credit']??0)-(float)($cashLine['debit']??0);
   foreach((array)($j['lines']??[]) as $l){
    $code=(string)($l['account']??'');$m=(array)($s['salaryMasters'][(string)($l['salaryMasterId']??$meta['salaryMasterId']??'')]??[]);$category=(string)($l['category']??$meta['category']??$m['category']??'');
+   if($kind==='REMUNERATION'&&$m&&($m['category']??'')!=='DIRECTOR_REMUNERATION')continue;
    $who='';foreach([$l['expenseFor']??'',$meta['expenseFor']??'',$m['name']??'',$l['person']??'',$meta['person']??'',$l['party']??'',$code] as $identity){$who=sac_family_person((string)$identity);if($who!=='')break;}
    if($who!==$person)continue;
    if($kind==='REMUNERATION'&&$category!=='HOME_MONTHLY_GIVE'&&(in_array($code,['1230','2140','2230'],true)||$code==='FAM-'.$person||$code==='REIMB-'.$person)){$hasRemuneration=true;$controlDebit+=(float)($l['debit']??0);$controlCredit+=(float)($l['credit']??0);$amount+=(float)($l['debit']??0)-(float)($l['credit']??0);}
@@ -558,7 +559,7 @@ function sac_ledger_reviews(array $s,string $entity):array {
 function sac_family_account_alias(array $s,string $entity,string $account):string {
  if(!in_array($entity,['TTI','BRM'],true))return '';
  if(isset(sac_family_catalog()[$account]))return $account;
- if(str_starts_with($account,'PAYROLL|')){$m=$s['salaryMasters'][substr($account,8)]??[];if(($m['entity']??'')!==$entity)return '';$person=sac_family_person((string)($m['name']??''));$kind=($m['category']??'')==='HOME_MONTHLY_GIVE'?'HOME':'REMUNERATION';}
+ if(str_starts_with($account,'PAYROLL|')){$m=$s['salaryMasters'][substr($account,8)]??[];if(($m['entity']??'')!==$entity||!in_array($m['category']??'',['DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE'],true))return '';$person=sac_family_person((string)($m['name']??''));$kind=($m['category']??'')==='HOME_MONTHLY_GIVE'?'HOME':'REMUNERATION';}
  elseif(str_starts_with($account,'DIRECTOR|')){$person=sac_family_person(substr($account,9));$kind='REMUNERATION';}
  elseif(str_starts_with($account,'SUB|')){$id=substr($account,4);$a=sac_accounts($s,$entity)[$id]??[];$person=sac_family_person((string)($a['homePerson']??''));$kind='HOME';if(in_array($id,sac_subtree($s,$entity,$entity.'-EXPENSE-TYPE-ARP'),true)){$person='ARP';$kind='EXPENSE';}}
  elseif(str_starts_with($account,'FAM-')||str_starts_with($account,'REIMB-')){$person=sac_family_person($account);$kind='REMUNERATION';}
