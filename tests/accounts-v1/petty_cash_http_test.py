@@ -79,6 +79,16 @@ with tempfile.TemporaryDirectory(prefix='petty-cash-') as directory:
         assert next(x for x in res['paymentAccounts'] if x['id']=='CASH|TTI')['bookBalance']==3000
         stale={'entity':'TTI','revision':0,'action':'manage','requestKey':'stale-holder-request','operation':'add','staffId':'AHMED'};st,res=request('/api/petty_cash.php',stale);assert st==409
         st,res=request('/api/petty_cash.php?entity=BRM');assert st==200 and not res['holders'] and not res['rows']
+        # Permanent household purposes share their ledger IDs across cash and Pay Expense.
+        d=get();details={x['name']:x['id'] for x in d['homeExpenseDetails']};assert set(details)=={'Water Tanker','Gas Cylinder','Solar Cleaner'}
+        stable=books.read_bytes()
+        for name,detail in details.items():
+            st,pre=request('/api/petty_cash.php',{'entity':'TTI','revision':d['revision'],'action':'post','requestKey':'home-detail-'+str(time.time_ns()),'preview':True,'type':'EXPENSE','date':'2026-08-04','from':'CASH|TTI','amount':10,'payee':'Fixture household provider','expenseCategory':'HOME','homeExpenseDetailId':detail,'expenseFor':'FAM-TALHA','personalTreatment':'COMPANY','narration':name})
+            assert st==200,(st,pre)
+            line=pre['previews'][0]['lines'][0];assert line['account']=='6910' and line['subaccountId']==detail and line['expenseFor']=='FAM-TALHA' and line['personalTreatment']=='COMPANY'
+            assert books.read_bytes()==stable
+        st,bad=request('/api/petty_cash.php',{'entity':'TTI','revision':d['revision'],'action':'post','requestKey':'home-detail-'+str(time.time_ns()),'preview':True,'type':'EXPENSE','date':'2026-08-04','from':'CASH|TTI','amount':10,'payee':'Fixture','expenseCategory':'HOME','homeExpenseDetailId':'BRM-HOME-DETAIL-WATER_TANKER','expenseFor':'SHARED','narration':'Invalid foreign type'})
+        assert st==422 and books.read_bytes()==stable,(st,bad)
         # Bank identities distinguish same-name banks without exposing balances in receipt labels.
         a=json.loads(auth.read_text());a['masters']={'banks':[{'id':'ASKARI-TTI','values':['Company Account','TTI','','Transtrade International','Askari Bank','','Pakistan','PKR','001122334455','','','','','Active']},{'id':'ASKARI-PERSONAL','values':['Personal Account','TTI','','Salman Piracha','Askari Bank','','Pakistan','PKR','009988776655','','','','','Active']}]};auth.write_text(json.dumps(a))
         d=get();label=next(x['name'] for x in d['receiptBanks'] if x['id']=='ASKARI-TTI');assert 'Transtrade International' in label and '001122334455' in label and 'balance' not in label.lower(),label

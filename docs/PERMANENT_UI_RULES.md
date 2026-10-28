@@ -743,3 +743,9 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 
 - A pending amendment from the older Reopen workflow may retain or correct its actual historical remittance date. The date of the later correction reversal must not force a fictitious bank transaction date.
 - Restore the original bank reference, charges, charge bank and date when opening that review. Require Edit, current revision, all original credit advices, server preview and final confirmation. Preserve the original journals and reversal audit date, link the replacement to both, and use the shared effective amendment projection in historical reports. Do not post or repair a live pending amendment merely by opening, previewing or deploying the form.
+
+
+## Permanent household purposes — 29 October 2026
+
+- Water Tanker, Gas Cylinder and Solar Cleaner are permanent Pakistan Home Expense subledgers. Their stable purpose IDs are independent of Combined Home, Salman, Talha and Tayyab household dimensions; posting never duplicates the monetary expense. Solar Cleaner defaults to Combined Home like the other household purposes.
+- Pay Expense and Petty Cash use the same purpose IDs and company validation. Changing household retains the selected purpose. Cash remains the payment source, not an expense classification. Piped Sui Gas/SSGC bills remain distinct from Gas Cylinder.
