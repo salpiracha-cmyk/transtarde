@@ -9,7 +9,7 @@ def append_permission_helpers(root):
     fixture = target.read_text()
     names = ['tt_business_modules', 'tt_user_can_module_action', 'tt_user_can_access_masters', 'tt_user_can_master',
              'tt_api_write_grants', 'tt_api_write_actions', 'tt_api_icon_write_allowed',
-             'tt_api_is_upsert', 'tt_api_upsert_allowed', 'tt_user_business_entity', 'tt_user_any_icon', 'tt_mask_bank_identifier']
+             'tt_post_workflow_icons', 'tt_post_correction_allowed', 'tt_api_is_upsert', 'tt_api_upsert_allowed', 'tt_user_business_entity', 'tt_user_any_icon', 'tt_mask_bank_identifier']
     for name in names:
         if re.search(r'function\s+' + name + r'\s*\(', fixture):
             continue
