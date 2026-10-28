@@ -124,8 +124,17 @@ require $argv[1];
     invalid={**mixed,'requestKey':'purpose-invalid-0001','reference':'MIX-2','expenseLines':[{'category':'FUEL','assetId':'CAR-BRM','purpose':'Wrong company','amount':90}]}
     assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
     invalid['expenseLines'][0]['assetId']='';invalid['requestKey']='purpose-invalid-0002'
-    assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
+    status,untagged=request('expenses_v1','?entity=TTI',invalid);assert status==200,(status,untagged)
+    journal=json.loads(books.read_text())['journals'][untagged['result']['journalId']];assert journal['lines'][0]['account']=='6610' and not journal['lines'][0].get('assetId')
+    books.write_bytes(before)
     invalid['expenseLines'][0].update(category='OTHER',accountCode='6610');invalid['requestKey']='purpose-invalid-0003'
+    status,untagged=request('expenses_v1','?entity=TTI',invalid);assert status==200,(status,untagged)
+    books.write_bytes(before)
+    invalid['expenseLines'][0].update(category='CAR_REPAIRS',accountCode='6410');invalid['requestKey']='untagged-repairs'
+    status,untagged=request('expenses_v1','?entity=TTI',invalid);assert status==200,(status,untagged)
+    journal=json.loads(books.read_text())['journals'][untagged['result']['journalId']];assert journal['lines'][0]['account']=='6410' and not journal['lines'][0].get('assetId')
+    books.write_bytes(before)
+    invalid['expenseLines'][0].update(category='VEHICLE_TAX',accountCode='6620');invalid['requestKey']='untagged-tax'
     assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
     # Expense purpose remains independent of the existing person's first category.
     office={**mixed,'requestKey':'purpose-office-0001','reference':'MIX-3','amount':10,'expenseLines':[{'category':'OFFICE','purpose':'Stationery','amount':10}]}

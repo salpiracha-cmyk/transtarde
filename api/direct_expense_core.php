@@ -103,7 +103,7 @@ function dex_rows(mixed $input,array $names,array $store=[],string $entity='TTI'
         $sub=null;$subextra=[];if(!$whtDeposit&&!empty($row['subaccountId'])){$sub=sac_resolve($store,$entity,(string)$row['subaccountId']);if($sub['class']!=='Expense'&&!str_starts_with($sub['parentCode'],'FAM-')&&$sub['parentCode']!=='3200')throw new InvalidArgumentException('Choose an expense, manufacturing cost or family allocation subaccount.');if(!empty($row['accountCode'])&&(string)$row['accountCode']!==$sub['parentCode'])throw new InvalidArgumentException('The subaccount has moved. Reopen Expenses and choose its current head.');$account=$sub['parentCode'];$subextra=sac_extra($sub);}
         if(in_array($account,['6410','6610','6620'],true))$category=match($account){'6410'=>'CAR_REPAIRS','6610'=>'FUEL','6620'=>'VEHICLE_TAX'};
         $assetExtra=[];$assetId=trim((string)($row['assetId']??''));
-        if(in_array($category,['CAR_REPAIRS','FUEL','VEHICLE_TAX'],true)&&$assetId==='')throw new InvalidArgumentException('Choose the vehicle and registration number.');
+        if($category==='VEHICLE_TAX'&&$assetId==='')throw new InvalidArgumentException('Choose the vehicle and registration number.');
         if($assetId!==''){
             $asset=$store['managedAssets'][$assetId]??null;
             if(!is_array($asset)||($asset['entity']??'')!==$entity||!in_array($asset['type']??'',['VEHICLE','MOTORCYCLE','MACHINERY','FURNITURE','COMPUTER'],true))throw new InvalidArgumentException('Choose an asset in these company books.');
