@@ -136,6 +136,7 @@ function dex_post(array &$store,string $entity,array $body,array $user,array $na
     if($profile)$payee=$profile['name'];if(!empty($body['payeeId'])&&(!$profile||$profile['id']!==(string)$body['payeeId']))throw new InvalidArgumentException('Choose the current expense recipient.');
     $date=ev1_date((string)($body['paymentDate']??''),'Payment date');$reference=trim((string)($body['reference']??''));if(strlen($reference)>180)throw new InvalidArgumentException('Reference is too long.');
     $input=$body['expenseLines']??null;
+    if(sac_normal($payee)==='abdulsamadabdulaziz'&&is_array($input))foreach($input as &$homeRow){if(is_array($homeRow)&&($homeRow['category']??'')==='HOME'&&($homeRow['expenseFor']??'SHARED')==='SHARED'&&($homeRow['personalTreatment']??'COMPANY')==='COMPANY'){$homeRow['expenseFor']='FAM-SALMAN';$homeRow['expenseArea']='HOME';$homeRow['subaccountId']=sac_home_id($entity,'FAM-SALMAN');}}unset($homeRow);
     if(is_array($input)&&count($input)===1&&is_array($input[0])&&trim((string)($input[0]['purpose']??''))===''&&zp_zakat_text($narration))$input[0]['purpose']=$narration;
     [$rows,$total]=dex_rows($input,$names,$store,$entity);$paymentId=trim((string)($body['paymentAccountId']??''));
     if(isset($body['amount'])&&(!is_numeric($body['amount'])||abs(round((float)$body['amount'],2)-$total)>.005))throw new InvalidArgumentException('Payment total must equal all expense rows.');

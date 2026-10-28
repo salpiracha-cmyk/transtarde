@@ -81,7 +81,7 @@ function sac_expense_defaults():array {
  return ['HOME'=>['Home Expense','6910'],'OFFICE'=>['Office / Administrative Expense','6900'],'CAR_REPAIRS'=>['Car Repairs','6410'],'FUEL'=>['Vehicle Fuel','6610'],'VEHICLE_TAX'=>['Vehicle Tax & Licence Fees','6620'],'REPAIRS'=>['Repairs & Maintenance','6400'],'TRAVEL'=>['Travel & Conveyance','6500'],'PROFESSIONAL'=>['Professional Fees','6700'],'MEDICAL'=>['Medical','6230'],'RENT'=>['Rent','6300'],'DONATION'=>['Donation','7200'],'EXPORT'=>['General Export Expense','5550'],'OTHER'=>['Other Expense','6900'],'ARP'=>['ARP Expense','6910']];
 }
 function sac_home_person(string $name):string {
- return match(sac_normal($name)){'mrssrp'=>'FAM-SALMAN','mrstrp'=>'FAM-TALHA','mrstayyab'=>'FAM-TAYYAB',default=>'SHARED'};
+ return match(sac_normal($name)){'mrssrp','mrssalman'=>'FAM-SALMAN','mrstrp','mrstalha'=>'FAM-TALHA','mrstayyab'=>'FAM-TAYYAB',default=>'SHARED'};
 }
 function sac_home_name(string $person):string {return match($person){'FAM-SALMAN'=>'Salman Home Expense','FAM-TALHA'=>'Talha Home Expense','FAM-TAYYAB'=>'Tayyab Home Expense',default=>'Combined Home Expense'};}
 function sac_home_id(string $entity,string $person):string {return $entity.'-HOME-'.$person;}
@@ -471,4 +471,56 @@ function sac_wht_deposit_subaccount(array $s,string $entity,string $group,string
  $a=sac_resolve($s,$entity,$id!==''?$id:$entity.'-DEFAULT-TAX-'.$group.'-PAYABLE');
  if(sac_wht_group($a,$entity)!==$group)throw new InvalidArgumentException('Choose a withholding payable subledger matching this tax category.');
  return $a;
+}
+
+// Owner's internal family statements. These are read projections, never postings.
+function sac_family_person(string $name):string {
+ return match(sac_normal($name)){'salman','srp','famsalman','mrssrp','mrssalman'=>'SALMAN','talha','trp','famtalha','mrstrp','mrstalha'=>'TALHA','tayyab','famtayyab','mrstayyab'=>'TAYYAB','arp','abu','famabu','abdulrazzakparacha','abdulrazzakpiracha'=>'ARP',default=>''};
+}
+function sac_family_catalog():array {
+ $out=[];foreach(['SALMAN','TALHA','TAYYAB'] as $p){$out['FAMILY|'.$p.'|REMUNERATION']=ucfirst(strtolower($p)).' Remuneration';$out['FAMILY|'.$p.'|HOME']=($p==='SALMAN'?'SRP':ucfirst(strtolower($p))).' Home Expenses';}$out['FAMILY|ARP|EXPENSE']='ARP Expenses';return $out;
+}
+function sac_family_statement(array $s,string $entity,string $account,string $from,string $to):array {
+ [$prefix,$person,$kind]=array_pad(explode('|',$account),3,'');$s=alv_amendment_books($s);$hidden=alv_hidden($s,$to);$out=[];$zakatPaid=[];if($kind==='REMUNERATION')foreach(gm_zakat_payments($s,'0001-01-01',$to,$entity)['rows'] as $payment)foreach($payment['payrollComponents']??[] as $part){$who=sac_family_person((string)($s['salaryMasters'][$part['salaryMasterId']]['name']??''));if($who===$person)$zakatPaid[$payment['postId']]=($zakatPaid[$payment['postId']]??0)+(float)$part['amountPKR'];}
+ $add=static function(array $j,float $amount,string $purpose,string $recipient='')use(&$out,$s,$account):void{
+  $amount=round($amount,2);if(abs($amount)<.005)return;
+  $out[]=['date'=>(string)$j['date'],'voucher'=>(string)$j['id'],'publicPostId'=>tt_accounts_public_post($s,$j),'amendmentNote'=>tt_accounts_amendment_note($j,$s),'account'=>$account,'accountName'=>sac_family_catalog()[$account],'reference'=>(string)($j['reference']??''),'narration'=>$purpose.($recipient!==''?' · Paid to '.$recipient:''),'party'=>$recipient,'debit'=>max(0,$amount),'credit'=>max(0,-$amount),'chequeNo'=>'','bankReference'=>'','canDelete'=>false,'deleteReason'=>'Review the original posting before cancellation.'];
+ };
+ foreach((array)($s['journals']??[]) as $j){
+  if(!is_array($j)||($j['entity']??'')!==$entity||!alv_posted($j)||isset($hidden[(string)($j['id']??'')])||!empty($j['meta']['deletedFromBooks'])||($j['date']??'')>$to)continue;
+  $date=DateTimeImmutable::createFromFormat('!Y-m-d',(string)($j['date']??''));if(!$date||$date->format('Y-m-d')!==$j['date'])continue;
+  $meta=(array)($j['meta']??[]);$amount=0.0;$zakatAccrued=0.0;$hasRemuneration=false;
+  foreach((array)($j['lines']??[]) as $l){
+   $code=(string)($l['account']??'');$m=(array)($s['salaryMasters'][(string)($l['salaryMasterId']??$meta['salaryMasterId']??'')]??[]);$category=(string)($l['category']??$meta['category']??$m['category']??'');
+   $who='';foreach([$l['expenseFor']??'',$meta['expenseFor']??'',$m['name']??'',$l['person']??'',$meta['person']??'',$l['party']??'',$code] as $identity){$who=sac_family_person((string)$identity);if($who!=='')break;}
+   if($who!==$person)continue;
+   if($kind==='REMUNERATION'&&$category!=='HOME_MONTHLY_GIVE'&&(in_array($code,['1230','2140','2230'],true)||$code==='FAM-'.$person)){$hasRemuneration=true;$amount+=(float)($l['debit']??0)-(float)($l['credit']??0);}
+   if($code==='7210')$zakatAccrued+=(float)($l['debit']??0)-(float)($l['credit']??0);
+   if($person==='ARP'&&$code==='FAM-ABU')$amount+=(float)($l['debit']??0)-(float)($l['credit']??0);
+  }
+  if($kind==='REMUNERATION'&&$hasRemuneration)$amount+=$zakatAccrued-($zakatPaid[$j['id']]??0);
+  $add($j,$amount,sac_journal_narration($s,$j),(string)($meta['payee']??$meta['paymentRecipient']??''));
+ }
+ if($kind!=='REMUNERATION')foreach(sac_expense_activity($s,$entity,'0001-01-01',$to) as $a){
+  if(($person!=='ARP'&&($a['personalTreatment']??'COMPANY')!=='COMPANY')||in_array((string)$a['account'],['7200','7210','7220','7230'],true))continue;
+  $who=sac_family_person((string)($a['expenseFor']??''));$recipient=(string)$a['recipient'];
+  // Explicit owner instruction: this recipient's company-paid household costs belong to SRP.
+  $samad=sac_normal($recipient)==='abdulsamadabdulaziz'&&(($a['expenseArea']??'')==='HOME'||$a['account']==='6910')&&!in_array((string)$a['account'],['7200','7210','7220','7230'],true);
+  if($samad&&in_array($who,['','SALMAN'],true))$who='SALMAN';
+  $home=($a['homeLedgerId']??'')!==''||$samad;
+  if($who!==$person||($person!=='ARP'&&!$home))continue;
+  $j=$s['journals'][$a['voucher']]??null;if(!$j)continue;
+  $add($j,(float)$a['amount'],(string)$a['accountName'].' · '.(string)$a['purpose'],$recipient);
+ }
+ usort($out,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strnatcmp($a['voucher'],$b['voucher']));
+ // Merge only movements of this one family statement, never a complete journal.
+ $groups=[];foreach($out as $r){$key=$r['voucher'];if(!isset($groups[$key]))$groups[$key]=$r;else{$groups[$key]['debit']+=$r['debit'];$groups[$key]['credit']+=$r['credit'];if(!str_contains($groups[$key]['narration'],$r['narration']))$groups[$key]['narration'].='; '.$r['narration'];}}
+ $opening=0.0;$rows=[];$balance=0.0;foreach($groups as $r){$net=round($r['debit']-$r['credit'],2);if(abs($net)<.005)continue;$r['debit']=max(0,$net);$r['credit']=max(0,-$net);$balance=round($balance+$net,2);if($r['date']<$from){$opening=$balance;continue;}$r['balance']=$balance;$rows[]=$r;}
+ return ['rows'=>$rows,'opening'=>$opening,'closing'=>$balance,'balanceMeaning'=>$kind==='REMUNERATION'?($balance>0?'Payable to company':($balance<0?'Company owes family member':'Settled')):'Company-borne expenses','familyStatement'=>true];
+}
+function sac_ledger_reviews(array $s,string $entity):array {
+ $reviews=[];$names=[];$chart=sac_chart();foreach(sac_accounts($s,$entity) as $id=>$a){$key=sac_normal((string)$a['name']);if($key!=='')$names[$key][]=$a;}
+ foreach($names as $accounts)if(count($accounts)>1)$reviews[]=['type'=>'Similar ledger names','reference'=>implode(', ',array_column($accounts,'id')),'detail'=>implode(' / ',array_column($accounts,'name')).' — review purpose and parent heads before merging.'];
+ $hidden=alv_hidden($s);foreach((array)($s['journals']??[]) as $j){if(!is_array($j)||($j['entity']??'')!==$entity||!alv_posted($j)||isset($hidden[(string)($j['id']??'')]))continue;foreach((array)($j['lines']??[]) as $l){$code=(string)($l['account']??'');$expense=($chart[$code]['class']??'')==='Expense';$purpose=(string)($l['expensePurpose']??$j['narration']??'');$type='';if($expense&&($l['personalTreatment']??'COMPANY')==='COMPANY'&&(($l['expenseArea']??$l['location']??'')==='HOME'||$code==='6910')&&($l['expenseFor']??'SHARED')==='SHARED')$type='Household assignment needs review';if($expense&&$code!=='7210'&&function_exists('zp_zakat_text')&&zp_zakat_text($purpose))$type='Zakat purpose outside Zakat ledger';if((float)($l['debit']??0)===0.0&&(float)($l['credit']??0)===0.0)$type='Zero-value posting line';if($type!=='')$reviews[]=['type'=>$type,'reference'=>tt_accounts_public_post($s,$j),'detail'=>$purpose,'postId'=>(string)$j['id']];}}
+ return $reviews;
 }
