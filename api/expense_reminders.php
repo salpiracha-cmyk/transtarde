@@ -66,7 +66,7 @@ function tt_expense_monthly_reminders(array $store,string $entity,string $month,
     $today=($asOf??new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');$rows=[];
     foreach(['UTILITY'=>'utilityMasters','CREDIT_CARD'=>'creditCardMasters'] as $type=>$collection){
         foreach((array)($store[$collection]??[]) as $master){
-            if(!is_array($master)||($master['entity']??'')!==$entity||($master['status']??'Active')!=='Active'||(!empty($master['startMonth'])&&$month<$master['startMonth']))continue;
+            if(!is_array($master)||($master['entity']??'')!==$entity||($master['status']??'Active')!=='Active')continue;
             $due=tt_expense_cycle_due($store,$entity,$month,$master,$type);$paid=false;$statement=null;$invoiceRows=[];$recorded=false;
             if($type==='UTILITY'){
                 foreach((array)($store['utilityPayments']??[]) as $payment)if(($payment['entity']??'')===$entity&&!in_array($payment['status']??'',['Deleted','Cancelled','Reversed','Amended'],true)&&($payment['utilityMasterId']??'')===$master['id']&&($payment['billMonth']??'')===$month){$paid=true;$recorded=true;break;}
@@ -85,6 +85,7 @@ function tt_expense_monthly_reminders(array $store,string $entity,string $month,
                 if($statement){$due=(string)$statement['dueDate'];$paid=($statement['status']??'')==='Paid';$recorded=true;}
                 $label=($master['cardName']??'Credit Card').' — '.$month;
             }
+            if(!$recorded&&!empty($master['startMonth'])&&$month<$master['startMonth'])continue;
             $rows[]=['type'=>$type,'masterId'=>$master['id'],'invoiceId'=>$invoiceRows[0]['id']??null,'supplier'=>$invoiceRows[0]['vendor']??'','statementId'=>$statement['id']??null,'label'=>$label,'month'=>$month,'dueDate'=>$due,'remindOn'=>(new DateTimeImmutable($due))->modify('-'.max(1,min(31,(int)($master['remindDays']??7))).' days')->format('Y-m-d'),'estimatedDueDate'=>!$recorded,'status'=>$paid?'Paid':($due<$today?'Overdue':($type==='CREDIT_CARD'&&!$statement?'Statement needed':'Due')),'paid'=>$paid,'amount'=>$statement['total']??null];
         }
     }
@@ -94,6 +95,15 @@ function tt_expense_monthly_reminders(array $store,string $entity,string $month,
 function tt_expense_due_reminders(array $store,string $entity,?DateTimeImmutable $asOf=null): array {
     $now=$asOf??new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi'));$current=$now->format('Y-m');$start=$current;
     foreach(['utilityMasters','creditCardMasters'] as $collection)foreach((array)($store[$collection]??[]) as $master){$month=(string)($master['startMonth']??'');if(($master['entity']??'')===$entity&&($master['status']??'Active')==='Active'&&preg_match('/^\d{4}-(0[1-9]|1[0-2])$/',$month)&&$month<$start)$start=$month;}
+    // Master setup dates limit forecasts, not genuine earlier saved bills.
+    foreach(['creditCardStatements'=>['creditCardMasters','cardMasterId','statementMonth'],'supplierBills'=>['utilityMasters','utilityMasterId','billMonth']] as $collection=>[$masterCollection,$idKey,$monthKey]){
+        $active=[];foreach((array)($store[$masterCollection]??[]) as $master)if(($master['entity']??'')===$entity&&($master['status']??'Active')==='Active')$active[(string)$master['id']]=true;
+        foreach((array)($store[$collection]??[]) as $record){
+            if(($record['entity']??'')!==$entity||!isset($active[(string)($record[$idKey]??'')])||in_array($record['status']??'',['Deleted','Cancelled','Reversed'],true))continue;
+            if($collection==='supplierBills'&&(empty($record['expenseInvoice'])||($record['invoiceKind']??'')!=='UTILITY'||($record['status']??'')!=='Posted'))continue;
+            $month=(string)($record[$monthKey]??'');if(preg_match('/^\d{4}-(0[1-9]|1[0-2])$/',$month)&&$month<$start)$start=$month;
+        }
+    }
     foreach(['utilityMasters','creditCardMasters'] as $collection)foreach($store[$collection]??[] as $id=>$master)if(empty($master['startMonth']))$store[$collection][$id]['startMonth']=$current;
     $end=$now->modify('first day of next month')->format('Y-m');$rows=[];
     for($date=new DateTimeImmutable($start.'-01');$date->format('Y-m')<=$end;$date=$date->modify('+1 month')){

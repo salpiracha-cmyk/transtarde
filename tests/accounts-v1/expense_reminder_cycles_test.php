@@ -41,6 +41,11 @@ expectReminder(count(tt_expense_due_reminders($store,'TTI',atReminder('2026-10-2
 $futureStore=['utilityMasters'=>[['id'=>'U','entity'=>'TTI','utilityType'=>'GAS','status'=>'Active','startMonth'=>'2026-11','dueDay'=>2,'remindDays'=>7]],'supplierBills'=>['B'=>array_replace($bill,['billMonth'=>'2026-11','billDate'=>'2026-10-27'])]];
 expectReminder(count(tt_expense_due_reminders($futureStore,'TTI',atReminder('2026-10-28')))===1,'Recorded early bill must remain visible before its billing month');
 unset($futureStore['supplierBills']);expectReminder(tt_expense_due_reminders($futureStore,'TTI',atReminder('2026-10-28'))===[],'No unpaid future bill may be invented from a master alone');
+$historical=$pending;$historical['creditCardStatements']['F']['statementMonth']='2026-09';$historical['creditCardStatements']['F']['dueDate']='2026-10-03';
+$oldRows=tt_expense_due_reminders($historical,'TTI',atReminder('2026-10-28'));
+expectReminder(count(array_filter($oldRows,fn($r)=>$r['statementId']==='F'&&$r['dueDate']==='2026-10-03'))===1,'Master setup month cannot hide a genuine older unpaid statement');
+$historical=$futureStore;$historical['supplierBills']['B']=array_replace($bill,['billMonth'=>'2026-09','dueDate'=>'2026-10-02']);
+expectReminder(count(tt_expense_due_reminders($historical,'TTI',atReminder('2026-10-28')))===1,'Master setup month cannot hide an older recorded utility invoice');
 // Year / leap-month boundaries, another company and deleted records.
 $edge=['creditCardStatements'=>[['entity'=>'TTI','cardMasterId'=>'A','statementMonth'=>'2026-12','dueDate'=>'2027-01-04','status'=>'Paid'],['entity'=>'BRM','cardMasterId'=>'A','statementMonth'=>'2027-01','dueDate'=>'2027-02-20','status'=>'Paid'],['entity'=>'TTI','cardMasterId'=>'A','statementMonth'=>'2027-01','dueDate'=>'2027-02-21','status'=>'Deleted']]];
 expectReminder(tt_expense_cycle_due($edge,'TTI','2027-02',$store['creditCardMasters']['A'],'CREDIT_CARD')==='2027-03-04','Cycle crosses year without other-company/deleted contamination');
