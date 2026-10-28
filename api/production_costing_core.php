@@ -175,17 +175,22 @@ function pc_receipts(array $store): array {
     foreach ((array)($store['events'] ?? []) as $event) {
         if (!is_array($event) || ($event['eventType'] ?? '') !== 'COMMODITY_RECEIPT_ACCEPTED') continue;
         $journal = $store['journals'][(string)($event['journalId'] ?? '')] ?? null;
-        if (!is_array($journal)) continue;
+        if (!is_array($journal)||in_array($event['status']??'',['Reversed','Cancelled'],true)||in_array($journal['status']??'',['Reversed','Cancelled'],true)||!empty($journal['reversedByPostId'])) continue;
         $meta = is_array($journal['meta'] ?? null) ? $journal['meta'] : [];
         $kg = (float)($meta['payableWeightKg'] ?? 0);
         if ($kg <= 0) continue;
         $sourceKey = (string)($event['sourceKey'] ?? '');
         $bill = $billed[$sourceKey] ?? null;
         $variety = (string)($meta['variety'] ?? '');
+        $soda=$store['purchaseSodas'][(string)($meta['sourceSodaId']??'')]??[];
+        $stage=strtoupper((string)($meta['productStage']??$soda['productStage']??(preg_match('/ready/i',$variety)?'READY':'RAW')));
         $rows[] = [
             'entity' => (string)($event['entity'] ?? $journal['entity'] ?? 'TTI'),
             'date' => (string)($journal['date'] ?? ''),
             'sourceKey' => $sourceKey,
+            'sourceSodaId'=>(string)($meta['sourceSodaId']??''),'soda'=>(string)($meta['soda']??''),
+            'locationName'=>(string)($meta['locationName']??$soda['locationName']??$soda['location']??''),
+            'productStage'=>$stage,'riceType'=>(string)($meta['riceType']??$soda['riceType']??$variety),
             'variety' => $variety,
             'varietyKey' => pc_variety_key($variety),
             'kg' => $kg,

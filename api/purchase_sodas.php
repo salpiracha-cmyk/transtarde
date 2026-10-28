@@ -8,6 +8,7 @@ require_once __DIR__.'/supplier_settlements.php';
 if(!defined('TT_PAYABLES_FUNCTIONS_ONLY'))define('TT_PAYABLES_FUNCTIONS_ONLY',true);
 require_once __DIR__.'/payables_planning.php';
 require_once __DIR__.'/payment_plan_core.php';
+require_once __DIR__.'/soda_buying_for_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -277,6 +278,7 @@ try {
         if (!in_array($entity, ['TTI','BRM'], true)) ps_out(['ok'=>false, 'error'=>'Sodas are available only in the selected Pakistan legal books.'], 422);
         if(!tt_user_can_access_entity($user,$entity,'View'))ps_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);
         $store = ps_read();
+        if(($_GET['action']??'')==='buying_for')ps_out(['ok'=>true,'buyingForTargets'=>sb_targets(br_operations(),$store,$entity)]);
         ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'rules'=>['doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG, 'maxOverKg'=>PS_MAX_OVER_KG]]+ps_metadata($user));
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') ps_out(['ok'=>false, 'error'=>'Method not allowed.'], 405);
@@ -304,15 +306,16 @@ try {
     $entity = strtoupper(trim((string)($body['entity'] ?? 'TTI')));
     if (!in_array($entity, ['TTI','BRM'], true)) ps_out(['ok'=>false, 'error'=>'Invalid legal entity.'], 422);
     $entityAction=$action==='create'?'Create':'Edit';if(!tt_user_can_access_entity($user,$entity,$entityAction))ps_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);
+    $buyingOps=!empty($body['buyingForAllocations'])?br_operations():null;
     tt_ensure_data_dir();
     $handle = @fopen(PS_FILE,'r+b');
     if ($handle === false || !flock($handle, LOCK_EX)) throw new RuntimeException('store');
     try {
-        rewind($handle); $raw = stream_get_contents($handle); $store=tt_accounts_source_decode($raw,ps_default()); $created = null;
+        rewind($handle); $raw = stream_get_contents($handle); $store=tt_accounts_source_decode($raw,ps_default()); $created = null;$buyingTargets=$buyingOps!==null?sb_targets($buyingOps,$store,$entity):[];
         if ($action === 'create') {
             $requestKey=ps_request_key($body['requestKey']??'');$postingKey=$entity.'|PURCHASE_SODA|'.$requestKey;$fingerprint=ps_fingerprint($body);$prior=$store['postingKeys'][$postingKey]??null;
             if(is_array($prior)){if(!hash_equals((string)($prior['fingerprint']??''),$fingerprint))ps_out(['ok'=>false,'error'=>'This request key was already used for a different Soda.'],409);$created=$store['purchaseSodas'][(string)($prior['sodaId']??'')]??null;ps_out(['ok'=>true,'sodas'=>ps_rows($store,$entity),'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']),'created'=>$created,'duplicate'=>true]+ps_metadata($user));}
-            $values = ps_validate($body); $number = ps_next_no((array)$store['purchaseSodas']); $id = 'PS-' . $values['commodity'] . '-' . $number;
+            $values = ps_validate($body);$values['buyingForAllocations']=sb_validate($body['buyingForAllocations']??[],$values,(float)$values['qtyToKg'],$buyingTargets,$store,$entity); $number = ps_next_no((array)$store['purchaseSodas']); $id = 'PS-' . $values['commodity'] . '-' . $number;
             $created = ['id'=>$id, 'entity'=>$entity, 'sodaNo'=>$number, 'status'=>'Open','requestKey'=>$requestKey, 'createdAt'=>gmdate('c'), 'createdBy'=>ps_user_name($user), 'audit'=>[]] + $values;
             $store['purchaseSodas'][$id] = $created;
             $store['postingKeys'][$postingKey]=['fingerprint'=>$fingerprint,'sodaId'=>$id,'createdAt'=>gmdate('c')];
@@ -321,10 +324,13 @@ try {
             if ($reason === '') ps_out(['ok'=>false, 'error'=>'Reason for amendment is required.'], 422);
             $old = $store['purchaseSodas'][$id] ?? null;
             if (!is_array($old) || strtoupper((string)($old['entity'] ?? '')) !== $entity) ps_out(['ok'=>false, 'error'=>'Soda not found in the selected legal books.'], 404);
-            $values = ps_validate($body, $old); $changes = [];
+            $values = ps_validate($body, $old);
+            if(array_key_exists('buyingForAllocations',$body))$values['buyingForAllocations']=sb_validate($body['buyingForAllocations'],$values,(float)$values['qtyToKg'],$buyingTargets,$store,$entity,$id);
+            elseif(!empty($old['buyingForAllocations'])&&(($values['productStage']??'')==='RAW'||array_sum(array_column($old['buyingForAllocations'],'quantityKg'))>(float)$values['qtyToKg']+.001))throw new InvalidArgumentException('Clear or adjust Buying for before changing the purchase type or quantity.');
+            $changes = [];
             foreach ($values as $key => $newValue) {
                 $oldValue = $old[$key] ?? null;
-                if ((string)$oldValue !== (string)$newValue) $changes[$key] = ['from'=>$oldValue, 'to'=>$newValue];
+                if (json_encode($oldValue) !== json_encode($newValue)) $changes[$key] = ['from'=>$oldValue, 'to'=>$newValue];
             }
             if (!$changes) ps_out(['ok'=>false, 'error'=>'No Soda details were changed.'], 422);
             $audit = is_array($old['audit'] ?? null) ? $old['audit'] : [];
