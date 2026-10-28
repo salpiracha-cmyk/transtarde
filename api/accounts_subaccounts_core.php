@@ -482,24 +482,35 @@ function sac_family_catalog():array {
 }
 function sac_family_statement(array $s,string $entity,string $account,string $from,string $to):array {
  [$prefix,$person,$kind]=array_pad(explode('|',$account),3,'');$s=alv_amendment_books($s);$hidden=alv_hidden($s,$to);$out=[];$zakatPaid=[];$allocationWarnings=[];$zakatProjection=$kind==='REMUNERATION'?gm_zakat_payments($s,'0001-01-01',$to,$entity):['rows'=>[],'warnings'=>[]];if($kind==='REMUNERATION')foreach($zakatProjection['rows'] as $payment)foreach($payment['payrollComponents']??[] as $part){$who=sac_family_person((string)($s['salaryMasters'][$part['salaryMasterId']]['name']??''));if($who===$person)$zakatPaid[$payment['postId']]=($zakatPaid[$payment['postId']]??0)+(float)$part['amountPKR'];}
- $add=static function(array $j,float $amount,string $purpose,string $recipient='')use(&$out,$s,$account):void{
+ // A fully funded voucher may carry explicit Zakat expense legs directly,
+ // rather than a separated payroll component. Use only its identified legs.
+ if($kind==='REMUNERATION')foreach($zakatProjection['rows'] as $payment)if(empty($payment['payrollComponents'])){
+  $paidJournal=$s['journals'][$payment['postId']]??null;if(!$paidJournal)continue;$ownZakat=0.0;
+  foreach((array)($paidJournal['lines']??[]) as $line){if(($line['account']??'')!=='7210')continue;$master=(array)($s['salaryMasters'][(string)($line['salaryMasterId']??$paidJournal['meta']['salaryMasterId']??'')]??[]);$who=sac_family_person((string)($master['name']??$line['person']??$line['expenseFor']??''));if($who===$person)$ownZakat+=(float)($line['debit']??0)-(float)($line['credit']??0);}
+  if(abs($ownZakat)<=abs((float)$payment['amountPKR'])+.005)$zakatPaid[$payment['postId']]=$ownZakat;
+ }
+ $add=static function(array $j,float $amount,string $purpose,string $recipient='',string $movement='')use(&$out,$s,$account):void{
   $amount=round($amount,2);if(abs($amount)<.005)return;
-  $out[]=['date'=>(string)$j['date'],'voucher'=>(string)$j['id'],'publicPostId'=>tt_accounts_public_post($s,$j),'amendmentNote'=>tt_accounts_amendment_note($j,$s),'account'=>$account,'accountName'=>sac_family_catalog()[$account],'reference'=>(string)($j['reference']??''),'narration'=>$purpose.($recipient!==''?' · Paid to '.$recipient:''),'party'=>$recipient,'debit'=>max(0,$amount),'credit'=>max(0,-$amount),'chequeNo'=>'','bankReference'=>'','canDelete'=>false,'deleteReason'=>'Review the original posting before cancellation.'];
+  $out[]=['statementLine'=>$movement,'date'=>(string)$j['date'],'voucher'=>(string)$j['id'],'publicPostId'=>tt_accounts_public_post($s,$j),'amendmentNote'=>tt_accounts_amendment_note($j,$s),'account'=>$account,'accountName'=>sac_family_catalog()[$account],'reference'=>(string)($j['reference']??''),'narration'=>$purpose.($recipient!==''?' · Paid to '.$recipient:''),'party'=>$recipient,'debit'=>max(0,$amount),'credit'=>max(0,-$amount),'chequeNo'=>'','bankReference'=>'','canDelete'=>false,'deleteReason'=>'Review the original posting before cancellation.'];
  };
  foreach((array)($s['journals']??[]) as $j){
   if(!is_array($j)||($j['entity']??'')!==$entity||!alv_posted($j)||isset($hidden[(string)($j['id']??'')])||!empty($j['meta']['deletedFromBooks'])||($j['date']??'')>$to)continue;
   $date=DateTimeImmutable::createFromFormat('!Y-m-d',(string)($j['date']??''));if(!$date||$date->format('Y-m-d')!==$j['date'])continue;
-  $meta=(array)($j['meta']??[]);$amount=0.0;$zakatAccrued=0.0;$hasRemuneration=false;
+  $meta=(array)($j['meta']??[]);$amount=0.0;$zakatAccrued=0.0;$hasRemuneration=false;$controlDebit=0.0;$controlCredit=0.0;$entitlementCost=0.0;$cashPaid=0.0;foreach((array)($j['lines']??[]) as $cashLine)if(in_array($cashLine['account']??'',['1110','1120'],true))$cashPaid+=(float)($cashLine['credit']??0)-(float)($cashLine['debit']??0);
   foreach((array)($j['lines']??[]) as $l){
    $code=(string)($l['account']??'');$m=(array)($s['salaryMasters'][(string)($l['salaryMasterId']??$meta['salaryMasterId']??'')]??[]);$category=(string)($l['category']??$meta['category']??$m['category']??'');
    $who='';foreach([$l['expenseFor']??'',$meta['expenseFor']??'',$m['name']??'',$l['person']??'',$meta['person']??'',$l['party']??'',$code] as $identity){$who=sac_family_person((string)$identity);if($who!=='')break;}
    if($who!==$person)continue;
-   if($kind==='REMUNERATION'&&$category!=='HOME_MONTHLY_GIVE'&&(in_array($code,['1230','2140','2230'],true)||$code==='FAM-'.$person||$code==='REIMB-'.$person)){$hasRemuneration=true;$amount+=(float)($l['debit']??0)-(float)($l['credit']??0);}
+   if($kind==='REMUNERATION'&&$category!=='HOME_MONTHLY_GIVE'&&(in_array($code,['1230','2140','2230'],true)||$code==='FAM-'.$person||$code==='REIMB-'.$person)){$hasRemuneration=true;$controlDebit+=(float)($l['debit']??0);$controlCredit+=(float)($l['credit']??0);$amount+=(float)($l['debit']??0)-(float)($l['credit']??0);}
+   if($category!=='HOME_MONTHLY_GIVE'&&in_array($code,['6210','6220','3200'],true))$entitlementCost+=(float)($l['debit']??0)-(float)($l['credit']??0);
    if($code==='7210')$zakatAccrued+=(float)($l['debit']??0)-(float)($l['credit']??0);
    if($person==='ARP'&&$code==='FAM-ABU')$amount+=(float)($l['debit']??0)-(float)($l['credit']??0);
   }
   if($kind==='REMUNERATION'&&$hasRemuneration){$amount+=$zakatAccrued-($zakatPaid[$j['id']]??0);foreach($zakatProjection['warnings'] as $warning)if(preg_match('/Post '.preg_quote((string)$j['id'],'/').'(?![A-Za-z0-9-])/',$warning))$allocationWarnings[]=$warning;}
-  $add($j,$amount,sac_journal_narration($s,$j),(string)($meta['payee']??$meta['paymentRecipient']??''));
+  if($kind==='REMUNERATION'&&$controlDebit>.005&&$controlCredit>.005&&$entitlementCost>.005&&$cashPaid>.005){
+   $add($j,-round($controlCredit-$zakatAccrued,2),'Monthly entitlement · '.sac_journal_narration($s,$j),'','ENTITLEMENT');
+   $add($j,round($controlDebit-($zakatPaid[$j['id']]??0),2),'Payment / personal use · '.sac_journal_narration($s,$j),(string)($meta['payee']??$meta['paymentRecipient']??''),'PAYMENT');
+  }else$add($j,$amount,sac_journal_narration($s,$j),(string)($meta['payee']??$meta['paymentRecipient']??''));
  }
  if($kind!=='REMUNERATION')foreach(sac_expense_activity($s,$entity,'0001-01-01',$to) as $a){
   if(($person!=='ARP'&&($a['personalTreatment']??'COMPANY')!=='COMPANY')||in_array((string)$a['account'],['7200','7210','7220','7230'],true))continue;
@@ -514,7 +525,7 @@ function sac_family_statement(array $s,string $entity,string $account,string $fr
  }
  usort($out,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strnatcmp($a['voucher'],$b['voucher']));
  // Merge only movements of this one family statement, never a complete journal.
- $groups=[];foreach($out as $r){$key=$r['voucher'];if(!isset($groups[$key]))$groups[$key]=$r;else{$groups[$key]['debit']+=$r['debit'];$groups[$key]['credit']+=$r['credit'];if(!str_contains($groups[$key]['narration'],$r['narration']))$groups[$key]['narration'].='; '.$r['narration'];}}
+ $groups=[];foreach($out as $r){$key=$r['voucher'].'|'.$r['statementLine'];if(!isset($groups[$key]))$groups[$key]=$r;else{$groups[$key]['debit']+=$r['debit'];$groups[$key]['credit']+=$r['credit'];if(!str_contains($groups[$key]['narration'],$r['narration']))$groups[$key]['narration'].='; '.$r['narration'];}}
  $opening=0.0;$rows=[];$balance=0.0;foreach($groups as $r){$net=round($r['debit']-$r['credit'],2);if(abs($net)<.005)continue;$r['debit']=max(0,$net);$r['credit']=max(0,-$net);$balance=round($balance+$net,2);if($r['date']<$from){$opening=$balance;continue;}$r['balance']=$balance;$rows[]=$r;}
  if($allocationWarnings)foreach($rows as &$r)$r['balance']=null;unset($r);
  return ['rows'=>$rows,'warnings'=>array_values(array_unique($allocationWarnings)),'balanceUnavailable'=>(bool)$allocationWarnings,'opening'=>$allocationWarnings?null:$opening,'closing'=>$allocationWarnings?null:$balance,'balanceMeaning'=>$allocationWarnings?'Allocation review required':($kind==='REMUNERATION'?($balance>0?'Payable to company':($balance<0?'Company owes family member':'Settled')):'Company-borne expenses'),'familyStatement'=>true];

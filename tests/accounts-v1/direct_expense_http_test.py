@@ -406,6 +406,8 @@ require $argv[1];
     family_journal('SAMAD', [{'account':'6910','debit':30000,'credit':0,'expenseArea':'HOME','counterparty':'ABDUL SAMAD ABDUL AZIZ'},{'account':'1120','debit':0,'credit':30000}], 'SRP household costs')
     family_journal('ARP', [{'account':'6910','debit':600,'credit':0,'expenseFor':'FAM-ABU','personalTreatment':'COMPANY'},{'account':'1120','debit':0,'credit':600}], 'ARP medical cost')
     family_journal('REIMBURSE', [{'account':'REIMB-SALMAN','debit':0,'credit':5000},{'account':'6900','debit':5000,'credit':0}], 'Company expense paid personally by Salman')
+    family_journal('COMBINED', [{'account':'6210','debit':7000,'credit':0,'salaryMasterId':'D'},{'account':'2230','debit':0,'credit':7000,'salaryMasterId':'D'},{'account':'2230','debit':7000,'credit':0,'salaryMasterId':'D'},{'account':'1120','debit':0,'credit':7000}], 'Monthly entitlement and payment on one voucher')
+    family_journal('COMBINED-ZAKAT', [{'account':'6210','debit':5000,'credit':0,'salaryMasterId':'D','month':'2027-05'},{'account':'7210','debit':1000,'credit':0,'salaryMasterId':'D','month':'2027-05'},{'account':'2230','debit':0,'credit':6000,'salaryMasterId':'D','month':'2027-05'},{'account':'2230','debit':6000,'credit':0,'salaryMasterId':'D','month':'2027-05'},{'account':'1120','debit':0,'credit':6000}], 'Monthly entitlement, Zakat and payment on one voucher')
     family_journal('ZERO', [{'account':'2230','debit':0,'credit':0,'salaryMasterId':'D'}], 'Zero line for review')
     books.write_text(json.dumps(family_fixture));family_stable=books.read_bytes()
     for code,expected in [('FAMILY|SALMAN|REMUNERATION',-50000),('FAMILY|SALMAN|HOME',330000),('FAMILY|ARP|EXPENSE',600)]:
@@ -417,6 +419,9 @@ require $argv[1];
         assert len([c for c in catalog if c.startswith('FAMILY|SALMAN|')])==2
         assert not any(c.startswith('PAYROLL|') or c.startswith('DIRECTOR|') for c in catalog)
         assert any(r['type']=='Zero-value posting line' for r in statement['ledgerReviews'])
+        if code.endswith('|REMUNERATION'):
+            assert len([r for r in statement['rows'] if r['voucher']=='COMBINED'])==2
+            assert len([r for r in statement['rows'] if r['voucher']=='COMBINED-ZAKAT' and max(r['debit'],r['credit'])==5000])==2
         if code.endswith('|HOME'):assert any('Paid to ABDUL SAMAD ABDUL AZIZ' in r['narration'] for r in statement['rows'])
     assert books.read_bytes()==family_stable
     status,opening=request('accounts_ledger_browser','?entity=TTI&category=other&account=FAMILY|SALMAN|REMUNERATION&from=2027-03-01&to=2027-12-31');assert status==200 and opening['opening']==-50000 and opening['closing']==-50000 and not opening['rows']
