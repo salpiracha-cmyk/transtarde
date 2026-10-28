@@ -275,6 +275,9 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/inventory-venv"
           "$RUNNER_TEMP/inventory-venv/bin/pip" -q install playwright==1.55.0
           "$RUNNER_TEMP/inventory-venv/bin/playwright" install --with-deps chromium
+      - name: Native Mill SODA handoff and gate passes
+        run: |
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_operational_save_browser_test.py
       - name: Salary month HTTP and browser flow
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
@@ -476,7 +479,6 @@ jobs:
           python3 tests/security/export_document_permissions_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_source_handoff_browser_test.py
-          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_operational_save_browser_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/group_daily_browser_test.py
       - name: Bank entries, finance and subaccounts browser flow
         env:

@@ -99,7 +99,9 @@ def run():
             director.get_by_role('button',name='Save SODA',exact=True).click();director.locator('#dtMessage').filter(has_text='Saved.').wait_for()
             mill.locator('#directorExporterCompany').select_option('TTI');mill.locator('#directorExporterRefresh').click()
             choice=mill.locator('#directorExporterDeal option').filter(has_text='Fixture fellow exporter');choice.wait_for(state='attached');soda_id=choice.get_attribute('value');mill.locator('#directorExporterDeal').select_option(soda_id)
-            mill.locator('#directorExporterStock').select_option('QA BRAND');mill.locator('#directorExporterBagTare').fill('100');mill.locator('#directorExporterUse').click();mill.locator('#savedExporterSales').filter(has_text='Fixture fellow exporter').wait_for()
+            mill.locator('#directorExporterStock').select_option('QA BRAND');mill.locator('#directorExporterBagTare').fill('100');mill.locator('#directorExporterUse').click()
+            try:mill.locator('#savedExporterSales').filter(has_text='Fixture fellow exporter').wait_for(timeout=10000)
+            except Exception:raise AssertionError({'handoff':mill.locator('#directorExporterStatus').inner_text(),'errors':errors,'dialogs':dialogs})
             director.close()
             mill.locator('#exTruck').fill('QA-303');mill.locator('#exBags').fill('10');mill.locator('#exGross').fill('501');mill.locator('[onclick="addExporterContainer()"]').click();mill.wait_for_function("document.querySelector('#exTruck').value === ''")
             op=context.request.get(base+'/api/operations.mysql.php').json();exporter=json.loads(op['values']['tt35exportersale']);assert len(exporter)==1 and len(exporter[0]['containers'])==1 and exporter[0]['containers'][0]['net']==500 and exporter[0]['exporterDealId']==soda_id
