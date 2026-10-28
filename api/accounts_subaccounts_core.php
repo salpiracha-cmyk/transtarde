@@ -88,6 +88,7 @@ function sac_home_id(string $entity,string $person):string {return $entity.'-HOM
 function sac_accounts(array $s,string $e):array {
  $out=[];if($e==='TG')$out['TG-DEFAULT-ONLINE-BANKING']=['id'=>'TG-DEFAULT-ONLINE-BANKING','entity'=>'TG','name'=>'Online Banking Charges','parentCode'=>'6800','taxCategory'=>'NONE','active'=>true];foreach(sac_expense_defaults() as $category=>[$name,$code]){$id=$e.'-EXPENSE-TYPE-'.$category;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>$name,'parentCode'=>$code,'taxCategory'=>'NONE','active'=>true,'builtinCategory'=>$category];}
  foreach(['FAM-SALMAN','FAM-TALHA','FAM-TAYYAB','SHARED'] as $person){$id=sac_home_id($e,$person);$out[$id]=['id'=>$id,'entity'=>$e,'name'=>sac_home_name($person),'parentCode'=>'6910','parentId'=>$e.'-EXPENSE-TYPE-HOME','taxCategory'=>'NONE','active'=>true,'homePerson'=>$person];}
+ if($e!=='TG')foreach(['WATER_TANKER'=>'Water Tanker','GAS_CYLINDER'=>'Gas Cylinder','SOLAR_CLEANER'=>'Solar Cleaner'] as $key=>$name){$id=$e.'-HOME-DETAIL-'.$key;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>$name,'parentCode'=>'6910','parentId'=>$e.'-EXPENSE-TYPE-HOME','taxCategory'=>'NONE','active'=>true,'homeExpenseDetail'=>$key];}
  foreach(['FI / Instrument Charges'=>'BANK_INSTRUMENT','Card Charges'=>'BANK_CARD','Transfer Charges'=>'BANK_TRANSFER','Bank Financing Charges'=>'BANK_FINANCING','Bank Finance Markup'=>'FINANCE_MARKUP'] as $name=>$key){$id=$e.'-DEFAULT-'.$key;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>$name,'parentCode'=>'6800','taxCategory'=>'NONE','active'=>$e!=='TG'];}
  foreach(['EXPORT','SAVINGS','BROKERAGE','SERVICES'] as $cat)foreach(['RECOVERABLE'=>'1260','PAYABLE'=>'2300'] as $t=>$code){$id=$e.'-DEFAULT-TAX-'.$cat.'-'.$t;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>ucfirst(strtolower($cat)).' Withholding Tax '.ucfirst(strtolower($t)),'parentCode'=>$code,'taxCategory'=>$cat,'active'=>true];}
  if($e!=='TG'){$id=$e.'-DEFAULT-TAX-OTHER-PAYABLE';$out[$id]=['id'=>$id,'entity'=>$e,'name'=>'Other Withholding Tax Payable','parentCode'=>'2300','taxCategory'=>'OTHER','active'=>true];}
@@ -159,11 +160,12 @@ function sac_master(array &$s,string $e,array $b,array $u):array {
    foreach((array)($s['journals']??[]) as $journal)if(($journal['entity']??'')===$e&&alv_posted($journal))foreach((array)($journal['lines']??[]) as $line)
     if(in_array((string)($line['subaccountId']??''),$subtree,true))throw new DomainException('This subaccount has posted history under its original head. Create a separate subaccount for the new head; any financial reclassification must use the original posting correction workflow.');
   }
+  if(isset($old['homeExpenseDetail'])&&($parent!=='6910'||$parentId!==$e.'-EXPENSE-TYPE-HOME'))throw new DomainException('Keep permanent household expense types under Home Expense.');
   if(isset($old['homePerson'])&&($parent!=='6910'||$parentId!==$e.'-EXPENSE-TYPE-HOME'))throw new DomainException('Keep Home ledgers under Home Expense.');
   $tax=strtoupper((string)($b['taxCategory']??'NONE'));if(!in_array($tax,['NONE','EXPORT','SAVINGS','BROKERAGE','SERVICES','OTHER'],true)||(!in_array($parent,['1260','2300'],true)&&$tax!=='NONE'))throw new DomainException('Tax category applies to recoverable tax or tax payable heads.');
   foreach(sac_accounts($s,$e) as $other)if($other['id']!==$id&&sac_normal($other['name'])===sac_normal($name))throw new DomainException('This subaccount name already exists. Edit or reactivate it.');
   if($op==='add')$id=far_next((array)($s['accountSubaccounts']??[]),'SUB');
-  $a=['id'=>$id,'entity'=>$e,'name'=>$name,'expenseClassification'=>$classification]+array_intersect_key($old??[],array_flip(['builtinCategory','homePerson']))+['parentCode'=>$parent,'parentId'=>$parentId,'taxCategory'=>$tax,'active'=>!array_key_exists('active',$b)||(bool)$b['active']];
+  $a=['id'=>$id,'entity'=>$e,'name'=>$name,'expenseClassification'=>$classification]+array_intersect_key($old??[],array_flip(['builtinCategory','homePerson','homeExpenseDetail']))+['parentCode'=>$parent,'parentId'=>$parentId,'taxCategory'=>$tax,'active'=>!array_key_exists('active',$b)||(bool)$b['active']];
   if($receiptType)$a['receiptType']=true;
   // A subtree moves together. Its rows keep stable IDs and its vouchers keep saved treatment.
   if($old&&$old['parentCode']!==$parent)foreach(sac_subtree($s,$e,$id) as $child){

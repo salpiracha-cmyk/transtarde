@@ -78,6 +78,8 @@ function pc_expense_row(array $s,string $e,array $b,float $amount,string $note):
         $person=(string)($b['expenseFor']??'SHARED');
         if(!in_array($person,['SHARED','FAM-SALMAN','FAM-TALHA','FAM-TAYYAB'],true))throw new DomainException('Choose the home expense beneficiary.');
         $row=array_replace($row,['accountCode'=>'6910','subaccountId'=>sac_home_id($e,$person),'expenseArea'=>'HOME','expenseFor'=>$person,'personalTreatment'=>(string)($b['personalTreatment']??'COMPANY')]);
+        $detail=trim((string)($b['homeExpenseDetailId']??''));
+        if($detail!==''){$a=sac_resolve($s,$e,$detail);if($a['parentCode']!=='6910'||empty($a['homeExpenseDetail'])||$a['parentId']!==$e.'-EXPENSE-TYPE-HOME')throw new DomainException('Choose a household expense type in these company books.');$row['subaccountId']=$detail;}
     }elseif($category==='ARP'){
         $id=(string)($b['arpSubaccountId']??$e.'-EXPENSE-TYPE-ARP');$sub=sac_resolve($s,$e,$id);
         if($id!==$e.'-EXPENSE-TYPE-ARP'&&!in_array($e.'-EXPENSE-TYPE-ARP',$sub['ancestorIds'],true))throw new DomainException('Choose an ARP expense subledger in these company books.');
@@ -87,14 +89,15 @@ function pc_expense_row(array $s,string $e,array $b,float $amount,string $note):
     pex_fields($row);return $row;
 }
 function pc_expense_choices(array $s,string $e):array {
-    $homes=[];$arp=[];
+    $homes=[];$arp=[];$details=[];
     foreach(sac_accounts($s,$e) as $id=>$raw){
         if(!isset($raw['homePerson'])&&$id!==$e.'-EXPENSE-TYPE-ARP'&&($raw['parentCode']??'')!=='6910')continue;
         $a=sac_resolve($s,$e,(string)$id,false);if(!$a['active'])continue;
+        if(!empty($a['homeExpenseDetail']))$details[]=['id'=>$id,'name'=>$a['name']];
         if(isset($a['homePerson']))$homes[]=['id'=>$a['homePerson'],'name'=>$a['name']];
         if($id===$e.'-EXPENSE-TYPE-ARP'||in_array($e.'-EXPENSE-TYPE-ARP',$a['ancestorIds'],true))$arp[]=['id'=>$id,'name'=>$a['path']];
     }
-    return ['homeLedgers'=>$homes,'arpSubaccounts'=>$arp];
+    return ['homeLedgers'=>$homes,'arpSubaccounts'=>$arp,'homeExpenseDetails'=>$details];
 }
 function pc_post(array &$s,string $e,array $b,array $u,array $names):array {
     $date=ev1_date((string)($b['date']??''));$type=(string)($b['type']??'');$from=(string)($b['from']??'');$source=$type==='RECEIPT'?null:pc_account($s,$e,$from);$amount=ev1_amount($b['amount']??0);
