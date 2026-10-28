@@ -74,7 +74,7 @@ with tempfile.TemporaryDirectory(prefix='staff-payment-amend-') as temp:
  books.write_text(json.dumps(initial))
  # Start from original balanced books with a separate B/F and original payment.
  fixture=json.loads(auth.read_text());fixture['masters']['business_parties'].append({'id':'KE','values':['K-Electric','','Service Provider','','','','','','','','Active']});fixture['masters']['mills']=[{'id':'MILL','values':['Fixture Mill','','Own Mill','','','Active','','TTI']},{'id':'OFFICE','values':['Fixture Office','','Office','','','Active','','TTI']}];auth.write_text(json.dumps(fixture))
- invoice={'entity':'TTI','action':'capture_expense_invoice','requestKey':'expense-invoice-capture-01','payee':'Fixture Shipping Services','invoiceNo':'EXP-001','invoiceDate':'2026-09-01','dueDate':'2026-09-15','billMonth':'2026-09','amount':1000.08,'expenseLines':[{'category':'PROFESSIONAL','purpose':'Original service','amount':1000.08,'expenseArea':'OFFICE','expenseFor':'SHARED','personalTreatment':'COMPANY'}]}
+ invoice={'entity':'TTI','action':'capture_expense_invoice','requestKey':'expense-invoice-capture-01','payee':'Fixture Shipping Services','invoiceNo':'EXP-001','paymentNarration':'Original invoice narration','invoiceDate':'2026-09-01','dueDate':'2026-09-15','billMonth':'2026-09','amount':1000.08,'expenseLines':[{'category':'PROFESSIONAL','purpose':'Original service','amount':1000.08,'expenseArea':'OFFICE','expenseFor':'SHARED','personalTreatment':'COMPANY'}]}
  before=books.read_bytes();st,preview=request({**invoice,'preview':True});assert st==200,(st,preview);assert books.read_bytes()==before
  assert len(preview['previews'])==1 and [(l['account'],l['debit'],l['credit']) for l in preview['previews'][0]['lines']]==[('6700',1000.08,0),('2130',0,1000.08)],preview
  for change in [{'entity':'BRM'},{'entity':'TG'},{'invoiceDate':'2026-02-30'},{'dueDate':'2026-08-31'},{'invoiceNo':''},{'paymentAccountId':'B1'},{'amount':1000},{'amount':'1e309'}]:
@@ -85,11 +85,11 @@ with tempfile.TemporaryDirectory(prefix='staff-payment-amend-') as temp:
  duplicate=request({**invoice,'requestKey':'expense-invoice-duplicate'});assert duplicate[0]==422 and books.read_bytes()==committed,duplicate
  assert request({**invoice,'invoiceNo':'Different number'})[0]==409 and books.read_bytes()==committed
  # Unpaid correction keeps source ID / public Post ID and rejects stale updates.
- corrected={**invoice,'invoiceId':bid,'expectedJournalId':jid,'requestKey':'expense-invoice-amend-01','reason':'Correct original supplier amount','amount':123456.78,'expenseLines':[{**invoice['expenseLines'][0],'amount':123456.78}]}
+ corrected={**invoice,'invoiceId':bid,'expectedJournalId':jid,'requestKey':'expense-invoice-amend-01','reason':'Correct original supplier amount','paymentNarration':'Updated invoice narration','amount':123456.78,'expenseLines':[{**invoice['expenseLines'][0],'amount':123456.78}]}
  stable=books.read_bytes();assert request({**corrected,'reason':''})[0]==422 and books.read_bytes()==stable
  st,preview=request({**corrected,'preview':True});assert st==200,(st,preview);assert books.read_bytes()==committed
  st,amended=request(corrected);assert st==200,(st,amended);new=amended['result']['journalId'];assert amended['result']['invoiceId']==bid and new!=jid
- state=json.loads(books.read_text());assert state['journals'][jid]['amendedByPostId']==new and state['journals'][new]['meta']['publicPostId']==jid
+ state=json.loads(books.read_text());assert state['journals'][jid]['amendedByPostId']==new and state['journals'][new]['meta']['publicPostId']==jid;assert state['supplierBills'][bid]['paymentNarration'].upper()=='UPDATED INVOICE NARRATION' and 'UPDATED INVOICE NARRATION' in state['journals'][new]['narration'].upper()
  stable=books.read_bytes();assert request({**corrected,'requestKey':'expense-invoice-stale-01'})[0]==422 and books.read_bytes()==stable
  # Explicit partial payments reduce only the original liability, not the expense again.
  payment={'entity':'TTI','action':'post_bill_payment','requestKey':'invoice-partial-payment-01','supplier':invoice['payee'],'category':'SERVICE','selectedBills':[bid+'|EXPENSE|'+bid],'explicitBillSelection':True,'paymentIntent':'PARTIAL','selectedOutstanding':123456.78,'amount':100000,'paymentMode':'BANK','bankAccountId':'B1','bankPaymentMethod':'ONLINE_BANKING','bankPaymentDate':'2026-09-03','date':'2026-09-03'}
