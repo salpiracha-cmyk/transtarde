@@ -1,0 +1,35 @@
+"""Run the actual correction engine on isolated Accounts and auth stores."""
+import json,os,pathlib,shutil,subprocess,tempfile
+ROOT=pathlib.Path(__file__).resolve().parents[2]
+with tempfile.TemporaryDirectory(prefix='expense-reclassification-') as temp:
+    root=pathlib.Path(temp);app=root/'app'
+    shutil.copytree(ROOT,app,ignore=shutil.ignore_patterns('.git','node_modules','tmp','__pycache__'))
+    private=root/'transtrade_private';private.mkdir()
+    auth={'users':[{'id':1,'username':'fixture','full_name':'Fixture Owner','role':'Super Admin','active':True}], 'masters':{},'settings':{'qa_account_seeded':True,'master_permission_schema':2},'audit':[]}
+    (private/'auth.json').write_text(json.dumps(auth))
+    payees={f'TTI|EXP|{key}':{'id':f'EXP|{key}','entity':'TTI','kind':'EXPENSE','name':name,'active':True,'configured':True,'accountCode':'6900','expenseCategory':'OFFICE','subaccountId':''} for key,name in [('repairer','Fixture repairer'),('creditor','Fixture creditor')]}
+    def journal(i,head,party,amount=15000,credit='1120'):
+        return {'id':i,'entity':'TTI','date':'2026-10-01','sourceType':'DIRECT_EXPENSE_PAYMENT','status':'Posted','reference':'','narration':'Original repair','lines':[{'account':head,'debit':amount,'credit':0,'counterparty':party},{'account':credit,'debit':0,'credit':amount,'paymentAccountId':'CASH|TTI' if credit=='1120' else '','counterparty':party if credit=='2130' else ''}],'totalDebit':amount,'totalCredit':amount,'meta':{},'reversalOf':None}
+    state={'revision':17,'journals':{'POST-2026-00001':journal('POST-2026-00001','6900','Fixture repairer'),'POST-2026-00002':journal('POST-2026-00002','6400','Fixture creditor',credit='2130')},'paymentPayees':payees,'generalExpenses':{'GEX-1':{'id':'GEX-1','entity':'TTI','expenseType':'DIRECT','status':'Posted','journalId':'POST-2026-00001','paymentDate':'2026-10-01','paymentAccountId':'CASH|TTI','reference':'','payee':'Fixture repairer','payeeId':'EXP|repairer','amount':15000,'paymentNarration':'Original repair','personalLink':'EXPENSE|GEX-1','personalJournalIds':[],'expenseLines':[{'category':'OFFICE','account':'6900','amount':15000,'purpose':'Original repair','expenseArea':'OFFICE','expenseFor':'SHARED','personalTreatment':'COMPANY'}]}},'salaryAdvances':{'UNRELATED':{'remaining':100}},'unrelatedRegister':{'retain':'exactly'}}
+    (private/'accounts.json').write_text(json.dumps(state))
+    driver=root/'test.php';driver.write_text('''<?php
+define('TT_EXPENSES_FUNCTIONS_ONLY',true);require $argv[1].'/api/expenses_v1.php';
+define('TT_EXPENSE_CORRECTION_LIBRARY',true);require $argv[1].'/.github/scripts/expense_ledger_correct.php';
+$_SERVER['REQUEST_METHOD']='POST';$GLOBALS['TT_AUTHORIZED_API_BODY']=['preview'=>true];
+function check($x,$m){if(!$x)throw new RuntimeException($m);}
+$file=TT_DATA_DIR.'/accounts.json';$raw=file_get_contents($file);$auth=file_get_contents(TT_STORE_FILE);$before=json_decode($raw,true);$s=$before;
+$plan=['version'=>1,'rows'=>[['fingerprint'=>elc_hash($s['generalExpenses']['GEX-1']),'row'=>0,'changes'=>['account'=>'5550','category'=>'EXPORT','expenseArea'=>'EXPORT','expenseFor'=>'SHARED','personalTreatment'=>'COMPANY'],'reason'=>'Owner-approved export testing correction']],'archiveExpenseOnlyRecipients'=>true];
+$result=elc_apply($s,$plan,'test-batch');check(count($result['corrections'])===1,'One original expense amended');check(count($result['archivedRecipients'])===1,'Only the expense-only recipient is retired');
+$new=$s['generalExpenses'][$result['corrections'][0]['replacementExpenseId']];check($new['amount']===15000.0&&$new['paymentDate']==='2026-10-01'&&$new['paymentAccountId']==='CASH|TTI','Original amount/date/source');check($new['publicPostId']==='POST-2026-00001','Original public posting identity');check($new['expenseLines'][0]['account']==='5550','Correct expense head');
+check(elc_totals($s,true)===elc_totals($before,true),'Cash/bank/card movements unchanged by date');check($s['paymentPayees']['TTI|EXP|creditor']['active']===true,'Actual creditor remains available');check($s['salaryAdvances']===$before['salaryAdvances']&&$s['unrelatedRegister']===$before['unrelatedRegister'],'Unrelated registers preserved');
+$stable=serialize($s);check(elc_apply($s,$plan,'test-batch')['duplicate']&&serialize($s)===$stable,'Retry writes nothing');
+$stale=$before;$bad=$plan;$bad['rows'][0]['fingerprint']=str_repeat('0',64);try{elc_apply($stale,$bad,'stale');throw new RuntimeException('Accepted stale source');}catch(RuntimeException $e){check(str_contains($e->getMessage(),'changed'),'Stale source rejected');}
+$family=$before;$familyPlan=$plan;$familyPlan['rows'][0]['changes']=['account'=>'6910','category'=>'HOME','expenseArea'=>'HOME','expenseFor'=>'FAM-SALMAN','personalTreatment'=>'COMPANY','monthlyFee'=>true];$r=elc_apply($family,$familyPlan,'family');$n=$family['generalExpenses'][$r['corrections'][0]['replacementExpenseId']];check($n['expenseLines'][0]['expenseFor']==='FAM-SALMAN'&&$n['expenseLines'][0]['personalTreatment']==='COMPANY','Company-borne SRP Home');check(str_contains($n['paymentNarration'],'Monthly fee')&&str_contains($n['paymentNarration'],'Original repair'),'Monthly-fee narration retains original text');
+$named=$before;$namedPlan=$plan;$namedPlan['rows'][0]['changes']=['account'=>'6700','category'=>'PROFESSIONAL','expenseArea'=>'OFFICE','expenseFor'=>'SHARED','personalTreatment'=>'COMPANY','namedSubledger'=>'Fixture professional provider'];$r=elc_apply($named,$namedPlan,'named');$n=$named['generalExpenses'][$r['corrections'][0]['replacementExpenseId']];$sub=sac_resolve($named,'TTI',$n['expenseLines'][0]['subaccountId']);check($sub['parentCode']==='6700'&&strtoupper($sub['name'])==='FIXTURE PROFESSIONAL PROVIDER','Explicit professional subledger owns the corrected expense');
+check(file_get_contents($file)===$raw&&file_get_contents(TT_STORE_FILE)===$auth,'Previews write neither Accounts nor reserved Post IDs');
+echo "PASS native correction: original ID/amount/date/source, cash invariance, company-borne monthly home fee, explicit professional subledger, audit, creditor retention, stale guards and zero-write previews/retry.\\n";
+''')
+    env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
+    r=subprocess.run(['php',str(driver),str(app)],env=env,text=True,capture_output=True)
+    assert r.returncode==0,r.stdout+r.stderr
+    print(r.stdout.strip())
