@@ -2,7 +2,7 @@
 
 Salman's explicit instructions govern these classifications unless a posting's narration explicitly states another treatment. These rules document intended treatment; they are not evidence that historical production postings have been amended.
 
-Company-borne home expenses use personalTreatment COMPANY, with the appropriate director beneficiary when identifiable. They must not create recovery from a director or reduce remuneration. Retain the actual recipient in Paid to.
+Company-borne home expenses use personalTreatment COMPANY, with the appropriate director beneficiary when identifiable. They must not create recovery from a director or reduce remuneration. Record paid-to details in narration on new expense payments. Retain historical recipient metadata when amending an existing posting.
 
 | Narration / recipient | Expense treatment |
 | --- | --- |
@@ -26,3 +26,7 @@ Removing a payee is not a ledger transfer. Direct expenses require a recipient; 
 The software change in this work makes vehicle selection optional for Car Repairs and Fuel, including custom expense accounts under 6410/6610. A supplied asset remains company-scoped and validated. Vehicle Tax retains its required vehicle and tax-period controls.
 
 Production review is pending authenticated browser access. No named historical posting was changed as part of this document or fixture tests.
+
+## Expense entry simplification — further owner instruction
+
+Remove the Paid to field from ordinary expense payments. Narration records who was paid. Offer an optional existing named subledger under the expense type, with explicit Add subledger. Selecting a subledger controls that ledger's balance; narration alone must not manufacture or infer a company/person ledger. Preserve the supplier ledger on an unpaid invoice so later settlement clears the correct payable. Preserve all original recipient references on historical amendments.

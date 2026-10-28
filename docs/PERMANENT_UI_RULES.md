@@ -724,3 +724,10 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 - Edit on a TG remittance or TG-funded Pakistan credit advice offers a date-only correction in that company’s posting screen. The other company’s dates, amounts, bank charges, rates and invoice/advance applications remain unchanged. Keep the native source links and public Post ID, audit a balanced reversal/replacement, and synchronise a corrected Pakistan receipt date to Exports.
 - Require the original workflow and company Edit right, a correction reason, a green server-validated review and a fresh saved-date check. A corrected date cannot follow an existing advance application or escape a used forward-booking window.
 - Failed validation and cancelled review retain the same form, entered values and originating posting screen. Opening an edit never reopens/reverses a confirmed remittance or reserves another bank deduction. Full amount/allocation changes still use their protected original workflow.
+
+## Expense narration and optional named subledgers — 28 October 2026
+
+- Ordinary expense payments have no separate Paid to field. Enter recipient/payment details in narration. Do not infer or manufacture a named recipient account from free text.
+- Each expense row offers an optional existing subledger and an explicit Add subledger action under the expense type. A chosen named subledger owns that account's expense balance. Creating a subledger must retain the payment draft and must not post a payment.
+- Preserve stored recipient references on historical amendments. Unpaid invoices retain their supplier-ledger identity for later settlement.
+- Fuel and car repairs can be posted without specifying a vehicle. A supplied vehicle must still belong to the company. Vehicle tax retains its vehicle and tax-period validation.
