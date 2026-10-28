@@ -709,3 +709,10 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 - Accounts / Directors issues the SODA's production instruction: assigned mill, brand or unbranded, exact finished output/stock name, packing/bag tare, brief or full specification and operational notes. Financial settlement narration remains private to Accounts / Directors.
 - Mill staff selects a SODA grouped by party or brand. That opens the read-only instruction and the truck/container, bag and actual-weight gate-pass entry directly. There is no separate commercial, company, stock-source or quantity-allocation setup at the mill. Selecting/opening a SODA creates no saved loading, stock movement or accounting record. The first explicit Save Loading creates the original physical record using the issued instruction.
 - Preserve original stock/mill/brand for dispatched goods. Actual per-loading bag tare is retained for historical weights. Production must be recorded into the instructed finished stock before dispatch; do not consume another output or a by-product merely because it is available.
+
+
+## Linked TG remittance and Pakistan credit-advice dates — 28 October 2026
+
+- Edit on a TG remittance or TG-funded Pakistan credit advice offers a date-only correction in that company’s posting screen. The other company’s dates, amounts, bank charges, rates and invoice/advance applications remain unchanged. Keep the native source links and public Post ID, audit a balanced reversal/replacement, and synchronise a corrected Pakistan receipt date to Exports.
+- Require the original workflow and company Edit right, a correction reason, a green server-validated review and a fresh saved-date check. A corrected date cannot follow an existing advance application or escape a used forward-booking window.
+- Failed validation and cancelled review retain the same form, entered values and originating posting screen. Opening an edit never reopens/reverses a confirmed remittance or reserves another bank deduction. Full amount/allocation changes still use their protected original workflow.
