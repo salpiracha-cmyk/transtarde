@@ -270,6 +270,6 @@ document.addEventListener('click',e=>{let c=e.target.closest('[data-master="sala
 document.addEventListener('click',e=>{if(e.target.closest('.entityBtn')&&mode)setTimeout(refresh,120)},false);
 async function openSalaryAmendment(id,selectedMonth,selectedEntity){if(selectedEntity!==entity())throw Error('Switch to '+selectedEntity+' to amend this salary.');q('[data-key="expenses"]')?.click();await open('salary');month=selectedMonth;salaryView='sheet';await refresh();const record=(data.salaryPayments||[]).find(r=>r.journalId===id||r.publicPostId===id);if(record&&record.canAmend)amendSalaryPayment(record);else salaryPaymentList();}
 window.TT_RENT_SALARY_UI={refresh,open};
-window.TT_RENT_SALARY_UI.openAdvance=openSalaryAdvance;
+if(window.TT_RENT_SALARY_UI)window.TT_RENT_SALARY_UI.openAdvance=openSalaryAdvance;
 if(window.TT_RENT_SALARY_UI)window.TT_RENT_SALARY_UI.amendPayment=openSalaryAmendment;
 })();
