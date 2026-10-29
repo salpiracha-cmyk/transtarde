@@ -10,17 +10,17 @@ const boundaries=[
   const dom=new JSDOM('<main><div id="expenseEditor"></div><div id="masterBody"></div></main>',{url:'https://fixture.test/accounts/',runScripts:'outside-only'}),w=dom.window,requests=[];
   try{
    const RealDate=w.Date;w.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[instant]))}static now(){return RealDate.parse(instant)}};
-   w.CSS={escape:s=>s};w.TT_ACCOUNT_ACCESS={csrf:'fixture'};
+   w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};w.CSS={escape:s=>s};w.TT_ACCOUNT_ACCESS={csrf:'fixture'};
    w.fetch=async(url,options={})=>{requests.push({url,method:options.method||'GET'});assert.notEqual(options.method,'POST','Opening/defaulting fields must never post');return {ok:true,json:async()=>({ok:true,salaryMasters:[],salaryRows:[],salarySheet:{rows:{},status:'Draft'},paymentAccounts:[],salaryAdvances:[],rentRows:[],rentMasters:[],donations:[],totals:{}})}};
    w.eval(fs.readFileSync('accounts/rent-salary-ui.js','utf8'));
-   await w.TT_RENT_SALARY_UI.open('salary');w.document.querySelector('#rsAdvanceIcon').click();
-   assert.equal(w.document.querySelector('#rsAdvanceDate').value,expected,'Actual salary form uses Karachi day at '+instant);
-   assert.equal(w.document.querySelector('#rsMonth').value,expected.slice(0,7),'Salary month follows the same business day');
+   await w.TT_RENT_SALARY_UI.open('salary');assert(!w.document.querySelector('#rsAdvanceIcon'));await w.TT_RENT_SALARY_UI.openAdvance();
+   assert.equal(w.document.querySelector('#rsAdvancePopup [name=date]').value,expected,'Actual salary form uses Karachi day at '+instant);
+   assert.match(w.document.querySelector('#rsAdvancePopup [name=recoveryFromMonth]').value,/^\d{4}-\d{2}$/);
    assert(requests.every(r=>new URL(r.url,w.location.href).searchParams.get('month')===expected.slice(0,7)),'Salary reads request the business month');
    // Existing manually selected dates do not get rewritten by ordinary typing.
-   const date=w.document.querySelector('#rsAdvanceDate');date.value='2026-07-15';date.dispatchEvent(new w.Event('input',{bubbles:true}));
+   const date=w.document.querySelector('#rsAdvancePopup [name=date]');date.value='2026-07-15';date.dispatchEvent(new w.Event('input',{bubbles:true}));
    assert.equal(date.value,'2026-07-15');
-   w.eval(fs.readFileSync('accounts/donations-ui.js','utf8'));await w.TT_DONATIONS_UI.refresh();
+   w.document.querySelector('#rsAdvancePopup [data-close]').click();w.eval(fs.readFileSync('accounts/donations-ui.js','utf8'));await w.TT_DONATIONS_UI.refresh();
    assert.equal(w.document.querySelector('#donDate').value,expected,'Actual donation/Zakat form uses Karachi day');
    w.eval(fs.readFileSync('accounts/bank-direct-entry-ui.js','utf8'));
    w.TT_BANK_DIRECT_ENTRY.openProfit({id:'B1',currency:'PKR'});

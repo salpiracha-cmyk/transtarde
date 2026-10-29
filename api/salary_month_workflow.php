@@ -212,6 +212,7 @@ function smw_edit_row(array &$s,string $entity,string $month,array $b,array $u):
         $sheet['rows'][$id]=$fresh;$sheet['masterChanges'][$id]=['operation'=>'update','master'=>$next,'baseline'=>$master?rsv2_fingerprint($master):''];
     }
     if(isset($sheet['paymentGroups']))sfw_recalculate($sheet);
+    if(!empty($b['syncMaster']))smw_sync_row_master($s,$entity,$month,$sheet,$id,$u);
     $sheet['version']++;$sheet['updatedAt']=gmdate('c');$s['salarySheets'][$key]=$sheet;return ['masterId'=>$id,'draft'=>true];
 }
 
@@ -346,7 +347,7 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
         $pid=$row['periodId'];$applied=$row['advanceApplied'];
         if(!$row['prepared']){
             $left=$applied;
-            foreach(rsv2_open_advances($s,$entity,$mid,$month) as $advance){if($left<=.005)break;$id=$advance['id'];$take=min($left,$s['salaryAdvances'][$id]['remaining']);$s['salaryAdvances'][$id]['remaining']=round($s['salaryAdvances'][$id]['remaining']-$take,2);$s['salaryAdvances'][$id]['monthsRemaining']=max(0,(int)($s['salaryAdvances'][$id]['monthsRemaining']??1)-1);$s['salaryAdvances'][$id]['adjustments'][]=['month'=>$month,'amount'=>$take,'journalId'=>$jid];$left=round($left-$take,2);}
+            foreach([true,false] as $scheduled)foreach(rsv2_open_advances($s,$entity,$mid,$month) as $advance){if($left<=.005)break;$id=$advance['id'];$take=min($left,$scheduled?smw_pending_instalment($advance,$month):(float)$advance['remaining']);if($take<=.005)continue;$used=false;foreach((array)$advance['adjustments'] as $prior)if(($prior['month']??'')===$month&&(float)$prior['amount']>.005)$used=true;$s['salaryAdvances'][$id]['remaining']=round($advance['remaining']-$take,2);if(!$used)$s['salaryAdvances'][$id]['monthsRemaining']=max(0,(int)($advance['monthsRemaining']??1)-1);$s['salaryAdvances'][$id]['adjustments'][]=['month'=>$month,'amount'=>$take,'journalId'=>$jid];$left=round($left-$take,2);}
         }else{
             $restore=round($s['salaryPeriods'][$pid]['advanceApplied']-$applied,2);
             if($restore<-.005){
@@ -382,4 +383,27 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
     $sheet['paymentPostIds']=$groupJournals;$sheet['status']='Completed';$sheet['journalId']=$jid;$sheet['completedAt']=gmdate('c');$sheet['version']++;$s['salarySheets'][$key]=$sheet;
     $s['journals'][$jid]['meta']['salarySummary']=src_summary($s,$entity,$month,$sheet);
     return ['journalId'=>$jid];
+}
+
+/** Read-only navigation: completed remuneration can remain payable without reopening payroll. */
+function smw_navigation(array $s,string $entity):array {
+    $done=[];foreach((array)($s['salarySheets']??[]) as $sheet)if(($sheet['entity']??'')===$entity&&($sheet['status']??'')==='Completed')$done[]=$sheet['month'];
+    sort($done);$last=$done?end($done):null;$current=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m');
+    return ['completedMonth'=>$last,'nextMonth'=>$last?(new DateTimeImmutable($last.'-01'))->modify('+1 month')->format('Y-m'):$current];
+}
+/** The same shared Accounts salary masters are exposed by Master Records. */
+function smw_sync_row_master(array &$s,string $entity,string $month,array &$sheet,string $id,array $u):void {
+    $change=$sheet['masterChanges'][$id]??null;if(!$change)return;
+    $before=$s['salaryMasters'][$id]??null;$right=$change['operation']==='remove'?'Delete':($before?'Edit':'Create');
+    if(!smw_staff_permission($u,$entity,$right))throw new DomainException('Staff Master and company '.$right.' permission required.');
+    if($change['operation']==='remove'){$after=$before;$after['status']='Inactive';$after['effectiveTo']=rsv2_prev_day($month.'-01');}else $after=$change['master'];
+    $after['updatedAt']=gmdate('c');$after['updatedBy']=$u['full_name']??$u['username']??'Accounts';$s['salaryMasters'][$id]=$after;
+    $s['salaryMasterHistory'][]=['masterId'=>$id,'month'=>$month,'operation'=>$change['operation'],'before'=>$before,'after'=>$after,'by'=>$after['updatedBy'],'at'=>gmdate('c')];
+    unset($sheet['masterChanges'][$id]);$sheet['masterSignature']=smw_master_signature($s,$entity,$month);$sheet['advanceSignature']=smw_advance_signature($s,$entity,$month);$sheet['personalSignature']=smw_personal_signature($s,$entity,$month);unset($sheet['masterChanged'],$sheet['sourceInputsChanged'],$sheet['canRefreshFromMaster']);
+}
+
+function smw_staff_permission(array $u,string $entity,string $right):bool {
+    $masterRight=$right==='Delete'?'Deactivate':$right;$accountRight=$right==='Delete'?'Edit':$right;
+    $master=in_array($u['role']??'',['Super Admin','Director'],true)||tt_user_can_master($u,'salary_staff',$masterRight);
+    return $master&&tt_user_can_module_action($u,'Accounts','expenses',$accountRight)&&tt_user_can_access_entity($u,$entity,$accountRight);
 }

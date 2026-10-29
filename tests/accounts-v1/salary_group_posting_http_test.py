@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     from permission_fixture import append_permission_helpers
     append_permission_helpers(root)
     popup_css=re.search(r'style.textContent = `([\s\S]*?)`;', (ROOT/'accounts/accounts-clean-ui.js').read_text()).group(1)
-    (root/'accounts/index.html').write_text('<!doctype html><style>'+popup_css+'</style>'+'''<section class="workspace active tt-clean-modal tt-entry-only"><button data-expense="salary">Salaries</button><div id="expenseEditor"></div></section><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="cheque-date-ui.js"></script><script src="bank-payment-details.js"></script><script src="post-confirmation-ui.js"></script><script src="rent-salary-ui.js"></script>''')
+    (root/'accounts/index.html').write_text('<!doctype html><style>'+popup_css+'</style>'+'''<section class="workspace active tt-clean-modal tt-entry-only"><button data-expense="salary">Salaries</button><button data-master="salary">Staff Master in Master Records</button><div id="expenseEditor"></div></section><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="cheque-date-ui.js"></script><script src="bank-payment-details.js"></script><script src="post-confirmation-ui.js"></script><script src="rent-salary-ui.js"></script>''')
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     def start():return subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     server=start()
@@ -120,7 +120,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1280,'height':900})
                 page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click()
-                page.locator('#rsMasterSetup').click();page.locator('#rsMasterPopup').wait_for();assert page.locator('#rsApplyMaster').is_visible()
+                assert page.locator('#rsMasterSetup').count()==0;page.locator('[data-master=salary]').click();page.locator('#rsMasterPopup').wait_for();assert page.locator('#rsApplyMaster').is_visible()
                 assert page.locator('#rsMasterEntry').get_attribute('open') is None
                 assert page.locator('[data-rs-group^="MASTER_"]').count()==3
                 page.locator('[data-rs-edit="Alice"]').click();assert page.locator('#rsMasterEntry').get_attribute('open') is not None

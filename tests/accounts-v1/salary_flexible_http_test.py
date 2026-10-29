@@ -393,10 +393,11 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
             from playwright.sync_api import sync_playwright
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1280,'height':900});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-                page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click();page.locator('#rsPrepare').click()
+                page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click();page.locator('#rsPrepare').click();confirmation=page.get_by_role('dialog',name='Review salary change');confirmation.get_by_role('button',name='Continue',exact=True).click() if confirmation.count() else None
                 page.locator('#rsMonth').fill('2027-03');page.locator('#rsMonth').dispatch_event('change')
                 assert action('adjust_salary_month','Mrs',month='2027-03',netSalary=310000,advanceApplied=0)[0]==200
-                page.reload();page.locator('[data-expense="salary"]').click();page.locator('#rsPrepare').click();page.locator('#rsMonth').fill('2027-03');page.locator('#rsMonth').dispatch_event('change')
+                page.reload();page.locator('[data-expense="salary"]').click();page.locator('#rsPrepare').click();confirmation=page.get_by_role('dialog',name='Review salary change');confirmation.get_by_role('button',name='Continue',exact=True).click() if confirmation.count() else None
+                page.locator('#rsMonth').fill('2027-03');page.locator('#rsMonth').dispatch_event('change')
                 if not page.locator('[data-rs-group="DIRECTORS"]').get_attribute('open'):page.locator('[data-rs-group="DIRECTORS"] > summary').click()
                 page.locator('[data-rs-person="Mrs"]').click()
                 assert page.locator('.rs-plan-row').count()==0

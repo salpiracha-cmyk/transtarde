@@ -1076,6 +1076,7 @@ function tt_api_write_actions(string $endpoint,array $body): ?array {
         'post_bill_payment','post_supplier_payment','record_supplier_advance','apply_supplier_advance','issue_supplier_cheque'=>['Create'],
         'amend_bill_payment','bounce_supplier_cheque','cancel_supplier_cheque','clear_supplier_cheque'=>['Edit'],default=>[],
     };
+    if(in_array($endpoint,['rent_salary.php','rent_salary_v2.php'],true)&&$action==='edit_salary_sheet_row'&&!empty($body['syncMaster']))return [($body['operation']??'')==='remove'?'Edit':(empty($body['masterId'])?'Create':'Edit')];
     if(in_array($endpoint,['rent_salary.php','rent_salary_v2.php'],true))return match($action){
         'save_salary_master','save_rent_master','pay_rent','record_salary_advance','record_salary_opening_advance','salary_batch_payment','salary_payment','complete_salary_month','post_salary_group'=>['Create'],
         'prepare_month','save_salary_draft_payment','save_salary_transactions','refresh_salary_draft'=>['Create','Edit'],

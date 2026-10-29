@@ -51,7 +51,7 @@
       {title:'Pay Expense', note:'Pay anyone; combine several expenses in one cheque or payment', native:'expenses', special:'expense-pay'},
 
       {title:'Mill Bill Review', note:'Record verified Mill liabilities and follow linked supplier payments', native:'expenses', special:'mill-liabilities'},
-      {title:'Salaries & Staff', note:'Salary advance and monthly salary preparation', native:'expenses', special:'expense-salary'}
+      {title:'Salaries & Staff', note:'Prepare salary and review completed months', native:'expenses', special:'expense-salary'}
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'party'},{title:'Post ID Register',special:'post-ledger'},{title:'Trial Balance',native:'reports',find:'Trial Balance'},{title:'Chart of Accounts & Details',special:'account-heads'},{title:'Subaccounts & Details',special:'subaccounts'},{title:'Forward Booking Register',special:'forward-register'}]},
     {key:'reports', glyph:'▤', title:'Reports', note:'Financial, tax, party, commodity and shipment reports', actions:[
@@ -126,7 +126,7 @@
     const style = document.createElement('style');
     style.id = 'ttAccountingDeskStyle';
     style.textContent = `
-      .tt-shipment-bill-header{grid-template-columns:repeat(3,minmax(0,1fr))!important;align-items:end!important}.tt-shipment-bill-header .tt-shipment-vendor{grid-column:1/-1}.tt-shipment-bill-header label input{height:44px!important;min-height:44px!important;margin:0!important;box-sizing:border-box}.tt-shipment-bill-header label{display:grid;grid-template-rows:minmax(24px,auto) 44px;gap:6px}@media(max-width:600px){.tt-shipment-bill-header{grid-template-columns:1fr!important}}
+      .tt-shipment-bill-header{grid-template-columns:repeat(3,minmax(0,1fr))!important;align-items:end!important}.tt-shipment-bill-header .tt-shipment-vendor{grid-column:1/-1}.tt-shipment-bill-header label input{height:44px!important;min-height:44px!important;margin:0!important;box-sizing:border-box}.tt-shipment-bill-header .tt-date-control,.tt-shipment-bill-header .tt-number-entry{height:44px!important;min-height:44px!important}.tt-shipment-bill-header label{display:flex!important;flex-direction:column;justify-content:flex-end;align-self:stretch!important;gap:6px}@media(max-width:600px){.tt-shipment-bill-header{grid-template-columns:1fr!important}}
       body{background:#edf1f4!important;color:#172433}
       body.tt-workspace-opening .workspace.active{visibility:hidden!important}
       #ttExpenseFilters[hidden]{display:none!important}
