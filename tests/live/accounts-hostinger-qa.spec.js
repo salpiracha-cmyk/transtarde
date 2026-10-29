@@ -237,7 +237,8 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
 
   await deskAction(page, 'routine', 'Salaries & Staff');
   await expect(page.locator('#ws-expenses')).toHaveClass(/tt-entry-only/);
-  await expect(page.locator('#rsPrepare')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#rsMonth')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#rsPrepare')).toHaveCount(0);
   await expect(page.locator('#rsSaveSal')).toBeHidden();
   await expect(page.locator('#rsAdvanceIcon,#rsMasterSetup')).toHaveCount(0);
   await closeWorkspace(page);
@@ -251,9 +252,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await activate(salaryAdvanceEntry.locator('[data-cancel]'));
   await closeWorkspace(page);
   await deskAction(page, 'routine', 'Salaries & Staff');
-  await activate(page.locator('#rsPrepare'));
-  const earlySalaryPrompt = page.getByRole('dialog', {name:'Review salary change', exact:true});
-  if (await earlySalaryPrompt.isVisible()) await activate(earlySalaryPrompt.getByRole('button', {name:'Continue', exact:true}));
+  await expect(page.locator('#rsMonth')).toBeVisible({timeout:30_000});
   await expect(page.locator('#expenseEditor')).toContainText('Entitlement PKR');
   await expect(page.locator('[data-rs-group][open]')).toHaveCount(0);
   await activate(page.locator('[data-rs-group] > summary').first());
