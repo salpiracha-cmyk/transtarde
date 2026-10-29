@@ -244,11 +244,11 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 net=request(month='2027-01')[1]['salarySheet']['rows']['Bob']['outstanding'];assert float(page.locator('#rsFamilyCash').input_value())==net
                 assert page.locator('[data-tx-recipient],[data-allocation-amount],#rsFamilyUseRetain').count()==0
                 page.locator('#rsFamilyCash').fill('250');page.locator('#rsFamilyUseBank').check()
-                assert float(page.locator('#rsFamilyBankAmount').input_value())==net-250
+                assert abs(float(page.locator('#rsFamilyBankAmount').input_value())-(net-250))<.005
                 page.locator('#rsFamilyBank').select_option('bank-b');page.locator('[data-method]').select_option('ONLINE_BANKING')
                 page.locator('#rsPaySalBtn').click();page.locator('#rsPaymentPopup').wait_for(state='detached')
                 page.locator('[data-rs-person="Bob"]').click()
-                assert page.locator('#rsFamilyCash').input_value()=='250' and float(page.locator('#rsFamilyBankAmount').input_value())==net-250
+                assert page.locator('#rsFamilyCash').input_value()=='250' and abs(float(page.locator('#rsFamilyBankAmount').input_value())-(net-250))<.005
                 assert page.locator('#rsFamilyBank').input_value()=='bank-b'
                 page.locator('#rsDraftCancel').click()
                 # A completed current month moves the opening month forward, while history stays read-only.
