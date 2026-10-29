@@ -686,6 +686,7 @@ function operations_file_fallback(array $user): never {
     if (!in_array($sourceModule,['Exports','Mill','Milling','Accounts','Super Admin'],true)) operations_respond(['ok'=>false,'error'=>'Invalid source module.'],422);
     if (!operations_can_write($user,$sourceModule,$key)) operations_respond(['ok'=>false,'error'=>'Create or Edit permission is required for this module.'],403);
     operations_validate_key_module($user,$sourceModule,$key);
+    operations_guard_fellow_soda($key,'[]',$value);
     if(in_array($key,TT_INV_PRIVATE_KEYS,true))operations_respond(['ok'=>false,'error'=>'Reconciliation is maintained by the server; open the Accounts or Directors report.'],403);
     if($key===TT_INV_CONFIRMATIONS && !tt_inv_has_action($user,'Mill',['stock','export'],'Create') && !tt_inv_has_action($user,'Mill',['stock','export'],'Edit'))operations_respond(['ok'=>false,'error'=>'Stock confirmation permission required.'],403);
     tt_maybe_auto_backup();
@@ -790,6 +791,7 @@ try {
     }
 
     operations_validate_key_module($user,$sourceModule,$key);
+    operations_guard_fellow_soda($key,'[]',$value);
     if(in_array($key,TT_INV_PRIVATE_KEYS,true))operations_respond(['ok'=>false,'error'=>'Reconciliation is maintained by the server; open the Accounts or Directors report.'],403);
     if($key===TT_INV_CONFIRMATIONS && !tt_inv_has_action($user,'Mill',['stock','export'],'Create') && !tt_inv_has_action($user,'Mill',['stock','export'],'Edit'))operations_respond(['ok'=>false,'error'=>'Stock confirmation permission required.'],403);
     tt_maybe_auto_backup();

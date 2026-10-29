@@ -8,7 +8,7 @@ function dt_read_native_sales():array {
     if($raw===false||$raw===null||$raw==='')return [];$v=is_string($raw)?json_decode($raw,true,512,JSON_THROW_ON_ERROR):$raw;if(!is_array($v)||!array_is_list($v))throw new DomainException('Mill exporter loading source is unavailable.');return $v;
 }
 function dt_native_parent_matches(array $d,array $r):bool {
-    return ($r['entity']??$r['accountEntity']??'')===$d['entity']&&(($r['exporterDealId']??'')===$d['id']||($r['ref']??'')===$d['id']||(!empty($d['millSaleRef'])&&($r['ref']??'')===$d['millSaleRef']));
+    return ($d['status']??'')!=='Deleted'&&($r['entity']??$r['accountEntity']??'')===$d['entity']&&(($r['exporterDealId']??'')===$d['id']||($r['ref']??'')===$d['id']||(!empty($d['millSaleRef'])&&($r['ref']??'')===$d['millSaleRef']));
 }
 function dt_native_state(array $d,array $sales,string $date):array {
     $loads=[];$issues=[];$seen=[];$parents=[];$mt=0.;
@@ -25,7 +25,7 @@ function dt_native_state(array $d,array $sales,string $date):array {
 /** A Mill record used by a Directors agreement cannot also recognise a local sale. */
 function dt_local_sale_owner(array $s,string $entity,string $source):?string {
     if(!str_starts_with($source,'EXPORTER|'))return null;$ref=substr($source,9);
-    foreach((array)($s['exporterDeals']??[]) as $d)if(($d['entity']??'')===$entity&&($d['direction']??'')==='SALE'&&($ref===($d['id']??'')||str_starts_with($ref,($d['id']??'').'|MILL|')||($ref!==''&&$ref===($d['millSaleRef']??''))))return (string)$d['id'];return null;
+    foreach(array_filter((array)($s['exporterDeals']??[]),static fn($row)=>($row['status']??'')!=='Deleted') as $d)if(($d['entity']??'')===$entity&&($d['direction']??'')==='SALE'&&($ref===($d['id']??'')||str_starts_with($ref,($d['id']??'').'|MILL|')||($ref!==''&&$ref===($d['millSaleRef']??''))))return (string)$d['id'];return null;
 }
 function dt_sale_cost(array $s,array $d,array $native,float $invoiceMT):array {
     $by=[];$sources=[];$issues=[];$total=(float)$native['loadedMT'];
@@ -45,7 +45,7 @@ function dt_review_context(array $s,array $d,array $nativeSales,string $date):ar
 }
 
 function dt_validate_mill_link(array $s,array $d,array $nativeSales):void {
- if(empty($d['millSaleRef']))return;if($d['direction']!=='SALE')throw new DomainException('Only our sale through another exporter can link our Mill dispatch.');$rows=array_values(array_filter($nativeSales,static fn($r)=>($r['entity']??$r['accountEntity']??'')===$d['entity']&&($r['ref']??'')===$d['millSaleRef']));if(count($rows)===1&&!empty($rows[0]['exporterDealId'])&&$rows[0]['exporterDealId']!==($d['id']??''))throw new DomainException('That Mill dispatch already belongs to a Directors agreement.');if(count($rows)!==1)throw new DomainException('Choose one original Mill exporter loading record in this company.');foreach((array)($s['exporterDeals']??[]) as $other)if(($other['id']??'')!==($d['id']??'')&&$other['entity']===$d['entity']&&(($other['millSaleRef']??'')===$d['millSaleRef']||($other['id']??'')===$d['millSaleRef']))throw new DomainException('That Mill loading already belongs to another exporter agreement.');
+ if(empty($d['millSaleRef']))return;if($d['direction']!=='SALE')throw new DomainException('Only our sale through another exporter can link our Mill dispatch.');$rows=array_values(array_filter($nativeSales,static fn($r)=>($r['entity']??$r['accountEntity']??'')===$d['entity']&&($r['ref']??'')===$d['millSaleRef']));if(count($rows)===1&&!empty($rows[0]['exporterDealId'])&&$rows[0]['exporterDealId']!==($d['id']??''))throw new DomainException('That Mill dispatch already belongs to a Directors agreement.');if(count($rows)!==1)throw new DomainException('Choose one original Mill exporter loading record in this company.');foreach(array_filter((array)($s['exporterDeals']??[]),static fn($row)=>($row['status']??'')!=='Deleted') as $other)if(($other['id']??'')!==($d['id']??'')&&$other['entity']===$d['entity']&&(($other['millSaleRef']??'')===$d['millSaleRef']||($other['id']??'')===$d['millSaleRef']))throw new DomainException('That Mill loading already belongs to another exporter agreement.');
 }
 
 function dt_settlement_deltas(array $s,array $d,array $working):array {

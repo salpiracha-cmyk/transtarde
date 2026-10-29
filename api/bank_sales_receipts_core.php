@@ -22,7 +22,7 @@ function bsr_sources(array $s,string $e,string $kind,array $u,string $date='9999
     if(!bsr_permission($u,$kind)||!tt_user_can_access_entity($u,$e,'View'))throw new DomainException('View permission for the selected sales account is required.');
     $rows=[];
     if($kind==='FELLOW_EXPORTER'){
-        foreach((array)($s['exporterDeals']??[]) as $d){
+        foreach(array_filter((array)($s['exporterDeals']??[]),static fn($row)=>($row['status']??'')!=='Deleted') as $d){
             if(($d['entity']??'')!==$e||($d['date']??'')>$date||in_array($d['status']??'',['Cancelled','Voided'],true))continue;
             $balance=bsr_balance($s,$e,(string)$d['id'],($d['direction']??'SALE')==='SALE'?'1230':'2140',$date,true);
             if(($d['direction']??'SALE')!=='SALE'&&$balance<=0)continue;

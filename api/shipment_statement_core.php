@@ -97,7 +97,7 @@ function ss_contract_own_kg(array $books,array $ops,string $entity,string $contr
     if(!isset($ops['values']['transtrade_export_v3_operational']))return 0.;$kg=0.;
     foreach(ss_lots(br_root($ops)) as $lot){
         if($lot['costEntity']!==$entity||$lot['contract']!==$contract||($lot['invoiceDate']??'')>$date)continue;
-        $external=0.;foreach((array)($books['exporterDeals']??[]) as $d){if(($d['entity']??'')!==$entity||($d['direction']??'')!=='PURCHASE')continue;
+        $external=0.;foreach(array_filter((array)($books['exporterDeals']??[]),static fn($row)=>($row['status']??'')!=='Deleted') as $d){if(($d['entity']??'')!==$entity||($d['direction']??'')!=='PURCHASE')continue;
             foreach((array)($d['loadings']??[]) as $l)if(($l['shipmentId']??'')===$lot['id']&&($l['date']??'')<=$date)$external+=(float)($l['quantityMT']??0)*1000;
         }
         $kg+=max(0,$lot['quantityMT']*1000-$external);
@@ -123,7 +123,7 @@ function ss_contract_goods(array $s,array $ops,array $lot,string $date,float $mt
     return ['amountPKR'=>$amount,'source'=>implode(', ',array_column($group['runs'],'id')),'basis'=>$cost['status'],'finishedKg'=>$qty,'fifoReceipts'=>array_merge(...array_map(static fn($r)=>$r['fifoLayers']??[],$group['raw'])),'rawKg'=>$group['inputKg']*$scale,'recoveryPct'=>$group['readyKg']/$group['inputKg']*100,'rawRate'=>$cost['rawAverageCostPerKg'],'rawValue'=>$cost['rawValue']*$scale,'millingValue'=>$cost['fixedOverheadValue']*$scale,'processingValue'=>$cost['conversionValue']*$scale,'byproductValue'=>$cost['byProductValue']*$scale,'byproducts'=>$by,'costPerKg'=>$qty>0?$amount/$qty:null,'costPerMT'=>$mt>0?$amount/$mt:null,'millingLabel'=>'Allocated fixed mill overhead','processingLabel'=>'Recorded conversion costs / labelled management fallback'];
 }
 function ss_goods(array $s,array $ops,array $lot,array $candidates,string $date,string $costingId):array {
-    $mt=(float)$lot['quantityMT'];$externalMT=0.;foreach((array)($s['exporterDeals']??[]) as $d){
+    $mt=(float)$lot['quantityMT'];$externalMT=0.;foreach(array_filter((array)($s['exporterDeals']??[]),static fn($row)=>($row['status']??'')!=='Deleted') as $d){
         if(($d['entity']??'')!==$lot['costEntity']||($d['direction']??'')!=='PURCHASE')continue;$relevant=false;
         foreach((array)($d['loadings']??[]) as $l)if(($l['shipmentId']??'')===$lot['id']){if(empty($l['date'])||$l['date']>$date)throw new DomainException('External loading requires a verified date within this report.');$externalMT+=(float)$l['quantityMT'];$relevant=true;}
         if($relevant)foreach((array)($d['settlementPosts']??[]) as $p)if(empty($p['date'])||$p['date']>$date)throw new DomainException('External settlement changed after this date; historical cost requires review.');
