@@ -5,5 +5,5 @@ function dc_complete(float $contractedMT,float $loadedMT,bool $known=true,bool $
     return $documentsClosed||($known&&$contractedMT>0&&$loadedMT>0&&$loadedMT+.500000001>=$contractedMT);
 }
 function dc_remaining(float $contractedMT,float $loadedMT,bool $known=true,bool $documentsClosed=false):?float {
-    return dc_complete($contractedMT,$loadedMT,$known,$documentsClosed)?0.:($known?round(max(0,$contractedMT-$loadedMT),6):null);
+    return dc_complete($contractedMT,$loadedMT,$known,$documentsClosed)?0.:(($known&&$contractedMT>0)?round(max(0,$contractedMT-$loadedMT),6):null);
 }
