@@ -191,10 +191,10 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
             fields={'csrf':'fixture','action':'upload','companyId':tti['id'],'type':'Letterhead','label':'Fixture company PDF','requestId':request_id,'isDefault':'1'}
             parts=[]
             for name,value in fields.items():
-                parts.append(('--'+boundary+'\\r\\nContent-Disposition: form-data; name="'+name+'"\\r\\n\\r\\n'+value+'\\r\\n').encode())
-            pdf=b'%PDF-1.4\\n1 0 obj\\n<< /Type /Catalog >>\\nendobj\\n%%EOF\\n'
-            parts.append(('--'+boundary+'\\r\\nContent-Disposition: form-data; name="file"; filename="fixture.pdf"\\r\\nContent-Type: application/pdf\\r\\n\\r\\n').encode()+pdf+b'\\r\\n')
-            parts.append(('--'+boundary+'--\\r\\n').encode())
+                parts.append(('--'+boundary+'\r\nContent-Disposition: form-data; name="'+name+'"\r\n\r\n'+value+'\r\n').encode())
+            pdf=b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n'
+            parts.append(('--'+boundary+'\r\nContent-Disposition: form-data; name="file"; filename="fixture.pdf"\r\nContent-Type: application/pdf\r\n\r\n').encode()+pdf+b'\r\n')
+            parts.append(('--'+boundary+'--\r\n').encode())
             req=urllib.request.Request(base+'/api/master_documents.php',data=b''.join(parts),headers={'Content-Type':'multipart/form-data; boundary='+boundary})
             try:
                 with opener.open(req,timeout=15) as response: return response.status,json.loads(response.read())
