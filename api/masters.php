@@ -10,22 +10,16 @@ function master_find_row(string $type,string $id): ?array {
     return null;
 }
 function master_all(?array $user=null): array {
-    // One consistent store snapshot supplies both displayed values and their
-    // revisions. Separate reads could pair stale values with a newer revision.
-    $source=tt_read_store();
-    $masters=tt_visible_masters((array)($source['masters']??[]));
-    if($user&&($user['role']??'')!=='Super Admin')foreach(array_keys($masters) as $kind)if(!tt_user_can_master($user,$kind,'View'))unset($masters[$kind]);
+    // Derive the displayed values and their versions from the same returned
+    // Master snapshot. Never pair one GET's values with another GET's revision.
+    $masters=$user ? tt_user_visible_masters($user) : tt_list_masters();
     if (!$user || tt_user_can_master($user,'salary_staff','View')) $masters['salary_staff']=sm_master_rows();
-    $versions=[];
-    foreach((array)($source['masters']??[]) as $kind=>$rows)foreach((array)$rows as $row){
-        $rowId=(string)($row['id']??'');
-        if($rowId!=='')$versions[$kind][$rowId]=tt_master_revision((array)($row['values']??[]));
-    }
-    foreach($masters as $kind=>&$rows){
+    if(function_exists('tt_master_revision'))foreach($masters as $kind=>&$rows){
         if($kind==='salary_staff')continue;
-        foreach($rows as &$row)$row['revision']=$versions[$kind][(string)($row['id']??'')]??'';
+        foreach($rows as &$row)$row['revision']=tt_master_revision((array)($row['values']??[]));
         unset($row);
-    }unset($rows);
+    }
+    unset($rows);
     return $masters;
 }
 function master_options_for_console(): array {
