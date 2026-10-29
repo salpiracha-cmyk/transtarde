@@ -56,7 +56,7 @@ function gd_clean_config(array $config):array {
     return ['buckets'=>$out];
 }
 function gd_sources(array $books,array $ops,string $date,bool $includeAncillary=true):array {
-    gm_date($date);$values=(array)($ops['values']??[]);$holds=[];$purchase=[];$numberIndex=[];
+    gm_date($date);$values=(array)($ops['values']??[]);$holds=[];$purchase=[];$numberIndex=[];$purchaseDelivery=[];$purchaseLoadContracts=[];
     foreach(['purchaseSodas','purchaseSodasV2'] as $collection)foreach((array)($books[$collection]??[]) as $id=>$soda){
         if(!is_array($soda))throw new DomainException('A saved purchase Soda is invalid.');
         $entity=strtoupper((string)($soda['entity']??''));$sourceId=(string)($soda['id']??$id);$key='PURCHASE|'.$entity.'|'.$sourceId;$on=gd_date($soda['sodaDate']??'');
@@ -65,9 +65,9 @@ function gd_sources(array $books,array $ops,string $date,bool $includeAncillary=
         if(isset($purchase[$key])){if($purchase[$key]['sourceFingerprint']!==hash('sha256',json_encode($soda,JSON_THROW_ON_ERROR)))throw new DomainException('Conflicting copies of the same purchase Soda require reconciliation.');continue;}
         $minimum=gm_number($soda['qtyFromKg']??0,'minimum contracted kg');$maximum=gm_number($soda['qtyToKg']??$minimum,'maximum contracted kg');
         $known=$minimum>0&&$maximum>=$minimum;if(!$known)gd_hold($holds,$key,'A truck-only or invalid quantity contract has no verified tonne commitment.');
-        $status=(string)(($soda['manualStatus']??'')?:($soda['status']??'Open'));$closed=in_array(strtolower($status),['cancelled','completed','short closed','manual closed'],true);
+        $status=(string)(($soda['manualStatus']??'')?:($soda['status']??'Open'));$closed=in_array(strtolower($status),['cancelled','completed','closed','short closed','manual closed'],true);
         $purchase[$key]=['id'=>$key,'sourceId'=>$sourceId,'entity'=>$entity,'number'=>(string)($soda['sodaNo']??''),'date'=>$on,'commodity'=>gd_commodity($soda['commodity']??''),'product'=>(string)($soda['displayName']??$soda['variety']??''),'location'=>(string)($soda['locationName']??$soda['location']??''),'route'=>(string)($soda['readyRoute']??'DELIVER_TO_STOCK'),'contractedMinMT'=>$minimum/1000,'contractedMaxMT'=>$maximum/1000,'receivedMT'=>0.,'receivedKnown'=>true,'quantityKnown'=>$known,'closed'=>$closed,'status'=>$status,'receiptIds'=>[],'sourceFingerprint'=>hash('sha256',json_encode($soda,JSON_THROW_ON_ERROR))];
-        $numberIndex[$entity.'|'.(string)($soda['sodaNo']??'')][]=$key;
+        $numberIndex[$entity.'|'.(string)($soda['sodaNo']??'')][]=$key;$purchaseDelivery[$key]=strtoupper((string)($soda['productStage']??''))==='READY'||($soda['readyRoute']??'')==='EX_MILL';
     }
     $slips=gd_rows($values,'tt30slips');$receiptIds=[];
     foreach($slips as $row){
@@ -88,9 +88,9 @@ function gd_sources(array $books,array $ops,string $date,bool $includeAncillary=
         $on=gd_date($lifting['date']??'');if($on!==''&&$on>$date)continue;$container=gd_container_identity($lifting['container']??'');$physical=$entity.'|'.(string)($lifting['sourceSodaId']??'').'|'.$container;if($container!==''&&isset($physicalLiftings[$physical]))throw new DomainException('More than one financial lifting refers to the same physical container. Reconcile the original receipt before reporting purchase commitments.');if($container!=='')$physicalLiftings[$physical]=true;
         $matches=array_values(array_filter($outside,static fn($r)=>gd_container_identity($r['container']??'')===gd_container_identity($lifting['container']??'')&&(string)($r['sourceSodaId']??$localSodas[(string)($r['sodaId']??'')]??'')===(string)($lifting['sourceSodaId']??'')));
         if($container===''||$on===''||count($matches)!==1||abs((float)($matches[0]['kg']??0)-(float)($lifting['kg']??0))>.001||gd_date($matches[0]['date']??'')!==$on){$purchase[$key]['receivedKnown']=false;gd_hold($holds,'LIFTING|'.$id,'Reconcile the financial lifting with its original dated physical loading source.');continue;}
-        $purchase[$key]['receivedMT']+=gm_number($lifting['kg']??null,'actual lifted kg')/1000;$purchase[$key]['receiptIds'][]='purchaseSodaLiftings|'.$id;
+        $purchaseLoadContracts[$key][]=['ref'=>(string)($matches[0]['contractRef']??''),'container'=>gd_container_identity($lifting['container']??'')];$purchase[$key]['receivedMT']+=gm_number($lifting['kg']??null,'actual lifted kg')/1000;$purchase[$key]['receiptIds'][]='purchaseSodaLiftings|'.$id;
     }
-    foreach($purchase as &$row){$row['receivedMT']=round($row['receivedMT'],6);$known=$row['quantityKnown']&&$row['receivedKnown'];$row['undeliveredMinMT']=$known?($row['closed']?0.:max(0,$row['contractedMinMT']-$row['receivedMT'])):null;$row['undeliveredMaxMT']=$known?($row['closed']?0.:max(0,$row['contractedMaxMT']-$row['receivedMT'])):null;}unset($row);
+    foreach($purchase as &$row){$row['receivedMT']=round($row['receivedMT'],6);$known=$row['quantityKnown']&&$row['receivedKnown'];$row['undeliveredMinMT']=$row['closed']?0.:($known?max(0,$row['contractedMinMT']-$row['receivedMT']):null);$row['undeliveredMaxMT']=$row['closed']?0.:($known?max(0,$row['contractedMaxMT']-$row['receivedMT']):null);}unset($row);
 
     if(!array_key_exists('transtrade_export_v3_operational',$values))gd_hold($holds,'EXPORT-SOURCE','The Export source has not been initialized; an empty commitment list has not been assumed.');
     $raw=$values['transtrade_export_v3_operational']??'{}';$root=is_string($raw)?json_decode($raw,true,512,JSON_THROW_ON_ERROR):$raw;if(!is_array($root))throw new DomainException('Invalid saved Export source.');$sales=[];$refs=[];
@@ -123,6 +123,17 @@ function gd_sources(array $books,array $ops,string $date,bool $includeAncillary=
         if($external>0){if(abs($nativeTotal+$external-$actualTotal)>.001){$sales[$refs[$ref]]['loadedKnown']=false;gd_hold($holds,'EXTERNAL-INVOICE|'.(string)$shipment['id'],'Own native loading plus external contribution must equal the commercial invoice. External goods must not be entered as our mill dispatch.');}else{$sales[$refs[$ref]]['loadedMT']+=$external/1000;$sales[$refs[$ref]]['loadingIds'][]='EXTERNAL|'.$shipment['id'];}}
     }
     foreach($sales as &$row){$row['loadedMT']=round($row['loadedMT'],6);$row['outstandingMT']=$row['loadedKnown']&&$row['contractedMT']>0?($row['closed']?0.:max(0,$row['contractedMT']-$row['loadedMT'])):null;}unset($row);
+
+    // A fully delivered direct-loading purchase against closed export contracts has no
+    // further physical commitment within the same 5% ready/ex-mill delivery tolerance.
+    // Financial payables and original purchase status are never changed by this projection.
+    $closedShipmentLoads=[];foreach((array)($root['shipments']??[])as$sh)if(!empty($sh['completed'])&&!empty($sh['contractRef']))foreach((array)($sh['millActuals']??[])as$a){$container=gd_container_identity($a['number']??$a['container']??'');if($container!=='')$closedShipmentLoads[$sh['contractRef'].'|'.$container]=true;}
+    foreach($purchase as $key=>&$p){
+        $linked=$purchaseLoadContracts[$key]??[];
+        if($p['closed']||empty($purchaseDelivery[$key])||!$p['quantityKnown']||!$p['receivedKnown']||!$linked||count($linked)!==count($p['receiptIds'])||$p['receivedMT']<$p['contractedMaxMT']*.95||$p['receivedMT']>$p['contractedMaxMT']*1.05)continue;
+        $allClosed=true;foreach($linked as$link){$ref=$link['ref'];if($ref===''||(!isset($closedShipmentLoads[$ref.'|'.$link['container']])&&(!isset($refs[$ref])||!$sales[$refs[$ref]]['closed'])))$allClosed=false;}
+        if($allClosed){$p['sourceStatus']=$p['status'];$p['closed']=true;$p['status']='Delivery complete — linked export contract / shipment closed';$p['undeliveredMinMT']=0.;$p['undeliveredMaxMT']=0.;}
+    }unset($p);
 
     // Directors own-goods sales consume commitments, while native Mill records alone move stock.
     $nativeSales=gd_rows($values,'tt35exportersale');

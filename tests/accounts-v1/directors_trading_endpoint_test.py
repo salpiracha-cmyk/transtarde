@@ -13,6 +13,7 @@ function tt_require_login(){if(($_GET['mode']??'')==='mill')return ['id'=>1,'use
 function tt_user_can_open_module($u,$m){return !empty($u['permissions'][$m]);}
 function tt_user_can_module_action($u,$m,$i,$a){$mode=$_GET['mode']??'all';if($mode==='mill')return $m==='Mill'&&$i==='local';if($mode==='deny')return false;if($mode==='read')return $a==='View';if($mode==='cost')return $m==='Directors'&&$i==='costing';if(in_array($mode,['exports','exports-restricted']))return $m==='Exports'&&$i==='loading';return true;}
 function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}
+function tt_user_can_master($u,$t,$a){return $t==='business_parties'&&!in_array($_GET['mode']??'', ['deny','no-master'])&&((($_GET['mode']??'')!=='read')||$a==='View');}
 function tt_ensure_data_dir(){}function tt_release_read_session(){}function tt_verify_csrf($v){return $v==='fixture';}function tt_accounts_input(){return $GLOBALS['fixtureBody'];}
 function tt_list_masters(){return ['banks'=>[['id'=>'USD1','values'=>['Company Account','TTI','','TTI','Own bank','','','USD','123','']]],'business_parties'=>[['id'=>'KAS','values'=>['KAS Commodities','','Fellow Exporter']]]];}
 function tt_api_upsert_allowed($u,$endpoint,$body,$exists,$entity){return $entity==='TTI';}function tt_api_record_entity_allowed($u,$body,$entity){return $entity==='TTI';}
@@ -28,7 +29,7 @@ function tt_next_post_id($rows,...$args){return 'POST-'.(count($rows)+1);}
  (root/'data/operations.json').write_text(json.dumps(operations));ops_before=(root/'data/operations.json').read_bytes()
  path=root/'data/accounts.json';path.write_text(json.dumps({'revision':0,'journals':{}}));before=path.read_bytes()
  (root/'runner.php').write_text('''<?php
-$r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQUEST_METHOD']=$r['body']===null?'GET':'POST';$GLOBALS['fixtureBody']=json_encode($r['body']);register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_code()?:200));});require __DIR__.'/api/'.(($_GET['_endpoint']??'')==='local'?'local_sales_control.php':'directors_trading.php');
+$r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQUEST_METHOD']=$r['body']===null?'GET':'POST';$GLOBALS['fixtureBody']=json_encode($r['body']);register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_code()?:200));});require __DIR__.'/api/'.(($_GET['_endpoint']??'')==='local'?'local_sales_control.php':(($_GET['_endpoint']??'')==='fellow'?'fellow_exporters.php':'directors_trading.php'));
 ''')
  seq=0
  def req(body=None,**query):
@@ -153,3 +154,20 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  status,d=req({'action':'delete_exporter','partyId':party,'version':2,'reason':'Retire unused party'});assert status==200 and party not in [p['id'] for p in d['parties']],d
  assert (root/'data/operations.json').read_bytes()==local_ops_before,'Master and unused SODA lifecycle changed actual Mill operations'
  print('PASS Directors-only exporter Add/Edit/Delete, active-source guards, stale versions, CSRF/rights, audited SODA deletion, retries and no financial/physical changes')
+
+ # Shared Parties master endpoint: no access to SODA money, costing or bank payloads.
+ stable=path.read_bytes();status,master=req(_endpoint='fellow');assert status==200 and set(master)=={'ok','entity','parties','access','result'},master
+ assert path.read_bytes()==stable and req(_endpoint='fellow',mode='no-master')[0]==403
+ assert req(_endpoint='fellow',entity='BRM')[0]==403
+ assert req({'action':'save_exporter','name':'Shared Master'},_endpoint='fellow',mode='read')[0]==403
+ assert req({'action':'save_exporter','name':'Shared Master','csrf':'bad'},_endpoint='fellow')[0]==419
+ request={'action':'save_exporter','name':'Shared Master','code':'SHARED','requestKey':'shared-master-001'}
+ status,master=req(request,_endpoint='fellow');assert status==200,master;pid=master['result']['partyId']
+ stable=path.read_bytes();assert req(request,_endpoint='fellow')[0]==200 and path.read_bytes()==stable
+ assert next(p for p in req()[1]['parties']if p['id']==pid)['code']=='SHARED','Master not shared with SODA selector'
+ assert req({'action':'save_exporter','name':'Other exporter','code':'SHARED'},_endpoint='fellow')[0]==422
+ assert req({'action':'save_exporter','partyId':pid,'version':0,'name':'Shared Master','code':'SHARED','reason':'Stale request'},_endpoint='fellow')[0]==422
+ status,master=req({'action':'save_exporter','partyId':pid,'version':1,'name':'Shared Master','code':'NEWCODE','reason':'Correct short code'},_endpoint='fellow');assert status==200,master
+ status,master=req({'action':'delete_exporter','partyId':pid,'version':2,'reason':'Unused test master'},_endpoint='fellow');assert status==200 and pid not in [p['id']for p in master['parties']],master
+ assert json.loads(path.read_text())['journals']==stable_journals,'Master changed financial records'
+ print('PASS shared Parties master: matching rights and company/CSRF, code uniqueness, stale/retry guards, canonical SODA selection and no financial write')

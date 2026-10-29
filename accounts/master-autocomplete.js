@@ -42,7 +42,7 @@
     }
     const values = [...(row?.values || [])];
     const label = kind === 'buyer' ? 'Export Customer' : (roleFor(kind)||'Business Party');
-    const partyRoles=['Supplier','Bag Supplier','Labour Contractor','Broker','Indentor','Clearing Agent','Freight Forwarder','Shipping Line / Carrier','Transporter','Inspection','Fumigation','Service Provider','Local Buyer','Agent','Other'];
+    const partyRoles=['Supplier','Bag Supplier','Labour Contractor','Broker','Indentor','Clearing Agent','Freight Forwarder','Shipping Line / Carrier','Transporter','Inspection','Fumigation','Service Provider','Local Buyer','Fellow Exporter','Agent','Other'];
     const chosenRoles=categories(row);
     const typeFields=kind==='party'&&!row?'<label>Create as<select name="newPartyType"><option value="party">Business Party</option><option value="buyer">Export Customer</option></select></label>':'';
     const roleFields=kind==='party'&&(canEdit||!row)?'<fieldset class="tt-party-roles"><legend>Party categories</legend>'+partyRoles.map(role=>'<label class="tt-party-role"><input type="checkbox" name="partyRole" value="'+role+'" '+(chosenRoles.includes(role.toLowerCase())?'checked':'')+'> '+role+'</label>').join('')+'</fieldset>':'';

@@ -1,7 +1,7 @@
 (()=>{'use strict';
  // Hide explanatory green commentary; retain operational messages, warnings and controls.
  const generic=/^(?:One covering letter only|Commercial Invoice and Packing List come|Same office folder|Mill actuals, contractual|Custom Invoice is the controlling|Customs Invoice is the controlling|The reviewed L\/C master controls|Exactly two|Use this (?:page|screen|section)|This (?:screen|section|module) (?:shows|allows|provides)|All (?:financial|company|shipment) (?:details|values|data) flow)/i;
- const grids='.grid2,.grid3,.grid4,.row,.r2,.r3,.r5,.grid,.ttv-grid,.ttrs-grid,.tt-batch-grid,.ttsb-grid,.tter-grid,.ttlsc-grid,.ttsl-filters,.tt-bill-adjustment';
+ const grids='.tt-form-grid,.ttst-grid,.tte-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.am-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.row,.r2,.r3,.r5,.grid,.ttv-grid,.ttrs-grid,.tt-batch-grid,.ttsb-grid,.tter-grid,.ttlsc-grid,.ttsl-filters,.tt-bill-adjustment';
  const titleMinimum=new WeakMap();let frame=0;
  const equalize=()=>{for(const grid of document.querySelectorAll(grids)){
   if(grid.closest('.printDoc,#printRoot')||getComputedStyle(grid).display!=='grid')continue;
@@ -11,7 +11,7 @@
   for(const group of rows.values()){const height=Math.max(...group.map(row=>row.title.getBoundingClientRect().height));for(const row of group)row.title.style.minHeight=height+'px'}
  }};
  const schedule=()=>{if(frame)return;frame=(window.requestAnimationFrame||((fn)=>setTimeout(fn,0)))(()=>{frame=0;equalize()})};
- const align=root=>{for(const label of root.querySelectorAll(':is(.grid2,.grid3,.grid4,.ttv-grid,.ttrs-grid,.tt-batch-grid,.ttsb-grid,.tter-grid,.ttlsc-grid,.ttsl-filters,.tt-bill-adjustment)>label')){
+ const align=root=>{for(const label of root.querySelectorAll(':is(.grid,.tt-form-grid,.ttst-grid,.tte-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.am-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.ttv-grid,.ttrs-grid,.tt-batch-grid,.ttsb-grid,.tter-grid,.ttlsc-grid,.ttsl-filters,.tt-bill-adjustment)>label')){
   if(label.querySelector('.ttRowLabel')||!label.querySelector('input,select,textarea')||label.querySelector('input[type="checkbox"],input[type="radio"]'))continue;
   const nodes=[...label.childNodes].filter(node=>node.nodeType===3),text=nodes.map(node=>node.textContent).join(' ').trim();if(!text)continue;
   const title=document.createElement('span');title.className='ttRowLabel';title.textContent=text;nodes.forEach(node=>node.remove());label.prepend(title);label.classList.add('ttRowField');
