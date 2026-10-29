@@ -396,6 +396,17 @@ try {
             }
         }
     }
+    // A lost Create acknowledgement must be resolved before duplicate-name
+    // preflight, which would otherwise reject a legitimate identical retry.
+    if($action==='create'&&array_key_exists('requestId',$body)){
+        $retryId=$body['requestId'];
+        if(!is_string($retryId)||!preg_match('/^[a-zA-Z0-9_-]{12,96}$/D',$retryId))throw new InvalidArgumentException('Invalid master save request. Reopen the form.');
+        foreach((array)(tt_read_store()['masters'][$type]??[]) as $savedRow){
+            if(($savedRow['createRequestId']??null)!==$retryId)continue;
+            if((array)($savedRow['values']??[])!==$values)throw new InvalidArgumentException('This save request was already used for a different record. Reopen the form.');
+            master_respond(['ok'=>true,'id'=>(string)$savedRow['id'],'replayed'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
+        }
+    }
     if (in_array($type,['companies','export_customers','business_parties','mills'],true)) {
         $currentRow=$id!==''?master_find_row($type,$id):null;
         $currentName=(string)(($currentRow['values']??[])[0]??'');
