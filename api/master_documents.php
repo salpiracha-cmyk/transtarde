@@ -13,7 +13,14 @@ try {
     $method=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'));
     $companyId=trim((string)($_GET['companyId']??$_POST['companyId']??''));
     if ($companyId==='' || !($company=md_company($companyId))) throw new InvalidArgumentException('Select a valid company.');
-    if(!tt_user_business_entity($user,strtoupper(trim((string)($company['values'][1]??''))),$method==='GET'?'View':'Edit'))md_reply(['ok'=>false,'error'=>'Company document access required.'],403);
+    $entityCode=strtoupper(trim((string)($company['values'][1]??'')));
+    // Non-book company identities are legitimate Master records, but must not
+    // acquire a fictional TTI/BRM/TG business-entity permission. Only owner
+    // and full-business Director may manage their document identities.
+    $entityAllowed=in_array($entityCode,['TTI','BRM','TG'],true)
+        ? tt_user_business_entity($user,$entityCode,$method==='GET'?'View':'Edit')
+        : in_array(($user['role']??''),['Super Admin','Director'],true);
+    if(!$entityAllowed)md_reply(['ok'=>false,'error'=>'Company document access required.'],403);
     if ($method==='GET' && isset($_GET['documentId'])) {
         $download=!empty($_GET['download']);
         if (!tt_user_can_master($user,'companies',$download?'Download Documents':'View Documents')) md_reply(['ok'=>false,'error'=>'Document permission required.'],403);
