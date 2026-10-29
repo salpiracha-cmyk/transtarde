@@ -50,6 +50,7 @@ function dt_advance(array &$s,array &$d,array $b,array $u,string $date):array {
 }
 /** The account includes every posting, reversal and settlement against this agreement. */
 function dt_soda_account(array $s,array $d,string $date):array {
+    $s=alv_amendment_books($s);
     $out=[];foreach((array)($s['journals']??[]) as $j){if(($j['entity']??'')!==$d['entity']||($j['status']??'')!=='Posted'||($j['date']??'')>$date)continue;
         foreach((array)($j['lines']??[]) as $l)if(($l['exporterDealId']??'')===$d['id']&&in_array($l['account']??'',['1230','2140'],true))$out[]=['date'=>$j['date'],'postId'=>$j['id'],'reference'=>$j['reference']??'','narration'=>$j['narration']??'','debit'=>(float)($l['debit']??0),'credit'=>(float)($l['credit']??0)];
     }usort($out,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strcmp($a['postId'],$b['postId']));return $out;

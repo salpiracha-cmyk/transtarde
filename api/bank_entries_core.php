@@ -96,7 +96,11 @@ function ben_edit_input(array $j):array {
  $m=(array)($j['meta']??[]);$first=(array)($j['lines'][0]??[]);$credit=[];$sub=[];$tax=[];
  foreach((array)($j['lines']??[]) as $line){if(!in_array($line['account']??'',['1110','1120'],true)&&($line['credit']??0)>0)$credit=$line;if(!in_array($line['account']??'',['1110','1120','1140'],true)&&($line['debit']??0)>0)$sub=$line;if(($line['account']??'')==='1260')$tax=$line;}
  $input=['type'=>$m['bankEntryType']??'','date'=>$j['date'],'bankId'=>$m['bankAccountId']??'','amount'=>$m['amountNative']??0,'exchangeRate'=>$m['exchangeRate']??1,'reference'=>$j['reference']??'','narration'=>$j['narration']??'','withholdingTax'=>$m['withholdingTax']??0,'taxSubaccountId'=>$tax['subaccountId']??'','subaccountId'=>$sub['subaccountId']??$credit['subaccountId']??'','creditAccountCode'=>$credit['account']??'','payee'=>$m['payee']??$credit['counterparty']??'','receiptKind'=>$m['receiptKind']??'OTHER','receiptTypeId'=>$m['receiptTypeId']??'','receiptPartyId'=>$m['receiptPartyId']??$m['partyId']??$m['party']??'','receiptSodaId'=>$m['receiptSodaId']??$m['exporterDealId']??$m['soda']??'','destinationBankId'=>$m['destinationBankId']??'','pettyCashDestination'=>!empty($m['millLocationId'])?'MILL':'COMPANY','millLocationId'=>$m['millLocationId']??'','facilityId'=>$m['bankFacilityId']??'','financeReference'=>$m['financeReference']??'','exportReference'=>$m['exportReference']??'','debitRows'=>$m['debitRows']??[]];
- foreach(['bankPaymentMethod','bankReference','chequeNo','chequeDate','bankPaymentDate','paymentNarration'] as $field)if(isset($m[$field]))$input[$field]=$m[$field];return array_replace($input,(array)($m['sourceInput']??[]));
+ foreach(['bankPaymentMethod','bankReference','chequeNo','chequeDate','bankPaymentDate','paymentNarration'] as $field)if(isset($m[$field]))$input[$field]=$m[$field];$restored=array_replace($input,(array)($m['sourceInput']??[]));
+ // Committed dates override legacy snapshots left behind by date-only corrections.
+ $restored['date']=$j['date'];
+ foreach(['chequeDate','bankPaymentDate','debitRows'] as $field)if(array_key_exists($field,$m))$restored[$field]=$m[$field];
+ return $restored;
 }
 function ben_amend(array &$s,string $e,array $b,array $u):array {
  require_once __DIR__.'/accounts_linked_edit_core.php';$id=(string)($b['journalId']??'');$old=$s['journals'][$id]??[];

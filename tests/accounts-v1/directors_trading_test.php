@@ -82,3 +82,23 @@ foreach([true,false] as $incoming)foreach([270,290] as $rate){$lines=dt_payment_
 reject(fn()=>dt_payment_lines($sale,$usdBank,['nativeAmount'=>100],28000,true),'No invented FX rate');reject(fn()=>dt_payment_lines($sale,$usdBank,['nativeAmount'=>1e14,'exchangeRate'=>1e6],28000,true),'Converted amount bounded before minor units');
 $evidence=$pBooks;$evidence['journals']['SALE-EVIDENCE']=['id'=>'SALE-EVIDENCE','entity'=>'TTI','status'=>'Posted','sourceType'=>'EXPORT_SALE_RECOGNIZED','meta'=>['candidateId'=>'EXTERNAL-SALE','functionalAmount'=>1000],'totalDebit'=>1000,'totalCredit'=>1000,'lines'=>[['account'=>'1210','debit'=>1000,'credit'=>0],['account'=>'4200','debit'=>0,'credit'=>1000]]];$candidate=['id'=>'EXTERNAL-SALE','entity'=>'TTI','journalId'=>'SALE-EVIDENCE','candidateType'=>'CUSTOMER_EXPORT_SALE','status'=>'Recognized / Posted','functionalAmount'=>1000,'costMethod'=>'EXTERNAL_NO_STOCK','costAmount'=>0,'meta'=>['contractRef'=>'TG/AMT/13','lotRef'=>'TG/AMT/13/L01','actualQtyMT'=>40]];$verified=sp_sale_evidence($evidence,$candidate,'TTI',[],[]);near($verified['stockCost'],0,'All external shipment has no own stock cost');$candidate['meta']['actualQtyMT']=41;reject(fn()=>sp_sale_evidence($evidence,$candidate,'TTI',[],[]),'All-external evidence requires actual quantity reconciliation');
 echo "PASS native bank settlement currencies, realized FX signs, bounded conversion and all-external shipment evidence\n";
+
+// Existing legacy correction pairs retain their audit dates; dated views use
+// the same effective correction as the accounting ledger.
+$legacy=['bankFacilities'=>['F'=>['entity'=>'TTI','currency'=>'PKR']],'journals'=>[]];
+foreach(['OLD'=>['2026-07-01',0,100000],'UNDO'=>['2026-10-29',100000,0],'NEW'=>['2026-07-01',0,80000]] as $id=>[$day,$debit,$credit]){
+ $legacy['journals'][$id]=['id'=>$id,'entity'=>'TTI','status'=>'Posted','date'=>$day,'lines'=>[['account'=>'2610','bankFacilityId'=>'F','debit'=>$debit,'credit'=>$credit],['account'=>'1110','bankAccountId'=>'BANK','debit'=>$credit,'credit'=>$debit]]];
+}
+$legacy['journals']['OLD']['amendedByPostId']='NEW';$legacy['journals']['UNDO']['reversalOf']='OLD';$legacy['journals']['NEW']['meta']['amendmentOfPostId']='OLD';$before=serialize($legacy);
+$f=dt_finance($legacy,'TTI',['enabled'=>true,'facilityId'=>'F','allocationPct'=>100,'from'=>'2026-07-01','to'=>'2026-07-11','annualPct'=>10,'dayBasis'=>365]);
+near($f['costPKR'],round(80000*10*.1/365,4),'Historical financing uses corrected principal once');check(serialize($legacy)===$before,'Financing projection cannot rewrite audit dates');
+echo "PASS historical financing correction and immutable source audit\n";
+
+$partyBooks=$legacy;
+foreach($partyBooks['journals'] as &$j){$j['lines'][0]['account']='2140';$j['lines'][0]['exporterDealId']='HISTORICAL';}unset($j);
+$before=serialize($partyBooks);near(dt_book_balance($partyBooks,'HISTORICAL','2026-08-01'),-80000.,'SODA historical balance agrees with corrected journal');
+$account=dt_soda_account($partyBooks,['id'=>'HISTORICAL','entity'=>'TTI'],'2026-08-01');near(array_sum(array_column($account,'debit'))-array_sum(array_column($account,'credit')),-80000.,'SODA statement and balance agree on historical cutoff');
+check(serialize($partyBooks)===$before,'SODA historical projections preserve source dates');
+require_once __DIR__.'/../../api/bank_sales_receipts_core.php';
+near(bsr_balance($partyBooks,'TTI','HISTORICAL','2140','2026-08-01',true),-80000.,'Bank receipt source balance matches Directors SODA');
+echo "PASS Accounts receipt and Directors SODA historical projections agree\n";

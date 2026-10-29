@@ -135,6 +135,7 @@ function gm_source_bank_label(array $line,string $bank,string $entity,array $mas
     return $parts?implode(' · ',$parts):'Unresolved bank — '.$bank;
 }
 function gm_financial_source(array $state,string $date,?array $bankMasters=null,bool $keepZero=false):array {
+    $state=alv_amendment_books($state);
     $bankMasters??=function_exists('tt_list_masters')?(array)(tt_list_masters()['banks']??[]):[];
     $chart=sac_chart();$names=[];$classes=[];
     foreach($chart as $r){$names[(string)$r['code']]=$r['name'];$classes[(string)$r['code']]=$r['class'];}

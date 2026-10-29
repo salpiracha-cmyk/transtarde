@@ -7,6 +7,13 @@ function apa_bank_dates(array &$store,array $user,string $postId,array $input):a
     if(!is_array($original)||($original['sourceType']??'')!=='BANK_ENTRY'||($original['status']??'')!=='Posted'||!empty($original['reversalOf'])||!empty($original['amendedByPostId'])||!empty($original['reversedByPostId']))throw new DomainException('Select the current, unreversed Bank Entry Post ID.');
     foreach((array)$store['journals'] as $j)if(($j['reversalOf']??'')===$postId)throw new DomainException('This Bank Entry was already reversed. Open its replacement.');
     $entity=(string)$original['entity'];$date=far_date($input['date']??'','Posting date');$reason=far_text($input['reason']??'',300);if(strlen($reason)<5)throw new DomainException('Enter a correction reason of at least five characters.');
+    // Linked receipts must use their native reversal/allocation lifecycle so the
+    // SODA payment dates and balances stay in step with the bank journal.
+    if(in_array($original['meta']['receiptKind']??'',['LOCAL_SALE','FELLOW_EXPORTER'],true)){
+        $next=$store;$body=array_replace(ben_edit_input($original),['journalId'=>$postId,'date'=>$date,'reason'=>$reason]);
+        $result=ben_amend($next,$entity,$body,$user);$new=$next['journals'][$result['journalId']];$store=$next;
+        return ['originalPostId'=>$postId,'replacementPostId'=>$new['id'],'reversalPostId'=>$new['meta']['reversalPostId'],'publicPostId'=>$new['meta']['publicPostId'],'entity'=>$entity,'changes'=>[]];
+    }
     $fid=(string)($original['meta']['bankFacilityId']??'');
     if($fid&&in_array($original['meta']['bankEntryType']??'',['FINANCE_DRAW','FINANCE_REPAY'],true)&&$date!==$original['date'])foreach((array)$store['journals'] as $j)if($j['id']!==$postId&&($j['entity']??'')===$entity&&($j['meta']['bankFacilityId']??'')===$fid&&in_array($j['meta']['bankEntryType']??'',['FINANCE_DRAW','FINANCE_REPAY'],true)&&empty($j['reversalOf'])&&empty($j['reversedByPostId'])&&empty($j['amendedByPostId'])&&(($j['date']??'')>$original['date']||(($j['date']??'')===$original['date']&&strcmp($j['id'],$postId)>0)))throw new DomainException('Correct later facility principal movements first before changing this posting date.');
     $lines=$original['lines'];$submitted=$input['lines']??null;if(!is_array($submitted)||count($submitted)!==count($lines))throw new DomainException('Keep every original Bank Entry line.');
@@ -26,6 +33,16 @@ function apa_bank_dates(array &$store,array $user,string $postId,array $input):a
     if(($meta['bankEntryType']??'')==='PAYMENT'&&count($lines)===$rowCount*2)foreach($meta['debitRows'] as $i=>&$row){$bankLine=$lines[$rowCount+$i]??[];if(($bankLine['account']??'')!=='1110')continue;foreach(['chequeDate','bankPaymentDate'] as $field)if(isset($bankLine[$field])){$row[$field]=$bankLine[$field];$lines[$i][$field]=$bankLine[$field];}}unset($row);
     // Row payment dates are authoritative; do not leave obsolete aggregate dates in metadata.
     foreach(['chequeDate','bankPaymentDate'] as $field){$values=array_values(array_unique(array_filter(array_column($lines,$field))));if(count($values)===1)$meta[$field]=$values[0];elseif(count($values)>1)unset($meta[$field]);}
+    // A future full-form amendment must reopen the corrected dates, including
+    // each payment row, rather than an obsolete original input snapshot.
+    if(isset($meta['sourceInput'])){
+        $meta['sourceInput']['date']=$date;
+        foreach(['chequeDate','bankPaymentDate','debitRows'] as $field){
+            if(array_key_exists($field,$meta))$meta['sourceInput'][$field]=$meta[$field];
+            else unset($meta['sourceInput'][$field]);
+        }
+    }
+    $meta['reconciliationPostId']=$original['meta']['reconciliationPostId']??$postId;
     $new=ben_journal($next,$entity,$date,(string)($original['reference']??''),(string)($original['narration']??''),$lines,$user,$meta);
     $next['journals'][$postId]['amendedByPostId']=$new['id'];$next['journals'][$postId]['reversedByPostId']=$rev['id'];$next['journals'][$postId]['amendmentReversalPostId']=$rev['id'];
     ben_validate_finance($next,$entity);
