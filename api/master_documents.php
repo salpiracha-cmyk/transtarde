@@ -57,7 +57,8 @@ try {
         // Rewriting the entire company row from an earlier GET can erase
         // concurrent bank, registration and identity changes.
         $result=tt_mutate_store(static function (&$data) use($companyId,$company,$action,$newDocument,$documentId,$requestId):array {
-            foreach((array)($data['masters']['companies']??[]) as &$row){
+            if(!isset($data['masters']['companies'])||!is_array($data['masters']['companies']))throw new InvalidArgumentException('Company no longer exists.');
+            foreach($data['masters']['companies'] as &$row){
                 if((string)($row['id']??'')!==$companyId)continue;
                 if((string)($row['values'][1]??'')!==(string)($company['values'][1]??''))throw new InvalidArgumentException('Company identity changed. Reopen the company before uploading documents.');
                 $documents=tt_master_json_array($row['values'][14]??'');
