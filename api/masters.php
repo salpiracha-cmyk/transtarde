@@ -305,6 +305,9 @@ try {
     }
     if($type==='companies'&&count($raw)<18&&$action==='update'){$existingCompany=master_find_row('companies',$id);$values[17]=(string)($existingCompany['values'][17]??'');}
     if($type==='companies'&&count($raw)<19&&$action==='update'){$existingCompany=master_find_row('companies',$id);$values[18]=(string)($existingCompany['values'][18]??'5');}
+    // Document storage identities are server-owned. The dedicated document
+    // endpoint is the only writer; a Company form must never erase file paths.
+    if($type==='companies')$values[14]=$action==='update'?(string)(master_find_row('companies',$id)['values'][14]??'[]'):'[]';
     if($type==='companies'&&$values[15]==='')$values[15]='[]';
     if($type==='companies'&&$values[16]==='')$values[16]='[]';
     if (($values[0] ?? '')==='') throw new InvalidArgumentException('Enter the main record name / commodity / product.');
