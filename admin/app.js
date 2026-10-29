@@ -240,7 +240,8 @@
     // Server-backed users, banks, masters and audit events must never be
     // resurrected from another user's persistent browser cache.
     initial.users=[];
-    initial.masters=Object.fromEntries(MASTER_TYPES.map(type=>[type.id,[]]));
+    // Safe built-in Master templates remain visible while the authenticated
+    // server snapshot loads; no prior user's saved records are restored.
     initial.audit=[];
     initial.permissionChanges=0;
     try {
