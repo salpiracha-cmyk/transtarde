@@ -292,6 +292,22 @@ function operations_validate_instruction_owner(string $module,string $key,string
 }
 
 /** Existing rows require Edit, while new rows require Create on their actual workflow. */
+/** A cached Mill form cannot load a deleted SODA. Hold the Accounts read lock through the source commit. */
+function operations_guard_fellow_soda(string $key,string $oldJson,string $nextJson):void {
+    if($key!=='tt35exportersale'||!defined('TT_DATA_DIR'))return;
+    $old=json_decode($oldJson?:'[]',true,512,JSON_THROW_ON_ERROR);$next=json_decode($nextJson,true,512,JSON_THROW_ON_ERROR);$prior=[];
+    foreach((array)$old as $r)if(is_array($r))$prior[(string)($r['id']??$r['ref']??'')]=$r;
+    $check=[];foreach((array)$next as $r)if(is_array($r)&&!empty($r['exporterDealId'])&&!operations_same_value($prior[(string)($r['id']??$r['ref']??'')]??null,$r))$check[]=$r;
+    if(!$check)return;$path=TT_DATA_DIR.'/accounts.json';if(!is_file($path))return;
+    $h=fopen($path,'rb');if(!$h||!flock($h,LOCK_SH))throw new DomainException('Fellow-exporter SODA source is unavailable.');
+    // The request owns this lock until its operational transaction has committed or rolled back.
+    register_shutdown_function(static function()use($h){if(is_resource($h)){flock($h,LOCK_UN);fclose($h);}});
+    $books=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);if(!is_array($books))throw new DomainException('Fellow-exporter SODA source is invalid.');
+    foreach($check as $r){$d=$books['exporterDeals'][(string)$r['exporterDealId']]??null;if(!$d)continue; // Older unlinked operational references retain their existing validation.
+        if(($d['status']??'')==='Deleted')throw new DomainException('This fellow-exporter SODA was deleted. Reopen the current SODA list before saving loading.');
+        if(($d['entity']??'')!==($r['entity']??$r['accountEntity']??''))throw new DomainException('The fellow-exporter SODA belongs to different company books.');
+    }
+}
 function operations_validate_row_actions(array $user,string $module,string $key,string $oldJson,string $nextJson): void {
     if(!in_array($module,['Mill','Milling'],true)||($user['role']??'')==='Super Admin')return;
     if($key==='tt30bags'&&!operations_icon_write($user,'Mill','newbags'))return; // Production's empty-placeholder-only exception is checked separately.

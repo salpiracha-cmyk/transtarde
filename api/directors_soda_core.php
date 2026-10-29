@@ -5,8 +5,8 @@ function dt_validate_arrangement(array &$d,array $b):void {
     $local=$d['arrangement']==='EX_MILL';$partnership=$d['arrangement']==='PARTNERSHIP';
     if($local&&($d['direction']!=='SALE'||$d['currency']!=='PKR'||$d['incoterm']!=='EX_MILL'))throw new DomainException('Local ex-mill requires a PKR sale on an ex-mill basis.');
     if(!$local&&$d['incoterm']==='EX_MILL')throw new DomainException('Ex-mill is available for local ex-mill sales only.');
-    if($partnership&&$d['direction']!=='PURCHASE')throw new DomainException('Shipment partnership requires goods supplied by the fellow exporter.');
-    if($partnership&&trim((string)($b['contractRef']??''))==='')throw new DomainException('Link the partnership to our existing sales contract.');
+    if(($partnership||$d['arrangement']==='MARGIN')&&trim((string)($b['contractRef']??''))==='')throw new DomainException('Link the partnership to our existing sales contract.');
+    if($d['arrangement']==='MARGIN'&&$d['direction']!=='PURCHASE')throw new DomainException('Export agreement with margin records the agreed payable to the fellow exporter.');
     $unit=dt_enum($b['priceUnit']??'MT',['MT','KG'],'price unit');
     // price remains per MT in the canonical store. UI converts once, before saving.
     $d['priceUnit']=$unit;
@@ -15,7 +15,7 @@ function dt_validate_arrangement(array &$d,array $b):void {
     $yield=$b['recoveryPct']??null;$d['recoveryPct']=$local&&$yield!==null&&$yield!==''?dt_positive($yield,'expected final-rice recovery percentage'):null;
     if(($d['recoveryPct']??0)>100)throw new DomainException('Final-rice recovery cannot exceed 100%.');
     $d['goodsEstimatePKRPerMT']=$partnership?gm_number($b['goodsEstimatePKRPerMT']??0,'supplier goods cost estimate per MT'):0.;
-    $d['partnerSharePct']=$partnership?gm_number($b['partnerSharePct']??50,'partner profit and loss share'):0.;
+    $share=$b['partnerSharePct']??null;$d['partnerSharePct']=$partnership?($share===null||$share===''?null:gm_number($share,'fellow exporter share')):0.;
     if($d['partnerSharePct']>100)throw new DomainException('Partner share cannot exceed 100%.');
 }
 function dt_local_review_hash(array $s,array $d,array $native):string {
@@ -60,13 +60,13 @@ function dt_raw_cover(array $s,string $date):array {
     require_once __DIR__.'/group_daily_core.php';$store=json_decode((string)file_get_contents($p),true,512,JSON_THROW_ON_ERROR);$best=null;
     foreach((array)($store['groupManagementRecords']??[]) as $r)if(($r['kind']??'')==='DAILY'&&($r['date']??'')<=$date&&isset($r['sections']['daily']['data']['config'])&&(!$best||$r['date']>$best['date']))$best=$r;
     if(!$best)return [];$config=$best['sections']['daily']['data']['config'];$out=[];
-    try{$source=gd_sources($s,gd_read_operations(TT_DATA_DIR.'/operations.json'),$date);$positions=gd_positions($source,$config);foreach($positions['positions'] as $position)foreach((array)($s['exporterDeals']??[]) as $d)if(in_array('FELLOW-SALE|'.$d['entity'].'|'.$d['id'],$position['sourceIds'],true))$out[$d['id']]=$position;}
-    catch(DomainException $e){foreach((array)($s['exporterDeals']??[]) as $d)$out[$d['id']]=['error'=>'Stock coverage needs review: '.$e->getMessage()];}return $out;
+    try{$source=gd_sources($s,gd_read_operations(TT_DATA_DIR.'/operations.json'),$date);$positions=gd_positions($source,$config);foreach($positions['positions'] as $position)foreach(array_filter((array)($s['exporterDeals']??[]),static fn($row)=>($row['status']??'')!=='Deleted') as $d)if(in_array('FELLOW-SALE|'.$d['entity'].'|'.$d['id'],$position['sourceIds'],true))$out[$d['id']]=$position;}
+    catch(DomainException $e){foreach(array_filter((array)($s['exporterDeals']??[]),static fn($row)=>($row['status']??'')!=='Deleted') as $d)$out[$d['id']]=['error'=>'Stock coverage needs review: '.$e->getMessage()];}return $out;
 }
 /** Add only loaded, unposted estimates; book receipts/payables already belong to the source. */
 function dt_loaded_cashflow(array $source,array $s,array $root,array $values,string $date):array {
     $native=se_rows($values,'tt35exportersale');
-    foreach(['TTI','BRM'] as $entity){$lots=dt_lots($root,$entity);foreach(dt_cashflow($s,$lots,$entity,$date,$native) as $f){$d=$s['exporterDeals'][$f['id']]??null;if(!$d||!in_array($d['arrangement'],['EX_MILL','PARTNERSHIP'],true))continue;
+    foreach(['TTI','BRM'] as $entity){$lots=dt_lots($root,$entity);foreach(dt_cashflow($s,$lots,$entity,$date,$native) as $f){$d=$s['exporterDeals'][$f['id']]??null;if(!$d||!in_array($d['arrangement'],['EX_MILL','PARTNERSHIP','MARGIN'],true))continue;
         $n=$f['loadedForecastOnlyPKR'];$missing=empty($f['estimateComplete']);if(abs($n)<.005&&!$missing)continue;$row=se_row('SODA|'.$d['id'],$entity,$d['party'],$d['party'].' — SODA '.($d['reference']?:$d['id']).' · ESTIMATE · '.($f['remainingMT']>0?'partial loading ':'loaded ').$f['loadedMT'].' / '.$d['quantityMT'].' MT','PKR',abs($n),$date,'Loaded quantity estimate less posted settlement; receipts and payments remain in the original party balance.',['account'=>$d['direction']==='SALE'?'1230':'2140','exporterDealId'=>$d['id'],'estimateStatus'=>'ESTIMATE','narration'=>'Estimated net '.($d['direction']==='SALE'?'receipt':'payment').' for saved loading; posted settlements replace this estimate.']);$row['amount']=$row['originalAmount']=$missing?null:$n;$source['rows'][]=$row;
         foreach($f['warnings'] as $warning)$source['warnings'][]=$d['party'].' — '.$warning;
     }}return $source;

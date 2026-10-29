@@ -14,7 +14,7 @@ function tt_user_can_open_module($u,$m){return !empty($u['permissions'][$m]);}
 function tt_user_can_module_action($u,$m,$i,$a){$mode=$_GET['mode']??'all';if($mode==='mill')return $m==='Mill'&&$i==='local';if($mode==='deny')return false;if($mode==='read')return $a==='View';if($mode==='cost')return $m==='Directors'&&$i==='costing';if(in_array($mode,['exports','exports-restricted']))return $m==='Exports'&&$i==='loading';return true;}
 function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}
 function tt_ensure_data_dir(){}function tt_release_read_session(){}function tt_verify_csrf($v){return $v==='fixture';}function tt_accounts_input(){return $GLOBALS['fixtureBody'];}
-function tt_list_masters(){return ['banks'=>[['id'=>'USD1','values'=>['Company Account','TTI','','TTI','Own bank','','','USD','123','']]],'business_parties'=>[['id'=>'KAS','values'=>['KAS Commodities','','Supplier']]]];}
+function tt_list_masters(){return ['banks'=>[['id'=>'USD1','values'=>['Company Account','TTI','','TTI','Own bank','','','USD','123','']]],'business_parties'=>[['id'=>'KAS','values'=>['KAS Commodities','','Fellow Exporter']]]];}
 function tt_api_upsert_allowed($u,$endpoint,$body,$exists,$entity){return $entity==='TTI';}function tt_api_record_entity_allowed($u,$body,$entity){return $entity==='TTI';}
 function tt_bank_can_transact($id){return $id==='USD1';}
 function tt_brokery_amount($rate,$kg,$bags){if($rate!==null)throw new RuntimeException('Fixture has no broker');return 0;}
@@ -133,3 +133,23 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  feed=req(origin='mill',mode='mill')[1];sent=next(x for x in feed['deals'] if x['id']==local_id);assert sent['productionReady'] and sent['productionStockName']=='IRRI READY' and 'price' not in sent and 'terms' not in sent,sent
  assert req({**instruction,'version':5,'productionStockName':'OTHER'},origin='accounts')[0]==422,'Dispatched stock was reassigned'
  print('PASS Accounts/Directors production instruction -> read-only Mill feed; full specification, permission boundaries, no financial write and historical route protection')
+ # Directors-only Fellow Exporter master; selection stays separate from Business Parties.
+ assert req({'action':'save_exporter','name':'Fixture Fellow'},origin='accounts')[0]==403
+ stable=path.read_bytes();assert req({'action':'save_exporter','name':'Fixture Fellow'},mode='read')[0]==403 and path.read_bytes()==stable
+ status,d=req({'action':'save_exporter','name':'Fixture Fellow','requestKey':'new-fellow-master'});assert status==200,d;party=d['result']['partyId'];assert party in [p['id'] for p in d['parties']]
+ st,replay=req({'action':'save_exporter','name':'Fixture Fellow','requestKey':'new-fellow-master'});assert st==200 and replay['result']['partyId']==party
+ assert req({'action':'save_exporter','partyId':party,'version':7,'name':'Changed','reason':'Correct master'})[0]==422
+ status,d=req({'action':'save_exporter','partyId':party,'version':1,'name':'Fixture Fellow Updated','reason':'Correct name'});assert status==200,d
+ fresh={'action':'save_deal',**local,'partyId':party,'reference':'UNUSED-LIFECYCLE','quantityMT':10,'requestKey':'unused-soda-lifecycle'}
+ status,d=req(fresh);assert status==200,d;unused=d['result']['id'];assert not next(x for x in d['deals'] if x['id']==unused)['deletionBlocker']
+ assert req({'action':'delete_exporter','partyId':party,'version':2,'reason':'Retire unused party'})[0]==422
+ assert req({'action':'delete_deal','id':unused,'version':9,'reason':'Duplicate unused SODA'})[0]==409
+ stable_journals=json.loads(path.read_text())['journals'];delete={'action':'delete_deal','id':unused,'version':1,'reason':'Duplicate unused SODA','requestKey':'delete-unused-soda'}
+ status,d=req(delete);assert status==200 and d['result']['deleted'] and unused not in [x['id'] for x in d['deals']],d
+ after=json.loads(path.read_text());assert after['journals']==stable_journals and after['exporterDeals'][unused]['history'][-1]['action']=='delete_deal'
+ stable=path.read_bytes();assert req(delete)[0]==200 and path.read_bytes()==stable
+ assert unused not in [x['id'] for x in req(origin='mill',mode='mill')[1]['deals']]
+ assert req({'action':'delete_deal','id':local_id,'version':5,'reason':'Cannot remove dispatched source'})[0]==422
+ status,d=req({'action':'delete_exporter','partyId':party,'version':2,'reason':'Retire unused party'});assert status==200 and party not in [p['id'] for p in d['parties']],d
+ assert (root/'data/operations.json').read_bytes()==local_ops_before,'Master and unused SODA lifecycle changed actual Mill operations'
+ print('PASS Directors-only exporter Add/Edit/Delete, active-source guards, stale versions, CSRF/rights, audited SODA deletion, retries and no financial/physical changes')

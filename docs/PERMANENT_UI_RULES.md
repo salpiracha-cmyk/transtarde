@@ -749,3 +749,12 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 
 - Water Tanker, Gas Cylinder and Solar Cleaner are permanent Pakistan Home Expense subledgers. Their stable purpose IDs are independent of Combined Home, Salman, Talha and Tayyab household dimensions; posting never duplicates the monetary expense. Solar Cleaner defaults to Combined Home like the other household purposes.
 - Pay Expense and Petty Cash use the same purpose IDs and company validation. Changing household retains the selected purpose. Cash remains the payment source, not an expense classification. Piped Sui Gas/SSGC bills remain distinct from Gas Cylinder.
+
+
+## Fellow Exporter master, SODA lifecycle and home entry — 29 October 2026
+
+- Directors owns a separate Fellow Exporter master with Add/Edit/Delete in Settings and alongside the SODA party selector. Accounts can select existing fellow exporters; it cannot manage this master. Do not replace the selector with the general Business Parties list. Retain original party IDs when adopting an existing identity and preserve historical party snapshots.
+- New SODAs offer Ex-mill sale, Shipment partnership (We are buyer / We are supplier), and Export agreement with margin linked to a saved company export contract. Keep old fixed-price and quantity-settlement records editable in their historical arrangement without exposing them as extra new-entry options. Advised goods cost is payable when we are buyer and receivable when we are supplier. Ask for Fellow exporter / Our share when net proceeds exceed advised cost; sharing is never automatically posted.
+- Export agreement with margin keeps the agreed payable separate from the internal retained margin. Internal margin is excluded from fellow-exporter printouts. Shipment expenses and buyer credit advice determine the provisional/final internal margin; they do not silently rewrite the agreed supplier price.
+- Unused SODA deletion requires Delete/company permission, current version and a reason. Archive the original with an audit trail; remove its commitment from active SODA, Mill, bank-receipt, coverage, stock-position and cash-flow feeds. Protect original loading, purchasing, settlement and receipt links rather than orphaning or silently cancelling them. Exporter masters referenced by active SODAs are protected.
+- Directors home renders its final primary tiles, Settings group and daily-rate placeholder on the server. Load styling in the head. Delayed reads may update their own content, never regroup or move the home tiles after first paint.

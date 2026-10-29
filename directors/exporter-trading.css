@@ -37,3 +37,7 @@
 .sodaHeading h2{margin:0 0 4px}.sodaHeading p{margin:0;font-size:12px}.sodaBadge{padding:7px 12px;background:#eaf2f8;color:#254761;border-radius:6px;font-size:12px;white-space:nowrap}
 #dtWorkspace .sodaNarration{line-height:1.6;font-size:14px;margin-bottom:0}
 @media(max-width:760px){.sodaHeading{align-items:flex-start;flex-direction:column;gap:8px}}
+
+.exporterMasterActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.exporterMasterActions button{padding:6px 10px}button[data-delete-soda],#dtDelete{color:#a12a2a}
+
+@media print{[data-private-margin]{display:none!important}}

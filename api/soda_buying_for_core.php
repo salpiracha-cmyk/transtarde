@@ -11,7 +11,7 @@ function sb_targets(array $ops,array $books,string $entity):array {
         if(!$source||!empty($source['cancelled'])||($source['status']??'')==='Cancelled')continue;
         $out['EXPORT|'.$ref]=['id'=>'EXPORT|'.$ref,'kind'=>'EXPORT','reference'=>$ref,'customer'=>is_scalar($source['customer']??$source['buyer']??'')?(string)($source['customer']??$source['buyer']??''):'','product'=>(string)($source['product']??''),'commodity'=>(string)($source['commodity']??'RICE'),'quantityKg'=>((float)($contract['quantityMT']??0)>0?(float)$contract['quantityMT']:(float)($source['containers']??0)*(float)($source['weightPer']??0))*1000];
     }
-    foreach((array)($books['exporterDeals']??[]) as $id=>$d){
+    foreach(array_filter((array)($books['exporterDeals']??[]),static fn($row)=>($row['status']??'')!=='Deleted') as $id=>$d){
         if(($d['entity']??'')!==$entity||($d['direction']??'')!=='SALE'||($d['status']??'')==='Cancelled')continue;
         $id=(string)($d['id']??$id);$out['EXPORTER|'.$id]=['id'=>'EXPORTER|'.$id,'kind'=>'EXPORTER','reference'=>(string)(($d['reference']??'')?:$id),'customer'=>(string)($d['party']??''),'product'=>(string)($d['product']??''),'commodity'=>(string)($d['commodity']??'RICE'),'quantityKg'=>(float)($d['quantityMT']??0)*1000];
     }
