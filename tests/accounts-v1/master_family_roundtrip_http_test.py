@@ -150,5 +150,36 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
             books.write_text(invalid); before=books.read_bytes(); status,data=save('salary_staff',salary,ids['salary_staff'])
             assert status==500 and not data['ok'] and books.read_bytes()==before,'Damaged books must not be replaced with seed salary data'
         books.write_bytes(saved_books)
+        # A repeated Create request must return the same durable identity, not
+        # create a duplicate company when a browser loses the first response.
+        second_company=copy.deepcopy(company);second_company[0]='Fixture Retry Company';second_company[1]='FIX2'
+        create={'action':'create','type':'companies','values':second_company,'requestId':'fixture-master-create-20261030'}
+        status,first=request(body=create);assert status==200,(status,first)
+        status,replayed=request(body=create);assert status==200 and replayed['id']==first['id'],(status,replayed)
+        rows=[r for r in request()[1]['masters']['companies'] if r['id']==first['id']]
+        assert len(rows)==1,'Idempotent retry must preserve one company record'
+        # Revision is the saved source version, not a cached UI projection.
+        original=rows[0];assert len(original['revision'])==64
+        newer=copy.deepcopy(original['values']);newer[6]='Newer owner change'
+        status,data=request(body={'action':'update','type':'companies','id':first['id'],'values':newer,'expectedRevision':original['revision']})
+        assert status==200,(status,data)
+        before=(auth.read_bytes(),books.read_bytes())
+        stale=copy.deepcopy(original['values']);stale[6]='Older browser change'
+        status,rejected=request(body={'action':'update','type':'companies','id':first['id'],'values':stale,'expectedRevision':original['revision']})
+        assert status==422 and 'changed in another session' in rejected['error'],(status,rejected)
+        assert (auth.read_bytes(),books.read_bytes())==before,'Stale form must not alter master or financial originals'
+        latest=next(r for r in request()[1]['masters']['companies'] if r['id']==first['id'])
+        assert latest['values'][6]=='Newer owner change'
+        # Partially completed registrations remain visible as explicit drafts.
+        draft=copy.deepcopy(latest['values'])
+        draft[16]=json.dumps([{'type':'VAT Registration / VAT TRN','number':'','jurisdiction':'United Arab Emirates','status':'Draft'}])
+        status,saved=request(body={'action':'update','type':'companies','id':first['id'],'values':draft,'expectedRevision':latest['revision']})
+        assert status==200,(status,saved)
+        current=next(r for r in request()[1]['masters']['companies'] if r['id']==first['id'])
+        assert json.loads(current['values'][16])[0]['status']=='Draft'
+        invalid=copy.deepcopy(current['values'])
+        invalid[16]=json.dumps([{'type':'VAT Registration / VAT TRN','number':''}])
+        unchanged_failure('companies',invalid,first['id'])
+        print('PASS Master idempotent create, stale-update rejection and incomplete registration drafts')
         print('PASS 10 visible master families: explicit create/amend/reload, canonical customer/KAT/reference consumers, preserved advanced fields, company identity, calendar/amount rejection and zero financial postings')
     finally: server.terminate(); server.wait(timeout=10); log.close()
