@@ -813,21 +813,40 @@ function tt_company_vat_rate(string $companyCode, float $default=5.0): float {
     return $default;
 }
 
-function tt_create_master(string $type, array $values): string {
+function tt_master_revision(array $values): string {
+    return hash('sha256',json_encode(array_values($values),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR));
+}
+
+function tt_create_master(string $type, array $values, ?string $requestId=null): string {
     if($type==='export_customers'){$values[9]=tt_export_customer_notify_json($values[9]??'');tt_validate_export_customer_advanced($values);}
-    return tt_mutate_store(function (&$data) use ($type,$values): string {
+    return tt_mutate_store(function (&$data) use ($type,$values,$requestId): string {
         if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) $data['masters'][$type]=[];
+        if($requestId!==null)foreach($data['masters'][$type] as $row)if(($row['createRequestId']??null)===$requestId){
+            if(($row['values']??[])!==$values)throw new InvalidArgumentException('This save request was already used for a different record. Reopen the form.');
+            return (string)$row['id'];
+        }
         if($type==='companies')foreach($data['masters'][$type] as $row)if(strcasecmp(trim((string)($row['values'][1]??'')),trim((string)($values[1]??'')))===0)throw new InvalidArgumentException('This company short code already belongs to another company. Open that existing company instead.');
         if($type==='business_parties')foreach($data['masters'][$type] as $row)if(tt_master_names_conflict((string)($values[0]??''),(string)($row['values'][0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
         $id=$type.'-'.random_int(100000,999999999);
-        $data['masters'][$type][]= ['id'=>$id,'values'=>$values];
+        $row=['id'=>$id,'values'=>$values];
+        if($requestId!==null)$row['createRequestId']=$requestId;
+        $data['masters'][$type][]=$row;
         return $id;
     });
 }
 
-function tt_update_master(string $type, string $id, array $values): void {
-    tt_mutate_store(function (&$data) use ($type,$id,$values): void {
+function tt_update_master(string $type, string $id, array $values, ?string $expectedRevision=null): void {
+    tt_mutate_store(function (&$data) use ($type,$id,$values,$expectedRevision): void {
         if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) throw new RuntimeException('Master type not found.');
+        if($expectedRevision!==null){
+            $found=false;
+            foreach($data['masters'][$type] as $currentRow)if(($currentRow['id']??'')===$id){
+                $found=true;
+                if(!hash_equals(tt_master_revision((array)($currentRow['values']??[])),$expectedRevision))throw new InvalidArgumentException('This master record was changed in another session. Reopen it to review the latest values before saving.');
+                break;
+            }
+            if(!$found)throw new InvalidArgumentException('This master record was removed. Refresh the list before saving.');
+        }
         if($type==='export_customers'){
             $current=null;foreach($data['masters'][$type] as $row)if(($row['id']??'')===$id)$current=$row;
             tt_validate_export_customer_advanced($values,$current['values']??null);
