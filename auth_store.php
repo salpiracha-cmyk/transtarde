@@ -822,14 +822,14 @@ function tt_create_master(string $type, array $values, ?string $requestId=null):
     return tt_mutate_store(function (&$data) use ($type,$values,$requestId): string {
         if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) $data['masters'][$type]=[];
         if($requestId!==null)foreach($data['masters'][$type] as $row)if(($row['createRequestId']??null)===$requestId){
-            if(($row['values']??[])!==$values)throw new InvalidArgumentException('This save request was already used for a different record. Reopen the form.');
+            if(!hash_equals((string)($row['createRequestHash']??''),tt_master_revision($values)))throw new InvalidArgumentException('This save request was already used for a different record. Reopen the form.');
             return (string)$row['id'];
         }
         if($type==='companies')foreach($data['masters'][$type] as $row)if(strcasecmp(trim((string)($row['values'][1]??'')),trim((string)($values[1]??'')))===0)throw new InvalidArgumentException('This company short code already belongs to another company. Open that existing company instead.');
         if($type==='business_parties')foreach($data['masters'][$type] as $row)if(tt_master_names_conflict((string)($values[0]??''),(string)($row['values'][0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
         $id=$type.'-'.random_int(100000,999999999);
         $row=['id'=>$id,'values'=>$values];
-        if($requestId!==null)$row['createRequestId']=$requestId;
+        if($requestId!==null){$row['createRequestId']=$requestId;$row['createRequestHash']=tt_master_revision($values);}
         $data['masters'][$type][]=$row;
         return $id;
     });
