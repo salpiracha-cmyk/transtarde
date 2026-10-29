@@ -331,7 +331,8 @@ try {
         foreach($registrations as $registration){
             if(!is_array($registration))throw new InvalidArgumentException('A company registration row is invalid.');
             $regType=trim((string)($registration['type']??''));$regNumber=trim((string)($registration['number']??''));
-            if(($regType==='' xor $regNumber===''))throw new InvalidArgumentException('Each company registration requires both a type and number.');
+            if(($regType==='' xor $regNumber==='')&&($registration['status']??'')!=='Draft')throw new InvalidArgumentException('Each active company registration requires both a type and number.');
+            if(($registration['status']??'')==='Draft'&&$regType!==''&&$regNumber!=='')throw new InvalidArgumentException('A complete company registration cannot remain a draft.');
             tt_master_calendar_date((string)($registration['expiryDate']??''),'Registration expiry',true);
         }
         $previousBanks=$action==='update'?tt_master_json_array(master_find_row('companies',$id)['values'][13]??'[]'):[];
