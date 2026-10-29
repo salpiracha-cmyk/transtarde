@@ -5,6 +5,7 @@
   if (!window.TT_SESSION?.id) { window.location.replace('/login.php'); return; }
 
   const STORAGE_KEY = "transtrade_super_admin_v1";
+  const UI_STORAGE_KEY = `transtrade_super_admin_ui_v2_${window.TT_SESSION.id}`;
   const STATE_VERSION = 5;
   const ACTIONS = ["View", "Create", "Edit", "Delete", "Print", "Approve", "Reports"];
   const ICON_ACTIONS = ["View", "Create", "Edit"];
@@ -235,35 +236,48 @@
 
   function cloneDefault() { return JSON.parse(JSON.stringify(defaultState)); }
   function loadState() {
+    const initial=cloneDefault();
+    // Server-backed users, banks, masters and audit events must never be
+    // resurrected from another user's persistent browser cache.
+    initial.users=[];
+    initial.masters=Object.fromEntries(MASTER_TYPES.map(type=>[type.id,[]]));
+    initial.audit=[];
+    initial.permissionChanges=0;
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (!saved || !saved.users || !saved.audit) return cloneDefault();
-      const loaded = { ...cloneDefault(), ...saved };
-      loaded.masters = ensureMasterSections(loaded.masters,loaded.masterOptions);
-      if ((loaded.stateVersion || 1) < STATE_VERSION) {
-        loaded.users = loaded.users.filter(user => {
-          const identity = `${user.name || ""} ${user.username || ""}`.toLowerCase();
-          return user.id !== "u-irfan" && !identity.includes("irfan");
-        });
-        const demoRefs = new Set(["MILL-V3.3.2", "EXP-V2.6", "TTI-EXP-042"]);
-        const qaMarker = /(^|[\s\/_-])(QA|TEST|DUMMY|DEMO|SAMPLE|BULK)([\s\/_-]|$)/i;
-        loaded.audit = loaded.audit.filter(item => String(item.user).toLowerCase() !== "irfan" && !demoRefs.has(String(item.ref || "")) && !qaMarker.test(Object.values(item).join(" ")));
-        loaded.audit.unshift({ date: nowStamp(), user: "System", area: "User", action: "Removed", detail: "Accidental Irfan trial user removed", ref: "ADMIN-CLEANUP" });
-        loaded.stateVersion = STATE_VERSION;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+      const saved=JSON.parse(localStorage.getItem(UI_STORAGE_KEY)||'null');
+      if(saved?.locks&&IS_SUPER_ADMIN){
+        for(const module of MODULES){
+          const lock=saved.locks[module.id];
+          if(lock&&typeof lock.locked==='boolean'&&typeof lock.changed==='string'){
+            initial.locks[module.id]={locked:lock.locked,
+              approvedBy:typeof lock.approvedBy==='string'?lock.approvedBy.slice(0,80):'—',
+              changed:lock.changed.slice(0,160)};
+          }
+        }
       }
-      return loaded;
-    } catch (_) { return cloneDefault(); }
+      // Remove the historical snapshot containing account identifiers and
+      // staff/master details. Only harmless local review notes survive.
+      localStorage.removeItem(STORAGE_KEY);
+    }catch(_){
+      try{localStorage.removeItem(STORAGE_KEY)}catch(__){}
+    }
+    return initial;
   }
   function saveState(message = "All changes saved") {
-    const indicator = document.getElementById("saveState");
+    const indicator=document.getElementById("saveState");
     indicator?.classList.add("saving");
-    if (indicator) indicator.lastChild.textContent = " Saving…";
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    window.setTimeout(() => {
+    if(indicator)indicator.lastChild.textContent=" Saving…";
+    try{
+      localStorage.removeItem(STORAGE_KEY);
+      if(IS_SUPER_ADMIN)localStorage.setItem(UI_STORAGE_KEY,JSON.stringify({locks:state.locks}));
+    }catch(_){
+      // A blocked browser cache must not turn a successful server save into
+      // a misleading failure or trigger a duplicate submission.
+    }
+    window.setTimeout(()=>{
       indicator?.classList.remove("saving");
-      if (indicator) indicator.lastChild.textContent = ` ${message}`;
-    }, 280);
+      if(indicator)indicator.lastChild.textContent=` ${message}`;
+    },280);
   }
   function initials(name) { return name.split(/\s+/).map(part => part[0]).slice(0, 2).join("").toUpperCase(); }
   function escapeHtml(value) { return String(value ?? "").replace(/[&<>'"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[c])); }
