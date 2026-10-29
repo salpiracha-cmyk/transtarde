@@ -186,9 +186,9 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
         tti_values=copy.deepcopy(tti['values']);tti_values[6]='Concurrent owner notes must survive document upload'
         status,changed=request(body={'action':'update','type':'companies','id':tti['id'],'values':tti_values,'expectedRevision':tti['revision']})
         assert status==200,(status,changed)
-        def upload_document(request_id):
+        def upload_document(request_id,company_id=None):
             boundary='fixture-boundary-20261030'
-            fields={'csrf':'fixture','action':'upload','companyId':tti['id'],'type':'Letterhead','label':'Fixture company PDF','requestId':request_id,'isDefault':'1'}
+            fields={'csrf':'fixture','action':'upload','companyId':company_id or tti['id'],'type':'Letterhead','label':'Fixture company PDF','requestId':request_id,'isDefault':'1'}
             parts=[]
             for name,value in fields.items():
                 parts.append(('--'+boundary+'\r\nContent-Disposition: form-data; name="'+name+'"\r\n\r\n'+value+'\r\n').encode())
@@ -209,6 +209,11 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
         assert len([d for d in documents if d.get('uploadRequestId')=='fixture-doc-upload-20261030'])==1
         assert uploaded['revision']==retried['revision']==current_tti['revision']
         assert 'storageName' not in uploaded['document']
+        status,nonbook=upload_document('fixture-nonbook-doc-20261030',first['id'])
+        assert status==200 and nonbook['document']['id'],(status,nonbook)
+        nonbook_row=next(r for r in request()[1]['masters']['companies'] if r['id']==first['id'])
+        assert any(d.get('id')==nonbook['document']['id'] for d in json.loads(nonbook_row['values'][14]))
+        print('PASS owner-managed documents for non-book company identities')
         print('PASS locked company document update, retry identity and preservation of other company fields')
         print('PASS Master idempotent create, stale-update rejection and incomplete registration drafts')
         print('PASS 10 visible master families: explicit create/amend/reload, canonical customer/KAT/reference consumers, preserved advanced fields, company identity, calendar/amount rejection and zero financial postings')
