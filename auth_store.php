@@ -862,7 +862,12 @@ function tt_update_master(string $type, string $id, array $values, ?string $expe
             $current=null;foreach($data['masters'][$type] as $row)if(($row['id']??'')===$id)$current=$row;
             if(tt_master_name_identity((string)($current['values'][0]??''),$type)!==tt_master_name_identity((string)($values[0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
         }
-        foreach ($data['masters'][$type] as &$row) if (($row['id'] ?? '')===$id) { $row['values']=$values; unset($row); return; }
+        foreach ($data['masters'][$type] as &$row) if (($row['id'] ?? '')===$id) {
+            // Company documents are written through the dedicated upload API.
+            // Preserve the latest file identities under the same store lock.
+            if($type==='companies')$values[14]=(string)($row['values'][14]??'[]');
+            $row['values']=$values; unset($row); return;
+        }
         unset($row); throw new RuntimeException('Master record not found.');
     });
 }
