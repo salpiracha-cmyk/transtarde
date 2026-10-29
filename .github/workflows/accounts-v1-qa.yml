@@ -98,6 +98,7 @@ jobs:
           node tests/security/startup_network_diagnostic_test.cjs
           python3 tests/accounts-v1/party_ledger_http_test.py
           python3 tests/accounts-v1/bank_entries_http_test.py
+          python3 tests/accounts-v1/bank_receipt_dates_http_test.py
           python3 tests/accounts-v1/bank_reconciliation_http_test.py
           php tests/accounts-v1/bank_reconciliation_projection_test.php
           python3 tests/accounts-v1/bank_balance_asof_test.py
@@ -507,7 +508,9 @@ jobs:
       - name: Bank entries, finance and subaccounts browser flow
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
-        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/bank_entries_browser_test.py'
+        run: |
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/bank_entries_browser_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/party_ledger_http_test.py
       - name: Company investments and routed-funds browser flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/company_investments_test.py'
       - name: Property registration and instalment browser flow

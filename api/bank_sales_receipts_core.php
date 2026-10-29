@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_ledger_visibility.php';
 
 /** Bank receipts share the original sale's control account; never recognize a sale again. */
 function bsr_permission(array $u,string $kind,string $action='View'):bool {
@@ -7,6 +8,7 @@ function bsr_permission(array $u,string $kind,string $action='View'):bool {
     return tt_user_can_module_action($u,'Accounts',$icon,$action);
 }
 function bsr_balance(array $s,string $e,string $id,string $account,string $date,bool $fellow=false):float {
+    $s=alv_amendment_books($s);
     $balance=0.;
     foreach((array)($s['journals']??[]) as $j){
         if(($j['entity']??'')!==$e||($j['status']??'')!=='Posted'||($j['date']??'')>$date)continue;
@@ -53,6 +55,18 @@ function bsr_sources(array $s,string $e,string $kind,array $u,string $date='9999
     }
     usort($rows,static fn($a,$b)=>strcasecmp($a['party'],$b['party'])?:strnatcasecmp($a['soda'],$b['soda']));return $rows;
 }
+/** Cancelled receipt pairs do not block their own dated replacement.
+ * Active later settlements/payments still require correction in chronological order.
+ */
+function bsr_has_later_financial(array $s,array $d,string $date):bool {
+    foreach(array_merge((array)($d['settlementPosts']??[]),(array)($d['payments']??[])) as $prior){
+        if(($prior['date']??'')<=$date)continue;
+        $journal=$s['journals'][$prior['postId']??'']??[];
+        if(!empty($journal['reversedByPostId'])||!empty($journal['reversalOf']))continue;
+        return true;
+    }
+    return false;
+}
 function bsr_post(array &$s,string $e,array $b,array $u,array $bank,string $date,int $amount,float $rate,string $ref,string $note,array $meta):array {
     $kind=(string)$b['receiptKind'];$right=$kind==='FELLOW_EXPORTER'?'Approve':'Create';
     if(!bsr_permission($u,$kind,$right))throw new DomainException($right.' permission for the selected sales account is required.');
@@ -65,7 +79,7 @@ function bsr_post(array &$s,string $e,array $b,array $u,array $bank,string $date
     $meta+=['receiptKind'=>$kind,'payee'=>$sale['party'],'counterparty'=>$sale['party'],'receivableApplied'=>$applied/100,'customerAdvancePKR'=>$advance/100];
     if($kind==='FELLOW_EXPORTER'){
         $d=$s['exporterDeals'][$id];$before=$d;$direction=$d['direction']??'SALE';
-        foreach(array_merge((array)($d['settlementPosts']??[]),(array)($d['payments']??[])) as $prior)if(($prior['date']??'')>$date)throw new DomainException('A later SODA financial entry exists. Use a current receipt date.');
+        if(bsr_has_later_financial($s,$d,$date))throw new DomainException('A later SODA financial entry exists. Use a current receipt date.');
         if($direction!=='SALE'&&$advance>0)throw new DomainException('A supplier refund cannot exceed the posted debit balance.');
         $extra=['exporterDealId'=>$id,'partyId'=>$d['partyId'],'counterparty'=>$d['party'],'stockEffect'=>'NONE_EXTERNAL'];
         $meta+=$extra+['customerAdvance'=>$advance>0];$lines=[ben_line($direction==='SALE'?'1230':'2140',0,$amount,$extra),ben_bank_line($bank,$amount,1,true,$extra)];
@@ -93,7 +107,7 @@ function bsr_before_reverse(array $s,string $e,array $j,array $u,string $date):v
     }
     if($kind==='FELLOW_EXPORTER'){
         $d=$s['exporterDeals'][$j['meta']['exporterDealId']]??null;if(!$d||$d['entity']!==$e)throw new DomainException('Original SODA could not be found.');
-        foreach(array_merge((array)($d['settlementPosts']??[]),(array)($d['payments']??[])) as $prior)if(($prior['date']??'')>$date)throw new DomainException('A later SODA financial entry exists. Use a current reversal date.');
+        if(bsr_has_later_financial($s,$d,$date))throw new DomainException('A later SODA financial entry exists. Use a current reversal date.');
     }
 }
 function bsr_reversed(array &$s,array $j,array $reversal,array $u):void {

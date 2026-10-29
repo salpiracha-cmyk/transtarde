@@ -13,8 +13,9 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     for path in (ROOT/'accounts').glob('*.json'):
         shutil.copy(path, root/'accounts'/path.name)
     shutil.copy(ROOT/'accounts/all-ledgers-ui.js',root/'accounts/all-ledgers-ui.js')
+    shutil.copy(ROOT/'accounts/print-dialog.js',root/'accounts/print-dialog.js')
     (root/'accounts/index.html').write_text('''<!doctype html><html><head></head><body>
-    <script src="all-ledgers-ui.js"></script><script>localStorage.setItem('tt_accounts_entity','TTI');
+    <script src="print-dialog.js"></script><script src="all-ledgers-ui.js"></script><script>localStorage.setItem('tt_accounts_entity','TTI');
     window.TT_ALL_LEDGERS.open('','party');</script></body></html>''')
     (root/'auth_store.php').write_text('''<?php
     define('TT_DATA_DIR',__DIR__.'/data');
@@ -205,6 +206,11 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
                 page.wait_for_selector('#tal-party')
                 assert page.locator('#tal-account').count()==0
                 assert page.locator('#tal-export').is_disabled()
+                matching=page.locator('details').filter(has=page.get_by_text('Company-wide party matching review',exact=False))
+                matching.wait_for(state='attached')
+                assert matching.count()==1,'Unassigned company lines must remain available for source review'
+                matching.locator('summary').click()
+                assert 'POST-2026-00005' in matching.inner_text() and 'do not create another payment' in matching.inner_text()
                 page.locator('#tal-party').fill('ACME Rice');page.locator('#tal-party').press('Enter')
                 page.wait_for_selector('[data-post-id="POST-2026-00002"]')
                 page.locator('#tal-period').select_option('range');page.wait_for_selector('#tal-from')
@@ -212,22 +218,30 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
                 page.locator('#tal-go').click()
                 page.wait_for_function("!document.querySelector('#tal-export').disabled")
                 content=page.locator('#tal-result').inner_text()
-                assert 'Opening -100.00' in content and 'Closing -35.00' in content and 'need matching' in content
+                assert 'Opening -100.00' in content and 'Closing -35.00' in content
+                assert 'Company-wide party matching review' not in page.locator('#tt-all-ledgers').inner_text(),'Company review must not be attributed to the selected party'
                 with page.expect_download() as download:
                     page.locator('#tal-export').click()
                 assert download.value.suggested_filename.endswith('.xlsx')
-                with page.expect_popup() as popup:
-                    page.locator('#tal-print').click()
-                popup.value.wait_for_load_state()
-                assert 'ACME Rice' in popup.value.locator('body').inner_text()
-                popup.value.close()
+                page.locator('#tal-print').click()
+                printed=page.frame_locator('iframe[title="Print document"]')
+                assert 'ACME Rice' in printed.locator('body').inner_text()
+                assert 'Closing Balance' in printed.locator('body').inner_text()
                 page.locator('[data-post-id="POST-2026-00002"]').click();page.wait_for_selector('#tal-back')
-                assert '1110' in page.locator('.tal-table').inner_text()
+                assert page.locator('.tal-table tbody tr').count()==2
+                assert '40.00' in page.locator('.tal-table').inner_text()
                 page.locator('#tal-back').click();page.wait_for_selector('#tal-party')
-                page.locator('#tal-party').fill('Unknown');page.locator('#tal-go').click()
-                page.wait_for_function("document.querySelector('#tal-result').textContent.includes('No posted party')")
+                page.locator('#tal-party').fill('Unknown')
+                with page.expect_response(lambda r:'accounts_ledger_browser.php?' in r.url and 'party=Unknown' in r.url) as refreshed:
+                    page.locator('#tal-party').press('Enter')
+                result=refreshed.value.json()
+                assert not result['ok'] and 'No posted entries or issued invoices match this party' in result['error']
+                page.wait_for_function("!document.querySelector('#tal-result').textContent.includes('Loading ledger')")
+                assert result['error'] in page.locator('#tal-result').inner_text()
                 assert page.locator('#tal-export').is_disabled()
-                page.locator('[data-category="other"]').first.click();page.wait_for_selector('#tal-account')
+                assert page.locator('#tal-party').input_value()=='Unknown'
+                assert page.locator('.tal-posting-row').count()==0,'Unknown name must not retain the previous party entries'
+                page.locator('#tal-view').select_option('other');page.wait_for_selector('#tal-account')
                 assert not errors,errors
                 browser.close()
                 print('Party Ledger browser: name search, separate tab, date filters, balances, details, Print, Excel and stale-result protection passed')

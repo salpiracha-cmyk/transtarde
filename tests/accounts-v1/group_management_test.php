@@ -79,3 +79,14 @@ require_once __DIR__.'/../../api/group_daily_core.php';
 $dailyRecord=['kind'=>'DAILY','date'=>'2026-10-03','sections'=>['header'=>['data'=>['rates'=>['PKR'=>1]]],'daily'=>['data'=>['source'=>['financials'=>['rows'=>[['id'=>'B','label'=>'Books','amount'=>1000,'currency'=>'PKR']],'warnings'=>[]],'stockValuation'=>['complete'=>true,'valuationAdjustmentPKR'=>200],'exporterCashflow'=>[['forecastOnlyPKR'=>50]],'asOf'=>'2026-10-03','fingerprint'=>'fixture']],'calculation'=>[],'savedAt'=>'fixture']]];
 near(gcf_capture($dailyRecord,[])['totalPKR'],1250,'Daily cashflow comparison uses reviewed market stock and exporter forecast');$dailyRecord['sections']['daily']['data']['source']['stockValuation']['complete']=false;near(gcf_capture($dailyRecord,[])['totalPKR'],1050,'Incomplete market stock is not assigned an invented value');
 echo "PASS Daily comparison includes reviewed market stock changes and keeps incomplete valuations explicit\n";
+
+// A verified backdated amendment must agree with ledger/reconciliation cutoffs.
+$historical=['journals'=>[
+ 'OLD'=>['id'=>'OLD','entity'=>'TTI','status'=>'Posted','date'=>'2026-07-10','amendedByPostId'=>'NEW','lines'=>[['account'=>'1110','bankAccountId'=>'BANK-1','debit'=>0,'credit'=>100],['account'=>'2140','exporterDealId'=>'DEAL','counterparty'=>'HKM','debit'=>100,'credit'=>0]]],
+ 'UNDO'=>['id'=>'UNDO','entity'=>'TTI','status'=>'Posted','date'=>'2026-10-29','reversalOf'=>'OLD','lines'=>[['account'=>'1110','bankAccountId'=>'BANK-1','debit'=>100,'credit'=>0],['account'=>'2140','exporterDealId'=>'DEAL','counterparty'=>'HKM','debit'=>0,'credit'=>100]]],
+ 'NEW'=>['id'=>'NEW','entity'=>'TTI','status'=>'Posted','date'=>'2026-07-10','meta'=>['amendmentOfPostId'=>'OLD'],'lines'=>[['account'=>'1110','bankAccountId'=>'BANK-1','debit'=>0,'credit'=>80],['account'=>'2140','exporterDealId'=>'DEAL','counterparty'=>'HKM','debit'=>80,'credit'=>0]]]
+]];
+$before=serialize($historical);$view=gm_financial_source($historical,'2026-08-01',[]);$bankRows=array_values(array_filter($view['rows'],fn($r)=>$r['account']==='1110'));
+near($bankRows[0]['amount'],-80.,'Directors historical cash flow counts a corrected bank payment once');
+if($before!==serialize($historical))throw new RuntimeException('Cash-flow amendment projection must preserve original journals');
+echo "PASS historical Directors cash-flow amendment agrees with ledger without source writes\n";
