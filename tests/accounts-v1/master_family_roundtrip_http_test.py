@@ -180,6 +180,36 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
         invalid=copy.deepcopy(current['values'])
         invalid[16]=json.dumps([{'type':'VAT Registration / VAT TRN','number':''}])
         unchanged_failure('companies',invalid,first['id'])
+        # Real multipart company document upload: preserve the latest non-document
+        # fields and deduplicate a repeated browser request by upload identity.
+        tti=next(r for r in request()[1]['masters']['companies'] if r['values'][1]=='TTI')
+        tti_values=copy.deepcopy(tti['values']);tti_values[6]='Concurrent owner notes must survive document upload'
+        status,changed=request(body={'action':'update','type':'companies','id':tti['id'],'values':tti_values,'expectedRevision':tti['revision']})
+        assert status==200,(status,changed)
+        def upload_document(request_id):
+            boundary='fixture-boundary-20261030'
+            fields={'csrf':'fixture','action':'upload','companyId':tti['id'],'type':'Letterhead','label':'Fixture company PDF','requestId':request_id,'isDefault':'1'}
+            parts=[]
+            for name,value in fields.items():
+                parts.append(('--'+boundary+'\\r\\nContent-Disposition: form-data; name="'+name+'"\\r\\n\\r\\n'+value+'\\r\\n').encode())
+            pdf=b'%PDF-1.4\\n1 0 obj\\n<< /Type /Catalog >>\\nendobj\\n%%EOF\\n'
+            parts.append(('--'+boundary+'\\r\\nContent-Disposition: form-data; name="file"; filename="fixture.pdf"\\r\\nContent-Type: application/pdf\\r\\n\\r\\n').encode()+pdf+b'\\r\\n')
+            parts.append(('--'+boundary+'--\\r\\n').encode())
+            req=urllib.request.Request(base+'/api/master_documents.php',data=b''.join(parts),headers={'Content-Type':'multipart/form-data; boundary='+boundary})
+            try:
+                with opener.open(req,timeout=15) as response: return response.status,json.loads(response.read())
+            except urllib.error.HTTPError as response: return response.code,json.loads(response.read())
+        status,uploaded=upload_document('fixture-doc-upload-20261030')
+        assert status==200 and uploaded['document']['id'],(status,uploaded)
+        status,retried=upload_document('fixture-doc-upload-20261030')
+        assert status==200 and retried['document']['id']==uploaded['document']['id'],(status,retried)
+        current_tti=next(r for r in request()[1]['masters']['companies'] if r['id']==tti['id'])
+        assert current_tti['values'][6]=='Concurrent owner notes must survive document upload'
+        documents=json.loads(current_tti['values'][14])
+        assert len([d for d in documents if d.get('uploadRequestId')=='fixture-doc-upload-20261030'])==1
+        assert uploaded['revision']==retried['revision']==current_tti['revision']
+        assert 'storageName' not in uploaded['document']
+        print('PASS locked company document update, retry identity and preservation of other company fields')
         print('PASS Master idempotent create, stale-update rejection and incomplete registration drafts')
         print('PASS 10 visible master families: explicit create/amend/reload, canonical customer/KAT/reference consumers, preserved advanced fields, company identity, calendar/amount rejection and zero financial postings')
     finally: server.terminate(); server.wait(timeout=10); log.close()
