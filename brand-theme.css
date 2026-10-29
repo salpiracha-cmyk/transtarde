@@ -222,12 +222,12 @@ input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-ou
 
 /* Accounts and Directors: align labels/primary controls independently of help or master actions. */
 @media screen {
- :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.am-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.grid:has(>label),.directorDealDialog .grid){align-items:start!important}
- :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.am-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.directorDealDialog .grid)>label:not(:has(>input[type=checkbox],>input[type=radio])){display:flex;flex-direction:column;gap:6px;min-width:0;line-height:1.4;align-self:start}
- .tradingPage .directorDealDialog .grid>label{align-self:start}
- :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.am-grid,.directorDealDialog .grid)>label> :is(input:not([type=checkbox]):not([type=radio]),select){min-height:42px;box-sizing:border-box;width:100%;margin:0}
- :is(.tabs,.sections,.reportNav,.tt-modebar,.purchase-workspace-tabs,.purchase-product-tabs,.brokery-tabs){display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
- :is(.tabs,.sections,.reportNav,.tt-modebar,.purchase-workspace-tabs,.purchase-product-tabs,.brokery-tabs)>:is(button,a){display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:44px;margin:0}
+ body[data-tt-form-module] :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.am-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.grid:has(>label),.directorDealDialog .grid){align-items:start!important}
+ body[data-tt-form-module] :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.am-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.directorDealDialog .grid)>label:not(:has(>input[type=checkbox],>input[type=radio])){display:flex;flex-direction:column;gap:6px;min-width:0;line-height:1.4;align-self:start}
+ body[data-tt-form-module] .tradingPage .directorDealDialog .grid>label{align-self:start}
+ body[data-tt-form-module] :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.am-grid,.directorDealDialog .grid)>label> :is(input:not([type=checkbox]):not([type=radio]),select){min-height:42px;box-sizing:border-box;width:100%;margin:0}
+ body[data-tt-form-module] :is(.tabs,.sections,.reportNav,.tt-modebar,.purchase-workspace-tabs,.purchase-product-tabs,.brokery-tabs){display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+ body[data-tt-form-module] :is(.tabs,.sections,.reportNav,.tt-modebar,.purchase-workspace-tabs,.purchase-product-tabs,.brokery-tabs)>:is(button,a){display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:44px;margin:0}
  .feMasterDialog{box-sizing:border-box;width:min(720px,94vw);max-height:90dvh;overflow:auto;border:1px solid #d5e1e6;border-radius:12px;padding:24px}
  .feMasterDialog .tt-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.feMasterDialog .wide{grid-column:1/-1}.feMasterDialog :is(input,textarea){box-sizing:border-box;width:100%;padding:10px}.feMasterDialog [data-error]{color:#b42318}
  @media(max-width:600px){.feMasterDialog .tt-form-grid{grid-template-columns:minmax(0,1fr)}}
