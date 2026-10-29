@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/group_management_core.php';
+require_once __DIR__.'/delivery_completion_core.php';
 require_once __DIR__.'/accounts_shipment_source.php';
 require_once __DIR__.'/fellow_exporters_core.php';
 
@@ -116,7 +117,8 @@ function dt_working(array $s,array $d,array $lots,string $date,array $nativeSale
         $rows[]=['retainedMarginPKR'=>$retainedMargin,'supplierGoodsCostPKR'=>$load['supplierGoodsCostPKR']??null,'totalProfitPKR'=>$d['arrangement']==='PARTNERSHIP'?($profit??null):null,'loadingId'=>$load['id'],'sourceReady'=>$sourceReady,'invoice'=>$load['invoiceRef'],'quantityMT'=>$qty,'invoiceQuantityMT'=>$load['totalInvoiceMT'],'sharePct'=>round($share*100,6),'grossPKR'=>round($gross,2),'expensesPKR'=>round($costs,2),'adjustmentsPKR'=>round($adjustments,2),'settlementPKR'=>round($amount,2),'actualFOBUSDPerMT'=>$load['totalInvoiceMT']>0?round($fob/$load['totalInvoiceMT']/$d['fx'],4):null,'actualBills'=>$actual,'creditAdvices'=>$advice,'expensesComplete'=>$actualReviewed,'creditAdviceCoveragePct'=>$fraction*100,'settlementFX'=>$effectiveFX];$total+=$amount;
     }
     $ownCost=$native?dt_sale_cost($s,$d,$native,$loaded):null;if($native)$warnings=array_merge($warnings,$native['issues'],$ownCost['issues']);
-    $forecastQty=max(0,$d['quantityMT']-$loaded);$estimateRate=$d['price']*($d['currency']==='USD'?$d['fx']:1);if($d['direction']==='SALE'||$d['arrangement']==='SETTLEMENT')$estimateRate-=($d['fobEstimateUSDPerMT']+$d['freightEstimateUSDPerMT']+$d['insuranceEstimateUSDPerMT'])*$d['fx'];
+    $documentsClosed=in_array(strtolower((string)($d['status']??'')),['closed','completed','cancelled'],true);if($orderedLoadings){$allClosed=true;$past=0;foreach($orderedLoadings as$l){if(($l['date']??'')>$date)continue;$past++;if(empty($lots[$l['shipmentId']??'']['completed']))$allClosed=false;}$documentsClosed=$documentsClosed||($past>0&&$allClosed);}
+    $forecastQty=dc_remaining((float)$d['quantityMT'],(float)$loaded,true,$documentsClosed);$estimateRate=$d['price']*($d['currency']==='USD'?$d['fx']:1);if($d['direction']==='SALE'||$d['arrangement']==='SETTLEMENT')$estimateRate-=($d['fobEstimateUSDPerMT']+$d['freightEstimateUSDPerMT']+$d['insuranceEstimateUSDPerMT'])*$d['fx'];
     if($d['arrangement']==='PARTNERSHIP')$estimateRate=$d['goodsEstimatePKRPerMT']??0;
     return ['retainedMarginPKR'=>$d['arrangement']==='MARGIN'&&$loaded>0?round($profitTotal,2):null,'totalProfitPKR'=>$d['arrangement']==='PARTNERSHIP'&&$goodsComplete&&$loaded>0?round($profitTotal,2):null,'goodsCostComplete'=>$goodsComplete,'estimateComplete'=>$goodsComplete||($d['goodsEstimatePKRPerMT']??0)>0,'ownDispatch'=>$native,'ownStockCost'=>$ownCost,'rows'=>$rows,'loadedMT'=>$loaded,'remainingMT'=>$forecastQty,'settlementPKR'=>round($total,2),'unloadedForecastPKR'=>round($forecastQty*($estimateRate-($d['arrangement']==='SETTLEMENT'?$d['price']*($d['currency']==='USD'?$d['fx']:1)*$d['bankEstimatePct']/100:0)),2),'warnings'=>array_values(array_unique($warnings)),'direction'=>$d['direction']==='PURCHASE'?'PAYABLE':'RECEIVABLE'];
 }

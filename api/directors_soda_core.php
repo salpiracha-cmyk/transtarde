@@ -32,7 +32,7 @@ function dt_local_working(array $s,array $d,string $date,array $nativeSales):arr
     foreach($native['loads'] as $i=>$load){$value=round($load['quantityMT']*$d['price'],2);$deduction=$i===$last?round($bags-$bagAllocated,2):round($bags*$load['quantityMT']/$loaded,2);$bagAllocated+=$deduction;$gross+=$value;
         $rows[]=['loadingId'=>$load['id'],'sourceReady'=>$native['known'],'invoice'=>$load['ref'],'quantityMT'=>$load['quantityMT'],'invoiceQuantityMT'=>$load['quantityMT'],'sharePct'=>100.,'grossPKR'=>$value,'expensesPKR'=>$deduction,'adjustmentsPKR'=>0.,'settlementPKR'=>round($value-$deduction,2),'actualFOBUSDPerMT'=>0.,'actualBills'=>[],'creditAdvices'=>[],'expensesComplete'=>$reviewed,'creditAdviceCoveragePct'=>100.,'settlementFX'=>1.];
     }
-    $remaining=max(0,$d['quantityMT']-$loaded);$warnings=array_merge($native['issues'],$own['issues']);
+    $remaining=dc_remaining((float)$d['quantityMT'],(float)$loaded,$native['known'],in_array(strtolower((string)($d['status']??'')),['closed','completed','cancelled'],true))??max(0,$d['quantityMT']-$loaded);$warnings=array_merge($native['issues'],$own['issues']);
     if(!$reviewed&&$loaded>0)$warnings[]='Review the actual bags deduction and current dispatch/stock costs before posting.';
     if($bags>$gross+.005)$warnings[]='Bags deduction exceeds the loaded sale value.';
     $yield=$d['recoveryPct']??null;

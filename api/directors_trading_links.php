@@ -19,7 +19,7 @@ function dt_native_state(array $d,array $sales,string $date):array {
             $product=(string)(($r['displayName']??'')?:($r['product']??''));$loads[]=['id'=>$identity,'ref'=>$ref,'date'=>$on,'quantityMT'=>$kg/1000,'product'=>$product,'brand'=>(string)($r['brand']??'')];$mt+=$kg/1000;
         }
     }
-    if($mt>(float)$d['quantityMT']+.000001)$issues[]='Mill dispatch exceeds the Directors agreement quantity.';
+    // Retain the actual dispatched quantity, including overdelivery; it completes the quantity commitment.
     return ['loadedMT'=>round($mt,6),'loads'=>$loads,'parentRefs'=>array_keys($parents),'issues'=>array_values(array_unique($issues)),'known'=>!$issues,'fingerprint'=>hash('sha256',json_encode([$loads,$issues],JSON_THROW_ON_ERROR))];
 }
 /** A Mill record used by a Directors agreement cannot also recognise a local sale. */
