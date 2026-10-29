@@ -17,4 +17,4 @@ foreach(['auth_store.php','master_store.php','session_store.php','qa_account.php
 foreach(['setup.php','recover-admin.php','restore.php','connect-backup-pc.php'] as $ownerRoute){
     if(preg_match($deny,$ownerRoute)===1)throw new RuntimeException('Owner recovery/login route unexpectedly blocked: '.$ownerRoute);
 }
-echo "PASS internal PHP helpers are denied directly without blocking authenticated recovery routes\\n";
+echo "PASS internal PHP helpers are denied directly without blocking authenticated recovery routes\n";
