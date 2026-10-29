@@ -35,27 +35,67 @@ try {
     if (!tt_verify_csrf((string)($_POST['csrf']??''))) md_reply(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     if (!tt_user_can_master($user,'companies','Edit')) md_reply(['ok'=>false,'error'=>'Company Edit permission required.'],403);
     $action=trim((string)($_POST['action']??'upload'));
-    $values=array_values((array)$company['values']);while(count($values)<15)$values[]='';$documents=md_documents($company);
+    $newDocument=null;$uploadedFile=null;$documentId='';$requestId='';
     if ($action==='upload') {
+        $requestId=trim((string)($_POST['requestId']??''));
+        if($requestId!==''&&!preg_match('/^[a-zA-Z0-9_-]{12,96}$/D',$requestId))throw new InvalidArgumentException('Invalid document upload request. Reopen the form.');
         $file=$_FILES['file']??null;if(!is_array($file)||(int)($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)throw new InvalidArgumentException('Choose a document file.');
         $validated=tt_validate_document_upload($file,8*1024*1024,['image/png'=>'png','image/jpeg'=>'jpg','image/webp'=>'webp','application/pdf'=>'pdf']);
-        $mime=$validated['mime'];
         $type=trim((string)($_POST['type']??'Other'));$allowedTypes=['Header','Footer','Signature','Stamp','Letterhead','Other'];if(!in_array($type,$allowedTypes,true))$type='Other';
         $label=trim((string)($_POST['label']??''));if($label==='')throw new InvalidArgumentException('Enter a document label.');
         $dir=TT_DATA_DIR.'/master-documents';if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('Secure document storage is unavailable.');
-        $id='document-'.bin2hex(random_bytes(8));$storage=$id.'.'.$validated['extension'];
-        if(!move_uploaded_file((string)$file['tmp_name'],$dir.'/'.$storage))throw new RuntimeException('Document upload could not be saved.');
-        $version=1;foreach($documents as $row)if(strcasecmp((string)($row['type']??''),$type)===0&&strcasecmp((string)($row['label']??''),$label)===0)$version=max($version,(int)($row['version']??0)+1);
-        $isDefault=!empty($_POST['isDefault']);if($isDefault)foreach($documents as &$row)if((string)($row['type']??'')===$type)$row['isDefault']=false;unset($row);
-        $documents[]=['id'=>$id,'type'=>$type,'label'=>$label,'version'=>$version,'status'=>'Active','isDefault'=>$isDefault,'storageName'=>$storage,'originalName'=>tt_upload_original_name((string)($file['name']??'')),'mime'=>$mime,'uploadedAt'=>gmdate('c'),'uploadedBy'=>(string)$user['username']];
+        $id='document-'.bin2hex(random_bytes(8));$storage=$id.'.'.$validated['extension'];$uploadedFile=$dir.'/'.$storage;
+        if(!move_uploaded_file((string)$file['tmp_name'],$uploadedFile))throw new RuntimeException('Document upload could not be saved.');
+        $newDocument=['id'=>$id,'type'=>$type,'label'=>$label,'version'=>1,'status'=>'Active','isDefault'=>!empty($_POST['isDefault']),'storageName'=>$storage,'originalName'=>tt_upload_original_name((string)($file['name']??'')),'mime'=>$validated['mime'],'uploadedAt'=>gmdate('c'),'uploadedBy'=>(string)$user['username']];
+        if($requestId!=='')$newDocument['uploadRequestId']=$requestId;
     } elseif (in_array($action,['deactivate','set-default'],true)) {
-        $documentId=trim((string)($_POST['documentId']??''));$found=false;$selectedType='';
-        foreach($documents as &$row)if((string)($row['id']??'')===$documentId){$found=true;$selectedType=(string)($row['type']??'');if($action==='deactivate'){$row['status']='Inactive';$row['isDefault']=false;}else{$row['status']='Active';$row['isDefault']=true;}break;}unset($row);
-        if(!$found)throw new InvalidArgumentException('Document identity not found.');
-        if($action==='set-default')foreach($documents as &$row)if((string)($row['id']??'')!==$documentId&&(string)($row['type']??'')===$selectedType)$row['isDefault']=false;unset($row);
+        $documentId=trim((string)($_POST['documentId']??''));
+        if($documentId==='')throw new InvalidArgumentException('Select a company document identity.');
     } else throw new InvalidArgumentException('Unknown document action.');
-    $values[14]=json_encode($documents,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);tt_update_master('companies',$companyId,$values);
-    tt_audit((int)$user['id'],(string)$user['username'],ucfirst($action).' company document identity '.$companyId);
-    md_reply(['ok'=>true,'documents'=>array_map(static function(array $row): array {unset($row['storageName']);return $row;},$documents)]);
+    try{
+        // Modify only the latest company document list under the store lock.
+        // Rewriting the entire company row from an earlier GET can erase
+        // concurrent bank, registration and identity changes.
+        $result=tt_mutate_store(static function (&$data) use($companyId,$company,$action,$newDocument,$documentId,$requestId):array {
+            foreach((array)($data['masters']['companies']??[]) as &$row){
+                if((string)($row['id']??'')!==$companyId)continue;
+                if((string)($row['values'][1]??'')!==(string)($company['values'][1]??''))throw new InvalidArgumentException('Company identity changed. Reopen the company before uploading documents.');
+                $documents=tt_master_json_array($row['values'][14]??'');
+                $savedDocument=null;$replayed=false;
+                if($action==='upload'){
+                    if($requestId!=='')foreach($documents as $existing)if((string)($existing['uploadRequestId']??'')===$requestId){$savedDocument=$existing;$replayed=true;break;}
+                    if(!$replayed){
+                        $savedDocument=$newDocument;$version=1;
+                        foreach($documents as $existing)if(strcasecmp((string)($existing['type']??''),(string)$newDocument['type'])===0&&strcasecmp((string)($existing['label']??''),(string)$newDocument['label'])===0)$version=max($version,(int)($existing['version']??0)+1);
+                        $savedDocument['version']=$version;
+                        if(!empty($savedDocument['isDefault']))foreach($documents as &$old)if((string)($old['type']??'')===(string)$savedDocument['type'])$old['isDefault']=false;unset($old);
+                        $documents[]=$savedDocument;
+                    }
+                }else{
+                    $found=false;$selectedType='';
+                    foreach($documents as &$document)if((string)($document['id']??'')===$documentId){
+                        $found=true;$selectedType=(string)($document['type']??'');
+                        if($action==='deactivate'){$document['status']='Inactive';$document['isDefault']=false;}
+                        else{$document['status']='Active';$document['isDefault']=true;}
+                        $savedDocument=$document;break;
+                    }unset($document);
+                    if(!$found)throw new InvalidArgumentException('Document identity not found.');
+                    if($action==='set-default')foreach($documents as &$document)if((string)($document['id']??'')!==$documentId&&(string)($document['type']??'')===$selectedType)$document['isDefault']=false;unset($document);
+                }
+                if(!$replayed){
+                    $row['values'][14]=json_encode($documents,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+                }
+                return ['documents'=>$documents,'document'=>$savedDocument,'revision'=>tt_master_revision((array)$row['values']),'replayed'=>$replayed];
+            }unset($row);
+            throw new InvalidArgumentException('Company no longer exists.');
+        });
+    }catch(Throwable $e){
+        if($uploadedFile!==null&&is_file($uploadedFile))@unlink($uploadedFile);
+        throw $e;
+    }
+    if(!empty($result['replayed'])&&$uploadedFile!==null&&is_file($uploadedFile))@unlink($uploadedFile);
+    if(empty($result['replayed']))tt_audit((int)$user['id'],(string)$user['username'],ucfirst($action).' company document identity '.$companyId);
+    $clean=static function(array $document):array{unset($document['storageName']);return $document;};
+    md_reply(['ok'=>true,'documents'=>array_map($clean,$result['documents']),'document'=>$result['document']?$clean($result['document']):null,'revision'=>$result['revision']]);
 } catch (InvalidArgumentException $e) { md_reply(['ok'=>false,'error'=>$e->getMessage()],422); }
 catch (Throwable $e) { error_log('Master documents: '.$e->getMessage());md_reply(['ok'=>false,'error'=>'The company document action could not be completed.'],500); }
