@@ -12,6 +12,17 @@ function master_find_row(string $type,string $id): ?array {
 function master_all(?array $user=null): array {
     $masters=$user ? tt_user_visible_masters($user) : tt_list_masters();
     if (!$user || tt_user_can_master($user,'salary_staff','View')) $masters['salary_staff']=sm_master_rows();
+    // Versions come from the stored row, not a normalized display projection.
+    $versions=[];
+    foreach((array)(tt_read_store()['masters']??[]) as $kind=>$rows)foreach((array)$rows as $row){
+        $rowId=(string)($row['id']??'');
+        if($rowId!=='')$versions[$kind][$rowId]=tt_master_revision((array)($row['values']??[]));
+    }
+    foreach($masters as $kind=>&$rows){
+        if($kind==='salary_staff')continue;
+        foreach($rows as &$row)$row['revision']=$versions[$kind][(string)($row['id']??'')]??'';
+        unset($row);
+    }unset($rows);
     return $masters;
 }
 function master_options_for_console(): array {
@@ -503,13 +514,17 @@ try {
 
     $reference=strtoupper(trim((string)($values[1] ?? ''))) ?: strtoupper($type);
     if ($action==='create') {
-        $id=tt_create_master($type,$values); tt_audit((int)$admin['id'],$admin['username'],'Created '.$type.' master '.$reference);
+        $requestId=$body['requestId']??null;
+        if($requestId!==null&&(!is_string($requestId)||!preg_match('/^[a-zA-Z0-9_-]{12,96}$/D',$requestId)))throw new InvalidArgumentException('Invalid master save request. Reopen the form.');
+        $id=tt_create_master($type,$values,$requestId); tt_audit((int)$admin['id'],$admin['username'],'Created '.$type.' master '.$reference);
         if($type==='companies')master_sync_accounts_bank_defaults($id,$admin);
         master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
     if ($action==='update') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
-        tt_update_master($type,$id,$values); tt_audit((int)$admin['id'],$admin['username'],'Updated '.$type.' master '.$reference);
+        $expectedRevision=$body['expectedRevision']??null;
+        if($expectedRevision!==null&&(!is_string($expectedRevision)||!preg_match('/^[a-f0-9]{64}$/D',$expectedRevision)))throw new InvalidArgumentException('Invalid record version. Reopen the master record.');
+        tt_update_master($type,$id,$values,$expectedRevision); tt_audit((int)$admin['id'],$admin['username'],'Updated '.$type.' master '.$reference);
         if($type==='companies')master_sync_accounts_bank_defaults($id,$admin);
         master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
