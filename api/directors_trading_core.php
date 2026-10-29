@@ -75,12 +75,13 @@ function dt_deal(array $b,array $parties):array {
     $partyId=gm_text($b['partyId']??'',120);$party=null;foreach($parties as $r)if((string)$r['id']===$partyId)$party=$r;if(!$party)throw new DomainException('Select an active fellow exporter from the Directors Fellow Exporter master.');
     $d=['entity'=>dt_entity($b['entity']??''),'date'=>gm_date($b['date']??''),'direction'=>dt_enum($b['direction']??'',['PURCHASE','SALE'],'purchase from or sale through exporter'),'arrangement'=>dt_enum($b['arrangement']??'',['FIXED','SETTLEMENT','EX_MILL','PARTNERSHIP','MARGIN'],'fixed price, quantity settlement, local ex-mill or shipment partnership'),'partyId'=>$partyId,'party'=>$party['name'],'currency'=>dt_enum($b['currency']??'USD',['USD','PKR'],'USD or PKR'),'price'=>dt_positive($b['price']??null,'agreed price per MT'),'quantityMT'=>dt_positive($b['quantityMT']??null,'contract quantity MT'),'incoterm'=>dt_enum($b['incoterm']??'',['FOB','CNF','CIF','EX_MILL'],'FOB, CNF, CIF or ex-mill')];
     dt_validate_arrangement($d,$b);
-    foreach(['endBuyer','terms','packing','product','port','contractRef','reference','millSaleRef'] as $key)$d[$key]=gm_text($b[$key]??'',1000);
+    foreach(['endBuyer','terms','packing','product','port','contractRef','reference','millSaleRef','brand'] as $key)$d[$key]=gm_text($b[$key]??'',1000);
+    $d['fullSpecification']=gm_text($b['fullSpecification']??'',10000);
     $d['fobEstimateUSDPerMT']=gm_number($b['fobEstimateUSDPerMT']??24,'FOB estimate');$d['freightEstimateUSDPerMT']=in_array($d['incoterm'],['FOB','EX_MILL'],true)?0:gm_number($b['freightEstimateUSDPerMT']??null,'freight estimate');$d['insuranceEstimateUSDPerMT']=$d['incoterm']==='CIF'?gm_number($b['insuranceEstimateUSDPerMT']??null,'insurance estimate'):0;
     $d['bankEstimatePct']=gm_number($b['bankEstimatePct']??1.35,'estimated total WHT and bank deductions percentage');if($d['bankEstimatePct']>=100)throw new DomainException('Review estimated bank deductions.');$d['fx']=dt_positive($b['fx']??null,'dated USD/PKR exchange rate');$d['commodity']=dt_enum($b['commodity']??'RICE',['RICE','CORN'],'commodity');$d['coverageMT']=gm_number($b['coverageMT']??0,'external stock coverage');if($d['coverageMT']>$d['quantityMT']||($d['coverageMT']>0&&($d['direction']!=='PURCHASE'||$d['contractRef']==='')))throw new DomainException('External coverage requires a purchase linked to our sales contract, within agreed tonnes.');
     return $d;
 }
-function dt_legacy_parties():array {$out=[];foreach((array)(tt_list_masters()['business_parties']??[]) as $r){$v=(array)($r['values']??[]);if(strcasecmp((string)($v[10]??'Active'),'Inactive')!==0&&trim((string)($v[0]??''))!=='')$out[]=['id'=>(string)$r['id'],'name'=>(string)$v[0],'isExporter'=>(bool)preg_match('/\b(?:fellow exporter|exporter)\b/i',(string)($v[2]??''))];}return $out;}
+function dt_legacy_parties():array {$out=[];foreach((array)(tt_list_masters()['business_parties']??[]) as $r){$v=(array)($r['values']??[]);if(strcasecmp((string)($v[10]??'Active'),'Inactive')!==0&&trim((string)($v[0]??''))!=='')$out[]=['id'=>(string)$r['id'],'name'=>(string)$v[0],'code'=>(string)($v[1]??''),'isExporter'=>(bool)preg_match('/\b(?:fellow exporter|exporter)\b/i',(string)($v[2]??''))];}return $out;}
 function dt_parties(array $s=[],string $entity=''):array {return $entity!==''?fe_parties($s,$entity):dt_legacy_parties();}
 /** Posted shipment bills replace estimates component by component. No cash payments are re-expensed. */
 function dt_expenses(array $s,array $lot,string $date):array {
@@ -202,7 +203,18 @@ function dt_refresh_budget_alerts(array &$s,string $entity,string $date,array $l
         if($total>$budget+.005){$alert=['id'=>$id,'entity'=>$entity,'dealId'=>$d['id'],'party'=>$d['party'],'invoice'=>$load['invoiceRef'],'actualPKR'=>round($total,2),'allowancePKR'=>round($budget,2),'status'=>'Review required','firstObservedAt'=>$old['firstObservedAt']??gmdate('c')];$s['directorTradingAlerts'][$id]=$alert;$active[]=$alert;}elseif($old){$s['directorTradingAlerts'][$id]['status']='Within allowance';}
     }}return $active;
 }
-function dt_contracts(array $root,array $lots,string $entity):array {$out=[];$refs=array_column($lots,'contract');foreach((array)($root['contracts']??[]) as $c)if(($c['seller']??'')===$entity||(($c['seller']??'')==='TG'&&(($c['customsExporter']??'')===$entity||in_array($c['ref']??'',$refs,true))))$out[]=['ref'=>$c['ref'],'product'=>$c['product']??'','quantityMT'=>$c['qty']??0];return $out;}
+function dt_contracts(array $root,array $lots,string $entity):array {
+    $out=[];$refs=array_column($lots,'contract');
+    foreach((array)($root['contracts']??[])as$c){
+        if(!(($c['seller']??'')===$entity||(($c['seller']??'')==='TG'&&(($c['customsExporter']??'')===$entity||in_array($c['ref']??'',$refs,true)))))continue;
+        $brands=[];$packing=[];foreach((array)($c['packings']??[])as$p){$brand=trim((string)($p['brand']??''));if($brand!=='')$brands[$brand]=true;$label=trim(implode(' ',array_filter([(string)($p['size']??''),(string)($p['unit']??'KG'),(string)($p['type']??'')] )));if($label!=='')$packing[$label]=true;}
+        $spec=[];foreach((array)($c['specRows']??$c['specifications']??[])as$key=>$value){if(is_scalar($value)&&trim((string)$value)!=='')$spec[]=is_string($key)?$key.': '.$value:(string)$value;elseif(is_array($value))$spec[]=implode(' ',array_filter(array_map(static fn($v)=>is_scalar($v)?(string)$v:'',$value)));}
+        $quality=implode("\n",array_filter([(string)($c['quality']??''),(string)($c['additionalQuality']??'')]));if($quality!=='')array_unshift($spec,$quality);
+        $qty=(float)($c['qty']??0);if($qty<=0)$qty=(float)($c['containers']??0)*(float)($c['weightPer']??0);
+        $product=(string)($c['product']??'');
+        $out[]=['ref'=>$c['ref'],'product'=>$product,'quantityMT'=>$qty,'packing'=>implode(' / ',array_keys($packing)),'brand'=>implode(' / ',array_keys($brands)),'port'=>(string)(($c['destPort']??'')?:($c['podPort']??'')),'commodity'=>strtoupper((string)($c['commodity']??''))==='CORN'||preg_match('/\b(?:MAIZE|CORN|MAKAI)\b/i',$product)?'CORN':'RICE','fullSpecification'=>implode("\n",array_filter($spec))];
+    }return $out;
+}
 function dt_validate_coverage(array $s,array $d,array $root):void {
     if($d['coverageMT']<=0)return;$qty=0.;foreach((array)($root['contracts']??[]) as $c)if(($c['ref']??'')===$d['contractRef']){$qty=(float)($c['qty']??0);if($qty<=0)$qty=(float)($c['containers']??0)*(float)($c['weightPer']??0);}
     if($qty<=0)throw new DomainException('Record the original sales contract quantity before assigning external coverage.');$total=$d['coverageMT'];foreach(array_filter((array)($s['exporterDeals']??[]),static fn($row)=>($row['status']??'')!=='Deleted') as $old)if(($old['id']??'')!==($d['id']??'')&&$old['direction']==='PURCHASE'&&$old['contractRef']===$d['contractRef'])$total+=$old['coverageMT'];if($total>$qty+.000001)throw new DomainException('External coverage agreements exceed the original sales contract quantity.');

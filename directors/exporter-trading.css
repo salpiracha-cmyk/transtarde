@@ -41,3 +41,8 @@
 .exporterMasterActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.exporterMasterActions button{padding:6px 10px}button[data-delete-soda],#dtDelete{color:#a12a2a}
 
 @media print{[data-private-margin]{display:none!important}}
+
+@media screen{.directorDealDialog .grid{align-items:start!important}.directorDealDialog .grid>label{align-self:start!important}.directorDealDialog .grid>label>select,.directorDealDialog .grid>label>input{min-height:42px}.directorDealDialog .exporterMasterActions{margin-top:0}}
+
+@media screen{.directorDealDialog{box-sizing:border-box;width:min(1050px,94vw);max-width:94vw;max-height:90dvh}.directorDealDialog .toolbar{flex-wrap:wrap}.directorDealDialog :is(form,label,.grid){min-width:0}.directorDealDialog textarea{box-sizing:border-box;width:100%;max-width:100%}}
+@media screen and (max-width:760px){#dtWorkspace .directorDealDialog .grid{grid-template-columns:minmax(0,1fr)!important}.directorDealDialog{padding:16px}.directorDealDialog .exporterMasterActions{flex-wrap:wrap}}

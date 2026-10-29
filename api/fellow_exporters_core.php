@@ -23,7 +23,8 @@ function fe_save_party(array &$s,string $entity,array $b,array $u,bool $deleting
         $name=gm_text($b['name']??'',180);if($name==='')throw new DomainException('Enter the fellow exporter name.');
         foreach(fe_parties($s,$entity) as $p)if($p['id']!==$id&&sac_normal($p['name'])===sac_normal($name))throw new DomainException('This fellow exporter already exists. Select or edit its original master.');
         if($id===''){$matches=array_values(array_filter(dt_legacy_parties(),static fn($p)=>sac_normal($p['name'])===sac_normal($name)));if(count($matches)>1)throw new DomainException('More than one original business identity has this name. Resolve the duplicate before adding a fellow exporter.');$id=$matches[0]['id']??dt_id((array)($s['fellowExporterParties']??[]),'FEXP');}
-        $next=['id'=>$id,'entity'=>$entity,'name'=>$name,'contact'=>gm_text($b['contact']??'',250),'notes'=>gm_text($b['notes']??'',1000),'active'=>true,'isExporter'=>true];
+        $code=strtoupper(gm_text($b['code']??($old['code']??''),30));if($code!==''&&!preg_match('/^[A-Z0-9][A-Z0-9._-]{0,29}$/D',$code))throw new DomainException('Use letters, numbers, dash, dot or underscore in the short code.');foreach(fe_parties($s,$entity)as$p)if($p['id']!==$id&&$code!==''&&strcasecmp((string)($p['code']??''),$code)===0)throw new DomainException('This fellow exporter short code already exists.');
+        $next=['id'=>$id,'entity'=>$entity,'name'=>$name,'code'=>$code,'contact'=>gm_text($b['contact']??'',250),'notes'=>gm_text($b['notes']??'',1000),'active'=>true,'isExporter'=>true];
     }
     $reason=gm_text($b['reason']??'',500);if($old&&strlen($reason)<5)throw new DomainException('Enter a reason for changing or deleting this fellow exporter.');
     $next['version']=(int)($old['version']??0)+1;$next['updatedAt']=gmdate('c');$next['updatedBy']=$u['username']??'';

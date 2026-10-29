@@ -38,3 +38,6 @@ $arpBad=$arpOps;$shipments=json_decode($arpBad['values']['tt30ship'],true);unset
 echo "PASS ARP: group banks, purchases received/pending, export loads/pending, current loadings, final-invoice receivables, missing dates and immutable source records\n";
 if(in_array('--fixture',$argv??[],true))file_put_contents($argv[array_search('--fixture',$argv)+1],json_encode(['arp'=>['ok'=>true,'date'=>'2026-10-27','generatedAt'=>'2026-10-27T10:00:00Z']+$arp,'shipment'=>['ok'=>true,'date'=>'2026-10-27','generatedAt'=>'2026-10-27T10:00:00Z']+ss_report($s,$ops,$root,'2026-10-27','LOT1',true,'COST',[]) ,'balance'=>['ok'=>true,'date'=>'2026-10-27','generatedAt'=>'2026-10-27T10:00:00Z']+ss_report($s,$ops,$root,'2026-10-27','LOT1',false,'',[])],JSON_THROW_ON_ERROR));
 near(ss_expense_share(['liabilityAllocations'=>[['id'=>'OURS','amountNative'=>300],['id'=>'OTHER','amountNative'=>700]]],ss_lots($root)['LOT1'],['OURS']),.3,'Shared TG payment charges allocated by original invoice share');
+
+$receivedRows=br_purchase_receipts($arp['purchases'],$arpBooks,$arpOps);near(array_sum(array_column($receivedRows,'quantityMT')),150,'Original receipts drilldown reconciles with group received total');check($receivedRows[0]['soda']!==''&&$receivedRows[0]['date']!=='','Receipt identities retain SODA and dated physical source');
+echo "PASS original purchase receipt drilldown reconciliation\n";

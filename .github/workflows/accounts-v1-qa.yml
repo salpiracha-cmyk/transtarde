@@ -404,6 +404,7 @@ jobs:
           node tests/accounts-v1/directors_trading_ui_test.js
           node tests/accounts-v1/exporter_soda_arrangements_ui_test.js
           node tests/accounts-v1/fellow_exporter_controls_ui_test.js
+          node tests/accounts-v1/fellow_exporter_planning_browser_test.js
           node tests/accounts-v1/director_simple_costing_test.js
           node tests/accounts-v1/director_cashflow_output_test.js
           node tests/accounts-v1/business_reports_browser_test.js
