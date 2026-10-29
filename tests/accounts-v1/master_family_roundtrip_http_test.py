@@ -209,6 +209,15 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
         assert len([d for d in documents if d.get('uploadRequestId')=='fixture-doc-upload-20261030'])==1
         assert uploaded['revision']==retried['revision']==current_tti['revision']
         assert 'storageName' not in uploaded['document']
+        # A stale/sanitized document list in the Company editor must never
+        # replace private file identities owned by the document endpoint.
+        company_edit=copy.deepcopy(current_tti['values']);company_edit[14]='[]';company_edit[6]='Company note after document upload'
+        status,updated=request(body={'action':'update','type':'companies','id':tti['id'],'values':company_edit,'expectedRevision':current_tti['revision']})
+        assert status==200,(status,updated)
+        preserved=next(r for r in request()[1]['masters']['companies'] if r['id']==tti['id'])
+        assert preserved['values'][6]=='Company note after document upload'
+        assert any(d.get('id')==uploaded['document']['id'] and d.get('storageName') for d in json.loads(preserved['values'][14]))
+
         status,nonbook=upload_document('fixture-nonbook-doc-20261030',first['id'])
         assert status==200 and nonbook['document']['id'],(status,nonbook)
         nonbook_row=next(r for r in request()[1]['masters']['companies'] if r['id']==first['id'])
