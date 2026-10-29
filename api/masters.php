@@ -403,7 +403,7 @@ try {
         if(!is_string($retryId)||!preg_match('/^[a-zA-Z0-9_-]{12,96}$/D',$retryId))throw new InvalidArgumentException('Invalid master save request. Reopen the form.');
         foreach((array)(tt_read_store()['masters'][$type]??[]) as $savedRow){
             if(($savedRow['createRequestId']??null)!==$retryId)continue;
-            if((array)($savedRow['values']??[])!==$values)throw new InvalidArgumentException('This save request was already used for a different record. Reopen the form.');
+            if(!hash_equals((string)($savedRow['createRequestHash']??''),tt_master_revision($values)))throw new InvalidArgumentException('This save request was already used for a different record. Reopen the form.');
             master_respond(['ok'=>true,'id'=>(string)$savedRow['id'],'replayed'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
         }
     }
