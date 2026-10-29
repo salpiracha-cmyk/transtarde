@@ -48,9 +48,9 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  await shot(page.locator('.jvw'),'journal-voucher');await page.evaluate(()=>TT_ACCOUNTS_MASTER_CHOICES.manageParty('Haji Khushi Muhammad'));await page.waitForSelector('#ttPartyInlineEditor[open]');assert(await page.locator('.tt-party-role').count()>5);assert(await page.locator('.tt-party-role').first().evaluate(label=>{const box=label.querySelector('input').getBoundingClientRect(),r=label.getBoundingClientRect();return box.width<24&&Math.abs(box.y+(box.height/2)-r.y-(r.height/2))<3;}));await shot(page.locator('#ttPartyInlineEditor'),'party-roles');await page.locator('#ttPartyInlineEditor [data-cancel]').click();
  // Exercise the actual salary advance renderer and shared payment details.
  await page.evaluate(()=>{fixture.canOpenSalaryAdvance=true;fixture.salaryMasters=[{id:'S1',name:'QA staff',status:'Active'}];fixture.paymentAccounts=[{id:'B1',label:'QA bank',entity:'TTI',isDefault:true,balance:1000},{id:'CASH|TTI',label:'Cash',balance:100}];document.querySelector('#ws-jv').classList.remove('active');document.querySelector('#ws-expenses').classList.add('active');return TT_RENT_SALARY_UI.open('salary');});
- await page.locator('#rsAdvanceIcon').click();
- const details=page.locator('#rsAdvanceAccountDetails');
- await page.waitForFunction(()=>!!document.querySelector('#rsAdvanceAccountDetails .tt-search-select'));
+ await page.evaluate(()=>TT_RENT_SALARY_UI.openAdvance({paymentAccountId:'B1'}));
+ const details=page.locator('#rsStandaloneAdvanceSourceDetails');
+ await page.waitForFunction(()=>!!document.querySelector('#rsStandaloneAdvanceSourceDetails .tt-search-select'));
  const paymentTops=await details.evaluate(box=>[...box.querySelectorAll(':scope>label')].map(label=>[...label.querySelectorAll('input,select')].find(e=>{const r=e.getBoundingClientRect();return r.width>30&&r.height>0&&getComputedStyle(e).opacity!=='0'}).getBoundingClientRect().top));
  assert.equal(paymentTops.length,3);assert(paymentTops.every(y=>Math.abs(y-paymentTops[0])<2),'Salary bank method, reference and payment date align: '+JSON.stringify(paymentTops));
  const writesBefore=await page.evaluate(()=>posted.length);
@@ -58,17 +58,15 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  await details.locator('[data-method]').selectOption('ONLINE_BANKING');
  assert.match(await details.locator('[data-payment-date-label]').innerText(),/Online Banking payment date/);
  assert.equal(await details.locator('[data-reference]').inputValue(),'UNSAVED-CHEQUE');
- await page.locator('#rsAdvanceKind').selectOption('BF');assert.equal(await details.isVisible(),false);assert.equal(await page.locator('#rsAdvancePaymentSource').isVisible(),false);
- await page.locator('#rsAdvanceKind').selectOption('PAID');assert.equal(await details.isVisible(),true);assert.equal(await details.locator('[data-reference]').inputValue(),'UNSAVED-CHEQUE');
- await page.locator('#rsAdvanceAccount').selectOption('CASH|TTI');assert.equal(await details.isVisible(),false);
- await page.locator('#rsAdvanceAccount').selectOption('B1');assert.equal(await details.isVisible(),true);
+ await page.locator('#rsAdvancePopup [name=recovery]').selectOption('INSTALMENTS');assert.equal(await page.locator('#rsAdvancePopup [name=months]').isVisible(),true);await page.locator('#rsAdvancePopup [name=recovery]').selectOption('ONE');assert.equal(await page.locator('#rsAdvancePopup [name=months]').isVisible(),false);assert.equal(await details.locator('[data-reference]').inputValue(),'UNSAVED-CHEQUE');
+ await page.locator('#rsStandaloneAdvanceSource').selectOption('CASH|TTI');assert.equal(await details.isVisible(),false);
+ await page.locator('#rsStandaloneAdvanceSource').selectOption('B1');assert.equal(await details.isVisible(),true);
  await page.setViewportSize({width:390,height:844});
- const salaryMobile=await page.locator('.ttrs').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth,overflow:[...el.querySelectorAll('*')].filter(n=>n.getBoundingClientRect().right>el.getBoundingClientRect().right+2).slice(0,12).map(n=>({tag:n.tagName,cls:n.className,text:n.textContent.slice(0,35),width:n.getBoundingClientRect().width}))}));
+ const salaryMobile=await page.locator('#rsAdvancePopup').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth,overflow:[...el.querySelectorAll('*')].filter(n=>n.getBoundingClientRect().right>el.getBoundingClientRect().right+2).slice(0,12).map(n=>({tag:n.tagName,cls:n.className,text:n.textContent.slice(0,35),width:n.getBoundingClientRect().width}))}));
  assert(salaryMobile.scroll<=salaryMobile.width+2,'Salary advance form fits mobile: '+JSON.stringify(salaryMobile));
- assert.equal(await page.locator('.ttrs-table-wrap').evaluate(el=>getComputedStyle(el).overflowX),'auto','Advance history scrolls independently when wider than a mobile screen');
  assert.equal(await page.evaluate(()=>posted.length),writesBefore,'Changing payment/opening controls makes no posting');
- await page.setViewportSize({width:1440,height:1000});
- await page.evaluate(()=>{document.querySelector('#ws-jv').classList.remove('active');document.querySelector('#ws-expenses').classList.add('active');return TT_RENT_SALARY_UI.open('salary');});await page.waitForSelector('#rsPrepare');assert.equal(await page.locator('#rsMasterSetup,#rsSalaryBack').count(),0);await page.locator('#rsPrepare').click();assert.equal(await page.locator('#rsSalaryBack').count(),1);assert.equal(await page.locator('[data-rs-group][open]').count(),0);await shot(page.locator('.ttrs'),'salary-sheet');assert.equal(await page.locator('#rsMasterSetup').count(),1);
+ await page.locator('#rsAdvancePopup [data-close]').click();await page.setViewportSize({width:1440,height:1000});
+ await page.evaluate(()=>{document.querySelector('#ws-jv').classList.remove('active');document.querySelector('#ws-expenses').classList.add('active');return TT_RENT_SALARY_UI.open('salary');});await page.waitForSelector('#rsPrepare');assert.equal(await page.locator('#rsMasterSetup,#rsSalaryBack').count(),0);await page.locator('#rsPrepare').click();assert.equal(await page.locator('#rsSalaryBack').count(),1);assert.equal(await page.locator('[data-rs-group][open]').count(),0);await shot(page.locator('.ttrs'),'salary-sheet');assert.equal(await page.locator('#rsMasterSetup').count(),0);
 
  // A long real salary list must keep every person's actions beside their name;
  // the shared control normalizer must not move removal into a new column.

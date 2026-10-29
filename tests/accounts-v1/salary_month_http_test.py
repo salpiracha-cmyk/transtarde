@@ -6,7 +6,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     for folder in ['api','accounts','data']:(root/folder).mkdir()
     for name in ['rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','accounts_subaccounts_core.php','accounts_receipts_core.php','accounts_reference.php','accounts_ledger_visibility.php','assets_registry_core.php','company_investments_core.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
-    for name in ['accounting_master_v1.json','rent-salary-ui.js','cheque-date-ui.js','bank-payment-details.js']:
+    for name in ['accounting_master_v1.json','rent-salary-ui.js','cheque-date-ui.js','bank-payment-details.js','post-confirmation-ui.js']:
         shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
     masters={'banks':[{'id':'bank-a','values':['Company Account','TTI','','TTI','Fixture Bank','','','PKR','12345','','','','','Active']},{'id':'bank-b','values':['Company Account','TTI','','TTI','Other Bank','','','PKR','67890','','','','','Active']}]}
     (root/'masters.json').write_text(json.dumps(masters))
@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     from permission_fixture import append_permission_helpers
     append_permission_helpers(root)
     popup_css=re.search(r'style.textContent = `([\s\S]*?)`;', (ROOT/'accounts/accounts-clean-ui.js').read_text()).group(1)
-    (root/'accounts/index.html').write_text('<!doctype html><style>'+popup_css+'</style>'+'''<section class="workspace active tt-clean-modal tt-entry-only"><button data-expense="salary">Salaries</button><div id="expenseEditor"></div></section><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="cheque-date-ui.js"></script><script src="bank-payment-details.js"></script><script src="rent-salary-ui.js"></script>''')
+    (root/'accounts/index.html').write_text('<!doctype html><style>'+popup_css+'</style>'+'''<section class="workspace active tt-clean-modal tt-entry-only"><button data-expense="salary">Salaries</button><div id="expenseEditor"></div></section><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="cheque-date-ui.js"></script><script src="bank-payment-details.js"></script><script src="post-confirmation-ui.js"></script><script>TT_POST_CONFIRMATION.show=ids=>{window.lastAdvancePost=ids[0]};</script><script src="rent-salary-ui.js"></script>''')
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     def start():return subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     server=start()
@@ -188,6 +188,40 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert saved()['salaryMasters']['Bob']['status']=='Inactive' and saved()['salaryMasters'][new_id]['monthlyAmount']==900
         for key,value in old_periods.items():assert saved()['salaryPeriods'][key]==value,'Past posted salaries remain unchanged'
         future=request(None,'2027-06')[1]['salarySheet']['rows'];assert future['Alice']['netSalary']==2200 and new_id in future and 'Bob' not in future
+        # New routed advances keep their explicit starting month and fixed instalments.
+        (root/'data/accounts.json').write_text(json.dumps(initial))
+        advance={'action':'record_salary_advance','masterId':'Bob','amount':1000,'months':3,'date':'2026-10-20','recoveryFromMonth':'2026-11','paymentAccountId':'CASH|TTI','requestKey':'scheduled-advance-1'}
+        before=saved();status,preview=request({**advance,'preview':True});assert status==200 and preview['previews'] and saved()==before
+        status,posted=request(advance);assert status==200,posted;aid=posted['result']['advanceId']
+        assert request()[1]['salarySheet']['rows']['Bob']['advanceSuggested']==0
+        assert request(None,'2026-11')[1]['salarySheet']['rows']['Bob']['advanceSuggested']==333.34
+        before=saved();assert request(advance)[1]['result']['duplicate'] and saved()==before
+        assert request({**advance,'amount':2000})[0]==422 and saved()==before
+        status,second=request({**advance,'amount':100,'months':2,'requestKey':'scheduled-advance-2'});assert status==200,second;second_id=second['result']['advanceId']
+        for mo,remaining in [('2026-11',666.66),('2026-12',333.32),('2027-01',0)]:
+            status,prepared=request({'action':'prepare_month'},mo);assert status==200,prepared
+            assert abs(saved()['salaryAdvances'][aid]['remaining']-remaining)<.005
+            assert saved()['salaryAdvances'][second_id]['remaining']==(50 if mo=='2026-11' else 0)
+            before=saved();assert request({'action':'prepare_month'},mo)[0]==200 and saved()['salaryAdvances'][aid]==before['salaryAdvances'][aid]
+        assert all(j['sourceType']!='EXPENSE_PAYMENT' for j in saved()['journals'].values())
+        # A routed holder payment reduces the exact cash register once and cannot overspend it.
+        state=saved();cash_id='CASH|TTI|STAFF|BOB';state['pettyCashHolders']={cash_id:{'id':cash_id,'entity':'TTI','staffId':'Bob','name':'Bob','active':True}}
+        state['journals']['CASH-FUND']={'id':'CASH-FUND','entity':'TTI','status':'Posted','date':'2026-10-01','sourceType':'PETTY_CASH_TRANSFER','lines':[{'account':'1120','debit':200,'credit':0,'cashAccountId':cash_id},{'account':'1120','debit':0,'credit':200,'cashAccountId':'CASH|TTI'}]}
+        (root/'data/accounts.json').write_text(json.dumps(state));assert any(a['id']==cash_id for a in request()[1]['salaryAdvanceAccounts'])
+        holder_advance={**advance,'amount':50,'months':2,'paymentAccountId':cash_id,'recoveryFromMonth':'2027-02','requestKey':'holder-advance-1'}
+        before=saved();status,pre=request({**holder_advance,'preview':True});assert status==200,pre;assert saved()==before
+        status,paid=request(holder_advance);assert status==200,paid
+        journal=saved()['journals'][paid['result']['journalId']];assert journal['lines'][1]['cashAccountId']==cash_id
+        assert next(a['bookBalance'] for a in request()[1]['salaryAdvanceAccounts'] if a['id']==cash_id)==150
+        before=saved();assert request({**holder_advance,'amount':151,'requestKey':'holder-overspend'})[0]==422 and saved()==before
+        # Save staff from the open sheet into the same master used by Master Records.
+        mo='2027-02';sheet=request(None,mo)[1]['salarySheet'];old_posts=saved()['journals']
+        status,added=request({'action':'edit_salary_sheet_row','syncMaster':True,'version':sheet['version'],'name':'New recurring staff','category':'OFFICE_STAFF','netSalary':800,'zakatAmount':0,'otherAllowance':0},mo);assert status==200,added;new_id=added['result']['masterId']
+        assert saved()['salaryMasters'][new_id]['monthlyAmount']==800 and saved()['journals']==old_posts
+        status,edited=request({'action':'edit_salary_sheet_row','syncMaster':True,'masterId':new_id,'version':added['salarySheet']['version'],'name':'New recurring staff','category':'OFFICE_STAFF','netSalary':850,'zakatAmount':0,'otherAllowance':0},mo);assert status==200,edited
+        assert saved()['salaryMasters'][new_id]['monthlyAmount']==850
+        status,deleted=request({'action':'edit_salary_sheet_row','syncMaster':True,'operation':'remove','masterId':new_id,'version':edited['salarySheet']['version']},mo);assert status==200,deleted
+        assert saved()['salaryMasters'][new_id]['status']=='Inactive' and saved()['journals']==old_posts
         if os.getenv('TT_QA_BROWSER')=='1':
             # Browser setup is independent of the master-edit scenarios above.
             state=saved();state['salaryMasters']=json.loads(json.dumps(initial['salaryMasters']))
@@ -196,10 +230,14 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click()
-                page.locator('#rsAdvanceIcon').wait_for();assert page.locator('#rsPrepare').inner_text()=='▦ PREPARE SALARY'
-                page.locator('#rsAdvanceIcon').click();assert page.locator('#rsAdvanceAccount').input_value()=='bank-b','Payment default wins over receipt default'
-                assert page.locator('#rsAdvanceAccountDetails [data-method]').input_value()=='CHEQUE'
-                assert page.locator('#rsAdvanceAccountDetails [data-method] option').count()==2
+                page.locator('#rsPrepare').wait_for();assert page.locator('#rsAdvanceIcon,#rsMasterSetup').count()==0
+                page.evaluate("TT_RENT_SALARY_UI.openAdvance({paymentAccountId:'bank-b',date:'2026-10-20'})")
+                advance_form=page.locator('#rsAdvancePopup form');advance_form.locator('[name=masterId]').select_option('Bob');advance_form.locator('[name=amount]').fill('300');advance_form.locator('[name=recovery]').select_option('INSTALMENTS');advance_form.locator('[name=months]').fill('3')
+                assert advance_form.locator('[name=recoveryFromMonth]').input_value()=='2026-11'
+                page.locator('#rsStandaloneAdvanceSourceDetails [data-method]').select_option('ONLINE_BANKING')
+                before=saved();advance_form.get_by_role('button',name='Post Advance',exact=True).click();page.locator('[data-review-cancel]').click();page.locator('#rsAdvancePopup').wait_for(state='visible');assert saved()==before and advance_form.locator('[name=amount]').input_value()=='300'
+                advance_form.get_by_role('button',name='Post Advance',exact=True).click();page.locator('[data-review-post]').click();page.locator('#rsAdvancePopup').wait_for(state='detached')
+                assert len(saved()['journals'])==len(before['journals'])+1
                 page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsPrepare').click();page.locator('#rsMonth').fill('2027-01');page.locator('#rsMonth').dispatch_event('change')
                 page.locator('[data-rs-group="OFFICE_STAFF"] > summary').click()
                 page.locator('[data-rs-person="Bob"]').click();page.locator('#rsPaymentPopup').wait_for()
@@ -213,18 +251,13 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert page.locator('#rsFamilyCash').input_value()=='250' and float(page.locator('#rsFamilyBankAmount').input_value())==net-250
                 assert page.locator('#rsFamilyBank').input_value()=='bank-b'
                 page.locator('#rsDraftCancel').click()
-                page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsAdvanceIcon').click()
-                page.locator('#rsAdvanceKind').select_option('BF')
-                assert not page.locator('#rsAdvanceAccount').is_visible()
-                assert not page.locator('#rsAdvanceAccountDetails').is_visible()
-                assert page.locator('#rsAdvanceDate').input_value()=='2026-07-01'
-                assert page.locator('#rsAdvanceMonths').get_attribute('max')=='600'
-                page.locator('#rsAdvancePerson').select_option('Bob');page.locator('#rsAdvanceAmount').fill('79000');page.locator('#rsAdvanceMonths').fill('79')
-                before=saved();page.locator('#rsAdvanceSave').click()
-                page.get_by_text('Balance B/F',exact=True).wait_for()
-                assert len(saved()['journals'])==len(before['journals'])+1
-                opening=[j for j in saved()['journals'].values() if j['sourceType']=='SALARY_ADVANCE_OPENING'][-1]
-                assert {l['account'] for l in opening['lines']}=={'1230','3400'}
+                # A completed current month moves the opening month forward, while history stays read-only.
+                state=saved();state['salarySheets']={k:v for k,v in state.get('salarySheets',{}).items() if v.get('status')!='Completed'}
+                state['salarySheets']['TTI|2026-10']={'entity':'TTI','month':'2026-10','status':'Completed','version':1,'rows':{}}
+                (root/'data/accounts.json').write_text(json.dumps(state));page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsPrepare').wait_for();assert 'November 2026' in page.locator('#rsPrepare').inner_text()
+                page.locator('#rsPrepare').click();page.get_by_role('dialog',name='Review salary change').get_by_role('button',name='Continue').click();page.locator('#rsMonth').wait_for();assert page.locator('#rsMonth').input_value()=='2026-11'
+                page.locator('#rsMonth').fill('2026-10');page.locator('#rsMonth').dispatch_event('change');page.get_by_text('SALARY COMPLETED',exact=True).wait_for()
+                assert page.locator('#rsMasterSetup,#rsSalaryDates,#rsSalaryReview').count()==0
                 assert not errors,errors;browser.close()
-                print('Actual salary browser: two icons, advance unchanged, payment default, two methods, saved draft and Amend passed')
+                print('PASS salary browser: one entry, advance instalments with cancelled/retried accounting review, next month confirmation and completed statement controls')
     finally:server.terminate();server.wait(timeout=5)

@@ -51,7 +51,7 @@
       {title:'Pay Expense', note:'Pay anyone; combine several expenses in one cheque or payment', native:'expenses', special:'expense-pay'},
 
       {title:'Mill Bill Review', note:'Record verified Mill liabilities and follow linked supplier payments', native:'expenses', special:'mill-liabilities'},
-      {title:'Salaries & Staff', note:'Salary advance and monthly salary preparation', native:'expenses', special:'expense-salary'}
+      {title:'Salaries & Staff', note:'Prepare salary and review completed months', native:'expenses', special:'expense-salary'}
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'party'},{title:'Post ID Register',special:'post-ledger'},{title:'Trial Balance',native:'reports',find:'Trial Balance'},{title:'Chart of Accounts & Details',special:'account-heads'},{title:'Subaccounts & Details',special:'subaccounts'},{title:'Forward Booking Register',special:'forward-register'}]},
     {key:'reports', glyph:'▤', title:'Reports', note:'Financial, tax, party, commodity and shipment reports', actions:[
