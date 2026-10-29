@@ -230,7 +230,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click()
-                page.locator('#rsPrepare').wait_for();assert page.locator('#rsAdvanceIcon,#rsMasterSetup').count()==0
+                page.locator('#rsMonth').wait_for();assert page.locator('#rsPrepare,#rsAdvanceIcon,#rsMasterSetup').count()==0
                 page.evaluate("TT_RENT_SALARY_UI.openAdvance({paymentAccountId:'bank-b',date:'2026-10-20'})")
                 advance_form=page.locator('#rsAdvancePopup form');advance_form.locator('[name=masterId]').select_option('Bob');advance_form.locator('[name=amount]').fill('300');advance_form.locator('[name=recovery]').select_option('INSTALMENTS');advance_form.locator('[name=months]').fill('3')
                 assert advance_form.locator('[name=recoveryFromMonth]').input_value()=='2026-11'
@@ -238,7 +238,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 before=saved();advance_form.get_by_role('button',name='Post Advance',exact=True).click();page.locator('[data-review-cancel]').click();page.locator('#rsAdvancePopup').wait_for(state='visible');assert saved()==before and advance_form.locator('[name=amount]').input_value()=='300'
                 advance_form.get_by_role('button',name='Post Advance',exact=True).click();page.locator('[data-review-post]').click();page.locator('#rsAdvancePopup').wait_for(state='detached')
                 assert len(saved()['journals'])==len(before['journals'])+1
-                page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsPrepare').click();page.locator('#rsMonth').fill('2027-01');page.locator('#rsMonth').dispatch_event('change')
+                page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsMonth').fill('2027-01');page.locator('#rsMonth').dispatch_event('change')
                 page.locator('[data-rs-group="OFFICE_STAFF"] > summary').click()
                 page.locator('[data-rs-person="Bob"]').click();page.locator('#rsPaymentPopup').wait_for()
                 net=request(month='2027-01')[1]['salarySheet']['rows']['Bob']['outstanding'];assert float(page.locator('#rsFamilyCash').input_value())==net
@@ -254,10 +254,10 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 # A completed current month moves the opening month forward, while history stays read-only.
                 state=saved();state['salarySheets']={k:v for k,v in state.get('salarySheets',{}).items() if v.get('status')!='Completed'}
                 state['salarySheets']['TTI|2026-10']={'entity':'TTI','month':'2026-10','status':'Completed','version':1,'rows':{}}
-                (root/'data/accounts.json').write_text(json.dumps(state));page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsPrepare').wait_for();assert 'November 2026' in page.locator('#rsPrepare').inner_text()
-                page.locator('#rsPrepare').click();page.get_by_role('dialog',name='Review salary change').get_by_role('button',name='Continue').click();page.locator('#rsMonth').wait_for();assert page.locator('#rsMonth').input_value()=='2026-11'
+                (root/'data/accounts.json').write_text(json.dumps(state));page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsMonth').wait_for();assert page.locator('#rsMonth').input_value()=='2026-11'
+                assert page.get_by_role('dialog',name='Review salary change').count()==0;page.locator('#rsMonth').wait_for();assert page.locator('#rsMonth').input_value()=='2026-11'
                 page.locator('#rsMonth').fill('2026-10');page.locator('#rsMonth').dispatch_event('change');page.get_by_text('SALARY COMPLETED',exact=True).wait_for()
                 assert page.locator('#rsMasterSetup,#rsSalaryDates,#rsSalaryReview').count()==0
                 assert not errors,errors;browser.close()
-                print('PASS salary browser: one entry, advance instalments with cancelled/retried accounting review, next month confirmation and completed statement controls')
+                print('PASS salary browser: one entry, advance instalments with cancelled/retried accounting review, direct next month opening and completed statement controls')
     finally:server.terminate();server.wait(timeout=5)

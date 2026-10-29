@@ -130,7 +130,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 page.locator('#rsApplyMaster').click();page.get_by_role('dialog',name='Review salary change').get_by_role('button',name='Continue',exact=True).click()
                 review=page.get_by_role('dialog',name='Review accounting entries');review.wait_for();assert not page.locator('#rsMasterPopup').is_visible()
                 review.get_by_role('button',name='Back to entry',exact=True).click();page.locator('#rsMasterPopup').wait_for();assert saved()==before
-                page.locator('#rsMasterClose').click();page.locator('#rsPrepare').click()
+                page.locator('#rsMasterClose').click();page.locator('#rsMonth').wait_for()
                 page.locator('#rsMonth').fill('2026-10');page.locator('#rsMonth').dispatch_event('change')
                 page.locator('[data-rs-post-group="OFFICE_STAFF"]').wait_for()
                 assert page.locator('#rsRefresh,#rsApplyMaster,#rsCollapseGroups,#rsExpandGroups,#rsResetDraft').count()==0

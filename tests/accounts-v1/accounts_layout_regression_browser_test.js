@@ -66,12 +66,12 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  assert(salaryMobile.scroll<=salaryMobile.width+2,'Salary advance form fits mobile: '+JSON.stringify(salaryMobile));
  assert.equal(await page.evaluate(()=>posted.length),writesBefore,'Changing payment/opening controls makes no posting');
  await page.locator('#rsAdvancePopup [data-close]').click();await page.setViewportSize({width:1440,height:1000});
- await page.evaluate(()=>{document.querySelector('#ws-jv').classList.remove('active');document.querySelector('#ws-expenses').classList.add('active');return TT_RENT_SALARY_UI.open('salary');});await page.waitForSelector('#rsPrepare');assert.equal(await page.locator('#rsMasterSetup,#rsSalaryBack').count(),0);await page.locator('#rsPrepare').click();assert.equal(await page.locator('#rsSalaryBack').count(),1);assert.equal(await page.locator('[data-rs-group][open]').count(),0);await shot(page.locator('.ttrs'),'salary-sheet');assert.equal(await page.locator('#rsMasterSetup').count(),0);
+ await page.evaluate(()=>{document.querySelector('#ws-jv').classList.remove('active');document.querySelector('#ws-expenses').classList.add('active');return TT_RENT_SALARY_UI.open('salary');});await page.waitForSelector('#rsMonth');assert.equal(await page.locator('#rsMasterSetup,#rsSalaryBack').count(),0);assert.equal(await page.locator('#rsSalaryBack').count(),0);assert.equal(await page.locator('[data-rs-group][open]').count(),0);await shot(page.locator('.ttrs'),'salary-sheet');assert.equal(await page.locator('#rsMasterSetup').count(),0);
 
  // A long real salary list must keep every person's actions beside their name;
  // the shared control normalizer must not move removal into a new column.
  await page.evaluate(()=>{fixture.salarySheet.rows=Object.fromEntries(Array.from({length:31},(_,i)=>{const id='S'+i;return [id,{masterId:id,name:'Staff member '+i,category:'OFFICE_STAFF',categoryName:'Office Staff',netSalary:50000,zakatAmount:1000,otherAllowance:2000,totalDue:53000,advanceApplied:1000,paidAfterPrepare:0,outstanding:52000}]}));return TT_RENT_SALARY_UI.open('salary');});
- await page.locator('#rsPrepare').click();await page.locator('[data-rs-group="OFFICE_STAFF"] > summary').click();
+ await page.locator('[data-rs-group="OFFICE_STAFF"] > summary').click();
  for(const width of [1440,1280,1024,700,390]){
   await page.setViewportSize({width,height:900});await page.waitForTimeout(70);
   assert(await page.locator('.ttrs-salary-table').evaluateAll(tables=>tables.length>0&&tables.every(table=>table.querySelectorAll('th').length===5)),'Each salary group keeps five aligned columns');
@@ -86,7 +86,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  // The Director/Mrs planner must work with the real searchable selects and
  // formatted numeric controls, and have one clear remove button per payment.
  await page.evaluate(()=>{const person=(id,category,total)=>({masterId:id,name:id,category,categoryName:category,netSalary:total,totalDue:total,advanceApplied:0,advanceOutstanding:0,originalAdvanceApplied:0,paidAfterPrepare:0,outstanding:total});fixture.salarySheet.rows={Mrs:person('Mrs','HOME_MONTHLY_GIVE',310000),Salman:person('Salman','DIRECTOR_REMUNERATION',200000)};fixture.allocationCapital=[{id:'BROKER_FUND|BMA',name:'BMA'}];fixture.allocationExpenses=[{id:'HOME',name:'Salman home',parentCode:'6910'}];return TT_RENT_SALARY_UI.open('salary');});
- await page.locator('#rsPrepare').click();await page.locator('[data-rs-group="DIRECTORS"] > summary').click();await page.locator('[data-rs-person="Mrs"]').click();
+ await page.locator('[data-rs-group="DIRECTORS"] > summary').click();await page.locator('[data-rs-person="Mrs"]').click();
  const plan=page.locator('#rsDraftForm');assert.equal(await plan.locator('.rs-plan-row').count(),0);assert.equal(await plan.locator('[data-tx-recipient]').count(),0);
  assert.equal(await plan.locator('#rsFamilyUseRetain').isChecked(),true);assert.equal(await plan.locator('#rsFamilyRetained').inputValue(),'310000');assert.equal(await plan.locator('#rsFamilyCashFields').isVisible(),false);await plan.locator('#rsFamilyUseCash').check();assert.equal(await plan.locator('#rsFamilyCash').inputValue(),'310000');
  await page.locator('#rsAddTransaction').click();let planned=plan.locator('.rs-plan-row').last();
