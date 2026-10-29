@@ -1073,7 +1073,7 @@
         ...JSON.parse(row.querySelector('[data-document-json]')?.value||'{}'),id:row.querySelector('[data-document-id]')?.value||'',type:row.querySelector('[data-document-type]')?.value||'Other',label:row.querySelector('[data-document-label]')?.value.trim()||'',version:row.querySelector('[data-document-version]')?.value.trim()||'1',status:row.querySelector('[data-document-status]')?.value||'Active',isDefault:!!row.querySelector('[data-document-default]')?.checked
       })).filter(doc=>doc.id&&doc.label));
       values[15]=JSON.stringify([...document.querySelectorAll('.company-fx-row')].filter(row=>!row.hidden).map(row=>({currencyA:row.dataset.currencyA,currencyB:row.dataset.currencyB,rateAToB:row.querySelector('[data-fx-forward]')?.value.trim()||'',rateBToA:row.querySelector('[data-fx-reverse]')?.value.trim()||''})).filter(pair=>pair.rateAToB||pair.rateBToA));
-      values[16]=JSON.stringify([...document.querySelectorAll('.company-registration-row')].map(row=>({type:row.querySelector('[data-registration-type]')?.value.trim()||'',number:row.querySelector('[data-registration-number]')?.value.trim()||'',jurisdiction:row.querySelector('[data-registration-jurisdiction]')?.value.trim()||'',expiryDate:row.querySelector('[data-registration-expiry]')?.value||'',notes:row.querySelector('[data-registration-notes]')?.value.trim()||''})).filter(item=>item.number));
+      values[16]=JSON.stringify([...document.querySelectorAll('.company-registration-row')].map(row=>({type:row.querySelector('[data-registration-type]')?.value.trim()||'',number:row.querySelector('[data-registration-number]')?.value.trim()||'',jurisdiction:row.querySelector('[data-registration-jurisdiction]')?.value.trim()||'',expiryDate:row.querySelector('[data-registration-expiry]')?.value||'',notes:row.querySelector('[data-registration-notes]')?.value.trim()||''})).map(item=>({...item,status:!item.type||!item.number?'Draft':'Active'})).filter(item=>item.type||item.number||item.jurisdiction||item.expiryDate||item.notes));
       return values;
     }
     if (type.id === "products") {
@@ -1460,6 +1460,8 @@
     const row = (state.masters[type.id] || []).find(item => item.id === id);
     if(id&&!row){toast("This master record is no longer available. Reopen the current list.");return;}
     document.getElementById("masterForm").reset();
+    document.getElementById("masterForm").dataset.expectedRevision=row?.revision||'';
+    document.getElementById("masterForm").dataset.masterRequestId=row?'':(window.crypto?.randomUUID?.()||`master-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     document.getElementById("masterForm").dataset.purchaseCommodity=type.id==="purchase_products"?String(row?.values?.[0]||"").toUpperCase():"";
     document.getElementById("editMasterId").value = row?.id || "";
     document.getElementById("masterDialogTitle").textContent = `${row ? "Edit" : "Add"} ${type.name}`;
@@ -1589,35 +1591,94 @@
     dirtyDialogs.delete("masterDialog");
     document.getElementById("masterDialog").showModal();
   }
+  // Keep one in-flight save per editor; a second click must never create another row.
+  let masterSaveInFlight=false;
   async function saveMasterRecord(event) {
     event.preventDefault();
-    const form = document.getElementById("masterForm");
-    if (!form.reportValidity()) return;
-    const type = activeMasterType();
-    const id = document.getElementById("editMasterId").value;
-    if(type.id==="companies"){const shares=[...document.querySelectorAll('[data-company-owner-share]')].map(input=>Number(input.value||0)),total=shares.reduce((sum,value)=>sum+value,0);if(shares.length===1&&shares[0]===0)document.querySelector('[data-company-owner-share]').value="100";else if(Math.abs(total-100)>.001){toast("Owner / partner shares must total 100%.");return}}
-    try { await resolvePartyRoleBeforeSave(type); await resolveProductOptionsBeforeSave(type); } catch (error) { toast(error.message); return; }
-    const values = masterValuesFromForm(type);
-    const primary = values[0] || type.name;
-    const ref = values[1] || type.id.toUpperCase();
+    const form=document.getElementById("masterForm");
+    if(masterSaveInFlight||!form.reportValidity())return;
+    const type=activeMasterType();
+    const id=document.getElementById("editMasterId").value;
+    if(type.id==="companies"){
+      const shares=[...document.querySelectorAll('[data-company-owner-share]')].map(input=>Number(input.value||0));
+      const total=shares.reduce((sum,value)=>sum+value,0);
+      if(shares.length===1&&shares[0]===0)document.querySelector('[data-company-owner-share]').value="100";
+      else if(Math.abs(total-100)>.001){toast("Owner / partner shares must total 100%.");return;}
+    }
+    const button=document.getElementById("saveMasterButton");
+    masterSaveInFlight=true;button.disabled=true;
+    let committed=false,uploadPhase=false;
     try {
+      await resolvePartyRoleBeforeSave(type);
+      await resolveProductOptionsBeforeSave(type);
+      const values=masterValuesFromForm(type);
+      const primary=values[0]||type.name,ref=values[1]||type.id.toUpperCase();
       if(type.id==="reference_lists"){
         const existing=id?(state.masters.reference_lists||[]).find(row=>row.id===id):null;
         const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:existing?"rename":"add",optionKey:existing?.values?.[0]||values[0],old:existing?.values?.[1]||"",value:values[1],fullName:(existing?.values?.[0]||values[0])==='currencies'?values[2]:''},"masters");
-        if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();savedNotice(existing?"Reference option updated.":"Reference option added.");return;
+        if(data.options)state.masterOptions=data.options;
+        state.masters=ensureMasterSections(data.masters,state.masterOptions);
+        saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();
+        savedNotice(existing?"Reference option updated.":"Reference option added.");return;
       }
       const pendingDocuments=type.id==="companies"?[...document.querySelectorAll('.company-document-row')].filter(row=>!row.querySelector('[data-document-id]')?.value&&row.querySelector('[data-document-file]')?.files?.[0]):[];
-      const data = await apiRequest({ action: id ? "update" : "create", type: type.id, id, values }, "masters");
-      const companyId=data.id||id;
-      for (const row of pendingDocuments) {
-        const payload=new FormData();payload.append('csrf',SESSION.csrf);payload.append('action','upload');payload.append('companyId',companyId);payload.append('type',row.querySelector('[data-document-type]').value);payload.append('label',row.querySelector('[data-document-label]').value.trim());payload.append('isDefault',row.querySelector('[data-document-default]').checked?'1':'');payload.append('file',row.querySelector('[data-document-file]').files[0]);
-        const response=await fetch('api/master_documents.php',{method:'POST',body:payload});const uploaded=await response.json().catch(()=>({ok:false,error:'Document upload returned an unreadable response.'}));if(!response.ok||!uploaded.ok)throw new Error(uploaded.error||'Company document upload failed.');
+      const data=await apiRequest({action:id?"update":"create",type:type.id,id,values,
+        ...(id?form.dataset.expectedRevision?{expectedRevision:form.dataset.expectedRevision}:{}:{requestId:form.dataset.masterRequestId})},"masters");
+      committed=true;
+      const savedId=data.id||id;
+      if(data.options)state.masterOptions=data.options;
+      state.masters=ensureMasterSections(data.masters,state.masterOptions);
+      const savedRow=(state.masters[type.id]||[]).find(item=>item.id===savedId);
+      form.dataset.expectedRevision=savedRow?.revision||'';
+      if(!id)document.getElementById("editMasterId").value=savedId;
+      saveState();
+      uploadPhase=true;
+      for(const row of pendingDocuments){
+        const payload=new FormData();
+        payload.append('csrf',SESSION.csrf);payload.append('action','upload');payload.append('companyId',savedId);
+        payload.append('type',row.querySelector('[data-document-type]').value);
+        payload.append('label',row.querySelector('[data-document-label]').value.trim());
+        payload.append('isDefault',row.querySelector('[data-document-default]').checked?'1':'');
+        payload.append('file',row.querySelector('[data-document-file]').files[0]);
+        const response=await fetch('api/master_documents.php',{method:'POST',body:payload});
+        const uploaded=await response.json().catch(()=>({ok:false,error:'Document upload returned an unreadable response.'}));
+        if(!response.ok||!uploaded.ok)throw new Error(uploaded.error||'Company document upload failed.');
+        if(uploaded.document?.id){
+          row.querySelector('[data-document-id]').value=uploaded.document.id;
+          row.querySelector('[data-document-json]').value=JSON.stringify(uploaded.document);
+        }
+        if(uploaded.revision)form.dataset.expectedRevision=uploaded.revision;
       }
-      if (pendingDocuments.length) { const refreshed=await apiRequest(null,"masters");data.masters=refreshed.masters; }
-      if (data.options) state.masterOptions=data.options; state.masters = ensureMasterSections(data.masters,state.masterOptions); addAudit("Master", id ? "Updated" : "Created", `${type.name}: ${primary}`, ref);
-      if(type.id==="purchase_kat"){currentPurchaseSection="PRODUCTS";pendingKatProductId=""}
-      saveState(); renderMasters(); renderAudit(); renderRecentActivity(); document.getElementById("masterDialog").close(); form.reset(); savedNotice(id ? type.name+" updated." : type.name+" saved.");
-    } catch (error) { toast(error.message); }
+      if(pendingDocuments.length){
+        const refreshed=await apiRequest(null,"masters");
+        data.masters=refreshed.masters;
+        state.masters=ensureMasterSections(data.masters,state.masterOptions);
+      }
+      uploadPhase=false;
+      const finalRow=(state.masters[type.id]||[]).find(item=>item.id===savedId);
+      form.dataset.expectedRevision=finalRow?.revision||form.dataset.expectedRevision;
+      addAudit("Master",id?"Updated":"Created",`${type.name}: ${primary}`,ref);
+      if(type.id==="purchase_kat"){currentPurchaseSection="PRODUCTS";pendingKatProductId="";}
+      saveState();renderMasters();renderAudit();renderRecentActivity();
+      document.getElementById("masterDialog").close();form.reset();
+      savedNotice(id?type.name+" updated.":type.name+" saved.");
+    }catch(error){
+      if(committed&&type.id==="companies"&&uploadPhase){
+        // The company save is durable even when one attachment fails. Preserve
+        // the editor and saved ID so Retry updates instead of creating again.
+        try{
+          const refreshed=await apiRequest(null,"masters");
+          state.masters=ensureMasterSections(refreshed.masters,state.masterOptions);
+          const savedId=document.getElementById("editMasterId").value;
+          const latest=(state.masters.companies||[]).find(item=>item.id===savedId);
+          if(latest?.revision)form.dataset.expectedRevision=latest.revision;
+          saveState();renderMasters();
+        }catch(_){}
+        toast("Company details were saved, but a document upload failed: "+error.message+". Retry Save Changes; the company will not be created again.");
+      }else toast(error.message);
+    }finally{
+      masterSaveInFlight=false;button.disabled=false;
+    }
   }
   async function deleteMasterRecord(selectedId) {
     const type=activeMasterType();
