@@ -1397,9 +1397,11 @@
       if(index>=0)banks[index]=bank;else banks.push(bank);
       if(draft){bankField.value=JSON.stringify(banks);document.getElementById('companyBankRows').innerHTML=companyBankTable(banks);bankField.dispatchEvent(new Event('change'));dirtyDialogs.add('masterDialog');dirtyDialogs.delete('bankDialog');document.getElementById('bankDialog').close();savedNotice('Bank account added to the company draft.');return;}
       const values=[...company.values];values[13]=JSON.stringify(banks);
-      const data=await apiRequest({action:"update",type:"companies",id:company.id,values},"masters");
+      const data=await apiRequest({action:"update",type:"companies",id:company.id,values,...(company.revision?{expectedRevision:company.revision}:{})},"masters");
       state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
-      if(document.getElementById('masterDialog').open&&bankField){const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
+      if(document.getElementById('masterDialog').open&&bankField){
+        const savedCompany=(state.masters.companies||[]).find(row=>row.id===company.id);
+        if(savedCompany?.revision)document.getElementById('masterForm').dataset.expectedRevision=savedCompany.revision;const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
       renderMasters();dirtyDialogs.delete("bankDialog");document.getElementById("bankDialog").close();savedNotice("Saved successfully.");
     }catch(error){showBankSaveError(error.message||"The bank account could not be saved. Please try again.")}finally{button.disabled=false}
   }
