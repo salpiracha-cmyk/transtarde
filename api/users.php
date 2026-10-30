@@ -66,7 +66,7 @@ try {
         respond(['ok'=>true,'username'=>$input['username'],'temporaryPassword'=>$created['temporaryPassword'],'users'=>tt_list_public_users()]);
     }
     $id=(int)($body['id'] ?? 0); if ($id<=0) throw new InvalidArgumentException('Select a valid user.');
-    if ($action==='update') { $existing=tt_find_user_by_id($id); $input=clean_input($body,(array)($existing['permissions']??[]),(array)$existing); tt_update_staff_user($id,$input); tt_audit((int)$admin['id'],$admin['username'],'Updated user '.$input['username']); respond(['ok'=>true,'users'=>tt_list_public_users()]); }
+    if ($action==='update') { $existing=tt_find_user_by_id($id); $input=clean_input($body,(array)($existing['permissions']??[]),(array)$existing); $expected=$body['expectedRevision']??null;if($expected!==null&&(!is_string($expected)||!preg_match('/^[a-f0-9]{64}$/D',$expected)))throw new InvalidArgumentException('Invalid user version. Reopen the user.'); tt_update_staff_user($id,$input,$expected); tt_audit((int)$admin['id'],$admin['username'],'Updated user '.$input['username']); respond(['ok'=>true,'users'=>tt_list_public_users()]); }
     if ($action==='delete') { tt_delete_staff_user($id); tt_audit((int)$admin['id'],$admin['username'],'Deleted staff user '.$id); respond(['ok'=>true,'users'=>tt_list_public_users()]); }
     if ($action==='reset-password') { $user=tt_find_user_by_id($id); $temporary=tt_reset_staff_password($id); tt_audit((int)$admin['id'],$admin['username'],'Reset password for '.($user['username'] ?? $id)); respond(['ok'=>true,'username'=>$user['username'] ?? '', 'temporaryPassword'=>$temporary]); }
     respond(['ok'=>false,'error'=>'Unknown action.'],400);

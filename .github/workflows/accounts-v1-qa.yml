@@ -45,6 +45,8 @@ jobs:
           python3 tests/security/accounts_document_access_test.py
           python3 tests/security/accounts_read_scope_test.py
           node tests/security/live_credential_artifact_test.js
+          node tests/security/master_console_browser_storage_test.js
+          python3 tests/security/master_document_metadata_access_test.py
           python3 tests/accounts-v1/staff_payment_amend_http_test.py
           php tests/accounts-v1/directors_trading_test.php
           php tests/accounts-v1/exporter_soda_arrangements_test.php
@@ -334,6 +336,7 @@ jobs:
           node tests/accounts-v1/console_access_preservation_test.js
           node tests/accounts-v1/purchase_master_conditionals_test.js
           node tests/accounts-v1/master_reference_conditionals_test.js
+          node tests/accounts-v1/master_console_save_safety_test.js
           node tests/accounts-v1/master_business_date_test.js
           node tests/accounts-v1/master_location_billing_test.js
           php tests/accounts-v1/user_input_preservation_test.php

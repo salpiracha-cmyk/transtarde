@@ -5,6 +5,7 @@
   if (!window.TT_SESSION?.id) { window.location.replace('/login.php'); return; }
 
   const STORAGE_KEY = "transtrade_super_admin_v1";
+  const UI_STORAGE_KEY = `transtrade_super_admin_ui_v2_${window.TT_SESSION.id}`;
   const STATE_VERSION = 5;
   const ACTIONS = ["View", "Create", "Edit", "Delete", "Print", "Approve", "Reports"];
   const ICON_ACTIONS = ["View", "Create", "Edit"];
@@ -235,35 +236,49 @@
 
   function cloneDefault() { return JSON.parse(JSON.stringify(defaultState)); }
   function loadState() {
+    const initial=cloneDefault();
+    // Server-backed users, banks, masters and audit events must never be
+    // resurrected from another user's persistent browser cache.
+    initial.users=[];
+    // Safe built-in Master templates remain visible while the authenticated
+    // server snapshot loads; no prior user's saved records are restored.
+    initial.audit=[];
+    initial.permissionChanges=0;
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (!saved || !saved.users || !saved.audit) return cloneDefault();
-      const loaded = { ...cloneDefault(), ...saved };
-      loaded.masters = ensureMasterSections(loaded.masters,loaded.masterOptions);
-      if ((loaded.stateVersion || 1) < STATE_VERSION) {
-        loaded.users = loaded.users.filter(user => {
-          const identity = `${user.name || ""} ${user.username || ""}`.toLowerCase();
-          return user.id !== "u-irfan" && !identity.includes("irfan");
-        });
-        const demoRefs = new Set(["MILL-V3.3.2", "EXP-V2.6", "TTI-EXP-042"]);
-        const qaMarker = /(^|[\s\/_-])(QA|TEST|DUMMY|DEMO|SAMPLE|BULK)([\s\/_-]|$)/i;
-        loaded.audit = loaded.audit.filter(item => String(item.user).toLowerCase() !== "irfan" && !demoRefs.has(String(item.ref || "")) && !qaMarker.test(Object.values(item).join(" ")));
-        loaded.audit.unshift({ date: nowStamp(), user: "System", area: "User", action: "Removed", detail: "Accidental Irfan trial user removed", ref: "ADMIN-CLEANUP" });
-        loaded.stateVersion = STATE_VERSION;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+      const saved=JSON.parse(localStorage.getItem(UI_STORAGE_KEY)||'null');
+      if(saved?.locks&&IS_SUPER_ADMIN){
+        for(const module of MODULES){
+          const lock=saved.locks[module.id];
+          if(lock&&typeof lock.locked==='boolean'&&typeof lock.changed==='string'){
+            initial.locks[module.id]={locked:lock.locked,
+              approvedBy:typeof lock.approvedBy==='string'?lock.approvedBy.slice(0,80):'—',
+              changed:lock.changed.slice(0,160)};
+          }
+        }
       }
-      return loaded;
-    } catch (_) { return cloneDefault(); }
+      // Remove the historical snapshot containing account identifiers and
+      // staff/master details. Only harmless local review notes survive.
+      localStorage.removeItem(STORAGE_KEY);
+    }catch(_){
+      try{localStorage.removeItem(STORAGE_KEY)}catch(__){}
+    }
+    return initial;
   }
   function saveState(message = "All changes saved") {
-    const indicator = document.getElementById("saveState");
+    const indicator=document.getElementById("saveState");
     indicator?.classList.add("saving");
-    if (indicator) indicator.lastChild.textContent = " Saving…";
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    window.setTimeout(() => {
+    if(indicator)indicator.lastChild.textContent=" Saving…";
+    try{
+      localStorage.removeItem(STORAGE_KEY);
+      if(IS_SUPER_ADMIN)localStorage.setItem(UI_STORAGE_KEY,JSON.stringify({locks:state.locks}));
+    }catch(_){
+      // A blocked browser cache must not turn a successful server save into
+      // a misleading failure or trigger a duplicate submission.
+    }
+    window.setTimeout(()=>{
       indicator?.classList.remove("saving");
-      if (indicator) indicator.lastChild.textContent = ` ${message}`;
-    }, 280);
+      if(indicator)indicator.lastChild.textContent=` ${message}`;
+    },280);
   }
   function initials(name) { return name.split(/\s+/).map(part => part[0]).slice(0, 2).join("").toUpperCase(); }
   function escapeHtml(value) { return String(value ?? "").replace(/[&<>'"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[c])); }
@@ -310,9 +325,21 @@
     const response = await fetch(`api/${endpoint}.php`, options);
     const data = await response.json().catch(() => ({ ok: false, error: "The server returned an unreadable response." }));
     if (!response.ok || !data.ok) throw new Error(data.error || "The user action could not be completed.");
+    if(data.masterWarnings?.length){let warning=document.getElementById('masterReadWarning');if(!warning){warning=document.createElement('div');warning.id='masterReadWarning';warning.className='console-form-error';warning.setAttribute('role','alert');document.querySelector('.content').prepend(warning);}warning.textContent=data.masterWarnings.join(' ');}
+    else if(endpoint==='masters')document.getElementById('masterReadWarning')?.remove();
+    if(data.bankDefaultSync)showBankSyncStatus(data.bankDefaultSync);
     return data;
   }
 
+  function showBankSyncStatus(sync) {
+    let node=document.getElementById('bankDefaultSyncWarning');
+    if(sync.status==='complete'){[...(node?.querySelectorAll('[data-retry-bank-sync]')||[])].find(button=>button.dataset.retryBankSync===sync.companyId)?.closest('p')?.remove();if(node&&!node.children.length)node.remove();return;}
+    if(!node){node=document.createElement('section');node.id='bankDefaultSyncWarning';node.className='console-form-error';node.setAttribute('role','alert');document.querySelector('.content').prepend(node);}
+    let row=[...node.children].find(el=>el.dataset.companyId===sync.companyId);
+    if(!row){row=document.createElement('p');row.dataset.companyId=sync.companyId;node.append(row);}
+    row.textContent=sync.message+' ';const button=document.createElement('button');button.type='button';button.className='button secondary';button.dataset.retryBankSync=sync.companyId;button.textContent='Retry bank defaults';row.append(button);
+    button.onclick=async()=>{button.disabled=true;try{await apiRequest({action:'sync-company-bank-defaults',type:'companies',id:sync.companyId},'masters')}catch(error){toast(error.message)}finally{button.disabled=false}};
+  }
   function canOpenModule(name) {
     if (IS_SUPER_ADMIN) return true;
     const permission = SESSION.permissions?.[name];
@@ -386,6 +413,12 @@
     }
   }
   function toast(message) {
+    const dialog=[...document.querySelectorAll('dialog[open]')].at(-1);
+    if(dialog){
+      let alert=dialog.querySelector('.console-form-error');
+      if(!alert){alert=document.createElement('div');alert.className='console-form-error';alert.setAttribute('role','alert');(dialog.querySelector('form')||dialog).prepend(alert);}
+      alert.textContent=message;alert.scrollIntoView?.({block:'nearest'});return;
+    }
     const region = document.getElementById("toastRegion");
     const node = document.createElement("div");
     node.className = "toast";
@@ -497,6 +530,8 @@
   function openUserDialog(userId) {
     const dialog = document.getElementById("userDialog");
     const form = document.getElementById("userForm");
+    form.querySelector(".console-form-error")?.remove();
+    form.dataset.expectedRevision=userId?state.users.find(item=>item.id===userId)?.revision||"":"";
     form.reset();
     directorPermissionDraft = null;
     const user = state.users.find(item => item.id === userId);
@@ -546,8 +581,10 @@
       document.getElementById("userDialog").close(); showCredentials(data.username, data.temporaryPassword);
     } catch (error) { toast(error.message); }
   }
+  let userSaveInFlight=false;
   async function saveUser(event) {
     event.preventDefault();
+    if(userSaveInFlight)return;
     const form = document.getElementById("userForm");
     if (!form.reportValidity()) return;
     const id = document.getElementById("editUserId").value;
@@ -599,13 +636,15 @@
       masterAccess, masterPermissions,
       lastActive: id ? (state.users.find(item => item.id === id)?.lastActive || "Not activated") : "Not activated"
     };
+    userSaveInFlight=true;document.getElementById("saveUserButton").disabled=true;
     try {
-      const data = await apiRequest({ action: id ? "update" : "create", ...user });
+      const data = await apiRequest({ action: id ? "update" : "create", ...user, ...(id&&form.dataset.expectedRevision?{expectedRevision:form.dataset.expectedRevision}:{}) });
       state.users = data.users; state.permissionChanges += 1; renderUsers();
       document.getElementById("userDialog").close();
       if (data.temporaryPassword) showCredentials(data.username, data.temporaryPassword);
       else savedNotice("User and permissions have been updated.");
     } catch (error) { toast(error.message); }
+    finally {userSaveInFlight=false;document.getElementById("saveUserButton").disabled=false;}
   }
 
   function ensureMasterSections(masters = {},masterOptions = {}) {
@@ -720,7 +759,7 @@
     return `<div class="master-form-grid company-fx-row" data-currency-a="${escapeHtml(a)}" data-currency-b="${escapeHtml(b)}"><label>${escapeHtml(a)} → ${escapeHtml(b)}<input data-fx-forward type="number" min="0.00000001" step="any" inputmode="decimal" value="${escapeHtml(pair.rateAToB||'')}" placeholder="1 ${escapeHtml(a)} = ? ${escapeHtml(b)}"></label><label>${escapeHtml(b)} → ${escapeHtml(a)}<input data-fx-reverse type="number" min="0.00000001" step="any" inputmode="decimal" value="${escapeHtml(pair.rateBToA||'')}" placeholder="1 ${escapeHtml(b)} = ? ${escapeHtml(a)}"></label><button type="button" class="button danger" data-remove-company-fx>Delete row</button></div>`;
   }
   function companyRegistrationRow(item={}) {
-    return `<div class="master-form-grid company-registration-row"><label>Registration type<input data-registration-type value="${escapeHtml(item.type||"")}" placeholder="e.g. VAT Registration / VAT TRN"></label><label>Number<input data-registration-number value="${escapeHtml(item.number||"")}"></label><label>Jurisdiction<input data-registration-jurisdiction value="${escapeHtml(item.jurisdiction||"")}"></label><label>Expiry date<input type="date" data-registration-expiry value="${escapeHtml(item.expiryDate||"")}"></label><label class="full-span">Notes<input data-registration-notes value="${escapeHtml(item.notes||"")}"></label><button type="button" class="button danger" data-remove-company-registration>Delete row</button></div>`;
+    return `<div class="master-form-grid company-registration-row"><input type="hidden" data-registration-status value="${escapeHtml(item.status||'Active')}"><label>Registration type<input data-registration-type value="${escapeHtml(item.type||"")}" placeholder="e.g. VAT Registration / VAT TRN"></label><label>Number<input data-registration-number value="${escapeHtml(item.number||"")}"></label><label>Jurisdiction<input data-registration-jurisdiction value="${escapeHtml(item.jurisdiction||"")}"></label><label>Expiry date<input type="date" data-registration-expiry value="${escapeHtml(item.expiryDate||"")}"></label><label class="full-span">Notes<input data-registration-notes value="${escapeHtml(item.notes||"")}"></label><button type="button" class="button danger" data-remove-company-registration>Delete row</button></div>`;
   }
   function companyBankTable(banks,includeInactive=false) {
     const visible=banks.filter(bank=>includeInactive||String(bank.status||"Active").toLowerCase()!=="inactive");
@@ -730,7 +769,7 @@
       return `<tr><td>${escapeHtml(bank.bankName||"—")}</td><td><strong>${escapeHtml(bank.accountTitle||"—")}</strong><small>${escapeHtml(details)}</small></td><td>${escapeHtml([bank.accountNumber,bank.iban].filter(Boolean).join(" · ")||"—")}</td><td>${escapeHtml(bank.currency||"—")}</td><td>${bank.isDefault?'<span class="tag">Yes</span>':"—"}</td><td>${canMaster('companies','Edit')&&bank.status!=="Inactive"?`<button class="row-action" type="button" data-edit-company-bank="${escapeHtml(bank.id||"")}">Edit</button>`:""}</td></tr>`;
     }).join(""):'<tr><td colspan="6">No bank accounts yet.</td></tr>'}</tbody></table></div>`;
   }
-  function companyDocumentRow(doc={}) { const controls=doc.id?`<div class="row-actions">${canMaster('companies','View Documents')?'<button type="button" class="row-action" data-preview-company-document>Preview</button>':''}${canMaster('companies','Download Documents')?'<button type="button" class="row-action" data-download-company-document>Download</button>':''}<span class="tag">Version ${escapeHtml(doc.version||1)}</span></div>`:`<label>PNG, JPG, WebP or PDF<input type="file" data-document-file accept="image/png,image/jpeg,image/webp,application/pdf" required></label>`;return `<div class="master-form-grid company-document-row"><input type="hidden" data-document-json value="${escapeHtml(JSON.stringify(doc))}"><input type="hidden" data-document-id value="${escapeHtml(doc.id||"")}"><label>Document type<select data-document-type>${["Header","Footer","Signature","Stamp","Letterhead","Other"].map(x=>`<option ${x===String(doc.type||"")?"selected":""}>${x}</option>`).join("")}</select></label><label>Label<input data-document-label value="${escapeHtml(doc.label||"")}" required></label><label>Version<input data-document-version value="${escapeHtml(doc.version||"1")}" readonly></label><label>Status<select data-document-status><option ${String(doc.status||"Active")==="Active"?"selected":""}>Active</option><option ${String(doc.status||"")==="Inactive"?"selected":""}>Inactive</option></select></label><label><input type="checkbox" data-document-default ${doc.isDefault?"checked":""}> Default for this type</label>${controls}<button type="button" class="button danger" data-remove-company-document>Deactivate</button></div>`; }
+  function companyDocumentRow(doc={}) { const uploadRequestId=doc.uploadRequestId||(window.crypto?.randomUUID?.()||`document-${Date.now()}-${Math.random().toString(36).slice(2)}`);const controls=doc.id?`<div class="row-actions">${canMaster('companies','View Documents')?'<button type="button" class="row-action" data-preview-company-document>Preview</button>':''}${canMaster('companies','Download Documents')?'<button type="button" class="row-action" data-download-company-document>Download</button>':''}<span class="tag">Version ${escapeHtml(doc.version||1)}</span></div>`:`<label>PNG, JPG, WebP or PDF<input type="file" data-document-file accept="image/png,image/jpeg,image/webp,application/pdf" required></label>`;return `<div class="master-form-grid company-document-row"><input type="hidden" data-document-json value="${escapeHtml(JSON.stringify(doc))}"><input type="hidden" data-document-id value="${escapeHtml(doc.id||"")}"><input type="hidden" data-document-upload-request value="${escapeHtml(uploadRequestId)}"><label>Document type<select data-document-type>${["Header","Footer","Signature","Stamp","Letterhead","Other"].map(x=>`<option ${x===String(doc.type||"")?"selected":""}>${x}</option>`).join("")}</select></label><label>Label<input data-document-label value="${escapeHtml(doc.label||"")}" required></label><label>Version<input data-document-version value="${escapeHtml(doc.version||"1")}" readonly></label><label>Status<select data-document-status><option ${String(doc.status||"Active")==="Active"?"selected":""}>Active</option><option ${String(doc.status||"")==="Inactive"?"selected":""}>Inactive</option></select></label><label><input type="checkbox" data-document-default ${doc.isDefault?"checked":""}> Default for this type</label>${controls}<button type="button" class="button danger" data-remove-company-document>Deactivate</button></div>`; }
   function commodityMasterFieldsHtml(values = []) {
     return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Commodity identity</h3></div></div><div class="master-identity-grid">
       <label>Commodity<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
@@ -1073,7 +1112,7 @@
         ...JSON.parse(row.querySelector('[data-document-json]')?.value||'{}'),id:row.querySelector('[data-document-id]')?.value||'',type:row.querySelector('[data-document-type]')?.value||'Other',label:row.querySelector('[data-document-label]')?.value.trim()||'',version:row.querySelector('[data-document-version]')?.value.trim()||'1',status:row.querySelector('[data-document-status]')?.value||'Active',isDefault:!!row.querySelector('[data-document-default]')?.checked
       })).filter(doc=>doc.id&&doc.label));
       values[15]=JSON.stringify([...document.querySelectorAll('.company-fx-row')].filter(row=>!row.hidden).map(row=>({currencyA:row.dataset.currencyA,currencyB:row.dataset.currencyB,rateAToB:row.querySelector('[data-fx-forward]')?.value.trim()||'',rateBToA:row.querySelector('[data-fx-reverse]')?.value.trim()||''})).filter(pair=>pair.rateAToB||pair.rateBToA));
-      values[16]=JSON.stringify([...document.querySelectorAll('.company-registration-row')].map(row=>({type:row.querySelector('[data-registration-type]')?.value.trim()||'',number:row.querySelector('[data-registration-number]')?.value.trim()||'',jurisdiction:row.querySelector('[data-registration-jurisdiction]')?.value.trim()||'',expiryDate:row.querySelector('[data-registration-expiry]')?.value||'',notes:row.querySelector('[data-registration-notes]')?.value.trim()||''})).filter(item=>item.number));
+      values[16]=JSON.stringify([...document.querySelectorAll('.company-registration-row')].map(row=>({type:row.querySelector('[data-registration-type]')?.value.trim()||'',number:row.querySelector('[data-registration-number]')?.value.trim()||'',jurisdiction:row.querySelector('[data-registration-jurisdiction]')?.value.trim()||'',expiryDate:row.querySelector('[data-registration-expiry]')?.value||'',notes:row.querySelector('[data-registration-notes]')?.value.trim()||'',status:row.querySelector('[data-registration-status]')?.value||'Active'})).map(item=>({...item,status:!item.type||!item.number?'Draft':item.status==='Inactive'?'Inactive':'Active'})).filter(item=>item.type||item.number||item.jurisdiction||item.expiryDate||item.notes));
       return values;
     }
     if (type.id === "products") {
@@ -1397,9 +1436,11 @@
       if(index>=0)banks[index]=bank;else banks.push(bank);
       if(draft){bankField.value=JSON.stringify(banks);document.getElementById('companyBankRows').innerHTML=companyBankTable(banks);bankField.dispatchEvent(new Event('change'));dirtyDialogs.add('masterDialog');dirtyDialogs.delete('bankDialog');document.getElementById('bankDialog').close();savedNotice('Bank account added to the company draft.');return;}
       const values=[...company.values];values[13]=JSON.stringify(banks);
-      const data=await apiRequest({action:"update",type:"companies",id:company.id,values},"masters");
+      const data=await apiRequest({action:"update",type:"companies",id:company.id,values,...(company.revision?{expectedRevision:company.revision}:{})},"masters");
       state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
-      if(document.getElementById('masterDialog').open&&bankField){const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
+      if(document.getElementById('masterDialog').open&&bankField){
+        const savedCompany=(state.masters.companies||[]).find(row=>row.id===company.id);
+        const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);const confirmed=(state.masters.companies||[]).find(row=>row.id===company.id);if(confirmed?.revision){const base=JSON.parse(document.getElementById('masterForm').dataset.companyBaseValues||'null');if(base&&JSON.stringify(base.filter((_,i)=>i!==13))===JSON.stringify(confirmed.values.filter((_,i)=>i!==13))){document.getElementById('masterForm').dataset.companyBaseValues=JSON.stringify(confirmed.values);document.getElementById('masterForm').dataset.expectedRevision=confirmed.revision;}}document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
       renderMasters();dirtyDialogs.delete("bankDialog");document.getElementById("bankDialog").close();savedNotice("Saved successfully.");
     }catch(error){showBankSaveError(error.message||"The bank account could not be saved. Please try again.")}finally{button.disabled=false}
   }
@@ -1433,7 +1474,7 @@
       const data=await apiRequest({action:"delete-company-bank",type:"companies",id:company.id,bankId:bank.id,replacementBankId},"masters");
       state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
       const bankField=document.getElementById(masterInputId(13));
-      if(document.getElementById('masterDialog').open&&bankField){const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
+      if(document.getElementById('masterDialog').open&&bankField){const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);const confirmed=(state.masters.companies||[]).find(row=>row.id===company.id);if(confirmed?.revision){const base=JSON.parse(document.getElementById('masterForm').dataset.companyBaseValues||'null');if(base&&JSON.stringify(base.filter((_,i)=>i!==13))===JSON.stringify(confirmed.values.filter((_,i)=>i!==13))){document.getElementById('masterForm').dataset.companyBaseValues=JSON.stringify(confirmed.values);document.getElementById('masterForm').dataset.expectedRevision=confirmed.revision;}}document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
       renderMasters();dirtyDialogs.delete("bankDialog");document.getElementById("bankDialog").close();savedNotice("Bank account removed from future use. Historical postings remain.");
     }catch(error){toast(error.message);button.disabled=false}
   }
@@ -1459,7 +1500,13 @@
     const type = activeMasterType();
     const row = (state.masters[type.id] || []).find(item => item.id === id);
     if(id&&!row){toast("This master record is no longer available. Reopen the current list.");return;}
+    document.getElementById("masterForm").querySelector(".console-form-error")?.remove();
+    delete document.getElementById("masterForm").dataset.savedValuesFingerprint;
+    document.getElementById("masterForm").dataset.companyBaseValues=row&&type.id==='companies'?JSON.stringify(row.values):'';
+    document.getElementById("masterForm").dataset.expectedOptionRevision=row&&type.id==="reference_lists"?state.masterOptions?._revisions?.[row.values[0]]||"":"";
     document.getElementById("masterForm").reset();
+    document.getElementById("masterForm").dataset.expectedRevision=row?.revision||'';
+    document.getElementById("masterForm").dataset.masterRequestId=row?'':(window.crypto?.randomUUID?.()||`master-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     document.getElementById("masterForm").dataset.purchaseCommodity=type.id==="purchase_products"?String(row?.values?.[0]||"").toUpperCase():"";
     document.getElementById("editMasterId").value = row?.id || "";
     document.getElementById("masterDialogTitle").textContent = `${row ? "Edit" : "Add"} ${type.name}`;
@@ -1488,7 +1535,7 @@
       if(membership&&legacyMembership){membership.oninput=()=>{legacyMembership.value=membership.value};legacyMembership.oninput=()=>{membership.value=legacyMembership.value}}
       const wireNested=()=>{
         wireRegistrations();
-        documentRows?.querySelectorAll('[data-remove-company-document]').forEach(button=>button.onclick=()=>{const row=button.closest('.company-document-row');if(row){row.querySelector('[data-document-status]').value='Inactive';row.hidden=true}});
+        documentRows?.querySelectorAll('[data-remove-company-document]').forEach(button=>button.onclick=()=>{const row=button.closest('.company-document-row');if(row){if(!row.querySelector('[data-document-id]')?.value){row.remove();return;}row.querySelector('[data-document-status]').value='Inactive';row.querySelector('[data-document-default]').checked=false;row.hidden=true;dirtyDialogs.add('masterDialog')}});
         documentRows?.querySelectorAll('[data-preview-company-document],[data-download-company-document]').forEach(button=>button.onclick=()=>{const documentId=button.closest('.company-document-row')?.querySelector('[data-document-id]')?.value;if(!documentId||!row?.id)return;const download=button.hasAttribute('data-download-company-document')?'&download=1':'';window.open(`api/master_documents.php?companyId=${encodeURIComponent(row.id)}&documentId=${encodeURIComponent(documentId)}${download}`,'_blank','noopener')});
       };
       const fxRows=document.getElementById('companyFxRows'),fxSection=document.getElementById('companyFxSection');
@@ -1589,35 +1636,109 @@
     dirtyDialogs.delete("masterDialog");
     document.getElementById("masterDialog").showModal();
   }
+  // Keep one in-flight save per editor; a second click must never create another row.
+  let masterSaveInFlight=false;
   async function saveMasterRecord(event) {
     event.preventDefault();
-    const form = document.getElementById("masterForm");
-    if (!form.reportValidity()) return;
-    const type = activeMasterType();
-    const id = document.getElementById("editMasterId").value;
-    if(type.id==="companies"){const shares=[...document.querySelectorAll('[data-company-owner-share]')].map(input=>Number(input.value||0)),total=shares.reduce((sum,value)=>sum+value,0);if(shares.length===1&&shares[0]===0)document.querySelector('[data-company-owner-share]').value="100";else if(Math.abs(total-100)>.001){toast("Owner / partner shares must total 100%.");return}}
-    try { await resolvePartyRoleBeforeSave(type); await resolveProductOptionsBeforeSave(type); } catch (error) { toast(error.message); return; }
-    const values = masterValuesFromForm(type);
-    const primary = values[0] || type.name;
-    const ref = values[1] || type.id.toUpperCase();
+    const form=document.getElementById("masterForm");
+    if(masterSaveInFlight||!form.reportValidity())return;
+    const type=activeMasterType();
+    const id=document.getElementById("editMasterId").value;
+    if(type.id==="companies"){
+      const shares=[...document.querySelectorAll('[data-company-owner-share]')].map(input=>Number(input.value||0));
+      const total=shares.reduce((sum,value)=>sum+value,0);
+      if(shares.length===1&&shares[0]===0)document.querySelector('[data-company-owner-share]').value="100";
+      else if(Math.abs(total-100)>.001){toast("Owner / partner shares must total 100%.");return;}
+    }
+    const button=document.getElementById("saveMasterButton");
+    masterSaveInFlight=true;button.disabled=true;
+    let committed=false,uploadPhase=false;
     try {
+      await resolvePartyRoleBeforeSave(type);
+      await resolveProductOptionsBeforeSave(type);
+      const values=masterValuesFromForm(type);
+      const primary=values[0]||type.name,ref=values[1]||type.id.toUpperCase();
       if(type.id==="reference_lists"){
         const existing=id?(state.masters.reference_lists||[]).find(row=>row.id===id):null;
-        const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:existing?"rename":"add",optionKey:existing?.values?.[0]||values[0],old:existing?.values?.[1]||"",value:values[1],fullName:(existing?.values?.[0]||values[0])==='currencies'?values[2]:''},"masters");
-        if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();savedNotice(existing?"Reference option updated.":"Reference option added.");return;
+        const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:existing?"rename":"add",optionKey:existing?.values?.[0]||values[0],old:existing?.values?.[1]||"",value:values[1],fullName:(existing?.values?.[0]||values[0])==='currencies'?values[2]:'',...(existing&&form.dataset.expectedOptionRevision?{expectedRevision:form.dataset.expectedOptionRevision}:{})},"masters");
+        if(data.options)state.masterOptions=data.options;
+        state.masters=ensureMasterSections(data.masters,state.masterOptions);
+        saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();
+        savedNotice(existing?"Reference option updated.":"Reference option added.");return;
       }
       const pendingDocuments=type.id==="companies"?[...document.querySelectorAll('.company-document-row')].filter(row=>!row.querySelector('[data-document-id]')?.value&&row.querySelector('[data-document-file]')?.files?.[0]):[];
-      const data = await apiRequest({ action: id ? "update" : "create", type: type.id, id, values }, "masters");
-      const companyId=data.id||id;
-      for (const row of pendingDocuments) {
-        const payload=new FormData();payload.append('csrf',SESSION.csrf);payload.append('action','upload');payload.append('companyId',companyId);payload.append('type',row.querySelector('[data-document-type]').value);payload.append('label',row.querySelector('[data-document-label]').value.trim());payload.append('isDefault',row.querySelector('[data-document-default]').checked?'1':'');payload.append('file',row.querySelector('[data-document-file]').files[0]);
-        const response=await fetch('api/master_documents.php',{method:'POST',body:payload});const uploaded=await response.json().catch(()=>({ok:false,error:'Document upload returned an unreadable response.'}));if(!response.ok||!uploaded.ok)throw new Error(uploaded.error||'Company document upload failed.');
+      const fingerprint=JSON.stringify(values.map((value,index)=>type.id==="companies"&&index===14?"":value));
+      const resumeAttachments=type.id==="companies"&&id&&form.dataset.savedValuesFingerprint===fingerprint;
+      const data=resumeAttachments?{id,masters:state.masters}:await apiRequest({action:id?"update":"create",type:type.id,id,values,
+        ...(id?form.dataset.expectedRevision?{expectedRevision:form.dataset.expectedRevision}:{}:{requestId:form.dataset.masterRequestId})},"masters");
+      committed=true;
+      const savedId=data.id||id;
+      if(data.options)state.masterOptions=data.options;
+      state.masters=ensureMasterSections(data.masters,state.masterOptions);
+      const savedRow=(state.masters[type.id]||[]).find(item=>item.id===savedId);
+      if(!resumeAttachments)form.dataset.expectedRevision=savedRow?.revision||'';
+      if(type.id==='companies')form.dataset.savedValuesFingerprint=fingerprint;
+      if(!id)document.getElementById("editMasterId").value=savedId;
+      saveState();
+      uploadPhase=true;
+      if(type.id==='companies'&&canMaster('companies','View Documents'))for(const row of document.querySelectorAll('.company-document-row')){
+        const original=JSON.parse(row.querySelector('[data-document-json]')?.value||'{}'),documentId=row.querySelector('[data-document-id]')?.value;
+        if(!documentId)continue;
+        const metadata={type:row.querySelector('[data-document-type]').value,label:row.querySelector('[data-document-label]').value.trim(),status:row.querySelector('[data-document-status]').value,isDefault:row.querySelector('[data-document-default]').checked};
+        if(Object.entries(metadata).every(([key,value])=>value===(original[key]??(key==='isDefault'?false:''))))continue;
+        const payload=new FormData();for(const [key,value] of Object.entries({csrf:SESSION.csrf,companyId:savedId,action:'update',documentId,...metadata,isDefault:metadata.isDefault?'1':'',expectedRevision:form.dataset.expectedRevision}))payload.append(key,value);
+        const response=await fetch('api/master_documents.php',{method:'POST',body:payload}),updated=await response.json();
+        if(!response.ok||!updated.ok)throw new Error(updated.error||'Document details could not be saved.');
+        row.querySelector('[data-document-json]').value=JSON.stringify(updated.document);form.dataset.expectedRevision=updated.revision;
       }
-      if (pendingDocuments.length) { const refreshed=await apiRequest(null,"masters");data.masters=refreshed.masters; }
-      if (data.options) state.masterOptions=data.options; state.masters = ensureMasterSections(data.masters,state.masterOptions); addAudit("Master", id ? "Updated" : "Created", `${type.name}: ${primary}`, ref);
-      if(type.id==="purchase_kat"){currentPurchaseSection="PRODUCTS";pendingKatProductId=""}
-      saveState(); renderMasters(); renderAudit(); renderRecentActivity(); document.getElementById("masterDialog").close(); form.reset(); savedNotice(id ? type.name+" updated." : type.name+" saved.");
-    } catch (error) { toast(error.message); }
+      for(const row of pendingDocuments){
+        const payload=new FormData();
+        payload.append('csrf',SESSION.csrf);payload.append('action','upload');payload.append('companyId',savedId);
+        payload.append('type',row.querySelector('[data-document-type]').value);
+        payload.append('label',row.querySelector('[data-document-label]').value.trim());
+        payload.append('isDefault',row.querySelector('[data-document-default]').checked?'1':'');
+        payload.append('file',row.querySelector('[data-document-file]').files[0]);
+        payload.append('requestId',row.querySelector('[data-document-upload-request]')?.value||'');
+        const response=await fetch('api/master_documents.php',{method:'POST',body:payload});
+        const uploaded=await response.json().catch(()=>({ok:false,error:'Document upload returned an unreadable response.'}));
+        if(!response.ok||!uploaded.ok)throw new Error(uploaded.error||'Company document upload failed.');
+        if(uploaded.document?.id){
+          row.querySelector('[data-document-id]').value=uploaded.document.id;
+          row.querySelector('[data-document-json]').value=JSON.stringify(uploaded.document);
+        }
+        if(uploaded.revision)form.dataset.expectedRevision=uploaded.revision;
+      }
+      if(pendingDocuments.length){
+        const refreshed=await apiRequest(null,"masters");
+        data.masters=refreshed.masters;
+        state.masters=ensureMasterSections(data.masters,state.masterOptions);
+      }
+      uploadPhase=false;
+      const finalRow=(state.masters[type.id]||[]).find(item=>item.id===savedId);
+      form.dataset.expectedRevision=finalRow?.revision||form.dataset.expectedRevision;
+      addAudit("Master",id?"Updated":"Created",`${type.name}: ${primary}`,ref);
+      if(type.id==="purchase_kat"){currentPurchaseSection="PRODUCTS";pendingKatProductId="";}
+      saveState();renderMasters();renderAudit();renderRecentActivity();
+      document.getElementById("masterDialog").close();form.reset();
+      savedNotice(id?type.name+" updated.":type.name+" saved.");
+    }catch(error){
+      if(committed&&type.id==="companies"&&uploadPhase){
+        // The company save is durable even when one attachment fails. Preserve
+        // the editor and saved ID so Retry updates instead of creating again.
+        try{
+          const refreshed=await apiRequest(null,"masters");
+          state.masters=ensureMasterSections(refreshed.masters,state.masterOptions);
+          const savedId=document.getElementById("editMasterId").value;
+          const latest=(state.masters.companies||[]).find(item=>item.id===savedId);
+          // Do not bless a newer company revision over this editor's old fields.
+          // Attachment-only retries use their stable upload request identities.
+          saveState();renderMasters();
+        }catch(_){}
+        toast("Company details were saved, but a document upload failed: "+error.message+". Retry Save Changes; the company will not be created again.");
+      }else toast(error.message);
+    }finally{
+      masterSaveInFlight=false;button.disabled=false;
+    }
   }
   async function deleteMasterRecord(selectedId) {
     const type=activeMasterType();
@@ -1758,7 +1879,7 @@
     if(document.getElementById("auditSource")?.value!=="browser"&&(!auditLoaded||auditLoading||auditError)){toast("Refresh the server audit successfully before exporting.");return;}
     const header=["Date & Time","User","Area","Action","Details","Reference","Source"];
     const data=[header,...filteredAuditEntries().map(item=>[userActivityStamp(item.date),item.user,item.area,item.action,item.detail,item.ref,item.source])];
-    const csv=data.map(row=>row.map(cell=>`"${(/^[=+@\-\t\r]/.test(String(cell??""))?"'":"")+String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");
+    const csv=data.map(row=>row.map(cell=>`"${(/^[\s\uFEFF]*[=+@\-\t\r]/.test(String(cell??""))?"'":"")+String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");
     const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
     const link=document.createElement("a");link.href=url;link.download=(window.TT_DOCUMENT_NAME?.clean(`Transtrade_Audit_${new Date().toISOString().slice(0,10)}.csv`,220)||(`Transtrade_Audit_${new Date().toISOString().slice(0,10)}.csv`));link.click();URL.revokeObjectURL(url);
     toast("Audit download prepared.");

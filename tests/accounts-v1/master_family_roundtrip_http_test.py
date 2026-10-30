@@ -150,5 +150,138 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
             books.write_text(invalid); before=books.read_bytes(); status,data=save('salary_staff',salary,ids['salary_staff'])
             assert status==500 and not data['ok'] and books.read_bytes()==before,'Damaged books must not be replaced with seed salary data'
         books.write_bytes(saved_books)
+        # A repeated Create request must return the same durable identity, not
+        # create a duplicate company when a browser loses the first response.
+        second_company=copy.deepcopy(company);second_company[0]='Fixture Retry Company';second_company[1]='FIX2'
+        create={'action':'create','type':'companies','values':second_company,'requestId':'fixture-master-create-20261030'}
+        status,first=request(body=create);assert status==200,(status,first)
+        status,replayed=request(body=create);assert status==200 and replayed['id']==first['id'],(status,replayed)
+        rows=[r for r in request()[1]['masters']['companies'] if r['id']==first['id']]
+        assert len(rows)==1,'Idempotent retry must preserve one company record'
+        # Revision is the saved source version, not a cached UI projection.
+        original=rows[0];assert len(original['revision'])==64
+        newer=copy.deepcopy(original['values']);newer[6]='Newer owner change'
+        status,data=request(body={'action':'update','type':'companies','id':first['id'],'values':newer,'expectedRevision':original['revision']})
+        assert status==200,(status,data)
+        before=(auth.read_bytes(),books.read_bytes())
+        stale=copy.deepcopy(original['values']);stale[6]='Older browser change'
+        status,rejected=request(body={'action':'update','type':'companies','id':first['id'],'values':stale,'expectedRevision':original['revision']})
+        assert status==422 and 'changed in another session' in rejected['error'],(status,rejected)
+        assert (auth.read_bytes(),books.read_bytes())==before,'Stale form must not alter master or financial originals'
+        latest=next(r for r in request()[1]['masters']['companies'] if r['id']==first['id'])
+        assert latest['values'][6]=='Newer owner change'
+        # Partially completed registrations remain visible as explicit drafts.
+        draft=copy.deepcopy(latest['values'])
+        draft[16]=json.dumps([{'type':'VAT Registration / VAT TRN','number':'','jurisdiction':'United Arab Emirates','status':'Draft'}])
+        status,saved=request(body={'action':'update','type':'companies','id':first['id'],'values':draft,'expectedRevision':latest['revision']})
+        assert status==200,(status,saved)
+        current=next(r for r in request()[1]['masters']['companies'] if r['id']==first['id'])
+        assert json.loads(current['values'][16])[0]['status']=='Draft'
+        invalid=copy.deepcopy(current['values'])
+        invalid[16]=json.dumps([{'type':'VAT Registration / VAT TRN','number':''}])
+        unchanged_failure('companies',invalid,first['id'])
+        # Real multipart company document upload: preserve the latest non-document
+        # fields and deduplicate a repeated browser request by upload identity.
+        tti=next(r for r in request()[1]['masters']['companies'] if r['values'][1]=='TTI')
+        tti_values=copy.deepcopy(tti['values']);tti_values[6]='Concurrent owner notes must survive document upload'
+        status,changed=request(body={'action':'update','type':'companies','id':tti['id'],'values':tti_values,'expectedRevision':tti['revision']})
+        assert status==200,(status,changed)
+        def upload_document(request_id,company_id=None,**overrides):
+            boundary='fixture-boundary-20261030'
+            fields={'csrf':'fixture','action':'upload','companyId':company_id or tti['id'],'type':'Letterhead','label':'Fixture company PDF','requestId':request_id,'isDefault':'1'}
+            fields.update(overrides)
+            parts=[]
+            for name,value in fields.items():
+                parts.append(('--'+boundary+'\r\nContent-Disposition: form-data; name="'+name+'"\r\n\r\n'+value+'\r\n').encode())
+            pdf=b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n'
+            parts.append(('--'+boundary+'\r\nContent-Disposition: form-data; name="file"; filename="fixture.pdf"\r\nContent-Type: application/pdf\r\n\r\n').encode()+pdf+b'\r\n')
+            parts.append(('--'+boundary+'--\r\n').encode())
+            req=urllib.request.Request(base+'/api/master_documents.php',data=b''.join(parts),headers={'Content-Type':'multipart/form-data; boundary='+boundary})
+            try:
+                with opener.open(req,timeout=15) as response: return response.status,json.loads(response.read())
+            except urllib.error.HTTPError as response: return response.code,json.loads(response.read())
+        status,uploaded=upload_document('fixture-doc-upload-20261030')
+        assert status==200 and uploaded['document']['id'],(status,uploaded)
+        status,retried=upload_document('fixture-doc-upload-20261030')
+        assert status==200 and retried['document']['id']==uploaded['document']['id'],(status,retried)
+        current_tti=next(r for r in request()[1]['masters']['companies'] if r['id']==tti['id'])
+        assert current_tti['values'][6]=='Concurrent owner notes must survive document upload'
+        documents=json.loads(current_tti['values'][14])
+        assert len([d for d in documents if d.get('uploadRequestId')=='fixture-doc-upload-20261030'])==1
+        assert uploaded['revision']==retried['revision']==current_tti['revision']
+        assert 'storageName' not in uploaded['document']
+        # A stale/sanitized document list in the Company editor must never
+        # replace private file identities owned by the document endpoint.
+        company_edit=copy.deepcopy(current_tti['values']);company_edit[14]='[]';company_edit[6]='Company note after document upload'
+        status,updated=request(body={'action':'update','type':'companies','id':tti['id'],'values':company_edit,'expectedRevision':current_tti['revision']})
+        assert status==200,(status,updated)
+        preserved=next(r for r in request()[1]['masters']['companies'] if r['id']==tti['id'])
+        assert preserved['values'][6]=='Company note after document upload'
+        assert all('storageName' not in d for d in json.loads(preserved['values'][14]))
+        raw_company=next(r for r in json.loads(auth.read_text())['masters']['companies'] if r['id']==tti['id'])
+        assert any(d.get('id')==uploaded['document']['id'] and d.get('storageName') for d in json.loads(raw_company['values'][14]))
+
+        status,metadata=upload_document('',action='update',documentId=uploaded['document']['id'],label='Amended company document',status='Inactive',isDefault='',expectedRevision=preserved['revision'])
+        assert status==200 and metadata['document']['status']=='Inactive' and not metadata['document']['isDefault'],(status,metadata)
+        before=auth.read_bytes();status,error=upload_document('',action='update',documentId=uploaded['document']['id'],label='Stale label',status='Active',expectedRevision=preserved['revision'])
+        assert status==422 and auth.read_bytes()==before,(status,error)
+        raw_after=next(r for r in json.loads(auth.read_text())['masters']['companies'] if r['id']==tti['id'])
+        assert any(d.get('id')==uploaded['document']['id'] and d.get('storageName') for d in json.loads(raw_after['values'][14]))
+        status,error=upload_document('fixture-csrf-invalid-20261030',csrf='invalid');assert status==419
+        status,nonbook=upload_document('fixture-nonbook-doc-20261030',first['id'])
+        assert status==200 and nonbook['document']['id'],(status,nonbook)
+        nonbook_row=next(r for r in request()[1]['masters']['companies'] if r['id']==first['id'])
+        assert any(d.get('id')==nonbook['document']['id'] for d in json.loads(nonbook_row['values'][14]))
+        # Special Salary/Reference and User paths must enforce their own locked versions.
+        salary_create={'action':'create','type':'salary_staff','values':cases[-1][1],'requestId':'fixture-salary-retry-20261030'}
+        status,salary_a=request(body=salary_create);assert status==200,(status,salary_a)
+        status,salary_b=request(body=salary_create);assert status==200 and salary_b['id']==salary_a['id']
+        sr=next(r for r in salary_b['masters']['salary_staff'] if r['id']==salary_a['id'])
+        amended=copy.deepcopy(sr['values']);amended[11]='Newest salary notes'
+        status,_=request(body={'action':'update','type':'salary_staff','id':sr['id'],'values':amended,'expectedRevision':sr['revision']});assert status==200
+        before=books.read_bytes();status,error=request(body={'action':'update','type':'salary_staff','id':sr['id'],'values':sr['values'],'expectedRevision':sr['revision']})
+        assert status==422 and books.read_bytes()==before,(status,error)
+        options=request()[1]['options'];version=options['_revisions']['packing_types']
+        status,_=request(body={'action':'manage-option','type':'reference_lists','optionKey':'packing_types','optionAction':'add','value':'Fixture Packing','expectedRevision':version});assert status==200
+        before=auth.read_bytes();status,error=request(body={'action':'manage-option','type':'reference_lists','optionKey':'packing_types','optionAction':'rename','old':'Fixture Packing','value':'Stale Packing','expectedRevision':version})
+        assert status==422 and auth.read_bytes()==before,(status,error)
+        staff={'action':'create','name':'Fixture Staff','username':'fixture.staff','role':'Accounts','location':'Office','active':True,'permissions':{'Accounts':{'cashbank':['View']}},'masterAccess':False,'masterPermissions':{}}
+        status,created=request('/api/users.php',staff);assert status==200,(status,created)
+        employee=next(u for u in created['users'] if u['username']=='fixture.staff');uid=employee['id']
+        update={**staff,'action':'update','id':uid,'name':'Updated Staff','expectedRevision':employee['revision']}
+        status,_=request('/api/users.php',update);assert status==200
+        before=auth.read_bytes();status,error=request('/api/users.php',update);assert status==422 and auth.read_bytes()==before,(status,error)
+        raw_employee=next(u for u in json.loads(auth.read_text())['users'] if str(u['id'])==uid);assert raw_employee['session_version']>1
+        # Failed bank-default synchronization must acknowledge the durable company
+        # and must never replace a damaged financial store during retry.
+        current=next(r for r in request()[1]['masters']['companies'] if r['id']==tti['id']);current_values=copy.deepcopy(current['values'])
+        bank={'id':'fixture-default','bankName':'Fixture Bank','accountTitle':'TTI','accountNumber':'12345','currency':'PKR','accountType':'Company Account','depositType':'CURRENT','isDefault':True,'status':'Active'}
+        current_values[13]=json.dumps([bank]);saved_finance=books.read_bytes();books.write_text('{damaged')
+        status,partial=request(body={'action':'update','type':'companies','id':tti['id'],'values':current_values,'expectedRevision':current['revision']})
+        assert status==200 and partial['bankDefaultSync']['status']=='pending' and books.read_text()=='{damaged',(status,partial)
+        books.write_bytes(saved_finance)
+        status,synced=request(body={'action':'sync-company-bank-defaults','type':'companies','id':tti['id']});assert status==200 and synced['bankDefaultSync']['status']=='complete',(status,synced)
+        finance=json.loads(books.read_text());assert finance['bankAccountSettings'][bank['id']]['defaultPaymentAccount'] and finance['journals']==original_journals
+        owner_store=json.loads(auth.read_text());limited=copy.deepcopy(owner_store);limited['users'][0].update({'role':'Accounts','master_access':True,'master_permissions':{'companies':['View','Edit']},'permissions':{'Accounts':{'entity-tti':['View','Edit']}}})
+        auth.write_text(json.dumps(limited))
+        status,visible=request();assert status==200
+        assert all(json.loads(r['values'][14])==[] for r in visible['masters']['companies'])
+        status,hidden_upload=upload_document('fixture-upload-only-20261030');assert status==200 and hidden_upload['documents']==[] and set(hidden_upload['document'])=={'id'},(status,hidden_upload)
+        doc_id=hidden_upload['document']['id'];raw=json.loads(auth.read_text())
+        for row in raw['masters']['companies']:
+            if row['id']!=tti['id']:continue
+            docs=json.loads(row['values'][14])
+            for d in docs:
+                if d['id']==doc_id:d['label']='Confidential owner relabel'
+            row['values'][14]=json.dumps(docs)
+        auth.write_text(json.dumps(raw));status,replay=upload_document('fixture-upload-only-20261030');assert status==200 and 'Confidential owner relabel' not in json.dumps(replay) and set(replay['document'])=={'id'}
+        before=auth.read_bytes();status,error=upload_document('',action='deactivate',documentId=doc_id);assert status==403 and auth.read_bytes()==before,(status,error)
+        status,error=request('/api/master_documents.php?companyId='+tti['id']);assert status==403
+        final=json.loads(auth.read_text());final['users']=owner_store['users'];auth.write_text(json.dumps(final))
+        print('PASS upload-only editor receives no existing metadata; replay hides later owner relabel; existing-document mutation and read denied')
+        print('PASS Salary retry/version, Reference version, User version/session invalidation and durable company bank-default recovery')
+        print('PASS owner-managed documents for non-book company identities')
+        print('PASS locked company document update, retry identity and preservation of other company fields')
+        print('PASS Master idempotent create, stale-update rejection and incomplete registration drafts')
         print('PASS 10 visible master families: explicit create/amend/reload, canonical customer/KAT/reference consumers, preserved advanced fields, company identity, calendar/amount rejection and zero financial postings')
     finally: server.terminate(); server.wait(timeout=10); log.close()

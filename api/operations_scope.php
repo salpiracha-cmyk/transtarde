@@ -151,6 +151,7 @@ function os_bootstrap_masters(array $u): array {
                 foreach($fields as $i)if(isset($v[$i]))$clean[$i]=$v[$i];
                 $row=['id'=>$row['id']??'','values'=>$clean];
             }
+            if($type==='companies')$row=tt_public_company_master($u,$row);
             if(!$view&&$type==='companies'){
                 $v=array_values((array)($row['values']??[]));if(array_key_exists(13,$v))$v[13]='[]';
                 $row=['id'=>$row['id']??'','values'=>$v];

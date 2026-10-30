@@ -427,6 +427,10 @@ function tt_record_sign_in(int $id, string $username): void {
     },false);
 }
 
+function tt_staff_revision(array $user): string {
+    return hash('sha256',json_encode(array_intersect_key($user,array_flip(['full_name','username','role','location','active','permissions','master_access','master_permissions'])),JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
+}
+
 function tt_list_public_users(): array {
     return array_map(static function (array $user): array {
         $permissions = is_array($user['permissions'] ?? null) ? $user['permissions'] : [];
@@ -441,6 +445,7 @@ function tt_list_public_users(): array {
             'masterPermissions' => is_array($user['master_permissions'] ?? null) ? $user['master_permissions'] : [],
             'lastActive' => empty($user['last_login_at']) ? 'Not activated' : (string)$user['last_login_at'],
             'mustChangePassword' => !empty($user['must_change_password']),
+            'revision'=>tt_staff_revision($user),
         ];
     }, tt_read_store()['users']);
 }
@@ -467,12 +472,14 @@ function tt_create_staff_user(array $input): array {
     return ['id'=>$id, 'temporaryPassword'=>$temporaryPassword];
 }
 
-function tt_update_staff_user(int $id, array $input): void {
-    tt_mutate_store(function (&$data) use ($id, $input): void {
+function tt_update_staff_user(int $id, array $input, ?string $expectedRevision=null): void {
+    tt_mutate_store(function (&$data) use ($id, $input, $expectedRevision): void {
         foreach ($data['users'] as $existing) if ((int)($existing['id'] ?? 0) !== $id && strcasecmp((string)($existing['username'] ?? ''), $input['username']) === 0) throw new InvalidArgumentException('That username already exists.');
         foreach ($data['users'] as &$user) {
             if ((int)($user['id'] ?? 0) !== $id) continue;
             if (($user['role'] ?? '') === 'Super Admin') throw new RuntimeException('The Super Admin account cannot be changed here.');
+            if($expectedRevision!==null&&!hash_equals(tt_staff_revision($user),$expectedRevision))throw new InvalidArgumentException('This user changed in another session. Reopen the user before saving.');
+            $user['session_version']=tt_user_session_version($user)+1;
             if (!empty($user['system_qa']) || (strcasecmp((string)($user['username'] ?? ''),'qa.assistant')===0 && !empty($user['test_data_only']))) {
                 // Super Admin may disable/reactivate the read-only test login.
                 // Its reserved identity and permissions remain system-enforced.
@@ -700,11 +707,30 @@ function tt_user_can_master(array $user,string $type,string $action='View'): boo
     return false;
 }
 
+/** Public company metadata follows the same document/entity boundary as downloads. */
+function tt_public_company_master(array $user,array $row): array {
+    $values=(array)($row['values']??[]);
+    $row['revision']=tt_master_revision($values);
+    $entity=strtoupper(trim((string)($values[1]??'')));
+    $entityAllowed=in_array($entity,['TTI','BRM','TG'],true)
+        ? tt_user_business_entity($user,$entity,'View')
+        : in_array(($user['role']??''),['Super Admin','Director'],true);
+    $documents=[];
+    if($entityAllowed&&tt_user_can_master($user,'companies','View Documents')) {
+        foreach(tt_master_json_array($values[14]??'[]') as $document) {
+            if(!is_array($document))continue;
+            unset($document['storageName']);$documents[]=$document;
+        }
+    }
+    $row['values'][14]=json_encode($documents,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+    return $row;
+}
 function tt_user_visible_masters(array $user): array {
-    $masters=tt_list_masters();
-    if (($user['role'] ?? '')==='Super Admin') return $masters;
     $out=[];
-    foreach ($masters as $type=>$rows) if (tt_user_can_master($user,$type,'View')) $out[$type]=$rows;
+    foreach(tt_list_masters() as $type=>$rows) {
+        if(!tt_user_can_master($user,$type,'View'))continue;
+        $out[$type]=$type==='companies'?array_map(static fn($row)=>tt_public_company_master($user,$row),$rows):$rows;
+    }
     return $out;
 }
 
@@ -813,21 +839,40 @@ function tt_company_vat_rate(string $companyCode, float $default=5.0): float {
     return $default;
 }
 
-function tt_create_master(string $type, array $values): string {
+function tt_master_revision(array $values): string {
+    return hash('sha256',json_encode(array_values($values),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR));
+}
+
+function tt_create_master(string $type, array $values, ?string $requestId=null): string {
     if($type==='export_customers'){$values[9]=tt_export_customer_notify_json($values[9]??'');tt_validate_export_customer_advanced($values);}
-    return tt_mutate_store(function (&$data) use ($type,$values): string {
+    return tt_mutate_store(function (&$data) use ($type,$values,$requestId): string {
         if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) $data['masters'][$type]=[];
+        if($requestId!==null)foreach($data['masters'][$type] as $row)if(($row['createRequestId']??null)===$requestId){
+            if(!hash_equals((string)($row['createRequestHash']??''),tt_master_revision($values)))throw new InvalidArgumentException('This save request was already used for a different record. Reopen the form.');
+            return (string)$row['id'];
+        }
         if($type==='companies')foreach($data['masters'][$type] as $row)if(strcasecmp(trim((string)($row['values'][1]??'')),trim((string)($values[1]??'')))===0)throw new InvalidArgumentException('This company short code already belongs to another company. Open that existing company instead.');
-        if($type==='business_parties')foreach($data['masters'][$type] as $row)if(tt_master_names_conflict((string)($values[0]??''),(string)($row['values'][0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
+        if(in_array($type,['business_parties','export_customers','companies','mills'],true))foreach($data['masters'][$type] as $row)if(tt_master_names_conflict((string)($values[0]??''),(string)($row['values'][0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
         $id=$type.'-'.random_int(100000,999999999);
-        $data['masters'][$type][]= ['id'=>$id,'values'=>$values];
+        $row=['id'=>$id,'values'=>$values];
+        if($requestId!==null){$row['createRequestId']=$requestId;$row['createRequestHash']=tt_master_revision($values);}
+        $data['masters'][$type][]=$row;
         return $id;
     });
 }
 
-function tt_update_master(string $type, string $id, array $values): void {
-    tt_mutate_store(function (&$data) use ($type,$id,$values): void {
+function tt_update_master(string $type, string $id, array $values, ?string $expectedRevision=null): void {
+    tt_mutate_store(function (&$data) use ($type,$id,$values,$expectedRevision): void {
         if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) throw new RuntimeException('Master type not found.');
+        if($expectedRevision!==null){
+            $found=false;
+            foreach($data['masters'][$type] as $currentRow)if(($currentRow['id']??'')===$id){
+                $found=true;
+                if(!hash_equals(tt_master_revision((array)($currentRow['values']??[])),$expectedRevision))throw new InvalidArgumentException('This master record was changed in another session. Reopen it to review the latest values before saving.');
+                break;
+            }
+            if(!$found)throw new InvalidArgumentException('This master record was removed. Refresh the list before saving.');
+        }
         if($type==='export_customers'){
             $current=null;foreach($data['masters'][$type] as $row)if(($row['id']??'')===$id)$current=$row;
             tt_validate_export_customer_advanced($values,$current['values']??null);
@@ -839,11 +884,16 @@ function tt_update_master(string $type, string $id, array $values): void {
             $current=null;foreach($data['masters'][$type] as $row)if(($row['id']??'')===$id)$current=$row;
             if(strcasecmp(trim((string)($current['values'][1]??'')),trim((string)($values[1]??'')))!==0)foreach($data['masters'][$type] as $row)if(($row['id']??'')!==$id&&strcasecmp(trim((string)($row['values'][1]??'')),trim((string)($values[1]??'')))===0)throw new InvalidArgumentException('This company short code already belongs to another company.');
         }
-        if($type==='business_parties')foreach($data['masters'][$type] as $other)if(($other['id']??'')!==$id&&tt_master_names_conflict((string)($values[0]??''),(string)($other['values'][0]??''),$type)){
+        if(in_array($type,['business_parties','export_customers','companies','mills'],true))foreach($data['masters'][$type] as $other)if(($other['id']??'')!==$id&&tt_master_names_conflict((string)($values[0]??''),(string)($other['values'][0]??''),$type)){
             $current=null;foreach($data['masters'][$type] as $row)if(($row['id']??'')===$id)$current=$row;
             if(tt_master_name_identity((string)($current['values'][0]??''),$type)!==tt_master_name_identity((string)($values[0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
         }
-        foreach ($data['masters'][$type] as &$row) if (($row['id'] ?? '')===$id) { $row['values']=$values; unset($row); return; }
+        foreach ($data['masters'][$type] as &$row) if (($row['id'] ?? '')===$id) {
+            // Company documents are written through the dedicated upload API.
+            // Preserve the latest file identities under the same store lock.
+            if($type==='companies')$values[14]=(string)($row['values'][14]??'[]');
+            $row['values']=$values; unset($row); return;
+        }
         unset($row); throw new RuntimeException('Master record not found.');
     });
 }

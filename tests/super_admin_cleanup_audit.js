@@ -11,7 +11,8 @@ assert.match(html, /No pending approvals/, 'Super Admin has an honest approval e
 assert.match(html, /No verified notifications/, 'Super Admin has an honest notification empty state');
 assert.doesNotMatch(app, /status: "Live trial"/, 'connected modules are no longer labelled as trials');
 assert.match(app, /const STATE_VERSION = 5/, 'browser console state migrates once');
-assert.match(app, /demoRefs/, 'known legacy demo audit rows are removed');
+assert.match(app, /localStorage\.removeItem\(STORAGE_KEY\)/, 'legacy cached Master, staff and demo audit rows are removed');
+assert.match(app, /initial\.audit=\[\]/, 'browser audit starts empty rather than hydrating old demo records');
 assert.match(cleanup, /pre-qa-cleanup/, 'server cleanup creates a protected snapshot first');
 assert.match(cleanup, /QA\|TEST\|DUMMY\|DEMO\|BULK/, 'cleanup is limited to explicit test markers');
 assert.match(cleanup, /QA_ACCOUNTS_PREFIX/, 'Accounts cleanup requires its exact QA prefix');

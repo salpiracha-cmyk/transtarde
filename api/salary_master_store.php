@@ -100,16 +100,19 @@ function sm_from_values(array $values,array $user,string $id=''): array {
     $status=in_array((string)$values[10],['Active','Inactive'],true)?(string)$values[10]:'Active';
     return ['id'=>$id,'entity'=>$entity,'name'=>$name,'category'=>$category,'monthlyAmount'=>$net,'zakatAmount'=>$zakat,'otherAllowance'=>$allowance,'effectiveFrom'=>$from,'effectiveTo'=>$to,'accountingTreatment'=>$treatment,'productionCostEligible'=>$category==='MILL_STAFF'&&$treatment==='STAFF_COST'&&strcasecmp((string)$values[9],'Yes')===0,'status'=>$status,'notes'=>trim((string)$values[11]),'updatedAt'=>gmdate('c'),'updatedBy'=>(string)($user['full_name']??$user['username']??'Super Admin')];
 }
-function sm_save_master(array $values,array $user,string $id=''): string {
-    return sm_mutate(function(array &$s) use($values,$user,$id): string {
+function sm_save_master(array $values,array $user,string $id='',?string $expectedRevision=null,?string $requestId=null): string {
+    return sm_mutate(function(array &$s) use($values,$user,$id,$expectedRevision,$requestId): string {
         if ($id==='') {
+            if($requestId!==null)foreach($s['salaryMasters'] as $saved)if(($saved['createRequestId']??null)===$requestId){if(!hash_equals((string)($saved['createRequestHash']??''),tt_master_revision($values)))throw new InvalidArgumentException('This salary save request was used for different details. Reopen the form.');return (string)$saved['id'];}
             $id='SALM-'.gmdate('Y').'-'.str_pad((string)(count((array)$s['salaryMasters'])+1),6,'0',STR_PAD_LEFT);
             while (isset($s['salaryMasters'][$id])) $id='SALM-'.gmdate('Y').'-'.random_int(100000,999999);
             $m=sm_from_values($values,$user,$id); $m['createdAt']=gmdate('c'); $m['createdBy']=$m['updatedBy'];
+            if($requestId!==null){$m['createRequestId']=$requestId;$m['createRequestHash']=tt_master_revision($values);}
             $s['salaryMasters'][$id]=$m; return $id;
         }
         $old=$s['salaryMasters'][$id]??null;
         if (!is_array($old)) throw new InvalidArgumentException('Salary Master record not found.');
+        if($expectedRevision!==null&&!hash_equals(tt_master_revision(sm_to_values($old)),$expectedRevision))throw new InvalidArgumentException('This Salary Master changed in another session. Reopen the record before saving.');
         $s['salaryMasters'][$id]=array_merge($old,sm_from_values($values,$user,$id));
         return $id;
     });
