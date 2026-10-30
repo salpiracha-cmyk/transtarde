@@ -199,6 +199,7 @@ jobs:
           php tests/accounts-v1/supplier_opening_core_test.php
           php tests/accounts-v1/local_customer_cheque_test.php
           php tests/security/setup_storage_hardening_test.php
+          php tests/security/internal_helpers_access_rules_test.php
           php tests/security/master_permission_migration_test.php
           php tests/security/authentication_hardening_test.php
           php tests/security/session_web_hardening_test.php
