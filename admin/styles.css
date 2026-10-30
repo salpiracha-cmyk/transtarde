@@ -701,3 +701,5 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 .backup-security-details summary{cursor:pointer;font-weight:750;color:var(--navy)}
 .backup-security-details p,.backup-security-details li{font-size:.85rem;line-height:1.6}
 .backup-security-frame{width:100%;height:610px;border:0;margin-top:12px;background:white}
+
+.console-form-error{position:sticky;top:0;z-index:5;margin:0 0 16px;padding:14px 16px;color:#8b1e1e;background:#fff0f0;border:1px solid #d98e8e;border-left:5px solid #b52626;border-radius:8px;font-weight:700}

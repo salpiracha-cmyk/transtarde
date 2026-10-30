@@ -3,7 +3,7 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
 require __DIR__ . '/salary_master_store.php';
 header('Content-Type: application/json; charset=UTF-8');
-function master_respond(array $data,int $status=200): never { http_response_code($status); echo json_encode($data,JSON_UNESCAPED_SLASHES); exit; }
+function master_respond(array $data,int $status=200): never { if(!empty($GLOBALS['masterReadWarnings']))$data['masterWarnings']=array_values(array_unique($GLOBALS['masterReadWarnings'])); http_response_code($status); echo json_encode($data,JSON_UNESCAPED_SLASHES); exit; }
 function master_find_row(string $type,string $id): ?array {
     $masters=tt_list_masters();
     foreach ((array)($masters[$type] ?? []) as $row) if ((string)($row['id'] ?? '')===$id) return $row;
@@ -13,18 +13,22 @@ function master_all(?array $user=null): array {
     // Derive the displayed values and their versions from the same returned
     // Master snapshot. Never pair one GET's values with another GET's revision.
     $masters=$user ? tt_user_visible_masters($user) : tt_list_masters();
-    if (!$user || tt_user_can_master($user,'salary_staff','View')) $masters['salary_staff']=sm_master_rows();
+    if (!$user || tt_user_can_master($user,'salary_staff','View')) {
+        try {$masters['salary_staff']=sm_master_rows();}
+        catch(Throwable $error){error_log('Salary Master read: '.$error->getMessage());$masters['salary_staff']=[];$GLOBALS['masterReadWarnings'][]='Salary Master is unavailable because Accounts storage could not be read. Its saved records have not been changed. Retry after Accounts storage is available.';}
+    }
     if(function_exists('tt_master_revision'))foreach($masters as $kind=>&$rows){
-        if($kind==='salary_staff')continue;
-        foreach($rows as &$row)$row['revision']=tt_master_revision((array)($row['values']??[]));
+        foreach($rows as &$row)if(!isset($row['revision']))$row['revision']=tt_master_revision((array)($row['values']??[]));
         unset($row);
     }
     unset($rows);
     return $masters;
 }
 function master_options_for_console(): array {
-    $options=tt_master_options();
+    $data=tt_read_store();
+    $options=tt_master_options($data);
     $chart=json_decode((string)file_get_contents(__DIR__.'/../accounts/accounting_master_v1.json'),true);
+    if(function_exists('tt_master_option_revision')){foreach(array_keys(tt_default_master_options()) as $key)$options['_revisions'][$key]=tt_master_option_revision($data,$key);}
     $options['service_expense_heads']=array_values(array_filter((array)($chart['chart']??[]),static fn($a)=>($a['class']??'')==='Expense'&&!in_array($a['level']??'',['heading','system'],true)));
     return $options;
 }
@@ -67,6 +71,10 @@ function master_sync_accounts_bank_defaults(string $companyId,array $admin): voi
         if(fwrite($handle,$encoded)!==strlen($encoded)||!fflush($handle))throw new RuntimeException('Accounts storage could not be saved.');
     }finally{flock($handle,LOCK_UN);fclose($handle);}
 }
+function master_bank_sync_result(string $companyId,array $admin): array {
+    try {master_sync_accounts_bank_defaults($companyId,$admin);return ['companyId'=>$companyId,'status'=>'complete'];}
+    catch(Throwable $error){error_log('Company bank default synchronization: '.$error->getMessage());return ['companyId'=>$companyId,'status'=>'pending','message'=>'Company bank changes were saved. Accounts defaults could not synchronize; use Retry bank defaults before posting.'];}
+}
 try {
     $admin=tt_require_login();
     if (!tt_user_can_access_masters($admin)) master_respond(['ok'=>false,'error'=>'Master Records access required.'],403);
@@ -77,6 +85,12 @@ try {
 
     $type=(string)($body['type'] ?? '');
     $action=(string)($body['action'] ?? ''); $id=trim((string)($body['id'] ?? ''));
+    foreach(['expectedRevision'=>'/^[a-f0-9]{64}$/D','requestId'=>'/^[a-zA-Z0-9_-]{12,96}$/D'] as $key=>$pattern)if(isset($body[$key])&&(!is_string($body[$key])||!preg_match($pattern,$body[$key])))throw new InvalidArgumentException('Invalid record version or save request. Reopen the form.');
+    if($action==='sync-company-bank-defaults'){
+        if(!tt_user_can_master($admin,'companies','Edit'))master_respond(['ok'=>false,'error'=>'Company Edit access required.'],403);
+        if($id===''||!master_find_row('companies',$id))throw new InvalidArgumentException('Select a company.');
+        master_respond(['ok'=>true,'bankDefaultSync'=>master_bank_sync_result($id,$admin)]);
+    }
     if ($action==='request-bank-deletion') {
         if (!tt_user_can_master($admin,'companies','Edit')) master_respond(['ok'=>false,'error'=>'Company master edit access required.'],403);
         $bankId=trim((string)($body['bankId']??''));$reason=trim((string)($body['reason']??''));
@@ -127,9 +141,9 @@ try {
                 foreach($data['bank_deletion_requests'] as &$request){if(($request['companyId']??'')===$id&&($request['bankId']??'')===$bankId&&($request['status']??'')==='Pending'){$request['status']='Superseded by Super Admin';$request['reviewedAt']=gmdate('c');$request['reviewedBy']=(string)($admin['full_name']??$admin['username']??'Super Admin');}}unset($request);
             }
         });
-        master_sync_accounts_bank_defaults($id,$admin);
+        $bankSync=master_bank_sync_result($id,$admin);
         tt_audit((int)$admin['id'],$admin['username'],'Super Admin deleted company bank from future use '.$bankId);
-        master_respond(['ok'=>true,'masters'=>master_all($admin),'bankDeletionRequests'=>(array)(tt_read_store()['bank_deletion_requests']??[])]);
+        master_respond(['ok'=>true,'bankDefaultSync'=>$bankSync??null,'masters'=>master_all($admin),'bankDeletionRequests'=>(array)(tt_read_store()['bank_deletion_requests']??[])]);
     }
     if ($action==='review-bank-deletion') {
         $owner=($admin['role']??'')==='Super Admin';$director=tt_user_can_director_approve($admin);
@@ -167,9 +181,9 @@ try {
             }unset($request);
             throw new InvalidArgumentException('Pending Director request not found.');
         });
-        if($decision==='Approve')master_sync_accounts_bank_defaults((string)$review['companyId'],$admin);
+        $bankSync=$decision==='Approve'?master_bank_sync_result((string)$review['companyId'],$admin):null;
         tt_audit((int)$admin['id'],$admin['username'],$decision.' bank account deactivation '.$requestId);
-        master_respond(['ok'=>true,'review'=>$review,'masters'=>master_all($admin),'bankDeletionRequests'=>(array)(tt_read_store()['bank_deletion_requests']??[])]);
+        master_respond(['ok'=>true,'review'=>$review,'bankDefaultSync'=>$bankSync??null,'masters'=>master_all($admin),'bankDeletionRequests'=>(array)(tt_read_store()['bank_deletion_requests']??[])]);
     }
     if ($action==='request-deletion') {
         if(!in_array($type,['business_parties','export_customers'],true)||!tt_user_can_master($admin,$type,'View'))master_respond(['ok'=>false,'error'=>'Select an accessible customer or business party.'],403);
@@ -211,7 +225,7 @@ try {
         $optionKey=(string)($body['optionKey'] ?? '');
         $optionMaster=$type==='reference_lists'?'reference_lists':($optionKey==='party_roles'?'business_parties':'products');
         if (!tt_user_can_master($admin,$optionMaster,'Edit')) master_respond(['ok'=>false,'error'=>'Edit permission is required for this master option.'],403);
-        $value=tt_manage_master_option($optionKey,$optionAction,(string)($body['value'] ?? ''),(string)($body['old'] ?? ''),(string)($body['fullName']??''));
+        $value=tt_manage_master_option($optionKey,$optionAction,(string)($body['value'] ?? ''),(string)($body['old'] ?? ''),(string)($body['fullName']??''),$body['expectedRevision']??null);
         tt_audit((int)$admin['id'],$admin['username'],ucfirst($optionAction).' '.$optionKey.' option '.$value);
         master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'value'=>$value]);
     }
@@ -225,13 +239,13 @@ try {
         }
         $values=$body['values']??null;
         if (!is_array($values)) throw new InvalidArgumentException('Enter the Salary Master details.');
-        if ($action==='create') $id=sm_save_master($values,$admin);
+        if ($action==='create') $id=sm_save_master($values,$admin,'',null,$body['requestId']??null);
         elseif ($action==='update') {
             if ($id==='') throw new InvalidArgumentException('Select a staff record.');
-            sm_save_master($values,$admin,$id);
+            sm_save_master($values,$admin,$id,$body['expectedRevision']??null);
         } else master_respond(['ok'=>false,'error'=>'Unknown Salary Master action.'],400);
         tt_audit((int)$admin['id'],$admin['username'],($action==='create'?'Created ':'Updated ').'Salary Master '.$id);
-        master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
+        master_respond(['ok'=>true,'id'=>$id,'bankDefaultSync'=>$bankSync??null,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
 
     $schemas=[
@@ -263,7 +277,7 @@ try {
         if($referenced)throw new InvalidArgumentException('This record is already linked to operational history. It must remain deactivated so old records stay traceable.');
         tt_delete_master($type,$id);
         tt_audit((int)$admin['id'],$admin['username'],'Permanently deleted unused '.$type.' Master '.$values[0].' '.$id);
-        master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
+        master_respond(['ok'=>true,'id'=>$id,'bankDefaultSync'=>$bankSync??null,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
     if ($action==='delete') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
@@ -277,7 +291,7 @@ try {
         } else {
             throw new InvalidArgumentException('This core identity cannot be erased because operational history may reference it. Update the record or mark its usage inactive instead.');
         }
-        master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
+        master_respond(['ok'=>true,'id'=>$id,'bankDefaultSync'=>$bankSync??null,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
 
     $raw=$body['values'] ?? null;
@@ -401,7 +415,8 @@ try {
         foreach((array)(tt_read_store()['masters'][$type]??[]) as $savedRow){
             if(($savedRow['createRequestId']??null)!==$retryId)continue;
             if(!hash_equals((string)($savedRow['createRequestHash']??''),tt_master_revision($values)))throw new InvalidArgumentException('This save request was already used for a different record. Reopen the form.');
-            master_respond(['ok'=>true,'id'=>(string)$savedRow['id'],'replayed'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
+            $bankSync=$type==='companies'?master_bank_sync_result((string)$savedRow['id'],$admin):null;
+            master_respond(['ok'=>true,'id'=>(string)$savedRow['id'],'bankDefaultSync'=>$bankSync,'replayed'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
         }
     }
     if (in_array($type,['companies','export_customers','business_parties','mills'],true)) {
@@ -529,16 +544,16 @@ try {
         $requestId=$body['requestId']??null;
         if($requestId!==null&&(!is_string($requestId)||!preg_match('/^[a-zA-Z0-9_-]{12,96}$/D',$requestId)))throw new InvalidArgumentException('Invalid master save request. Reopen the form.');
         $id=tt_create_master($type,$values,$requestId); tt_audit((int)$admin['id'],$admin['username'],'Created '.$type.' master '.$reference);
-        if($type==='companies')master_sync_accounts_bank_defaults($id,$admin);
-        master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
+        if($type==='companies')$bankSync=master_bank_sync_result($id,$admin);
+        master_respond(['ok'=>true,'id'=>$id,'bankDefaultSync'=>$bankSync??null,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
     if ($action==='update') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
         $expectedRevision=$body['expectedRevision']??null;
         if($expectedRevision!==null&&(!is_string($expectedRevision)||!preg_match('/^[a-f0-9]{64}$/D',$expectedRevision)))throw new InvalidArgumentException('Invalid record version. Reopen the master record.');
         tt_update_master($type,$id,$values,$expectedRevision); tt_audit((int)$admin['id'],$admin['username'],'Updated '.$type.' master '.$reference);
-        if($type==='companies')master_sync_accounts_bank_defaults($id,$admin);
-        master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
+        if($type==='companies')$bankSync=master_bank_sync_result($id,$admin);
+        master_respond(['ok'=>true,'id'=>$id,'bankDefaultSync'=>$bankSync??null,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
     master_respond(['ok'=>false,'error'=>'Unknown action.'],400);
 } catch (InvalidArgumentException $e) { master_respond(['ok'=>false,'error'=>$e->getMessage()],422); }

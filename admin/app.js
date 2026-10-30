@@ -325,9 +325,21 @@
     const response = await fetch(`api/${endpoint}.php`, options);
     const data = await response.json().catch(() => ({ ok: false, error: "The server returned an unreadable response." }));
     if (!response.ok || !data.ok) throw new Error(data.error || "The user action could not be completed.");
+    if(data.masterWarnings?.length){let warning=document.getElementById('masterReadWarning');if(!warning){warning=document.createElement('div');warning.id='masterReadWarning';warning.className='console-form-error';warning.setAttribute('role','alert');document.querySelector('.content').prepend(warning);}warning.textContent=data.masterWarnings.join(' ');}
+    else if(endpoint==='masters')document.getElementById('masterReadWarning')?.remove();
+    if(data.bankDefaultSync)showBankSyncStatus(data.bankDefaultSync);
     return data;
   }
 
+  function showBankSyncStatus(sync) {
+    let node=document.getElementById('bankDefaultSyncWarning');
+    if(sync.status==='complete'){[...(node?.querySelectorAll('[data-retry-bank-sync]')||[])].find(button=>button.dataset.retryBankSync===sync.companyId)?.closest('p')?.remove();if(node&&!node.children.length)node.remove();return;}
+    if(!node){node=document.createElement('section');node.id='bankDefaultSyncWarning';node.className='console-form-error';node.setAttribute('role','alert');document.querySelector('.content').prepend(node);}
+    let row=[...node.children].find(el=>el.dataset.companyId===sync.companyId);
+    if(!row){row=document.createElement('p');row.dataset.companyId=sync.companyId;node.append(row);}
+    row.textContent=sync.message+' ';const button=document.createElement('button');button.type='button';button.className='button secondary';button.dataset.retryBankSync=sync.companyId;button.textContent='Retry bank defaults';row.append(button);
+    button.onclick=async()=>{button.disabled=true;try{await apiRequest({action:'sync-company-bank-defaults',type:'companies',id:sync.companyId},'masters')}catch(error){toast(error.message)}finally{button.disabled=false}};
+  }
   function canOpenModule(name) {
     if (IS_SUPER_ADMIN) return true;
     const permission = SESSION.permissions?.[name];
@@ -401,6 +413,12 @@
     }
   }
   function toast(message) {
+    const dialog=[...document.querySelectorAll('dialog[open]')].at(-1);
+    if(dialog){
+      let alert=dialog.querySelector('.console-form-error');
+      if(!alert){alert=document.createElement('div');alert.className='console-form-error';alert.setAttribute('role','alert');(dialog.querySelector('form')||dialog).prepend(alert);}
+      alert.textContent=message;alert.scrollIntoView?.({block:'nearest'});return;
+    }
     const region = document.getElementById("toastRegion");
     const node = document.createElement("div");
     node.className = "toast";
@@ -512,6 +530,8 @@
   function openUserDialog(userId) {
     const dialog = document.getElementById("userDialog");
     const form = document.getElementById("userForm");
+    form.querySelector(".console-form-error")?.remove();
+    form.dataset.expectedRevision=userId?state.users.find(item=>item.id===userId)?.revision||"":"";
     form.reset();
     directorPermissionDraft = null;
     const user = state.users.find(item => item.id === userId);
@@ -561,8 +581,10 @@
       document.getElementById("userDialog").close(); showCredentials(data.username, data.temporaryPassword);
     } catch (error) { toast(error.message); }
   }
+  let userSaveInFlight=false;
   async function saveUser(event) {
     event.preventDefault();
+    if(userSaveInFlight)return;
     const form = document.getElementById("userForm");
     if (!form.reportValidity()) return;
     const id = document.getElementById("editUserId").value;
@@ -614,13 +636,15 @@
       masterAccess, masterPermissions,
       lastActive: id ? (state.users.find(item => item.id === id)?.lastActive || "Not activated") : "Not activated"
     };
+    userSaveInFlight=true;document.getElementById("saveUserButton").disabled=true;
     try {
-      const data = await apiRequest({ action: id ? "update" : "create", ...user });
+      const data = await apiRequest({ action: id ? "update" : "create", ...user, ...(id&&form.dataset.expectedRevision?{expectedRevision:form.dataset.expectedRevision}:{}) });
       state.users = data.users; state.permissionChanges += 1; renderUsers();
       document.getElementById("userDialog").close();
       if (data.temporaryPassword) showCredentials(data.username, data.temporaryPassword);
       else savedNotice("User and permissions have been updated.");
     } catch (error) { toast(error.message); }
+    finally {userSaveInFlight=false;document.getElementById("saveUserButton").disabled=false;}
   }
 
   function ensureMasterSections(masters = {},masterOptions = {}) {
@@ -1416,7 +1440,7 @@
       state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
       if(document.getElementById('masterDialog').open&&bankField){
         const savedCompany=(state.masters.companies||[]).find(row=>row.id===company.id);
-        if(savedCompany?.revision)document.getElementById('masterForm').dataset.expectedRevision=savedCompany.revision;const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
+        const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);const confirmed=(state.masters.companies||[]).find(row=>row.id===company.id);if(confirmed?.revision){const base=JSON.parse(document.getElementById('masterForm').dataset.companyBaseValues||'null');if(base&&JSON.stringify(base.filter((_,i)=>i!==13))===JSON.stringify(confirmed.values.filter((_,i)=>i!==13))){document.getElementById('masterForm').dataset.companyBaseValues=JSON.stringify(confirmed.values);document.getElementById('masterForm').dataset.expectedRevision=confirmed.revision;}}document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
       renderMasters();dirtyDialogs.delete("bankDialog");document.getElementById("bankDialog").close();savedNotice("Saved successfully.");
     }catch(error){showBankSaveError(error.message||"The bank account could not be saved. Please try again.")}finally{button.disabled=false}
   }
@@ -1450,7 +1474,7 @@
       const data=await apiRequest({action:"delete-company-bank",type:"companies",id:company.id,bankId:bank.id,replacementBankId},"masters");
       state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
       const bankField=document.getElementById(masterInputId(13));
-      if(document.getElementById('masterDialog').open&&bankField){const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
+      if(document.getElementById('masterDialog').open&&bankField){const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);const confirmed=(state.masters.companies||[]).find(row=>row.id===company.id);if(confirmed?.revision){const base=JSON.parse(document.getElementById('masterForm').dataset.companyBaseValues||'null');if(base&&JSON.stringify(base.filter((_,i)=>i!==13))===JSON.stringify(confirmed.values.filter((_,i)=>i!==13))){document.getElementById('masterForm').dataset.companyBaseValues=JSON.stringify(confirmed.values);document.getElementById('masterForm').dataset.expectedRevision=confirmed.revision;}}document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
       renderMasters();dirtyDialogs.delete("bankDialog");document.getElementById("bankDialog").close();savedNotice("Bank account removed from future use. Historical postings remain.");
     }catch(error){toast(error.message);button.disabled=false}
   }
@@ -1476,6 +1500,10 @@
     const type = activeMasterType();
     const row = (state.masters[type.id] || []).find(item => item.id === id);
     if(id&&!row){toast("This master record is no longer available. Reopen the current list.");return;}
+    document.getElementById("masterForm").querySelector(".console-form-error")?.remove();
+    delete document.getElementById("masterForm").dataset.savedValuesFingerprint;
+    document.getElementById("masterForm").dataset.companyBaseValues=row&&type.id==='companies'?JSON.stringify(row.values):'';
+    document.getElementById("masterForm").dataset.expectedOptionRevision=row&&type.id==="reference_lists"?state.masterOptions?._revisions?.[row.values[0]]||"":"";
     document.getElementById("masterForm").reset();
     document.getElementById("masterForm").dataset.expectedRevision=row?.revision||'';
     document.getElementById("masterForm").dataset.masterRequestId=row?'':(window.crypto?.randomUUID?.()||`master-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -1507,7 +1535,7 @@
       if(membership&&legacyMembership){membership.oninput=()=>{legacyMembership.value=membership.value};legacyMembership.oninput=()=>{membership.value=legacyMembership.value}}
       const wireNested=()=>{
         wireRegistrations();
-        documentRows?.querySelectorAll('[data-remove-company-document]').forEach(button=>button.onclick=()=>{const row=button.closest('.company-document-row');if(row){row.querySelector('[data-document-status]').value='Inactive';row.hidden=true}});
+        documentRows?.querySelectorAll('[data-remove-company-document]').forEach(button=>button.onclick=()=>{const row=button.closest('.company-document-row');if(row){if(!row.querySelector('[data-document-id]')?.value){row.remove();return;}row.querySelector('[data-document-status]').value='Inactive';row.querySelector('[data-document-default]').checked=false;row.hidden=true;dirtyDialogs.add('masterDialog')}});
         documentRows?.querySelectorAll('[data-preview-company-document],[data-download-company-document]').forEach(button=>button.onclick=()=>{const documentId=button.closest('.company-document-row')?.querySelector('[data-document-id]')?.value;if(!documentId||!row?.id)return;const download=button.hasAttribute('data-download-company-document')?'&download=1':'';window.open(`api/master_documents.php?companyId=${encodeURIComponent(row.id)}&documentId=${encodeURIComponent(documentId)}${download}`,'_blank','noopener')});
       };
       const fxRows=document.getElementById('companyFxRows'),fxSection=document.getElementById('companyFxSection');
@@ -1632,24 +1660,37 @@
       const primary=values[0]||type.name,ref=values[1]||type.id.toUpperCase();
       if(type.id==="reference_lists"){
         const existing=id?(state.masters.reference_lists||[]).find(row=>row.id===id):null;
-        const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:existing?"rename":"add",optionKey:existing?.values?.[0]||values[0],old:existing?.values?.[1]||"",value:values[1],fullName:(existing?.values?.[0]||values[0])==='currencies'?values[2]:''},"masters");
+        const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:existing?"rename":"add",optionKey:existing?.values?.[0]||values[0],old:existing?.values?.[1]||"",value:values[1],fullName:(existing?.values?.[0]||values[0])==='currencies'?values[2]:'',...(existing&&form.dataset.expectedOptionRevision?{expectedRevision:form.dataset.expectedOptionRevision}:{})},"masters");
         if(data.options)state.masterOptions=data.options;
         state.masters=ensureMasterSections(data.masters,state.masterOptions);
         saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();
         savedNotice(existing?"Reference option updated.":"Reference option added.");return;
       }
       const pendingDocuments=type.id==="companies"?[...document.querySelectorAll('.company-document-row')].filter(row=>!row.querySelector('[data-document-id]')?.value&&row.querySelector('[data-document-file]')?.files?.[0]):[];
-      const data=await apiRequest({action:id?"update":"create",type:type.id,id,values,
+      const fingerprint=JSON.stringify(values.map((value,index)=>type.id==="companies"&&index===14?"":value));
+      const resumeAttachments=type.id==="companies"&&id&&form.dataset.savedValuesFingerprint===fingerprint;
+      const data=resumeAttachments?{id,masters:state.masters}:await apiRequest({action:id?"update":"create",type:type.id,id,values,
         ...(id?form.dataset.expectedRevision?{expectedRevision:form.dataset.expectedRevision}:{}:{requestId:form.dataset.masterRequestId})},"masters");
       committed=true;
       const savedId=data.id||id;
       if(data.options)state.masterOptions=data.options;
       state.masters=ensureMasterSections(data.masters,state.masterOptions);
       const savedRow=(state.masters[type.id]||[]).find(item=>item.id===savedId);
-      form.dataset.expectedRevision=savedRow?.revision||'';
+      if(!resumeAttachments)form.dataset.expectedRevision=savedRow?.revision||'';
+      if(type.id==='companies')form.dataset.savedValuesFingerprint=fingerprint;
       if(!id)document.getElementById("editMasterId").value=savedId;
       saveState();
       uploadPhase=true;
+      if(type.id==='companies'&&canMaster('companies','View Documents'))for(const row of document.querySelectorAll('.company-document-row')){
+        const original=JSON.parse(row.querySelector('[data-document-json]')?.value||'{}'),documentId=row.querySelector('[data-document-id]')?.value;
+        if(!documentId)continue;
+        const metadata={type:row.querySelector('[data-document-type]').value,label:row.querySelector('[data-document-label]').value.trim(),status:row.querySelector('[data-document-status]').value,isDefault:row.querySelector('[data-document-default]').checked};
+        if(Object.entries(metadata).every(([key,value])=>value===(original[key]??(key==='isDefault'?false:''))))continue;
+        const payload=new FormData();for(const [key,value] of Object.entries({csrf:SESSION.csrf,companyId:savedId,action:'update',documentId,...metadata,isDefault:metadata.isDefault?'1':'',expectedRevision:form.dataset.expectedRevision}))payload.append(key,value);
+        const response=await fetch('api/master_documents.php',{method:'POST',body:payload}),updated=await response.json();
+        if(!response.ok||!updated.ok)throw new Error(updated.error||'Document details could not be saved.');
+        row.querySelector('[data-document-json]').value=JSON.stringify(updated.document);form.dataset.expectedRevision=updated.revision;
+      }
       for(const row of pendingDocuments){
         const payload=new FormData();
         payload.append('csrf',SESSION.csrf);payload.append('action','upload');payload.append('companyId',savedId);
@@ -1689,7 +1730,8 @@
           state.masters=ensureMasterSections(refreshed.masters,state.masterOptions);
           const savedId=document.getElementById("editMasterId").value;
           const latest=(state.masters.companies||[]).find(item=>item.id===savedId);
-          if(latest?.revision)form.dataset.expectedRevision=latest.revision;
+          // Do not bless a newer company revision over this editor's old fields.
+          // Attachment-only retries use their stable upload request identities.
           saveState();renderMasters();
         }catch(_){}
         toast("Company details were saved, but a document upload failed: "+error.message+". Retry Save Changes; the company will not be created again.");
@@ -1837,7 +1879,7 @@
     if(document.getElementById("auditSource")?.value!=="browser"&&(!auditLoaded||auditLoading||auditError)){toast("Refresh the server audit successfully before exporting.");return;}
     const header=["Date & Time","User","Area","Action","Details","Reference","Source"];
     const data=[header,...filteredAuditEntries().map(item=>[userActivityStamp(item.date),item.user,item.area,item.action,item.detail,item.ref,item.source])];
-    const csv=data.map(row=>row.map(cell=>`"${(/^[=+@\-\t\r]/.test(String(cell??""))?"'":"")+String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");
+    const csv=data.map(row=>row.map(cell=>`"${(/^[\s\uFEFF]*[=+@\-\t\r]/.test(String(cell??""))?"'":"")+String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");
     const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
     const link=document.createElement("a");link.href=url;link.download=(window.TT_DOCUMENT_NAME?.clean(`Transtrade_Audit_${new Date().toISOString().slice(0,10)}.csv`,220)||(`Transtrade_Audit_${new Date().toISOString().slice(0,10)}.csv`));link.click();URL.revokeObjectURL(url);
     toast("Audit download prepared.");

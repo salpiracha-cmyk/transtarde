@@ -831,14 +831,14 @@ function tt_default_master_options(): array {
 
 function tt_default_party_roles(): array { return tt_default_master_options()['party_roles']; }
 
-function tt_currency_full_names(): array {
+function tt_currency_full_names(?array $data=null): array {
     $names=['USD'=>'United States Dollars','EUR'=>'Euros','GBP'=>'Pounds Sterling','AED'=>'United Arab Emirates Dirhams','PKR'=>'Pakistani Rupees'];
-    foreach((array)(tt_read_store()['currency_names']??[]) as $code=>$name)if(preg_match('/^[A-Z]{3}$/',(string)$code)&&trim((string)$name)!=='')$names[$code]=trim((string)$name);
+    foreach((array)(($data??tt_read_store())['currency_names']??[]) as $code=>$name)if(preg_match('/^[A-Z]{3}$/',(string)$code)&&trim((string)$name)!=='')$names[$code]=trim((string)$name);
     return $names;
 }
 
-function tt_master_options(): array {
-    $data=tt_read_store();
+function tt_master_options(?array $data=null): array {
+    $data??=tt_read_store();
     $defaults=tt_default_master_options();
     $stored=is_array($data['master_options'] ?? null) ? $data['master_options'] : [];
     $disabled=is_array($data['master_options_disabled'] ?? null) ? $data['master_options_disabled'] : [];
@@ -863,11 +863,14 @@ function tt_master_options(): array {
         $out[$key]=array_values($unique);
         sort($out[$key],SORT_NATURAL|SORT_FLAG_CASE);
     }
-    $out['currency_names']=tt_currency_full_names();
+    $out['currency_names']=tt_currency_full_names($data);
     return $out;
 }
 
-function tt_manage_master_option(string $key,string $action,string $value,string $old='',string $fullName=''): string {
+function tt_master_option_revision(array $data,string $key): string {
+    return hash('sha256',json_encode([$data['master_options'][$key]??null,$data['master_options_disabled'][$key]??null,$key==='currencies'?($data['currency_names']??null):null],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
+}
+function tt_manage_master_option(string $key,string $action,string $value,string $old='',string $fullName='',?string $expectedRevision=null): string {
     $defaults=tt_default_master_options();
     if (!array_key_exists($key,$defaults)) throw new InvalidArgumentException('Select a valid option list.');
     $clean=static fn(string $v): string=>trim(preg_replace('/\s+/',' ',$v) ?? '');
@@ -879,7 +882,8 @@ function tt_manage_master_option(string $key,string $action,string $value,string
         $value=strtoupper($value);$fullName=$clean($fullName);
         if(!preg_match('/^[A-Z]{3}$/',$value)||$fullName===''||strlen($fullName)>100)throw new InvalidArgumentException('Enter a three-letter currency code and its full name.');
     }
-    tt_mutate_store(function (&$data) use ($key,$action,$value,$old,$clean,$fullName): void {
+    tt_mutate_store(function (&$data) use ($key,$action,$value,$old,$clean,$fullName,$expectedRevision): void {
+        if($expectedRevision!==null&&!hash_equals(tt_master_option_revision($data,$key),$expectedRevision))throw new InvalidArgumentException('This reference list changed in another session. Reopen the option before saving.');
         if (!isset($data['master_options']) || !is_array($data['master_options'])) $data['master_options']=[];
         if (!isset($data['master_options_disabled']) || !is_array($data['master_options_disabled'])) $data['master_options_disabled']=[];
         $active=array_values(array_filter(array_map(static fn($v)=>trim((string)$v),(array)($data['master_options'][$key] ?? []))));

@@ -46,6 +46,7 @@ jobs:
           python3 tests/security/accounts_read_scope_test.py
           node tests/security/live_credential_artifact_test.js
           node tests/security/master_console_browser_storage_test.js
+          python3 tests/security/master_document_metadata_access_test.py
           python3 tests/accounts-v1/staff_payment_amend_http_test.py
           php tests/accounts-v1/directors_trading_test.php
           php tests/accounts-v1/exporter_soda_arrangements_test.php
@@ -90,6 +91,7 @@ jobs:
           python3 tests/accounts-v1/expense_invoice_http_test.py
           python3 tests/accounts-v1/financial_report_classification_http_test.py
           python3 tests/accounts-v1/master_family_roundtrip_http_test.py
+          node tests/accounts-v1/master_console_save_safety_test.js
           python3 tests/accounts-v1/dashboard_commodity_dues_http_test.py
           python3 tests/accounts-v1/petty_cash_http_test.py
           python3 tests/accounts-v1/petty_cash_balance_projection_test.py
@@ -200,6 +202,7 @@ jobs:
           php tests/accounts-v1/supplier_opening_core_test.php
           php tests/accounts-v1/local_customer_cheque_test.php
           php tests/security/setup_storage_hardening_test.php
+          php tests/security/internal_helpers_access_rules_test.php
           php tests/security/master_permission_migration_test.php
           php tests/security/authentication_hardening_test.php
           php tests/security/session_web_hardening_test.php
