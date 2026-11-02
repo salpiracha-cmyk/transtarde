@@ -11,6 +11,8 @@ $id = strtolower((string)($_GET['id'] ?? ''));
 if (!isset($modules[$id]) || !is_file($modules[$id])) { http_response_code(404); exit('Module not found.'); }
 $permissionName = $id === 'milling' ? 'Mill' : 'Exports';
 if (!tt_user_can_open_module($user, $permissionName)) { http_response_code(403); exit('You do not have permission to open this module.'); }
+$localSalesView=$id==='milling'&&($_GET['view']??'')==='local-sales';
+if($localSalesView&&(!tt_user_can_module_action($user,'Mill','local','View')||!tt_user_can_module_action($user,'Accounts','customer','View'))){http_response_code(403);exit('Local Sales permission for Mill and Accounts is required.');}
 tt_release_read_session();
 header('Content-Type: text/html; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -356,6 +358,7 @@ HTML;
 $brandHead = $id === 'exports' ? '<link rel="stylesheet" href="/export-assets.php?name=release-theme.css">' : '';
 // Layout polish loads first; the owner-approved palette remains authoritative.
 $brandHead .= '<link rel="stylesheet" href="/brand-theme.css?v=20261006-number-entry-1">';
+if($localSalesView)$brandHead.='<style>.panel{display:none!important}#local.active,#millLanding.active{display:block!important}</style>';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
 $accountsSourceBridge = '<script src="mill-duplicate-approvals.js"></script><script src="accounts/source-bridge.js?v=20260924-explicit-actions-1"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';
@@ -363,6 +366,11 @@ $brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script s
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
 if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
+$localSalesEntry='';
+if($localSalesView){
+    $entry=file_get_contents(__DIR__.'/milling/local-sales-entry.js');
+    $localSalesEntry='<script>'.str_replace('</script','<\\/script',(string)$entry).'</script>';
+}
 $bodyPos = strripos($html, '</body>');
-if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;
+if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody.$localSalesEntry, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody.$localSalesEntry;
 echo tt_version_local_assets($html);

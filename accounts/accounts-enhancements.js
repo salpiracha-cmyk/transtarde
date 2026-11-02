@@ -4,7 +4,7 @@
   const q=s=>document.querySelector(s),qa=s=>[...document.querySelectorAll(s)];
   const currentEntity=()=>localStorage.getItem('tt_accounts_entity')||'TTI';
   let master=null;
-  async function load(){try{const r=await fetch(api+'?entity='+encodeURIComponent(currentEntity()),{credentials:'same-origin'}),d=await r.json();if(r.ok&&d.ok)master=d.accountingMaster||null}catch(e){console.error(e)}}
+  async function load(){try{const company=currentEntity(),d=window.TT_ACCOUNTS_REFERENCE?await window.TT_ACCOUNTS_REFERENCE.read(company):await fetch(api+'?entity='+encodeURIComponent(company),{credentials:'same-origin'}).then(async r=>{const v=await r.json();if(!r.ok||!v.ok)throw Error(v.error||'Could not load account references.');return v;});if(company===currentEntity())master=d.accountingMaster||null}catch(e){console.error(e)}}
   function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
   function buildEntityLanding(){

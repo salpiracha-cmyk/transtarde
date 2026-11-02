@@ -23,6 +23,7 @@ $files = [
     'bill-layout.js',
     'currency-master-ui.js',
     'accounts-runtime.js',
+    'accounts-reference-loader.js',
     'accounts-live.js',
     'accounts-enhancements.js',
     'accounts-navigation-ui.js',

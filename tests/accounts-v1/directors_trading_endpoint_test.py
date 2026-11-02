@@ -41,6 +41,10 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
   try:return int(r.stderr.rsplit('STATUS:',1)[1]),json.loads(r.stdout)
   except Exception:raise AssertionError((r.returncode,r.stdout,r.stderr))
  status,d=req();assert status==200,d;assert path.read_bytes()==before,'GET wrote Accounts'
+ status,choices=req(view='parties');assert status==200 and set(choices)=={'ok','entity','asOf','parties'},choices
+ assert choices['parties'][0]['id']=='KAS' and path.read_bytes()==before,'Live choices must use original IDs without writes'
+ assert req(view='parties',mode='deny')[0]==403
+ assert req(view='parties',entity='BRM')[0]==403
  assert req(mode='deny')[0]==403
  assert req(entity='BRM')[0]==403
  status,d=req(area='costing',mode='cost');assert status==200 and 'deals' not in d and 'cashflow' not in d and 'banks' not in d,d

@@ -320,14 +320,15 @@
     state.audit.unshift({ date: nowStamp(), user: SESSION.name, area, action, detail, ref });
   }
 
-  async function apiRequest(body, endpoint = "users") {
+  async function apiRequest(body, endpoint = "users", query = null) {
     const options = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, csrf: SESSION.csrf }) } : {};
-    const response = await fetch(`api/${endpoint}.php`, options);
+    const response = await fetch(`api/${endpoint}.php${query?"?"+new URLSearchParams(query):""}`, options);
     const data = await response.json().catch(() => ({ ok: false, error: "The server returned an unreadable response." }));
     if (!response.ok || !data.ok) throw new Error(data.error || "The user action could not be completed.");
     if(data.masterWarnings?.length){let warning=document.getElementById('masterReadWarning');if(!warning){warning=document.createElement('div');warning.id='masterReadWarning';warning.className='console-form-error';warning.setAttribute('role','alert');document.querySelector('.content').prepend(warning);}warning.textContent=data.masterWarnings.join(' ');}
     else if(endpoint==='masters')document.getElementById('masterReadWarning')?.remove();
     if(data.bankDefaultSync)showBankSyncStatus(data.bankDefaultSync);
+    if(body&&endpoint==="masters"&&typeof BroadcastChannel==="function"){try{const signal=new BroadcastChannel("tt-master-changes");signal.postMessage({changed:true});signal.close();}catch{}}
     return data;
   }
 
@@ -1839,14 +1840,15 @@
     const filter=document.getElementById("auditFilter")?.value||"all";
     return auditEntries().filter(item=>textMatchesPostIdSearch(Object.values(item).join(" "),query)&&(filter==="all"||item.area===filter));
   }
-  async function loadServerAudit() {
+  async function loadServerAudit(preview = false) {
+    preview=preview===true;
     if(!IS_SUPER_ADMIN)return;
     const request=++auditRequestSerial,button=document.getElementById("refreshAudit");
     auditLoading=true;auditError="";if(button)button.disabled=true;renderAudit();
     try {
-      const data=await apiRequest(null,"admin_audit");
+      const data=await apiRequest(null,"admin_audit",preview?{limit:4}:null);
       if(request!==auditRequestSerial)return;
-      serverAudit=Array.isArray(data.entries)?data.entries:[];auditLoaded=true;
+      serverAudit=Array.isArray(data.entries)?data.entries:[];auditLoaded=!preview;
     } catch(error) { if(request===auditRequestSerial)auditError=error.message; }
     finally {
       if(request===auditRequestSerial){auditLoading=false;if(button)button.disabled=false;renderAudit();renderRecentActivity();}
@@ -2079,6 +2081,7 @@
     document.querySelectorAll(".view").forEach(view => view.classList.toggle("active", view.id === `view-${id}`));
     document.querySelectorAll(".nav-item[data-view]").forEach(item => item.classList.toggle("active", item.dataset.view === id));
     if(id==="audit")void loadServerAudit();
+    if(id==="backup")void loadBackupStatus();
     setNavigationOpen(false);
     window.scrollTo({ top: 0, behavior: "instant" });
   }
@@ -2323,11 +2326,11 @@
   });
 
   async function initialize() {
-    applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); renderApprovals(); loadBackupStatus();
+    applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); renderApprovals();
     if (new URLSearchParams(location.search).get('view')==='masters' && hasMasterAccess) showView('masters');
     if (new URLSearchParams(location.search).get('view')==='backup' && IS_SUPER_ADMIN) showView('backup');
     if (IS_SUPER_ADMIN) {
-      try { await Promise.all([loadServerUsers(),refreshApprovals(),loadServerAudit()]); } catch (error) { toast(error.message); }
+      try { await Promise.all([loadServerUsers(),refreshApprovals(),loadServerAudit(true)]); } catch (error) { toast(error.message); }
     } else if (hasMasterAccess) {
       try { await loadServerMasters(); } catch (error) { toast(error.message); }
     }
