@@ -1057,6 +1057,47 @@
     const parts=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Karachi",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).map(part=>[part.type,part.value]));
     return `${parts.year}-${parts.month}-${parts.day}`;
   }
+  const CUSTOMER_LIST_FIELDS={
+    9:{title:"Notify parties",singular:"notify party",max:12,fields:[["name","Notify party name"],["address","Full address","textarea"]]},
+    16:{title:"Contacts",singular:"contact",max:50,fields:[["name","Contact name"],["email","Contact email"],["phone","Contact phone"],["designation","Designation"],["status","Contact status","status"]]},
+    17:{title:"Consignees",singular:"consignee",max:50,fields:[["name","Consignee name"],["address","Full address","textarea"],["country","Country"],["status","Consignee status","status"]]},
+    18:{title:"Additional notify parties",singular:"notify party",max:50,fields:[["name","Notify party name"],["address","Full address","textarea"],["country","Country"],["status","Notify status","status"]]},
+    19:{title:"Additional document addresses",singular:"document address",max:50,fields:[["label","Address label"],["name","Company / name (optional)"],["address","Full address","textarea"],["country","Country"],["status","Address status","status"]]}
+  };
+  function customerListRow(index,row={}) {
+    const config=CUSTOMER_LIST_FIELDS[index];
+    return `<div class="customer-list-row" data-customer-list-row data-original-row="${escapeHtml(JSON.stringify(row))}"><div class="master-form-grid">${config.fields.map(([key,label,kind])=>{
+      const value=String(row[key]??"");
+      if(kind==="status")return `<label>${label}<select data-customer-list-value="${key}">${["","Active","Inactive","Archived"].map(option=>`<option value="${option}" ${option===value?"selected":""}>${option||"Select status"}</option>`).join("")}</select></label>`;
+      return `<label class="${kind==="textarea"?"full-span":""}">${label}${kind==="textarea"?`<textarea data-customer-list-value="${key}" rows="3">${escapeHtml(value)}</textarea>`:`<input data-customer-list-value="${key}" value="${escapeHtml(value)}" autocomplete="off">`}</label>`;
+    }).join("")}</div><button type="button" class="row-action delete" data-customer-list-remove>Remove ${config.singular}</button></div>`;
+  }
+  function customerListFields(index,value) {
+    const config=CUSTOMER_LIST_FIELDS[index];let rows=[];
+    try{rows=value.trim()?JSON.parse(value):[];if(!Array.isArray(rows)||rows.some(row=>!row||typeof row!=="object"||Array.isArray(row)))throw new Error();}
+    catch(_){return `<label class="full-span">${config.title}<textarea id="${masterInputId(index)}" data-master-field-index="${index}" rows="4">${escapeHtml(value)}</textarea><small>These saved details need review before changing them. Other customer details can still be amended.</small></label>`;}
+    // Keep the original bytes until the user edits this collection. Historical
+    // records may contain incomplete addresses accepted by older software.
+    return `<section class="master-editor-section full-span customer-list" data-customer-list="${index}"><div class="master-editor-heading"><h3>${config.title}</h3><button type="button" class="button secondary" data-customer-list-add>+ Add ${config.singular}</button></div><input type="hidden" id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(value)}"><div data-customer-list-rows>${rows.map(row=>customerListRow(index,row)).join("")}</div><p data-customer-list-empty ${rows.length?"hidden":""}>No ${config.title.toLowerCase()} added.</p></section>`;
+  }
+  function wireCustomerLists() {
+    document.querySelectorAll('[data-customer-list]').forEach(section=>{
+      const index=Number(section.dataset.customerList),config=CUSTOMER_LIST_FIELDS[index],rows=section.querySelector('[data-customer-list-rows]'),source=section.querySelector('[data-master-field-index]'),originalText=source.value,originalRows=JSON.parse(source.value||'[]');
+      const sync=()=>{
+        const saved=[...rows.querySelectorAll('[data-customer-list-row]')].map(row=>{
+          const original=JSON.parse(row.dataset.originalRow||'{}'),updated={...original};
+          row.querySelectorAll('[data-customer-list-value]').forEach(input=>{const key=input.dataset.customerListValue;if(input.value!==String(original[key]??''))updated[key]=input.value;});
+          return {updated,keep:Object.keys(original).length>0||Object.entries(updated).some(([key,value])=>key!=='status'&&String(value).trim()!=='')};
+        }).filter(row=>row.keep).map(row=>row.updated);
+        source.value=JSON.stringify(saved)===JSON.stringify(originalRows)?originalText:JSON.stringify(saved);section.querySelector('[data-customer-list-empty]').hidden=rows.children.length>0;dirtyDialogs.add('masterDialog');
+      };
+      section.addEventListener('input',sync);section.addEventListener('change',sync);
+      section.addEventListener('click',event=>{
+        if(event.target.closest('[data-customer-list-add]')){if(rows.children.length>=config.max){toast(`A customer can have at most ${config.max} ${config.title.toLowerCase()}.`);return;}rows.insertAdjacentHTML('beforeend',customerListRow(index));sync();}
+        const remove=event.target.closest('[data-customer-list-remove]');if(remove){remove.closest('[data-customer-list-row]').remove();sync();}
+      });
+    });
+  }
   function masterFieldsHtml(type, values = []) {
     if (type.id === "salary_staff") {
       const today = masterToday();
@@ -1082,6 +1123,7 @@
     if (type.id === "purchase_kat") return katMasterFieldsHtml(values);
     return type.fields.map((field, index) => {
       const value = String(values[index] ?? "");
+      if(type.id==="export_customers"&&CUSTOMER_LIST_FIELDS[index])return customerListFields(index,value);
       const full = field.full ? " full-span" : "";
       if (field.type === "checks") {
         const selected = new Set(value.split(";").map(v => v.trim()).filter(Boolean));
@@ -1543,6 +1585,8 @@
       const syncFx=()=>{
         const abroad=document.getElementById(masterInputId(3))?.value!=='Pakistan'&&document.getElementById(masterInputId(2))?.value.trim().toLowerCase()!=='pakistan';
         fxSection.hidden=!abroad;
+        const fxTab=document.querySelector('[data-company-editor-tab="fx"]');
+        if(fxTab){fxTab.hidden=!abroad;if(!abroad&&fxTab.classList.contains('active'))selectCompanyEditorTab('overview');}
         const codes=currencies(),hint=document.getElementById('companyFxHint');
         hint.textContent=codes.length>1?'Available currencies: '+codes.join(', ')+'. Enter both directions; TG includes its AED ledger currency.':'Add bank accounts in two currencies to set exchange rates.';
         [...fxRows.querySelectorAll('.company-fx-row')].forEach(row=>{row.hidden=!codes.includes(row.dataset.currencyA)||!codes.includes(row.dataset.currencyB)});
@@ -1566,6 +1610,7 @@
       syncRegistrationCountry();
       wireNested();
     }
+    if(type.id==="export_customers")wireCustomerLists();
     if (["products","purchase_products","purchase_kat"].includes(type.id)) wireProductOptionFields();
     if(type.id==="purchase_products"){
       const commodity=document.getElementById(masterInputId(0)),riceType=document.getElementById(masterInputId(2)),broken=document.getElementById(masterInputId(10)),kat=document.getElementById(masterInputId(5));
