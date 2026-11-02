@@ -120,6 +120,9 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1280,'height':900})
                 page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click()
+                # The HTTP fixture prepares October; do not let the wall-clock month select a different sheet.
+                page.locator('#rsMonth').fill('2026-10');page.locator('#rsMonth').dispatch_event('change')
+                page.locator('[data-rs-post-group="OFFICE_STAFF"]').wait_for()
                 assert page.locator('#rsMasterSetup').count()==0;page.locator('[data-master=salary]').click();page.locator('#rsMasterPopup').wait_for();assert page.locator('#rsApplyMaster').is_visible()
                 assert page.locator('#rsMasterEntry').get_attribute('open') is None
                 assert page.locator('[data-rs-group^="MASTER_"]').count()==3
