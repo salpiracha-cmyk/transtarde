@@ -312,9 +312,24 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await closeWorkspace(page);
 
   await deskAction(page, 'commodity', 'Local Sales & Receipts');
-  await expect(page.locator('#ws-receivables')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
-  await expect(page.locator('#ws-receivables .tt-prev-search')).toBeVisible();
-  await closeWorkspace(page);
+  await expect(page).toHaveURL(/\/accounts\/local-sales\.php\?entity=TTI$/);
+  await expect(page.getByRole('heading', {name:'Local Sales', exact:true})).toBeVisible();
+  await expect(page.locator('#millLocalFrame')).toHaveAttribute('src', '/module.php?id=milling&view=local-sales&embedded=1');
+  const sharedMill = page.frameLocator('#millLocalFrame');
+  await activate(sharedMill.getByText('TTI Rice Mills', {exact:true}));
+  const localParty = sharedMill.frameLocator('iframe[title="Locked Local Party Sale"]');
+  await expect(localParty.getByRole('heading', {name:'Active Local Sales', exact:true})).toBeVisible({timeout:30_000});
+  await activate(localParty.getByRole('button', {name:'➕ New Local Soda', exact:true}));
+  await expect(localParty.locator('#newSodaForm')).toBeVisible();
+  await expect(localParty.locator('#party')).toBeVisible();
+  await expect(localParty.locator('#qtyTons')).toBeVisible();
+  // Inspect only: never submit a live operational SODA.
+  await activate(page.getByRole('button', {name:'Accounts approvals & receipts · TTI', exact:true}));
+  await expect(page.getByRole('heading', {name:'Local SODA', exact:true})).toBeVisible({timeout:30_000});
+  await expect(page.getByText('Pakistan Export Sales', {exact:true})).toHaveCount(0);
+  await expect(page.getByText('Sales by Product', {exact:true})).toHaveCount(0);
+  await activate(page.getByRole('link', {name:'Accounts', exact:true}));
+  await expect(page.locator('#entityHome')).toBeVisible({timeout:30_000});
 
   await deskAction(page, 'ledgers', 'Ledger');
   await expect(page.locator('#tal-view')).toBeVisible();
