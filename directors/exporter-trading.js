@@ -112,11 +112,11 @@ function renderRules(){$('dtWorkspace').innerHTML='<button type="button" id="dtB
 const requestedEntity=new URLSearchParams(location.search).get('entity');if([...$('dtEntity').options].some(o=>o.value===requestedEntity))$('dtEntity').value=requestedEntity;$('dtRefresh').onclick=load;$('dtTabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b)return;if(dirty&&!confirm('Discard unsaved form changes?'))return;dirty=false;tab=b.dataset.tab;render();};$('dtWorkspace').addEventListener('input',()=>{dirty=true;});$('dtWorkspace').addEventListener('change',e=>{if(e.target.name!=='savedCost')dirty=true;});window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});load();
 // Refresh reference choices without reopening or replacing an unsaved agreement.
 let partyRefresh=null;
-async function refreshPartyChoices(){
+async function refreshPartyChoices(force=false){
  if(!data||cfg.costOnly||cfg.loadingOnly||busy)return;
  const company=$('dtEntity').value,date=$('dtDate').value,scope=company+'|'+date;
  if(data.entity!==company||data.asOf!==date)return;
- if(partyRefresh?.scope===scope)return partyRefresh.promise;
+ if(!force&&partyRefresh?.scope===scope)return partyRefresh.promise;
  const request={scope,promise:null};partyRefresh=request;
  request.promise=(async()=>{try{
   const fresh=await api(null,'parties');
@@ -132,7 +132,7 @@ async function refreshPartyChoices(){
  finally{if(partyRefresh===request)partyRefresh=null;}})();return request.promise;
 }
 const masterChanges=(()=>{try{return typeof BroadcastChannel==='function'?new BroadcastChannel('tt-master-changes'):null;}catch{return null;}})();
-if(masterChanges)masterChanges.onmessage=()=>{if(document.querySelector('#dtDealForm'))void refreshPartyChoices();};
+if(masterChanges)masterChanges.onmessage=()=>{if(document.querySelector('#dtDealForm'))void refreshPartyChoices(true);};
 window.addEventListener('pagehide',()=>{partyRefresh=null;masterChanges?.close();});
 window.addEventListener('focus',()=>{if(document.querySelector('#dtDealForm'))void refreshPartyChoices();});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&document.querySelector('#dtDealForm'))void refreshPartyChoices();});
