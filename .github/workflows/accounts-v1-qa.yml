@@ -337,6 +337,7 @@ jobs:
           node tests/accounts-v1/purchase_master_conditionals_test.js
           node tests/accounts-v1/master_reference_conditionals_test.js
           node tests/accounts-v1/master_console_save_safety_test.js
+          node tests/accounts-v1/master_customer_lists_ui_test.js
           node tests/accounts-v1/master_business_date_test.js
           node tests/accounts-v1/master_location_billing_test.js
           php tests/accounts-v1/user_input_preservation_test.php

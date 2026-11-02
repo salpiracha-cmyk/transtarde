@@ -113,6 +113,9 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         if os.getenv('TT_QA_BROWSER')=='1':
             from playwright.sync_api import sync_playwright
             initial['salaryMasters']['Bob']['category']='MILL_STAFF';initial['salaryMasters']['Cara']['category']='HOME_STAFF'
+            # Reopening Staff Master follows the next month after the last completed sheet.
+            # Anchor that navigation to the fixture rather than the CI machine's current date.
+            initial['salarySheets']={'TTI|2026-09':{'entity':'TTI','month':'2026-09','status':'Completed','rows':{},'version':1}}
             (root/'data/accounts.json').write_text(json.dumps(initial))
             assert request({'action':'prepare_month'})[0]==200
             status,result=draft('Alice',750);assert status==200,result
