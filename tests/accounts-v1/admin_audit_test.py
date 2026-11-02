@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='admin-audit-') as directory:
     function tt_release_read_session(){}
     function tt_read_store(){return json_decode(file_get_contents(__DIR__.'/store.json'),true);}
     ''')
-    (root/'request.php').write_text("<?php $_SERVER['REQUEST_METHOD']=$argv[1];register_shutdown_function(function(){file_put_contents(__DIR__.'/status.json',json_encode(http_response_code()));});require __DIR__.'/api/admin_audit.php';")
+    (root/'request.php').write_text("<?php $_SERVER['REQUEST_METHOD']=$argv[1];if(isset($argv[2]))$_GET['limit']=$argv[2];register_shutdown_function(function(){file_put_contents(__DIR__.'/status.json',json_encode(http_response_code()));});require __DIR__.'/api/admin_audit.php';")
     import os
     for role,method,status in [('Super Admin','GET',200),('Accounts','GET',403),('Director','GET',403),('Mill Staff','GET',403),('Super Admin','POST',405)]:
         result=subprocess.run(['php',str(root/'request.php'),method],env={**os.environ,'FIXTURE_ROLE':role},capture_output=True,text=True)
@@ -31,4 +31,9 @@ with tempfile.TemporaryDirectory(prefix='admin-audit-') as directory:
             assert data['retainedCount']==2 and data['entries'][0]['ref']=='POST-2026-00042'
             assert data['entries'][0]['area']=='Master' and data['entries'][1]['area']=='Permission'
         else:assert not data['ok'] and 'entries' not in data
+    for limit,status in [('1',200),('0',400),('no',400),('5001',400)]:
+        result=subprocess.run(['php',str(root/'request.php'),'GET',limit],env={**os.environ,'FIXTURE_ROLE':'Super Admin'},capture_output=True,text=True)
+        data=json.loads(result.stdout);assert json.loads((root/'status.json').read_text())==status,(limit,data)
+        if status==200:assert len(data['entries'])==1 and data['retainedCount']==2 and not data['complete']
+        assert store.read_bytes()==original
 print('PASS owner-only audit GET, denied roles/mutations, whitelisted fields and zero source writes')

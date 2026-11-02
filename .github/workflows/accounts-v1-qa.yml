@@ -343,6 +343,7 @@ jobs:
           php tests/accounts-v1/user_input_preservation_test.php
           python3 tests/accounts-v1/ledger_catalog_identity_test.py
           python3 tests/accounts-v1/admin_audit_test.py
+          python3 tests/accounts-v1/local_sales_entry_http_test.py
           python3 tests/accounts-v1/brokerage_scope_test.py
           node tests/accounts-v1/brokerage_readonly_ui_test.js
           node tests/accounts-v1/admin_audit_ui_test.js
@@ -411,6 +412,8 @@ jobs:
           node tests/accounts-v1/director_simple_costing_browser_test.js
           node tests/accounts-v1/directors_trading_ui_test.js
           node tests/accounts-v1/exporter_soda_arrangements_ui_test.js
+          node tests/accounts-v1/accounts_reference_startup_test.js
+          node tests/accounts-v1/local_sales_entry_ui_test.js
           node tests/accounts-v1/fellow_exporter_controls_ui_test.js
           node tests/accounts-v1/fellow_exporter_planning_browser_test.js
           node tests/accounts-v1/director_simple_costing_test.js

@@ -15,6 +15,7 @@
     const opt={method,credentials:'same-origin',headers:{'Accept':'application/json'}};
     if(body){opt.headers['Content-Type']='application/json';opt.body=JSON.stringify({...body,csrf:access.csrf})}
     const endpoint=method==='GET'?api+'?entity='+encodeURIComponent(entity()):api;
+    if(method==='GET'&&window.TT_ACCOUNTS_REFERENCE)return window.TT_ACCOUNTS_REFERENCE.read(entity());
     const r=await fetch(endpoint,opt);let data={};try{data=await r.json()}catch{}
     if(!r.ok||!data.ok)throw new Error(data.error||'Accounts request failed.');return data;
   }
@@ -54,7 +55,7 @@
   }
   async function refresh(){
     try{
-      const data=await request();accountingMaster=data.accountingMaster||accountingMaster;
+      const company=entity(),data=await request();if(company!==entity())return;accountingMaster=data.accountingMaster||accountingMaster;
       const count=Object.values(data.reminders||{}).filter(r=>r.entity===entity()&&r.status==='Open').length;
       const el=q('#attentionCount');if(el)el.textContent=String(count);
       installAccountDatalist();installCardExpenseDatalist();installUtilityReminderButton();

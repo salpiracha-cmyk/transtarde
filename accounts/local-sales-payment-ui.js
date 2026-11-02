@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const access=window.TT_ACCOUNT_ACCESS||{},api='../api/local_sales_payments.php';
-const q=s=>document.querySelector(s);const entity=()=>localStorage.getItem('tt_accounts_entity')||'TTI';
+const q=s=>document.querySelector(s);const entity=()=>access.localSalesMirror?access.entity:(localStorage.getItem('tt_accounts_entity')||'TTI');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:2});let data=null;
 function toast(m,ok=true){if(!ok&&window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(m);let e=q('#ttLsPayToast');if(!e){e=document.createElement('div');e.id='ttLsPayToast';e.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100140;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003';document.body.appendChild(e)}e.style.background=ok?'#147a5b':'#a93a34';e.textContent=m;e.hidden=false;clearTimeout(e._t);e._t=setTimeout(()=>e.hidden=true,3300)}

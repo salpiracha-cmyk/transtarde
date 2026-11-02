@@ -16,6 +16,7 @@ try {
         admin_audit_out(['ok'=>false,'error'=>'Method not allowed.'],405);
     }
     tt_release_read_session();
+    $limit=0;if(isset($_GET['limit'])){if(!is_string($_GET['limit'])||!ctype_digit($_GET['limit'])||(int)$_GET['limit']<1||(int)$_GET['limit']>5000)admin_audit_out(['ok'=>false,'error'=>'Choose a valid audit limit.'],400);$limit=(int)$_GET['limit'];}
     $store=tt_read_store();$rows=[];
     foreach((array)($store['audit']??[]) as $entry){
         if(!is_array($entry))continue;
@@ -27,7 +28,7 @@ try {
         $rows[]=['date'=>(string)($entry['created_at']??''),'user'=>(string)($entry['username']??''),'area'=>$area,'action'=>'Recorded','detail'=>$detail,'ref'=>$reference[0]??'','source'=>'Server audit'];
     }
     usort($rows,static fn($a,$b)=>strcmp($b['date'],$a['date']));
-    admin_audit_out(['ok'=>true,'entries'=>$rows,'retainedCount'=>count($rows)]);
+    $retained=count($rows);admin_audit_out(['ok'=>true,'entries'=>$limit?array_slice($rows,0,$limit):$rows,'retainedCount'=>$retained,'complete'=>$limit===0||$retained<=$limit]);
 }catch(Throwable $error){
     admin_audit_out(['ok'=>false,'error'=>'Server audit could not be loaded. Refresh to try again.'],500);
 }

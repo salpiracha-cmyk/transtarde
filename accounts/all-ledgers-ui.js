@@ -2,7 +2,7 @@
   'use strict';
   const q=(selector,root=document)=>root.querySelector(selector),esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   let ledgerCompany='';
-  const company=()=>ledgerCompany&&q('#tt-all-ledgers')?ledgerCompany:localStorage.getItem('tt_accounts_entity')||'TTI';
+  const company=()=>ledgerCompany&&q('#tt-all-ledgers')?ledgerCompany:(window.TT_ACCOUNT_ACCESS?.localSalesMirror?window.TT_ACCOUNT_ACCESS.entity:(localStorage.getItem('tt_accounts_entity')||'TTI'));
   const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const number=value=>Number(value||0).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2});
   let registerCompany='',ledgerCurrency='USD',data=null,filter='',account='',from='',to='',loadSequence=0;
