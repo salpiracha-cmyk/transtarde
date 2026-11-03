@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/bag_receipts_core.php';
+require_once __DIR__.'/bag_arrangement_core.php';
 
 /** External ownership is a physical custody dimension, never a TTI bag purchase. */
 function oeb_active(array $deal,array $exports=[]): bool {
@@ -19,6 +20,7 @@ function oeb_packing(array $d): array {
     return array_values(array_unique(array_filter(array_map('floatval',$m[1]),static fn($n)=>$n>0)));
 }
 function oeb_spec(array $d,array $scope,array $body): array {
+    $terms=ba_projection($d);if(($terms['status']??'')==='CONFIRMED'&&($terms['owner']??'')!=='FELLOW')throw new DomainException('This SODA does not assign physical bag ownership to the fellow exporter. Use the original company-owned bag purchase or confirm the correct owner.');
     $brand=trim((string)($d['brand']??''));if($brand==='')throw new DomainException('Save the missing brand to this SODA before receiving bags.');
     $size=$body['packingKg']??null;if(!is_numeric($size)||is_bool($size)||!is_finite((float)$size)||(float)$size<=0||(float)$size>2000)throw new DomainException('Enter the actual bag packing weight in kg.');
     $choices=oeb_packing($d);if($choices&&!in_array((float)$size,$choices,true))throw new DomainException('Select the packing weight instructed on this SODA.');

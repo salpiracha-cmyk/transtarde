@@ -419,6 +419,7 @@ jobs:
           node tests/accounts-v1/accounts_reference_startup_test.js
           node tests/accounts-v1/local_sales_entry_ui_test.js
           node tests/accounts-v1/fellow_exporter_controls_ui_test.js
+          node tests/accounts-v1/bag_arrangement_ui_test.js
           node tests/accounts-v1/fellow_exporter_planning_browser_test.js
           node tests/accounts-v1/director_simple_costing_test.js
           node tests/accounts-v1/director_cashflow_output_test.js

@@ -8,6 +8,7 @@ function dt_read_other_bag_sources():array {
     if($raw===false||$raw===null||$raw==='')return [];$v=is_string($raw)?json_decode($raw,true,512,JSON_THROW_ON_ERROR):$raw;if(!is_array($v)||!array_is_list($v))throw new DomainException('Original bag custody sources are unavailable.');return array_values(array_filter($v,static fn($r)=>($r['sourceKind']??'')==='OTHER_EXPORTER'));
 }
 function dt_assert_other_bag_route(array $before,array $after,array $sources):void {
+    foreach($sources as $r)if(($r['exporterDealId']??'')===($before['id']??'')&&!empty($r['received'])&&($after['bagTerms']['status']??'')==='CONFIRMED'&&($after['bagTerms']['owner']??'')!=='FELLOW')throw new DomainException('Received fellow-exporter bags cannot be reassigned to our ownership or bulk delivery. Preserve their physical custody history.');
     foreach($sources as $r)if(($r['exporterDealId']??'')===($before['id']??'')&&!empty($r['received']))foreach(['entity','brand','packing','productionMillName'] as $field)if(trim((string)($before[$field]??''))!==trim((string)($after[$field]??'')))throw new DomainException('Received other exporter bags retain their original SODA brand, packing and mill. Reconcile the original physical source before changing its route.');
 }
 function dt_read_native_sales():array {

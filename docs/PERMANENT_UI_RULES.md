@@ -804,3 +804,10 @@ Owner clarification, 29 October 2026: Salaries & Staff opens the next incomplete
 - Use the existing Petty Cash form and account 1120. Office cash is the fixed source; destination is an active owned mill from the location master. Date, PKR amount, received by and narration are required; Post ID supplies the automatic reference.
 - Debit canonical mill custody (`millLocationId`) and credit Office Petty Cash exactly once. These are custody transfers, with no expense, bank movement or second monetary ledger. Both existing Mill and Accounts ledgers read the same journal. Preserve zero-write review, stable retries and company/expense permissions.
 - Reject insufficient dated office funds and transfers/reversals that leave later recorded spending unfunded. Corrections use a reasoned, authorized reversal and a separately reviewed replacement; retain original entries and audit history.
+
+## Fellow Exporter SODA bag responsibility — 3 November 2026
+
+- Keep bag arrangement separate from the rice sale arrangement. Offer Our Bags, Fellow Exporter’s Bags, Shared Arrangement and No Bags / Bulk. Existing unconfirmed terms remain Pending Confirmation; never infer commercial responsibility from a brand or old caption.
+- Record actual owner, active canonical supplier, cost bearer, positive shared cost allocations, reimbursement/included/separate treatment and actual-cost versus an agreed PKR-per-bag rate. Selection alone creates no stock, purchase, expense, payable, receivable or cash movement. Existing actual receipts, invoices and explicit reviewed postings remain authoritative.
+- Director/Super Admin arrangement management also requires matching trading and company Edit rights. Preserve original SODA snapshots and audited amendments, reject stale or conflicting retry identities, and preserve posted settlement terms. Custom arrangement edits never rewrite existing SODA snapshots.
+- Physical Mill projections may expose confirmed ownership and arrangement labels, never bag prices or commercial cost terms. Received fellow-owned bags cannot become company-owned or bulk through a commercial amendment.
