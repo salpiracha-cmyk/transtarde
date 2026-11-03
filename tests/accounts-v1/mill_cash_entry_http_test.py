@@ -48,6 +48,7 @@ with tempfile.TemporaryDirectory(prefix='mill-cash-entry-') as directory:
   a['users'][0]=dict(user,location='Other Mill');auth.write_text(json.dumps(a));code,d=req('/api/mill_cash_ledger.php?entity=TTI&locationId=M1');assert code==422
   a['users'][0]=dict(user,role='Super Admin');auth.write_text(json.dumps(a));d=read();code,ledger=req('/api/accounts_ledger_browser.php?entity=TTI&account=CASH%7CTTI%7CMILL%7CM1&to=2026-12-31');assert code==200 and ledger['closing']==d['balance'],(code,ledger,d)
   # The original Accounts form can correct this native expense; no second unlinked ledger.
+  code,payload=req('/api/expenses_v1.php?entity=TTI');assert code==200 and any(x['id']=='CASH|TTI|MILL|M1' for x in payload['millCashSources'])
   amendment=dict(entity='TTI',action='amend_expense',revision=read()['revision'],requestKey='mill-native-expense-correction',id=done['result']['generalExpenseId'],reason='Correct original mill expense amount',paymentDate='2026-08-01',paymentAccountId='CASH|TTI|MILL|M1',payee='Fixture Worker',paymentNarration='Corrected actual labour payment',expenseLines=[dict(category='MILL',amount=100,purpose='Packing labour',expenseArea='MILL')])
   code,amended=req('/api/expenses_v1.php',amendment);assert code==200,(code,amended)
   d=read();assert d['balance']==880 and len(d['rows'])==4,d
