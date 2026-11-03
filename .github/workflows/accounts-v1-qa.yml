@@ -335,6 +335,12 @@ jobs:
           node tests/accounts-v1/production_bag_allocation_ui_test.js
           node tests/accounts-v1/production_source_save_ui_test.js
           node tests/accounts-v1/mill_action_save_test.js
+          node tests/accounts-v1/arrival_recovery_ui_test.js
+          node tests/accounts-v1/arrival_queue_validation_test.js
+          node tests/accounts-v1/mill_save_transport_test.js
+          node tests/accounts-v1/mill_settings_save_test.js
+          node tests/accounts-v1/mill_legacy_recovery_test.js
+          python3 tests/accounts-v1/arrival_recovery_http_test.py
           node tests/accounts-v1/mill_source_save_ui_test.js
           node tests/accounts-v1/mill_source_amend_ui_test.js
           node tests/accounts-v1/console_access_preservation_test.js

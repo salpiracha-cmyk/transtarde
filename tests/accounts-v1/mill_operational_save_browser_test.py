@@ -132,13 +132,16 @@ def run():
             identity=mill.evaluate("selectedPurchaseProduct()")
             ledger=json.loads(books.read_text());ledger['purchaseSodas']={'PS-FIXTURE':dict(identity,id='PS-FIXTURE',sodaNo='26001',entity='TTI',commodity='RICE',status='Open',readyRoute='DELIVER_TO_STOCK',locationName='TTI Rice Mills',locationId='mills-1',broker='',party='Fixture supplier',qtyFromKg=10000,qtyToKg=10000,ratePerKg=10,rate=10,rateUnit='KG',sodaDate='2026-10-01')};books.write_text(json.dumps(ledger))
             mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click();mill.evaluate("openPanel('arrival')")
-            mill.locator('#arrivalQueue').select_option(str(queue[0]['id']));mill.locator('#arrivalSoda option[value="26001"]').wait_for(state='attached');mill.locator('#arrivalSoda').select_option('26001');mill.locator('#karachiWeight').fill('990')
+            mill.locator('#arrivalQueue').select_option(str(queue[0]['id']));mill.locator('#arrivalSoda option[value="26001"]').wait_for(state='attached');mill.locator('#arrivalSoda').select_option('26001');mill.locator('#karachiWeight').fill('990');mill.evaluate("qVariety.selectedIndex=qVariety.options.length-1")
             context.unroute('**/api/operations.mysql.php?asset_refs=1',lose_ack);blocked[0]=True;context.route('**/api/operations.mysql.php?asset_refs=1',intercept)
             mill.locator('#savePohanchButton').click();mill.locator('[data-mill-action-recovery]').wait_for();assert mill.locator('#karachiWeight').input_value()=='990'
             mill.locator('#savePohanchButton').click();mill.locator('#pohanchFeedback').filter(has_text='Pohanch saved').wait_for()
             op=context.request.get(base+'/api/operations.mysql.php').json();slips=json.loads(op['values']['tt30slips']);assert len(slips)==1 and slips[0]['payableWeight']==990
+            mill.locator('#unprintedSlips').get_by_role('button',name='Edit',exact=True).click();assert mill.locator('#arrivalQueue').input_value()==str(queue[0]['id']);assert mill.locator('#karachiWeight').input_value()=='990'
+            mill.locator('#karachiWeight').fill('985');mill.locator('#savePohanchButton').click();mill.locator('#pohanchFeedback').filter(has_text='Pohanch amended').wait_for()
+            amended=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30slips']);assert len(amended)==1 and amended[0]['id']==slips[0]['id'] and amended[0]['payableWeight']==985
             with context.expect_page() as printed:mill.get_by_role('button',name='Print Pohanch',exact=True).first.click()
-            popup=printed.value;popup.locator('.pohanch').wait_for();assert popup.locator('.pohanch').evaluate('e=>e.getBoundingClientRect().height*25.4/96')<140;body=popup.locator('body').inner_text();assert '990 kg' in body and re.search(r'\d{2}-\d{2}-\d{4}',body) and not re.search(r'\d{4}-\d{2}-\d{2}',body);popup.close()
+            popup=printed.value;popup.locator('.pohanch').wait_for();assert popup.locator('.pohanch').evaluate('e=>e.getBoundingClientRect().height*25.4/96')<140;body=popup.locator('body').inner_text();assert '985 kg' in body and re.search(r'\d{2}-\d{2}-\d{4}',body) and not re.search(r'\d{4}-\d{2}-\d{2}',body);popup.close()
             # The authenticated native print uses committed loading and the shared half-A4 template.
             container={'id':'QA-GATE-LOAD','container':'MSCU123456-6','seal':'QA-SEAL','truck':'QA-404','date':'2026-10-27','weight':26950,'weighbridgeKg':27000,'packingKg':50,'bags':1000,'gate':'FIXTURE-GP','loadingComplete':True}
             shipment={'id':'QA-GATE-SHIP','entity':'TTI','millName':'TTI Rice Mills','brand':'Fixture','contractRef':'QA-CONTRACT','lotRef':'QA-LOT','brokenPct':5,'containers':[container]}
@@ -147,9 +150,25 @@ def run():
             popup=printed.value;popup.locator('.pass').wait_for();body=popup.locator('body').inner_text();assert 'Weighbridge weight (kg)' in body and '27,000' in body and '26,950' in body and 'Packing deduction (kg)' in body and '50' in body;assert '5% BROKEN' in body and 'QA-LOT' in body and 'GP-000003' in body;assert popup.title();assert popup.locator('.pass').evaluate('e=>e.getBoundingClientRect().height*25.4/96')<140;popup.close()
             with context.expect_page() as printed:mill.evaluate("s=>printGate(s.containers[0],s)",shipment)
             popup=printed.value;popup.locator('.serial').filter(has_text='GP-000003').wait_for();popup.close()
+            # Separate phone and PC storage contexts: a saved phone arrival becomes live while PC keeps its draft.
+            mill.evaluate("openPanel('queue')");mill.locator('#qVehicle').fill('CURRENT-DRAFT')
+            phone_context=browser.new_context(storage_state=context.storage_state(),viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
+            phone=phone_context.new_page();phone.on('pageerror',lambda e:errors.append(str(e)));phone.on('dialog',lambda d:d.accept());phone.goto(base+'/module.php?id=milling');phone.locator('.mill-card[onclick="chooseMill(1)"]').click();phone.evaluate("openPanel('queue')")
+            lose_phone=[True]
+            def phone_ack(route):
+                if route.request.method=='POST' and route.request.post_data_json.get('key')=='tt30queue' and lose_phone[0]:
+                    lose_phone[0]=False;response=route.fetch();assert response.status==200,response.text();route.abort()
+                else:route.continue_()
+            phone_context.route('**/api/operations.mysql.php?asset_refs=1',phone_ack)
+            phone.locator('#qVehicle').fill('QA-909');phone.locator('#qBags').fill('12');phone.locator('#qWeight').fill('1200');phone.locator('#queueSaveBtn').click();phone.locator('[data-mill-action-recovery]').wait_for();assert phone.locator('#qVehicle').input_value()=='QA-909'
+            phone.locator('#queueSaveBtn').click();phone.wait_for_function("document.querySelector('#qVehicle').value === ''");phone.locator('#queueSaveStatus').filter(has_text='Saved to server').wait_for()
+            mill.locator('#queueTable').filter(has_text='QA-909').wait_for(timeout=25000);assert mill.locator('#qVehicle').input_value()=='CURRENT-DRAFT'
+            current=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30queue']);assert sum(r['vehicle']=='QA-909' for r in current)==1
+            assert phone.locator('[data-arrival-recovery]').is_visible();phone.get_by_role('button',name='Recover phone entries',exact=True).click();phone.locator('#arrivalRecoveryReview').get_by_text('Confirmed on server',exact=True).first.wait_for()
+            phone_context.close()
             assert not errors,errors
             browser.close()
-        print('PASS native Used Bags failure/retry/reload, operational petty expense, arrival and duplicate-request persistence, Local Sales save/payment/load/printed gate/close/reload, Directors local SODA -> Mill selection/truck/weights -> gate pass -> Directors quantities -> close/reload, atomic PALTAI lost-ack replay, native Pohanch retry and print weights/dates; fixture only')
+        print('PASS native Used Bags failure/retry/reload, operational petty expense, arrival and duplicate-request persistence, Local Sales save/payment/load/printed gate/close/reload, Directors local SODA -> Mill selection/truck/weights -> gate pass -> Directors quantities -> close/reload, atomic PALTAI lost-ack replay, native Pohanch retry/amendment and print weights/dates, independent mobile/PC lost-ack retry, automatic live list refresh and current-draft retention; fixture only')
     finally:
         if server:server.terminate();server.wait(timeout=5)
         if log:log.close()

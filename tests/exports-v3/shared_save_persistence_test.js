@@ -28,6 +28,8 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
   assert.equal(f.c.TT_SHARED_SYNC.restoreStaged(STORE,'{"shipments":[]}',a),true);await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,1);
  }
  console.log('PASS connection, conflict and authentication failures reject; local rollback never posts an old root');
+ for(const moduleId of ['milling','exports']){f=fixture({moduleId});f.c.localStorage.setItem(STORE,a);p=f.c.TT_SHARED_SYNC.saveNow();const rejected=assert.rejects(p,/not confirmed/);f.requests[0].resolve({ok:true,json:async()=>({ok:true})});await rejected;assert.equal(f.c.TT_SHARED_SYNC.readCommitted(STORE),'{"shipments":[]}');assert.equal(f.c.localStorage.getItem(STORE),a);}console.log('PASS incomplete shared acknowledgements never confirm Milling/Exports saves');
+ for(const moduleId of ['milling','exports']){f=fixture({moduleId,initial:a});f.c.localStorage.setItem(STORE,a);p=f.c.TT_SHARED_SYNC.saveNow();f.requests[0].resolve({ok:true,json:async()=>({ok:true,value:a,keyVersion:1,revision:1})});await p;assert.equal(f.c.TT_SHARED_SYNC.readCommitted(STORE),a);}console.log('PASS exact no-op server acknowledgements do not require a fabricated version increment');
  f=fixture();f.c.localStorage.setItem(STORE,a);p=f.c.TT_SHARED_SYNC.saveNow({key:STORE,value:a});const rejected=assert.rejects(p,/not confirmed/);f.timers[0]();await rejected;f.c.TT_SHARED_SYNC.restoreStaged(STORE,'{"shipments":[]}',a);f.ack(0);await tick();assert.equal(f.c.TT_SHARED_SYNC.readCommitted(STORE),a);assert.equal(f.requests.length,1);
  console.log('PASS timeout then late commit retains receipt without automatically reopening server lot');
  f=fixture();const release=f.c.TT_SHARED_SYNC.hold();assert.equal(f.classes.has('tt-save-waiting'),true);await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.classes.has('tt-save-waiting'),true);release();assert.equal(f.classes.has('tt-save-waiting'),false);
@@ -45,6 +47,12 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
   assert.equal(f.requests.length,1,'Failed source must not post linked cash');
  }
  console.log('PASS Milling linked cash waits for acknowledged source and rejects when that source fails');
+ for(const source of ['tt30ship','tt35exload']){
+  f=fixture({moduleId:'milling'});f.c.localStorage.setItem(STORE,a);f.c.localStorage.setItem(source,'[{"id":101}]');p=f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,1);assert.equal(f.requests[0].body.key,source);f.ack(0);await tick();assert.equal(f.requests[1].body.key,STORE);f.ack(1);await p;
+  f=fixture({moduleId:'milling'});f.c.localStorage.setItem(STORE,a);f.c.localStorage.setItem(source,'[{"id":101}]');p=f.c.TT_SHARED_SYNC.saveNow();const denied=assert.rejects(p);f.requests[0].resolve({ok:false,json:async()=>({ok:false,error:'Source rejected'})});await denied;assert.equal(f.requests.length,1,'Failed physical source posted its Exports return');
+ }
+ console.log('PASS Milling physical sources commit before their dependent Exports return; rejected sources cannot post derived loading');
+
  f=fixture();f.c.localStorage.setItem('tt40exportreceipts','[{"id":"CACHE"}]');await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,0);assert.equal(f.c.localStorage.getItem('tt40exportreceipts'),'[{"id":"CACHE"}]');console.log('PASS Accounts receipt projection remains local and never enters shared write queue');
  f=fixture();f.c.localStorage.setItem('tt30bags','[{"id":"B1"}]');f.c.localStorage.setItem(STORE,a);p=f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,1);assert.equal(f.requests[0].body.key,STORE);f.ack(0);await tick();assert.equal(f.requests.length,2);assert.equal(f.requests[1].body.key,'tt30bags');f.ack(1);await p;console.log('PASS Export root acknowledges before dependent bridge writes');
  f=fixture({moduleId:'milling'});f.c.localStorage.setItem('tt39localsales','[]');await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,0);

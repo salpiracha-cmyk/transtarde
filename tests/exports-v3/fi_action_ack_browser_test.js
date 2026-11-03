@@ -22,7 +22,7 @@ const app=source.replace('mount();restoreContractCheckpoint();',hook),STORE='tra
      server.values[body.key]=body.value;server.meta[body.key]={version:(server.meta[body.key]?.version||0)+1};server.revision++;
      if(fault==='lost-ack')throw Error('Disconnected after commit');
      if(fault==='delayed')await new Promise(resolve=>window.releaseSave=resolve);
-     return{ok:true,json:async()=>({ok:true,revision:server.revision,keyVersion:server.meta[body.key].version})};
+     return{ok:true,json:async()=>({ok:true,revision:server.revision,keyVersion:server.meta[body.key].version,value:server.values[body.key]})};
     };
    });
    await page.addScriptTag({content:bootstrap});await page.addScriptTag({content:app});

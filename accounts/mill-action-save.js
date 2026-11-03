@@ -10,7 +10,10 @@
   if(!keys.has(key)||!identity(record))throw Error('A supported record and stable identity are required.');
   const response=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin'}),snapshot=await response.json();
   if(!response.ok||!snapshot.ok||(snapshot.restrictedKeys||[]).includes(key))throw Error(snapshot.error||'Saved operational records could not be checked.');
-  const current=rows(snapshot.values?.[key]),matches=current.filter(r=>String(identity(r))===String(identity(record)));
+  const absent=snapshot.values&&snapshot.meta&&!Object.prototype.hasOwnProperty.call(snapshot.values,key)&&!Object.prototype.hasOwnProperty.call(snapshot.meta,key);
+  if(!absent&&(typeof snapshot.values?.[key]!=='string'||!Number.isInteger(snapshot.meta?.[key]?.version)||snapshot.meta[key].version<0))throw Error('The server did not return the saved collection and version. Your entry is retained.');
+  const baseVersion=absent?0:snapshot.meta[key].version;
+  const current=rows(absent?'[]':snapshot.values[key]),matches=current.filter(r=>String(identity(r))===String(identity(record)));
   const comparable=r=>{const x={...r};if(prefix)delete x[refField];return x;};
   if(matches.length===1&&confirms(comparable(matches[0]),comparable(record)))return {record:matches[0],value:JSON.stringify(current),version:Number(snapshot.meta?.[key]?.version||0),related:key==='tt32stockadj'?{tt32labourfeed:{value:snapshot.values?.tt32labourfeed||'[]',version:Number(snapshot.meta?.tt32labourfeed?.version||0)}}:{}};
   if(matches.length>1||(before?!same(matches[0],before):matches.length))throw Object.assign(Error('This record changed elsewhere. Reload and review it before amending.'),{editable:true});
@@ -19,7 +22,8 @@
   if(before)current[current.indexOf(matches[0])]=candidate;else current.push(candidate);
   const write=await fetch(endpoint+'?asset_refs=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value:JSON.stringify(current),baseVersion:Number(snapshot.meta?.[key]?.version||0),sourceModule:access.module})}),saved=await write.json();
   if(!write.ok||!saved.ok)throw Object.assign(Error(saved.conflict?'Another record was saved meanwhile. Retry to check the current records.':saved.error||'The save was not confirmed.'),{editable:[403,422].includes(write.status)});
-  const value=typeof saved.value==='string'?saved.value:JSON.stringify(current),confirmed=rows(value).filter(r=>String(identity(r))===String(identity(candidate)));
+  if(typeof saved.value!=='string'||!Number.isInteger(saved.keyVersion)||saved.keyVersion<=baseVersion)throw Error('The server acknowledgement is incomplete. Retry the same save to verify it before clearing your entry.');
+  const value=saved.value,confirmed=rows(value).filter(r=>String(identity(r))===String(identity(candidate)));
   if(confirmed.length!==1||!confirms(confirmed[0],candidate))throw Error('The server did not confirm these details. Retry the same save.');
   return {record:confirmed[0],value,version:Number(saved.keyVersion||0),related:saved.related||{}};
  }
@@ -41,12 +45,12 @@
   if(!access().userId||!window.TT_SHARED_SYNC?.commitMillAction){alert('Reload Milling before saving. Your entry is retained.');return;}
   const token=tokenFor(key,record),sig=signature(record,before);let intent;
   try{intent=JSON.parse(localStorage.getItem(token)||'null');}catch{alert('The previous save needs review. Your entry is retained.');return;}
-  if(intent&&intent.signature!==sig){if(intent.editable)intent=null;else{pendingPanel(token,intent);alert('Confirm the previous save first. Your current entry is retained.');return;}}
+  if(intent&&intent.signature!==sig){if(intent.editable){try{localStorage.setItem(token+'_history_'+intent.record.id,JSON.stringify(intent));}catch{alert('The earlier unsaved entry could not be preserved. Recover it before replacing it.');return;}intent=null;}else{pendingPanel(token,intent);alert('Confirm the previous save first. Your current entry is retained.');return;}}
   if(!intent)intent={key,label,prefix,before,signature:sig,record:{...record,id:before?record.id:Date.now()*1000+Math.floor(Math.random()*1000)}};
   try{localStorage.setItem(token,JSON.stringify(intent));}catch{alert('The retry identity could not be retained. No request was sent.');return;}
   busy=true;const form=document.querySelector('.panel.active'),wasInert=form?.inert;if(form)form.inert=true;
   try{const saved=await window.TT_SHARED_SYNC.commitMillAction(key,intent.record,before,prefix);localStorage.removeItem(token);document.querySelectorAll('[data-mill-action-recovery]').forEach(e=>{if(e.dataset.millActionRecovery===token)e.remove();});try{onSaved?.(saved);}catch{alert(label+' is saved. Reopen the screen to refresh its display.');}return saved;}
-  catch(e){if(e.editable){intent.editable=true;localStorage.setItem(token,JSON.stringify(intent));}pendingPanel(token,intent);alert(e.message+' Your entry is retained. Retry Save to confirm the same record.');}
+  catch(e){if(e.editable){intent.editable=true;localStorage.setItem(token,JSON.stringify(intent));}pendingPanel(token,intent);window.TT_ARRIVAL_RECOVERY?.capturePending();alert(e.message+' Your entry is retained. Retry Save to confirm the same record.');}
   finally{busy=false;if(form)form.inert=wasInert;}
  }
  window.TT_MILL_ACTION_SAVE={commit,save,showRecovery};

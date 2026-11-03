@@ -30,9 +30,10 @@ if ($id === 'milling') {
         static fn(): string => '<script id="milling-gate-pass">' . str_replace('</script', '<\\/script', $gatePass) . '</script>',
         $html
     );
-    foreach (['maize-labour', 'lifting-review', 'directors-exporter-links', 'other-exporter-bags'] as $task) {
+    foreach (['safe-network','live-status','shared-recovery','maize-labour', 'lifting-review', 'directors-exporter-links', 'other-exporter-bags'] as $task) {
         $taskFile = __DIR__.'/milling/'.$task.'.js';
         if (!is_file($taskFile) || ($taskScript = file_get_contents($taskFile)) === false) { http_response_code(503); exit('Milling task assets are unavailable.'); }
+        if($task==='safe-network'){$millingNetworkScript=$taskScript;continue;}
         $millingTaskScripts .= '<script id="milling-'.$task.'">'.str_replace('</script', '<\\/script', $taskScript).'</script>';
     }
     // Milling sources stay protected by .htaccess; deliver this dependency through the authenticated module.
@@ -103,6 +104,7 @@ $access = [
 // Exports/Milling bootstrap. Keep the full master available through its desk.
 unset($access['masters']['export_realization_charges']);
 $bootstrap = '<script>'.str_replace('</script','<\\/script',(string)file_get_contents(__DIR__.'/commodity-flow.js')).'</script><script>window.TT_MODULE_ACCESS='.json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT).';</script>';
+if($id==='milling')$bootstrap.='<script id="milling-safe-network">'.str_replace('</script','<\\/script',$millingNetworkScript).'</script>';
 $sharedBootstrap = <<<'HTML'
 <style>html.tt-save-waiting body::after{content:'Saving…';position:fixed;inset:0;display:grid;place-items:center;z-index:2147482999;background:rgba(12,32,22,.45);color:#fff;font:700 20px Arial}</style>
 <script id="tt-shared-operations-bootstrap">
@@ -143,7 +145,7 @@ $sharedBootstrap = <<<'HTML'
     Object.entries(data.values||{}).forEach(([k,v])=>{remoteKeys.add(k);if(allowed(k)&&typeof v==='string'&&!pending.has(k)&&!inFlight.has(k)){committedValues.set(k,v);receipts.set(k,v);if(localStorage.getItem(k)!==v){directSet(k,v);changed.push(k);lastRemoteBy=data.meta?.[k]?.updatedBy||lastRemoteBy}}});
     Object.entries(data.meta||{}).forEach(([k,m])=>{if(!pending.has(k)&&!inFlight.has(k))keyVersions.set(k,Number(m?.version||0))});
     applying=false;revision=Math.max(revision,incoming);window.TRANSTRADE_SERVER_NOW_ISO=data.serverNow||window.TRANSTRADE_SERVER_NOW_ISO;
-    if(changed.length&&!initial){bridge();notifyRemote()}
+    if(changed.length&&!initial){bridge();notifyRemote(changed)}
   }
   function settleCommits(error=''){
     if(!error&&(inFlight.size||pending.size))return;
@@ -154,15 +156,49 @@ $sharedBootstrap = <<<'HTML'
     const intent=arguments[0];
     if(intent){if(!allowed(intent.key)||typeof intent.value!=='string'||localStorage.getItem(intent.key)!==intent.value)return Promise.reject(new Error('The staged change no longer matches this action. Review before saving.'));if(receipts.get(intent.key)!==intent.value&&!pending.has(intent.key)&&!inFlight.has(intent.key))queue(intent.key,intent.value)}
     if(!pending.size&&!inFlight.size)return Promise.resolve({ok:true,revision});
-    failedKeys.clear();
     return new Promise((resolve,reject)=>{const waiter={resolve,reject,intent,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);if(!commitWaiters.length)waiting();reject(new Error('Save was not confirmed before the connection timed out. Reload and review the server state before retrying.'))}},120000);commitWaiters.push(waiter);waiting();flush()})
   }
   function refreshNow(){
     if(pending.size||inFlight.size)return Promise.reject(new Error('Finish the current save before refreshing.'));
     return fetch(endpoint+'?r='+Date.now(),{credentials:'same-origin'}).then(r=>r.json()).then(data=>{if(!data?.ok)throw new Error(data?.error||'Shared data could not be refreshed.');applyRemote(data,false);return data})
   }
+  const legacyToken=key=>'tt_ui_mill_shared_pending_'+access.userId+'_'+key;
+  const legacySame=(a,b,key='')=>{try{
+    const found=JSON.parse(a),wanted=JSON.parse(b),strip=(row,want,fields)=>{for(const field of fields)if(!Object.prototype.hasOwnProperty.call(want,field))delete row[field];};
+    if(Array.isArray(found)&&Array.isArray(wanted))for(const row of found){const want=wanted.find(x=>String(x?.id)===String(row?.id));if(!want)continue;
+      if(key==='tt30ship')for(const c of row.containers||[]){const original=(want.containers||[]).find(x=>String(x.id)===String(c.id));if(original)strip(c,original,['loadingAt','productionShiftDate','productionShift']);}
+      if(key==='tt39physicalconfirmations')strip(row,want,['date','shiftDate','shift','snapshotKg','isRaw','createdAt','createdBy','status','sourceShipments','baseline','resolvedAt','reviewRequired']);
+    }
+    const sort=v=>Array.isArray(v)?v.map(sort):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,sort(v[k])])):v;return JSON.stringify(sort(found))===JSON.stringify(sort(wanted));
+  }catch{return false;}};
+  async function sharedUpload(key,value,baseVersion,retry){
+    if(access.moduleId==='milling'&&access.userId){
+      const token=legacyToken(key),prior=originalGet.call(localStorage,token);
+      if(prior&&JSON.parse(prior).value!==value)originalSet.call(localStorage,token+'_history_'+Date.now(),prior);
+      try{originalSet.call(localStorage,token,JSON.stringify({key,value,baseVersion,savedAt:new Date().toISOString()}));}catch{throw Object.assign(new Error('The device recovery copy could not be retained. No request was sent. Keep this page open before retrying.'),{recoveryUnavailable:true});}
+      if(retry){const response=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin'}),snapshot=await response.json();
+        if(!response.ok||!snapshot.ok||(snapshot.restrictedKeys||[]).includes(key))throw new Error('The previous save could not be checked.');
+        if(typeof snapshot.values?.[key]==='string'&&legacySame(snapshot.values[key],value,key)&&Number.isInteger(snapshot.meta?.[key]?.version)&&snapshot.meta[key].version>=baseVersion)return {ok:true,json:async()=>({ok:true,value:snapshot.values[key],keyVersion:snapshot.meta[key].version,revision:snapshot.revision})};
+      }
+    }
+    return fetch(endpoint+'?asset_refs=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion,sourceModule:access.module||'Super Admin'})});
+  }
+  async function recoverLegacy(intent){
+    if(access.moduleId!=='milling'||!access.userId||!allowed(intent.key)||typeof intent.value!=='string'||!Number.isInteger(intent.baseVersion))throw new Error('Invalid original save.');
+    const key=intent.key;if(inFlight.has(key)||(pending.has(key)&&pending.get(key)!==intent.value))throw new Error('This screen contains a different unfinished change. Your original copy is retained.');
+    const read=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin'}),snapshot=await read.json();
+    if(!read.ok||!snapshot.ok||(snapshot.restrictedKeys||[]).includes(key))throw new Error('The saved source could not be checked.');
+    const absent=snapshot.values&&snapshot.meta&&!Object.prototype.hasOwnProperty.call(snapshot.values,key)&&!Object.prototype.hasOwnProperty.call(snapshot.meta,key);
+    const version=absent?0:snapshot.meta?.[key]?.version,value=absent?'[]':snapshot.values?.[key];if(!Number.isInteger(version)||typeof value!=='string')throw new Error('The source/version was not confirmed.');
+    if(!legacySame(value,intent.value,key)){
+      if(version!==intent.baseVersion)throw new Error('The source changed after this original save. Keep the recovery copy and review the saved records; it will not overwrite newer work.');
+      directSet(key,intent.value);pending.set(key,intent.value);queuedBase.set(key,version);await saveNow({key,value:intent.value});
+    }else{directSet(key,value);committedValues.set(key,value);receipts.set(key,value);keyVersions.set(key,version);pending.delete(key);queuedBase.delete(key);}
+    const token=legacyToken(key),stored=originalGet.call(localStorage,token);if(stored&&JSON.parse(stored).value===intent.value)originalRemove.call(localStorage,token);
+    notifyRemote([key]);return {ok:true};
+  }
   function flush(retry=true){
-    if(retry)failedKeys.clear();
+    const retryKeys=new Set(failedKeys);if(retry)failedKeys.clear();
     for(const [key,value] of [...pending]){
       // Commit the Export request first; linked deletion writes must be checked
       // against its acknowledged tombstone, never a browser-only deletion.
@@ -170,12 +206,14 @@ $sharedBootstrap = <<<'HTML'
       // Linked Mill cash rows are validated against their committed source.
       const cashSource=access.moduleId==='milling'?({'tt30petty':'tt37usedbags','tt33pettyexp':'tt37processingexpenses'}[key]):null;
       if(cashSource&&(pending.has(cashSource)||inFlight.has(cashSource)||failedKeys.has(cashSource)))continue;
+      if(access.moduleId==='milling'&&key===EXPORT_STORE&&['tt30ship','tt35exload','tt30prod','tt35exportersale','tt30bags','tt33bagreceipts','tt35exmill','tt40exinstructions'].some(source=>pending.has(source)||inFlight.has(source)||failedKeys.has(source)))continue;
       if(inFlight.has(key)||failedKeys.has(key))continue;
       pending.delete(key);
+      const sentBase=Number(queuedBase.get(key)??keyVersions.get(key)??0);
       inFlight.add(key);
-      fetch(endpoint+'?asset_refs=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(queuedBase.get(key)??keyVersions.get(key)??0),sourceModule:access.module||'Super Admin'})})
-        .then(async response=>{const result=await response.json();if(response.ok===false&&result.ok)throw new Error('Invalid save response');return result}).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));receipts.set(key,value);committedValues.set(key,typeof r.value==='string'?r.value:value);if(pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));else queuedBase.delete(key);markSaveState('Saved');if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}));if(pending.size)flush(false);settleCommits();return}if(!pending.has(key))pending.set(key,value);failedKeys.add(key);const message=r.conflict?'This record changed elsewhere. Reload and review it before retrying.':(r.error||'The change was not saved.');showSyncError(message,!!r.conflict);settleCommits(message)})
-        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);failedKeys.add(key);const message='The save was not confirmed. Check the connection, then reload and review before retrying.';showSyncError(message);settleCommits(message)});
+      sharedUpload(key,value,sentBase,retryKeys.has(key))
+        .then(async response=>{const result=await response.json();if(response.ok===false&&result.ok)throw new Error('Invalid save response');return result}).then(r=>{inFlight.delete(key);if(r.ok){if(typeof r.value!=='string'||!Number.isInteger(r.keyVersion)||(r.keyVersion<sentBase||(r.keyVersion===sentBase&&!legacySame(r.value,value,key))))throw new Error('Incomplete acknowledgement');if(access.moduleId==='milling'&&['tt30ship','tt35exload','tt40exinstructions','tt39physicalconfirmations'].includes(key)&&!legacySame(r.value,value,key))throw new Error('The physical source facts were not confirmed');revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,r.keyVersion);receipts.set(key,value);committedValues.set(key,typeof r.value==='string'?r.value:value);if(access.moduleId==='milling'&&access.userId){const token=legacyToken(key),stored=originalGet.call(localStorage,token);if(stored&&JSON.parse(stored).value===value)originalRemove.call(localStorage,token);}if(pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));else queuedBase.delete(key);markSaveState('Saved');if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}));if(pending.size)flush(false);settleCommits();return}if(!pending.has(key))pending.set(key,value);failedKeys.add(key);const message=r.conflict?'This record changed elsewhere. Reload and review it before retrying.':(r.error||'The change was not saved.');showSyncError(message,!!r.conflict);settleCommits(message)})
+        .catch(error=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);failedKeys.add(key);const message=error?.recoveryUnavailable?error.message:'The save was not confirmed. Check the connection, then confirm the original save before entering it again.';showSyncError(message);window.TT_MILL_SHARED_RECOVERY?.show();settleCommits(message)});
     }
   }
   // Local form changes stay local. Only an explicit final workflow action
@@ -200,19 +238,22 @@ $sharedBootstrap = <<<'HTML'
   document.addEventListener('submit',blockWhileSaving,true);
   document.addEventListener('keydown',event=>{if(event.key==='Enter'&&document.documentElement.classList.contains('tt-save-waiting'))blockWhileSaving(event)},true);
 
-  const initial=getRemote(true);
-  if(access.moduleId==='exports'&&!initial?.ok){
+  // Preserve this device's arrival cache before the authoritative download replaces it.
+  // This is a local recovery copy, never a stock posting or an automatic replay.
+  if(access.moduleId==='milling'&&access.userId){try{const raw=originalGet.call(localStorage,'tt30queue');if(raw&&raw!=='[]'){const entries=JSON.parse(raw);if(Array.isArray(entries)&&entries.length){const key='tt_ui_arrival_device_'+access.userId,prior=JSON.parse(originalGet.call(localStorage,key)||'[]');for(const row of entries)if(!prior.some(x=>JSON.stringify(x)===JSON.stringify(row)))prior.push(row);originalSet.call(localStorage,key,JSON.stringify(prior));}}}catch{window.TT_ARRIVAL_RECOVERY_COPY_ERROR=true;}}
+  const initial=getRemote(true),initialValid=initial?.ok&&initial.values&&typeof initial.values==='object'&&initial.meta&&typeof initial.meta==='object';
+  if(['exports','milling'].includes(access.moduleId)&&!initialValid){
     // A failed read must never look like an empty shipment book or create a fresh one.
     Storage.prototype.setItem=originalSet;Storage.prototype.removeItem=originalRemove;Storage.prototype.getItem=originalGet;Storage.prototype.clear=originalClear;
-    window.TT_EXPORTS_LOAD_ERROR=true;
-    window.TT_SHARED_SYNC={saveNow:()=>Promise.reject(new Error('Exports data has not loaded. Reload before saving.'))};
+    window.TT_EXPORTS_LOAD_ERROR=true;window.TT_MILLING_LOAD_ERROR=access.moduleId==='milling';
+    window.TT_SHARED_SYNC={saveNow:()=>Promise.reject(new Error('Saved records have not loaded. Reload before saving.'))};
     const showLoadError=()=>{
-      const app=document.getElementById('app');if(app)app.hidden=true;
+      const app=document.getElementById('app')||(access.moduleId==='milling'?document.querySelector('main'):null);if(app)app.hidden=true;
       const panel=document.createElement('section');panel.id='ttExportsLoadError';panel.setAttribute('role','alert');
       panel.style.cssText='max-width:760px;margin:40px auto;padding:24px;background:white;border:1px solid #b42318;border-radius:12px;font:16px Arial;color:#222';
-      const title=document.createElement('h2');title.textContent='Exports data could not be loaded';
-      const message=document.createElement('p');message.textContent='The server did not return your shipment records. Reload to try again.';
-      const retry=document.createElement('button');retry.type='button';retry.textContent='Reload Exports';retry.onclick=()=>location.reload();
+      const title=document.createElement('h2');title.textContent=(access.moduleId==='milling'?'Milling':'Exports')+' data could not be loaded';
+      const message=document.createElement('p');message.textContent='The server did not return your saved records. Entries on this device are retained. Reload to try again; do not re-enter trucks.';
+      const retry=document.createElement('button');retry.type='button';retry.textContent='Reload '+(access.moduleId==='milling'?'Milling':'Exports');retry.onclick=()=>location.reload();
       const back=document.createElement('a');back.href='/index.php';back.textContent='Return to Control Centre';back.style.marginLeft='16px';
       panel.append(title,message,retry,back);document.body.appendChild(panel);
     };
@@ -253,9 +294,9 @@ $sharedBootstrap = <<<'HTML'
     if(changed)put(EXPORT_STORE,root);
   }
   function bridge(){try{exportsToMill();millToExports()}catch(e){console.error('Transtrade inter-module bridge',e)}}
-  function notifyRemote(){dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy}}))}
+  function notifyRemote(keys=[]){dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy,keys}}))}
   function showSyncError(msg,conflict){console.error(msg);if(conflict)dispatchEvent(new CustomEvent('tt:shared-conflict',{detail:{message:msg}}))}
-  function checkInbound(){if(exportWorkspaceBusy()){deferInbound();return}const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
+  function checkInbound(){if(exportWorkspaceBusy()){deferInbound();return}const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);if(access.moduleId!=='milling')inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
   // A bill Save appends only its reviewed record. It never flushes another form.
   async function commitProduction(record,before=null){
     if(access.moduleId!=='milling')throw new Error('Open the Milling workspace before saving production.');
@@ -328,7 +369,12 @@ $sharedBootstrap = <<<'HTML'
       return result;
     }finally{inFlight.delete(key);saveHolds--;waiting()}
   }
-  window.TT_SHARED_SYNC={commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
+  async function commitMillSettings(entries){
+    const keys=entries.map(e=>e.key);if(access.moduleId!=='milling'||keys.some(k=>pending.has(k)||inFlight.has(k)))throw new Error('Finish the current setup save before retrying.');
+    keys.forEach(k=>inFlight.add(k));saveHolds++;waiting();
+    try{return await window.TT_MILL_SETTINGS_SAVE.commit({endpoint,access,entries,onConfirmed:row=>{directSet(row.key,row.value);committedValues.set(row.key,row.value);receipts.set(row.key,row.value);keyVersions.set(row.key,row.version);remoteKeys.add(row.key);}});}finally{keys.forEach(k=>inFlight.delete(k));saveHolds--;waiting();}
+  }
+  window.TT_SHARED_SYNC={recoverLegacy,commitMillSettings,readVersion:key=>keyVersions.get(key)??null,commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and announced through an internal event without persistent interface notices.
   // Exports must reconcile Mill actuals before app.js reads state. Milling must finish its legacy startup first,
@@ -378,7 +424,7 @@ $accountsSourceBridge = '<script src="mill-duplicate-approvals.js"></script><scr
 $brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
-if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
+if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/arrival-recovery-ui.js"></script><script src="/accounts/mill-settings-save.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
 $localSalesEntry='';
 if($localSalesView){
     $entry=file_get_contents(__DIR__.'/milling/local-sales-entry.js');

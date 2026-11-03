@@ -8,7 +8,10 @@
     if(!collections.has(key)||!record.id)throw Error('A supported bill and stable identity are required.');
     const read=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin',headers:{Accept:'application/json'}}),snapshot=await read.json();
     if(!read.ok||!snapshot.ok||(snapshot.restrictedKeys||[]).includes(key))throw Error(snapshot.error||'Saved Mill bills could not be checked.');
-    const current=rows(snapshot.values?.[key]),matches=current.filter(r=>String(r.id)===String(record.id));
+    const absent=snapshot.values&&snapshot.meta&&!Object.prototype.hasOwnProperty.call(snapshot.values,key)&&!Object.prototype.hasOwnProperty.call(snapshot.meta,key);
+    if(!absent&&(typeof snapshot.values?.[key]!=='string'||!Number.isInteger(snapshot.meta?.[key]?.version)||snapshot.meta[key].version<0))throw Error('The saved collection and version were not confirmed. Your entry is retained.');
+    const baseVersion=absent?0:snapshot.meta[key].version;
+    const current=rows(absent?'[]':snapshot.values[key]),matches=current.filter(r=>String(r.id)===String(record.id));
     const comparable=r=>{const copy={...r};if(prefix){delete copy.billNo;delete copy.ref}return copy;};
     if(matches.length){
       if(matches.length!==1||!same(comparable(matches[0]),comparable(record)))throw Error('This saved bill identity contains different details. Review the saved bill.');
@@ -23,7 +26,8 @@
     current.push(candidate);
     const response=await fetch(endpoint+'?asset_refs=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({csrf:access.csrf,key,value:JSON.stringify(current),baseVersion:Number(snapshot.meta?.[key]?.version||0),sourceModule:access.module})}),saved=await response.json();
     if(!response.ok||!saved.ok)throw Object.assign(Error(saved.conflict?'Another bill was saved meanwhile. Your entry is retained; Save again to review the latest records.':saved.error||'The save was not confirmed.'),{editable:[403,422].includes(response.status)});
-    const value=typeof saved.value==='string'?saved.value:JSON.stringify(current),confirmed=rows(value).filter(r=>String(r.id)===String(candidate.id));
+    if(typeof saved.value!=='string'||!Number.isInteger(saved.keyVersion)||saved.keyVersion<=baseVersion)throw Error('The bill acknowledgement is incomplete. Retry the same save before clearing your entry.');
+    const value=saved.value,confirmed=rows(value).filter(r=>String(r.id)===String(candidate.id));
     if(confirmed.length!==1||!same(confirmed[0],candidate))throw Error('The server did not confirm the intended bill details. Retry the same save.');
     return {record:confirmed[0],value,version:Number(saved.keyVersion||0)};
   }

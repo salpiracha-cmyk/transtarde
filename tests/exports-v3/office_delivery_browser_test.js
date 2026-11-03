@@ -21,7 +21,7 @@ assert.notEqual(app,source);
    window.server={ok:true,revision:1,values:{},meta:{}};window.posts=[];window.reads=[];window.replies={};
    window.XMLHttpRequest=class{open(){}send(){this.status=200;this.responseText=JSON.stringify(server)}};
    window.fetch=async(url,options={})=>{
-    if(options.method==='POST'){const body=JSON.parse(options.body);posts.push(body);server.values[body.key]=body.value;server.meta[body.key]={version:(server.meta[body.key]?.version||0)+1};return{ok:true,json:async()=>({ok:true,revision:++server.revision,keyVersion:server.meta[body.key].version})}}
+    if(options.method==='POST'){const body=JSON.parse(options.body);posts.push(body);server.values[body.key]=body.value;server.meta[body.key]={version:(server.meta[body.key]?.version||0)+1};return{ok:true,json:async()=>({ok:true,revision:++server.revision,keyVersion:server.meta[body.key].version,value:server.values[body.key]})}}
     if(String(url).includes('shipment-status')){reads.push(String(url));if(window.holdCheck)await new Promise(resolve=>window.releaseCheck=resolve);const lot=new URL(url,location.href).searchParams.get('lot');const reply=replies[lot]||{ok:true,found:false};if(reply.throw)throw Error(reply.throw);return{ok:reply.ok,json:async()=>reply}}
     return{ok:true,json:async()=>server};
    };

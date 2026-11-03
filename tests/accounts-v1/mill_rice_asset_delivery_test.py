@@ -5,7 +5,7 @@ with tempfile.TemporaryDirectory(prefix='rice-module-delivery-') as directory:
  root=pathlib.Path(directory);(root/'api').mkdir();(root/'milling').mkdir();(root/'exports').mkdir()
  for file in ['module.php','runtime_html.php']:shutil.copy(ROOT/file,root/file)
  for file in ['operations_read_policy.php','operations_scope.php','export_permission_policy.php']:shutil.copy(ROOT/'api'/file,root/'api'/file)
- for file in ['Transtrade_Master_Milling_V3_3_2_AUDITED.html','production-recovery-entry.js','rice-ledger.js','maize-labour.js','lifting-review.js','directors-exporter-links.js','other-exporter-bags.js','gate-pass.js','.htaccess']:shutil.copy(ROOT/'milling'/file,root/'milling'/file)
+ for file in ['Transtrade_Master_Milling_V3_3_2_AUDITED.html','production-recovery-entry.js','rice-ledger.js','maize-labour.js','lifting-review.js','directors-exporter-links.js','other-exporter-bags.js','gate-pass.js','safe-network.js','live-status.js','shared-recovery.js','.htaccess']:shutil.copy(ROOT/'milling'/file,root/'milling'/file)
  for file in ['index.html','app.css','app.js','tg-accounts-receipts.js','shipment-files.js','office-agent-shipment-hooks.js','.htaccess']:shutil.copy(ROOT/'exports'/file,root/'exports'/file)
  (root/'auth_store.php').write_text('''<?php
  function tt_require_login(){return ['id'=>1,'full_name'=>'Fixture','role'=>'Staff','permissions'=>['Mill'=>['reports'=>['View']]]];}
@@ -26,6 +26,7 @@ with tempfile.TemporaryDirectory(prefix='rice-module-delivery-') as directory:
   r=subprocess.run(['php',str(root/'request.php'),module],capture_output=True,text=True,env={**os.environ,'TT_FIXTURE_DENIED':'1' if denied else '0'});assert r.returncode==0,r.stderr;return json.loads((root/'status.json').read_text()),r.stdout
  status,html=run();assert status==200
  assert '<script id="milling-rice-ledger">' in html
+ assert '<script id="milling-safe-network">' in html and '<script id="milling-live-status">' in html and '<script id="milling-shared-recovery">' in html
  assert '<script id="milling-gate-pass">' in html and 'window.TT_GATE_PASS={print,html,loadId}' in html
  assert '<script src="/milling/rice-ledger.js' not in html,'Direct path is denied in production'
  assert 'window.TT_RICE_LEDGER={load,print,csv}' in html

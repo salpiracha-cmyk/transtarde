@@ -53,7 +53,7 @@ async function pageFor(moduleId='exports', withApp=true, remote=null) {
     const version=Number(server.meta[body.key]?.version||0);
     if(body.baseVersion!==version)return{ok:false,json:async()=>({ok:false,conflict:true,error:'Version conflict'})};
     server.revision++;server.values[body.key]=body.value;server.meta[body.key]={version:version+1,updatedBy:'Isolated Focus QA'};
-    return{ok:true,json:async()=>({ok:true,revision:server.revision,keyVersion:version+1})};
+    return{ok:true,json:async()=>({ok:true,revision:server.revision,keyVersion:version+1,value:server.values[body.key]})};
    }
    return{ok:true,json:async()=>structuredClone(server)};
   };
