@@ -16,6 +16,7 @@ jobs:
           php -l .github/scripts/office_temp_cleanup.php
           php .github/scripts/office_temp_cleanup_test.php
   cleanup:
+    environment: live-qa
     needs: validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     concurrency:

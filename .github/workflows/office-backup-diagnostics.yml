@@ -34,6 +34,7 @@ jobs:
           print('FIXTURE_METADATA_ONLY_OK')
           PY
   inspect:
+    environment: live-qa
     needs: validate
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
