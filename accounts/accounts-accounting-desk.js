@@ -499,7 +499,7 @@
     const box=q('#ttRecentTransactions');if(!box)return;
     const company=entity(),request=++recentLoad;box.textContent='Loading transactions…';
     try{
-      const result=await json('../api/accounts_ledger_browser.php?'+new URLSearchParams({entity:company,account:'POSTS',from:'0001-01-01',to:today()}));
+      const result=await json('../api/accounts_ledger_browser.php?'+new URLSearchParams({entity:company,account:'POSTS',activity:'vouchers',from:'0001-01-01',to:today()}));
       if(request!==recentLoad||company!==entity()||!box.isConnected)return;
       const grouped=new Map();for(const row of result.rows||[]){const id=row.publicPostId||row.voucher;if(!grouped.has(id))grouped.set(id,{...row,amounts:[]});grouped.get(id).amounts.push((row.currency||row.bookCurrency||(company==='TG'?'AED':'PKR'))+' '+(row.nativeMissing?'Unavailable':money(Math.max(Number(row.debit||0),Number(row.credit||0)))));}const rows=[...grouped.values()];
       box.innerHTML=rows.length?rows.map(row=>`<button type="button" class="tt-recent-row" data-recent-post="${esc(row.voucher)}"><span>${esc(window.TT_DATE?.display(row.date)||row.date)}</span><b>${esc(displayRef(row.publicPostId||row.voucher))}</b><span><strong>${esc(row.party)}</strong><small>${esc(row.narration||row.reference)}</small></span><b>${esc(row.amounts.join(' · '))}</b></button>`).join(''):'<p>No posted transactions.</p>';

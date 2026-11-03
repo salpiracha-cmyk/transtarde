@@ -12,6 +12,7 @@ require_once __DIR__.'/accounts_subaccounts_core.php';
 require_once __DIR__.'/tg_remittance_core.php';
 require_once __DIR__.'/fi_credit_advice_link.php';
 require_once __DIR__.'/customer_receivables_core.php';
+require_once __DIR__.'/journal_activity_core.php';
 header('Cache-Control: no-store');
 
 function alb_fail(string $message, int $status=422): never {
@@ -72,6 +73,7 @@ $nativeCurrency=$entity==='TG'?strtoupper(trim((string)($_GET['currency']??'AED'
 $party=trim((string)($_GET['party']??''));$parties=[];
 $query=strtolower(trim((string)($_GET['q']??'')));
 $postEntries=$account==='POSTS';
+$activity=(string)($_GET['activity']??'all');if(!in_array($activity,['all','vouchers'],true)||($activity!=='all'&&!$postEntries))alb_fail('Select a supported transaction view.');
 $workflowRegister=!acr_reports($user);
 
 $registerEntity=$postEntries?strtoupper(trim((string)($_GET['registerEntity']??''))):'';
@@ -172,6 +174,7 @@ if($requestedPost!==''){
     if(!is_array($posting)||!alv_posted($posting)||($entity!=='ALL'&&($posting['entity']??'')!==$entity)||!tt_user_can_access_entity($user,(string)($posting['entity']??''),'View'))$posting=null;
     if(!$posting)alb_fail('Post ID was not found in these company books.',404);
     $posting['canEdit']=!in_array($posting['sourceType']??'',['EX_MILL_PURCHASE_LIABILITY','EX_MILL_LIFTING_REVERSAL'],true)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$posting)&&tt_user_can_access_entity($user,(string)$posting['entity'],'Edit');
+    $posting['accountingEvent']=jac_event($posting);
     $posting['fiTagText']=tt_fi_advice_label((array)($posting['fiTag']??[]));
     $receipt=(array)($store['exportReceipts'][(string)($posting['meta']['receiptId']??'')]??[]);
     if($receipt){$posting['receiptAmendment']=['status'=>$receipt['status']??'','entity'=>$receipt['entity']??'','replacementReceiptId'=>$receipt['replacementReceiptId']??'','amendmentOf'=>$receipt['amendmentOf']??'','reversalPostIds'=>$receipt['reversalPostIds']??[]];}
@@ -206,9 +209,10 @@ $opening=0.0;$rows=[];$deleteRecordIndex=apd_record_index($store);
 foreach($journals as $journal){
     if(isset($ledgerHidden[(string)($journal['id']??'')]))continue;
     if($postEntries){if(!empty($journal['meta']['deletedFromBooks']))continue;
+        $event=jac_event($journal);if($activity==='vouchers'&&!$event['recentVoucher'])continue;
         if(!empty($journal['amendedByPostId'])||(!empty($journal['reversalOf'])&&(!empty($store['journals'][$journal['reversalOf']]['amendedByPostId']))))continue;
         $date=(string)$journal['date'];if($date<$from)continue;
-        $registerRow=['entity'=>(string)$journal['entity'],'bookCurrency'=>$journal['entity']==='TG'?'AED':'PKR','sourceType'=>(string)($journal['sourceType']??''),'deleteReason'=>apd_delete_reason($store,$journal,$user,$deleteRecordIndex),'canDelete'=>apd_supported($store,$journal,$deleteRecordIndex)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$journal)&&tt_user_can_access_entity($user,(string)$journal['entity'],'Edit'),'date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'publicPostId'=>tt_accounts_public_post($store,$journal),'amendmentNote'=>tt_accounts_amendment_note($journal,$store),'party'=>alb_register_party($store,$journal).(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
+        $registerRow=['entity'=>(string)$journal['entity'],'bookCurrency'=>$journal['entity']==='TG'?'AED':'PKR','sourceType'=>(string)($journal['sourceType']??''),'accountingEvent'=>$event,'deleteReason'=>apd_delete_reason($store,$journal,$user,$deleteRecordIndex),'canDelete'=>apd_supported($store,$journal,$deleteRecordIndex)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$journal)&&tt_user_can_access_entity($user,(string)$journal['entity'],'Edit'),'date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'originalNarration'=>(string)($journal['narration']??''),'narration'=>(string)$event['displayNarration'].(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'publicPostId'=>tt_accounts_public_post($store,$journal),'amendmentNote'=>tt_accounts_amendment_note($journal,$store),'party'=>alb_register_party($store,$journal).(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
         if(($journal['entity']??'')==='TG'){
             $totals=[];
             foreach((array)$journal['lines'] as $line){if(($line['account']??'')==='7100')continue;$nativeLine=tgn_line($journal,$line);$cur=$nativeLine['currency'];$totals[$cur]??=['debit'=>0.0,'credit'=>0.0,'unavailable'=>false];$totals[$cur]['unavailable']=$totals[$cur]['unavailable']||$nativeLine['unavailable'];$totals[$cur]['debit']+=(float)$nativeLine['debit'];$totals[$cur]['credit']+=(float)$nativeLine['credit'];}
