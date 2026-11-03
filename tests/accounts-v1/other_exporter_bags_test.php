@@ -13,6 +13,9 @@ require_once dirname(__DIR__,2).'/api/directors_trading_links.php';
     $result=oeb_receive($values,$state,$masters,$books,$scope,$body,$user,'2026-11-03T10:00:00Z',$authorize);
     $custody=bti_rows($values,'tt30bags');$check(fe_delete_issue($books,$deal,[],$custody)!=='','SODA with original bag custody could be deleted');
     try{dt_assert_other_bag_route($deal,array_replace($deal,['brand'=>'OTHER']),$custody);throw new RuntimeException('Received SODA brand was relabelled');}catch(DomainException){}
+    foreach(['OUR','NONE'] as $owner){try{oeb_spec($deal+['bagTerms'=>['status'=>'CONFIRMED','owner'=>$owner]],$scope,$body);throw new RuntimeException('Conflicting confirmed bag ownership accepted');}catch(DomainException){}}
+    try{dt_assert_other_bag_route($deal,$deal+['bagTerms'=>['status'=>'CONFIRMED','owner'=>'OUR']],$custody);throw new RuntimeException('Received fellow bags relabelled as our bags');}catch(DomainException){}
+    $safe=ba_physical_responsibility($deal+['bagTerms'=>['status'=>'CONFIRMED','owner'=>'FELLOW','arrangementName'=>'Fellow bags','basis'=>'FELLOW','ratePKRPerBag'=>123,'supplierId'=>'PRIVATE']]);$check(!isset($safe['ratePKRPerBag'],$safe['supplierId'])&&$safe['owner']==='FELLOW','Physical bag feed exposed commercial bag rates');
     $check($books===$original,'Receipt changed SODA/commercial books');$check($result['order']['received']===100,'Actual receipt not reflected');
     $check($result['receipt']['sourceSnapshot']['externalOwnerId']==='HKM'&&$result['receipt']['sourceSnapshot']['stockOwnerType']==='OTHER_EXPORTER','External ownership was relabelled as TTI');
     $after=serialize([$values,$state]);$repeat=oeb_receive($values,$state,$masters,$books,$scope,$body,$user,'2026-11-03T10:01:00Z',$authorize);$check($repeat['replayed']&&serialize([$values,$state])===$after,'Receipt retry duplicated quantity/audit');

@@ -9,7 +9,7 @@ with tempfile.TemporaryDirectory(prefix='directors-trading-') as tmp:
  (root/'data').mkdir()
  (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');define('TT_DB_HOST','');
-function tt_require_login(){if(($_GET['mode']??'')==='mill')return ['id'=>1,'username'=>'Mill','role'=>'Staff','permissions'=>['Mill'=>['local'=>['View','Edit']]]];return ['id'=>1,'username'=>'Fixture','role'=>'Staff','permissions'=>(($_GET['mode']??'all')==='all'?['Accounts'=>'all','Exports'=>['loading'=>['View','Edit']]]:(($_GET['mode']??'')==='exports-restricted'?['Exports'=>['loading'=>['View','Edit']],'Accounts'=>['entity-tti'=>['View','Edit']]]:['Exports'=>['loading'=>['View','Edit']]]))];}
+function tt_require_login(){if(($_GET['mode']??'')==='mill')return ['id'=>1,'username'=>'Mill','role'=>'Staff','permissions'=>['Mill'=>['local'=>['View','Edit']]]];return ['id'=>1,'username'=>'Fixture','role'=>(($_GET['mode']??'')==='director'?'Director':'Staff'),'permissions'=>(($_GET['mode']??'all')==='all'?['Accounts'=>'all','Exports'=>['loading'=>['View','Edit']]]:(($_GET['mode']??'')==='exports-restricted'?['Exports'=>['loading'=>['View','Edit']],'Accounts'=>['entity-tti'=>['View','Edit']]]:['Exports'=>['loading'=>['View','Edit']]]))];}
 function tt_user_can_open_module($u,$m){return !empty($u['permissions'][$m]);}
 function tt_user_can_module_action($u,$m,$i,$a){$mode=$_GET['mode']??'all';if($mode==='mill')return $m==='Mill'&&$i==='local';if($mode==='deny')return false;if($mode==='read')return $a==='View';if($mode==='cost')return $m==='Directors'&&$i==='costing';if(in_array($mode,['exports','exports-restricted']))return $m==='Exports'&&$i==='loading';return true;}
 function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}
@@ -175,3 +175,24 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  status,master=req({'action':'delete_exporter','partyId':pid,'version':2,'reason':'Unused test master'},_endpoint='fellow');assert status==200 and pid not in [p['id']for p in master['parties']],master
  assert json.loads(path.read_text())['journals']==stable_journals,'Master changed financial records'
  print('PASS shared Parties master: matching rights and company/CSRF, code uniqueness, stale/retry guards, canonical SODA selection and no financial write')
+
+ # Bag arrangements: existing SODAs remain pending; only explicit terms and management saves persist.
+ original_books=json.loads(path.read_text());assert all(x['bagTerms']['status']=='PENDING_CONFIRMATION' for x in req()[1]['deals'])
+ manager={'action':'save_bag_arrangement','name':'Fixture shared responsibility','basis':'SHARED','requestKey':'bag-arrangement-create'}
+ stable=path.read_bytes();assert req(manager)[0]==403 and path.read_bytes()==stable
+ assert req(manager,origin='accounts',mode='director')[0]==403
+ status,d=req(manager,mode='director');assert status==200,d;arrangement=d['result']['arrangementId']
+ stable=path.read_bytes();assert req(manager,mode='director')[0]==200 and path.read_bytes()==stable
+ assert req({**manager,'name':'Changed'},mode='director')[0]==409
+ assert req({'action':'save_bag_arrangement','arrangementId':arrangement,'version':0,'name':'Changed','basis':'SHARED','reason':'Correct descriptive name'},mode='director')[0]==422
+ status,d=req({'action':'save_bag_arrangement','arrangementId':arrangement,'version':1,'name':'Fixture shared audited','basis':'SHARED','reason':'Correct descriptive name'},mode='director');assert status==200,d
+ terms={'arrangementId':arrangement,'owner':'FELLOW','supplierId':'KAS','costBearer':'SHARED','ourSharePct':35,'settlement':'REIMBURSEMENT','costBasis':'PER_BAG','ratePKRPerBag':22.5}
+ soda={'action':'save_deal',**local,'partyId':'KAS','reference':'BAG-RESPONSIBILITY','quantityMT':10,'millSaleRef':'','bagTerms':terms,'requestKey':'bag-responsibility-soda'}
+ for patch in [{'supplierId':'FOREIGN'},{'ourSharePct':101},{'ourSharePct':0},{'costBearer':'OUR'},{'ratePKRPerBag':0}]:
+  stable=path.read_bytes();assert req({**soda,'bagTerms':{**terms,**patch},'requestKey':'bag-bad-'+str(seq)})[0]==422 and path.read_bytes()==stable
+ status,d=req(soda);assert status==200,d;bag_deal=d['result']['id'];saved=next(x for x in d['deals'] if x['id']==bag_deal);assert saved['bagTerms']['fellowSharePct']==65 and saved['bagTerms']['arrangementVersion']==2
+ status,d=req({'action':'amend_deal',**local,'partyId':'KAS','reference':'BAG-RESPONSIBILITY','quantityMT':10,'millSaleRef':'','id':bag_deal,'version':1,'reason':'Confirm separate actual bag cost','bagTerms':{**terms,'costBasis':'ACTUAL'}});assert status==200,d
+ state=json.loads(path.read_text());assert state['journals']==original_books['journals'] and (root/'data/operations.json').read_bytes()==local_ops_before,'Responsibility selection created financial or physical movement'
+ assert state['exporterDeals'][bag_deal]['history'][-1]['before']['bagTerms']['ratePKRPerBag']==22.5 and state['exporterDeals'][bag_deal]['bagTerms']['ratePKRPerBag']==0
+ assert len(state['bagArrangementAudit'])==2
+ print('PASS bag arrangements: pending legacy state, role/company/CSRF boundaries, custom audited versioning/retry, explicit owner/supplier/shares/treatment/rate, audited SODA amendment and zero financial or physical postings')
