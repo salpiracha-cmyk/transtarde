@@ -68,3 +68,5 @@ $fakeLot=$view['lots'][$id];$fakeLot['brand']='OTHER BRAND';$forged=[['lotId'=>$
 try{bti_validate_allocations($run,$forged,[$id=>$fakeLot],$masters);throw new RuntimeException('Forged source SKU snapshot accepted');}catch(DomainException){}
 bi_check(bti_location($masters,'Historical old name','mills-1')['millName']==='TTI Rice Mills','Stable location identity lost after a name correction');
 echo "PASS actual bag inventory projection: immutable reads, original PO/packing separation, historical allocation holds, later-receipt exclusion, source/destination partial/return conservation, acknowledged production stock, company isolation, undated history and exact PO ownership\n";
+
+require __DIR__.'/other_exporter_bags_test.php';

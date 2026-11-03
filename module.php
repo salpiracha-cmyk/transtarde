@@ -30,7 +30,7 @@ if ($id === 'milling') {
         static fn(): string => '<script id="milling-gate-pass">' . str_replace('</script', '<\\/script', $gatePass) . '</script>',
         $html
     );
-    foreach (['maize-labour', 'lifting-review', 'directors-exporter-links'] as $task) {
+    foreach (['maize-labour', 'lifting-review', 'directors-exporter-links', 'other-exporter-bags'] as $task) {
         $taskFile = __DIR__.'/milling/'.$task.'.js';
         if (!is_file($taskFile) || ($taskScript = file_get_contents($taskFile)) === false) { http_response_code(503); exit('Milling task assets are unavailable.'); }
         $millingTaskScripts .= '<script id="milling-'.$task.'">'.str_replace('</script', '<\\/script', $taskScript).'</script>';
@@ -278,6 +278,18 @@ $sharedBootstrap = <<<'HTML'
     try{const saved=await window.TT_BAG_RECEIPTS.commit(intent);for(const key of keys){const row=saved.sourceValues?.[key];if(!row||typeof row.value!=='string'||pending.has(key)||localStorage.getItem(key)!==originals.get(key))continue;directSet(key,row.value);committedValues.set(key,row.value);receipts.set(key,row.value);keyVersions.set(key,Number(row.version||0));remoteKeys.add(key);}return saved;}
     finally{keys.forEach(key=>inFlight.delete(key));saveHolds--;waiting();}
   }
+  async function commitOtherBagReceipt(body){
+    if(access.moduleId!=='milling'||body.action!=='receive')throw new Error('Open Milling to receive other exporter bags.');
+    const keys=['tt30bags','tt33bagreceipts'];if(keys.some(k=>pending.has(k)||inFlight.has(k)))throw new Error('Finish the current bag action before receiving.');
+    const originals=new Map(keys.map(k=>[k,localStorage.getItem(k)]));keys.forEach(k=>inFlight.add(k));saveHolds++;waiting();
+    try{
+      const response=await fetch('/api/other_exporter_bags.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({...body,csrf:access.csrf})}),saved=await response.json();
+      if(!response.ok||!saved.ok)throw Object.assign(new Error(saved.error||'Receipt could not be confirmed.'),{definitive:response.status>=400&&response.status<500});
+      if(saved.order?.exporterDealId!==body.sodaId||saved.scope?.entity!==body.entity||saved.scope?.locationId!==body.locationId||saved.receipt?.qty!==body.qty||saved.receipt?.date!==body.date)throw new Error('The receipt acknowledgement does not match this SODA and physical receipt.');
+      for(const k of keys){const row=saved.sourceValues?.[k];if(!row||typeof row.value!=='string'||!Number.isInteger(row.version))throw new Error('Receipt source acknowledgement is incomplete. Confirm the same action.');if(!pending.has(k)&&localStorage.getItem(k)===originals.get(k)){directSet(k,row.value);committedValues.set(k,row.value);receipts.set(k,row.value);keyVersions.set(k,row.version);remoteKeys.add(k);}}
+      return saved;
+    }finally{keys.forEach(k=>inFlight.delete(k));saveHolds--;waiting();}
+  }
   async function commitMillAction(key,record,before=null,prefix=''){
     if(access.moduleId!=='milling'||!['tt30queue','tt30slips','tt30directoralerts','tt37usedbags','tt33pettyexp','tt32stockadj','tt35localsales','tt35exportersale'].includes(key))throw new Error('Unsupported Milling action.');
     const keys=key==='tt32stockadj'?[key,'tt32labourfeed']:[key];
@@ -315,7 +327,7 @@ $sharedBootstrap = <<<'HTML'
       return result;
     }finally{inFlight.delete(key);saveHolds--;waiting()}
   }
-  window.TT_SHARED_SYNC={commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
+  window.TT_SHARED_SYNC={commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and announced through an internal event without persistent interface notices.
   // Exports must reconcile Mill actuals before app.js reads state. Milling must finish its legacy startup first,

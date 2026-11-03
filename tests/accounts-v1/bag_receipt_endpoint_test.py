@@ -118,3 +118,7 @@ else{$out=['values'=>[],'meta'=>[]];foreach($p->query('SELECT storage_key,payloa
     assert snapshot()==status_snapshot and books.read_bytes()==financial and stored()['values']['tt99keep']==initial['values']['tt99keep']
     if MYSQL:sql_run('cleanup')
     print(('MYSQL ' if MYSQL else 'FILE ')+'PASS atomic actual supplier receipts: scoped zero-write review, permissions and CSRF, actual dates/whole counts, inspection, counter/receipt/audit commit, quarantine unavailable, stable replay/version, keep-open without new receipt, protected source identity and unchanged books')
+
+# The same release gate also exercises the other-exporter custody controller.
+import runpy
+runpy.run_path(str(ROOT/'tests/accounts-v1/other_exporter_bags_endpoint_test.py'), run_name='__main__')

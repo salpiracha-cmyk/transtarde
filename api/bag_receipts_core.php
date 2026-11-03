@@ -16,6 +16,7 @@ function br_source(array $values,array $masters,string $bagId): array {
     $spec=['originBagId'=>$bagId,'entity'=>$entity]+$location+['poNo'=>(string)($order['poNo']??''),'poLineKey'=>bqa_mill_line_key($order),'brand'=>(string)($order['brand']??''),'packingSize'=>(string)($order['size']??$po['packingSize']??''),'bagType'=>(string)($order['bagType']??$po['bagType']??''),'supplier'=>(string)($order['supplier']??$po['supplier']??''),'tare'=>(string)($order['tare']??'')];
     if(!in_array($entity,['TTI','BRM'],true)||$spec['poNo']===''||$spec['poLineKey']===''||$spec['brand']===''||$spec['bagType']===''||bti_packing_kg($spec['packingSize'])===null)throw new DomainException('Original PO, stock owner, brand, packing and material must be verified before receiving.');
     if($po&&($po['entity']!==$entity||bti_norm($po['brand'])!==bti_norm($spec['brand'])||bti_norm($po['bagType'])!==bti_norm($spec['bagType'])||bti_packing_kg($po['packingSize'])!==bti_packing_kg($spec['packingSize'])))throw new DomainException('The Mill receipt source disagrees with its issued PO. Resolve the original source first.');
+    if(($order['sourceKind']??'')==='OTHER_EXPORTER')foreach(['sourceKind','exporterDealId','externalOwnerId','externalOwnerName','stockOwnerType','sodaReference'] as $key)$spec[$key]=$order[$key]??'';
     $receipts=array_values(array_filter(bti_rows($values,'tt33bagreceipts'),static fn($r)=>(string)($r['bagId']??'')===$bagId));
     foreach($receipts as $receipt)if(bti_receipt_scope_conflict($receipt,$spec))throw new DomainException('Saved physical receipt owner, location or specification conflicts with its current PO. Reconcile the original receipt before another receipt.');
     foreach($receipts as $receipt)if(!empty($receipt['serverManaged'])&&($receipt['sourceSnapshot']??null)!=$spec)throw new DomainException('The PO owner, location or specification changed after receiving. Reconcile the original physical lot before another receipt.');
@@ -24,7 +25,7 @@ function br_source(array $values,array $masters,string $bagId): array {
 function br_flags(array $body): array {
     $flags=[];foreach(['printingMismatch','materialMismatch','qualityMismatch','tareMismatch'] as $key){if(!isset($body[$key])||!is_bool($body[$key]))throw new DomainException('Confirm each actual receipt specification check.');$flags[$key]=$body[$key];}return $flags;
 }
-function br_commit(array &$values,array &$state,array $masters,array $body,array $user,string $now,callable $authorize): array {
+function br_commit(array &$values,array &$state,array $masters,array $body,array $user,string $now,callable $authorize,bool $allowOtherExporter=false): array {
     $action=(string)($body['action']??'');if(!in_array($action,['receive_supplier','receipt_status','accept_corrected','return_supplier'],true))throw new DomainException('Choose an explicit supplier receipt action.');
     $request=bt_request($state,$body,$user,'SUPPLIER_'.$action);
     if($request['prior']){
@@ -34,6 +35,7 @@ function br_commit(array &$values,array &$state,array $masters,array $body,array
         return ['receipt'=>$prior['receipt'],'disposition'=>$prior['disposition']??null,'order'=>count($matching)===1?$matching[0]:$prior['order'],'replayed'=>true];
     }
     $source=br_source($values,$masters,(string)($body['bagId']??''));$scope=$source['scope'];
+    if($action==='receive_supplier'&&($source['order']['sourceKind']??'')==='OTHER_EXPORTER'&&!$allowOtherExporter)throw new DomainException('Receive these bags from Other Exporter Bags against their current SODA.');
     if(($body['entity']??'')!==$scope['entity']||($body['locationId']??'')!==$scope['locationId'])throw new DomainException('The original receipt belongs to another company or physical location.');
     $authorize($scope['entity'],$scope['millName'],$action==='receive_supplier'?'Create':'Edit',$scope['locationId']);
     if(!hash_equals($source['fingerprint'],(string)($body['sourceFingerprint']??'')))throw new DomainException('The order or receipts changed. Review the original order again; your entry is retained.');
@@ -81,6 +83,7 @@ function br_guard_write(array $values,string $key,string $json): string {
         if($key==='tt33bagreceipts'){
             if(!$prior||$prior!=$row)throw new DomainException('Actual bag receipts are saved through the acknowledged receipt workflow. Original receipt facts cannot be rewritten.');
         }else{
+            if(($row['sourceKind']??'')==='OTHER_EXPORTER'||($prior['sourceKind']??'')==='OTHER_EXPORTER'){if(!$prior||$prior!=$row)throw new DomainException('Other exporter bag sources are maintained by their original acknowledged receipt workflow.');}
             if(!$prior&&(!empty($row['received'])||!empty($row['bagReceiptVersion'])))throw new DomainException('A new bag order cannot invent received stock. Use the actual receipt workflow.');
             if($prior&&($prior['received']??0)!=($row['received']??0))throw new DomainException('Received bags are maintained by the atomic receipt workflow.');
             $physical=$prior&&(!empty($prior['received'])||array_filter(bti_rows($values,'tt33bagreceipts'),static fn($receipt)=>(string)($receipt['bagId']??'')===$id));
