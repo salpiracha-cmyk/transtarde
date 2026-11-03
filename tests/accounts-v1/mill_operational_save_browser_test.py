@@ -23,7 +23,7 @@ $masters['business_parties'][]=['id'=>'QA-KE','values'=>['K-Electric','','Servic
 $user=['id'=>1000,'username'=>'qaowner','full_name'=>'QA Mill Handoff','role'=>'Super Admin','permissions'=>['Mill'=>'all','Accounts'=>'all','Directors'=>'all','Exports'=>'all'],'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($password,PASSWORD_DEFAULT),'master_access'=>true];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>[$user],'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]]));
 file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>['tt32stockadj'=>json_encode([['id'=>'fixture-opening','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','openingStock'=>true,'readyRiceKg'=>1000,'brand'=>'IRRI-6 White Rice — SOURCE','stockName'=>'IRRI-6 White Rice — SOURCE'],['id'=>'fixture-exporter-opening','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','openingStock'=>true,'readyRiceKg'=>1000,'brand'=>'QA BRAND','stockName'=>'QA BRAND']]),'tt30mills'=>json_encode([['id'=>1,'name'=>'TTI Rice Mills','entity'=>'TTI','type'=>'Own / Default'],['id'=>2,'name'=>'QA Receiving Mill','entity'=>'TTI','type'=>'Own']]),'tt30bags'=>json_encode([['id'=>100,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'QA PRODUCTION','size'=>'50 kg','bagType'=>'PP','ordered'=>100,'received'=>100,'poNo'=>'QA-PO','poLineKey'=>'L1']]),'tt33bagreceipts'=>json_encode([['id'=>101,'bagId'=>100,'date'=>'2026-10-01','qty'=>100]])],'meta'=>[]]));
-file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['revision'=>0,'journals'=>new stdClass(),'supplierBills'=>new stdClass()]));
+file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['revision'=>0,'journals'=>['FIXTURE-MILL-FUND'=>['id'=>'FIXTURE-MILL-FUND','entity'=>'TTI','date'=>'2026-07-01','status'=>'Posted','sourceType'=>'JV','lines'=>[['account'=>'1120','millLocationId'=>'mills-1','debit'=>1000,'credit'=>0],['account'=>'3400','debit'=>0,'credit'=>1000]]]],'supplierBills'=>new stdClass()]));
 file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$password,'dataDir'=>TT_DATA_DIR]));
 '''
 
@@ -62,8 +62,21 @@ def run():
             mill.locator('#usedOutSource').select_option('outside');mill.locator('#usedOutQty').fill('5');mill.locator('#usedOutType').select_option('Sale');mill.locator('#usedOutRate').fill('3');mill.locator('#usedOutParty').fill('Fixture buyer')
             mill.get_by_role('button',name='Save Outward',exact=True).click();mill.wait_for_function("document.querySelector('#usedOutQty').value === ''")
             mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click();mill.evaluate("openPanel('oldbags')");assert mill.locator('#usedOutsideBalance').inner_text()=='15'
-            mill.evaluate("openPanel('petty');togglePettyInline('Office Expense')");mill.locator('#petAmount').fill('25');mill.locator('#petRef').fill('Fixture office expense');mill.locator('#pettyInline').get_by_role('button',name='Save',exact=True).click();mill.wait_for_function("document.querySelector('#petAmount').value === ''")
-            op=context.request.get(base+'/api/operations.mysql.php').json();assert len(json.loads(op['values']['tt33pettyexp']))==1;assert books.read_bytes()==original_books
+            mill.evaluate("openPanel('petty');togglePettyInline('Office Expense')");mill.locator('#pettyBalance').filter(has_text='1,000.00').wait_for()
+            mill.locator('#millCashForm [name=amount]').fill('25');mill.locator('#millCashForm [name=payee]').fill('Fixture mill vendor');mill.locator('#millCashForm [name=expenseType]').fill('Office supplies');mill.locator('#millCashForm [name=narration]').fill('Fixture office expense');mill.locator('#millCashForm [name=remember]').check()
+            assert books.read_bytes()==original_books,'Typing and text memory changed books'
+            mill.get_by_role('button',name='Review and Post Payment',exact=True).click();mill.get_by_role('button',name='Back to entry',exact=True).click();assert books.read_bytes()==original_books,'Cancelled review posted payment'
+            cash_lost=[True]
+            def cash_ack(route):
+                payload=route.request.post_data_json if route.request.method=='POST' else {}
+                if route.request.method=='POST' and not payload.get('preview') and cash_lost[0]:
+                    cash_lost[0]=False;response=route.fetch();assert response.status==200,response.text();route.abort()
+                else:route.continue_()
+            context.route('**/api/mill_cash_ledger.php',cash_ack)
+            mill.get_by_role('button',name='Review and Post Payment',exact=True).click();mill.get_by_role('button',name='Confirm and Post',exact=True).click();mill.get_by_role('button',name='Confirm Previous Payment',exact=True).wait_for();mill.wait_for_function("!document.querySelector('#millCashForm button[type=submit]').disabled")
+            assert mill.locator('#millCashForm [name=amount]').input_value()=='25';mill.get_by_role('button',name='Confirm Previous Payment',exact=True).click();mill.locator('#pettyInline').filter(has_text='Payment confirmed').wait_for();mill.locator('#pettyBalance').filter(has_text='975.00').wait_for()
+            op=context.request.get(base+'/api/operations.mysql.php').json();assert not json.loads(op['values'].get('tt33pettyexp','[]')),'Native cash payment was duplicated into operational history';assert len(json.loads(books.read_text())['generalExpenses'])==1
+            original_books=books.read_bytes();context.unroute('**/api/mill_cash_ledger.php',cash_ack)
             # Native arrival Save persists before clearing and duplicate request gets server attribution.
             mill.evaluate("openPanel('queue')");mill.locator('#qVehicle').fill('QA-101');mill.locator('#qBags').fill('10');mill.locator('#qWeight').fill('1000');mill.locator('#qParty').fill('Fixture supplier')
             mill.locator('#queueSaveBtn').click();mill.evaluate('window.TT_SHARED_SYNC.saveNow()');mill.wait_for_function("document.querySelector('#qVehicle').value === ''")
@@ -127,7 +140,7 @@ def run():
             mill.get_by_role('button',name='OK — Confirm Paltai',exact=True).click();mill.wait_for_function("document.querySelector('#paltaiPanel').classList.contains('hidden')")
             op=context.request.get(base+'/api/operations.mysql.php').json();transfers=[r for r in json.loads(op['values']['tt32stockadj']) if r.get('paltaiVersion')];labour=[r for r in json.loads(op['values']['tt32labourfeed']) if r.get('paltaiSourceId')];assert len(transfers)==len(labour)==1 and transfers[0]['sourceDeductionKg']==510 and labour[0]['quantity']==10
             mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click();stock=mill.evaluate("computedStockRows()");assert next(r['kg'] for r in stock if r['name']=='IRRI-6 White Rice — SOURCE')==490
-            assert not json.loads(books.read_text()).get('journals'),'Operational saves must not post a financial journal';assert not errors,errors
+            assert books.read_bytes()==original_books,'Nonfinancial operational saves changed the confirmed cash payment';assert not errors,errors
             # Native Pohanch uses the approved purchase feed; failure retains the entry, retry keeps one identity.
             identity=mill.evaluate("selectedPurchaseProduct()")
             ledger=json.loads(books.read_text());ledger['purchaseSodas']={'PS-FIXTURE':dict(identity,id='PS-FIXTURE',sodaNo='26001',entity='TTI',commodity='RICE',status='Open',readyRoute='DELIVER_TO_STOCK',locationName='TTI Rice Mills',locationId='mills-1',broker='',party='Fixture supplier',qtyFromKg=10000,qtyToKg=10000,ratePerKg=10,rate=10,rateUnit='KG',sodaDate='2026-10-01')};books.write_text(json.dumps(ledger))
@@ -153,7 +166,7 @@ def run():
             # Separate phone and PC storage contexts: a saved phone arrival becomes live while PC keeps its draft.
             mill.evaluate("openPanel('queue')");mill.locator('#qVehicle').fill('CURRENT-DRAFT')
             phone_context=browser.new_context(storage_state=context.storage_state(),viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
-            phone=phone_context.new_page();phone.on('pageerror',lambda e:errors.append(str(e)));phone.on('dialog',lambda d:d.accept());phone.goto(base+'/module.php?id=milling');phone.locator('.mill-card[onclick="chooseMill(1)"]').click();phone.evaluate("openPanel('queue')")
+            phone=phone_context.new_page();phone.on('pageerror',lambda e:errors.append(str(e)));phone.on('dialog',lambda d:d.accept());phone.goto(base+'/module.php?id=milling');phone.locator('.mill-card[onclick="chooseMill(1)"]').click();phone.evaluate("openPanel('petty')");phone.locator('#pettyBalance').filter(has_text='975.00').wait_for();phone.evaluate("openPanel('queue')")
             lose_phone=[True]
             def phone_ack(route):
                 if route.request.method=='POST' and route.request.post_data_json.get('key')=='tt30queue' and lose_phone[0]:
@@ -168,7 +181,7 @@ def run():
             phone_context.close()
             assert not errors,errors
             browser.close()
-        print('PASS native Used Bags failure/retry/reload, operational petty expense, arrival and duplicate-request persistence, Local Sales save/payment/load/printed gate/close/reload, Directors local SODA -> Mill selection/truck/weights -> gate pass -> Directors quantities -> close/reload, atomic PALTAI lost-ack replay, native Pohanch retry/amendment and print weights/dates, independent mobile/PC lost-ack retry, automatic live list refresh and current-draft retention; fixture only')
+        print('PASS native Used Bags failure/retry/reload, reviewed canonical Mill cash expense/cancel/lost-ack retry and shared phone balance, arrival and duplicate-request persistence, Local Sales save/payment/load/printed gate/close/reload, Directors local SODA -> Mill selection/truck/weights -> gate pass -> Directors quantities -> close/reload, atomic PALTAI lost-ack replay, native Pohanch retry/amendment and print weights/dates, independent mobile/PC lost-ack retry, automatic live list refresh and current-draft retention; fixture only')
     finally:
         if server:server.terminate();server.wait(timeout=5)
         if log:log.close()
