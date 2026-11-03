@@ -7,6 +7,7 @@ header('X-TT-Posting-Preview: available');
 require dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__ . '/accounts_source_store.php';
 require_once __DIR__.'/export_permission_policy.php';
+require_once __DIR__.'/customer_receivables_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -38,7 +39,7 @@ try {
     $user=tt_require_login();$policy=exa_json_file(TT_EXPORT_POLICY_FILE);
     if($_SERVER['REQUEST_METHOD']==='GET'){
         if(!tt_user_can_open_module($user,'Accounts'))exa_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);
-        $s=exa_read();$entity=strtoupper(trim((string)($_GET['entity']??'')));exa_require_entity($user,$entity,false);$rows=array_values(array_filter((array)$s['exportCandidates'],static fn($x)=>(string)($x['entity']??'')===$entity&&exa_candidate_view($user,$x)));usort($rows,static fn($a,$b)=>strcmp((string)($b['createdAt']??''),(string)($a['createdAt']??'')));exa_respond(['ok'=>true,'candidates'=>$rows,'revision'=>(int)($s['revision']??0),'intercompanyAdvances'=>ica_sources($s,$entity),'policy'=>$policy,'accounts'=>exa_account_names(),'serverNow'=>gmdate('c')]);
+        $s=exa_read();$entity=strtoupper(trim((string)($_GET['entity']??'')));exa_require_entity($user,$entity,false);$root=ep_operations_root();$allRows=array_values(array_filter((array)$s['exportCandidates'],static fn($x)=>(string)($x['entity']??'')===$entity&&exa_candidate_view($user,$x)));$rows=[];$retired=[];foreach($allRows as $candidate){if(tt_cr_retired_draft($candidate,$root,$s))$retired[]=$candidate;else $rows[]=$candidate;}usort($rows,static fn($a,$b)=>strcmp((string)($b['createdAt']??''),(string)($a['createdAt']??'')));exa_respond(['ok'=>true,'candidates'=>$rows,'retiredDraftCandidates'=>$retired,'revision'=>(int)($s['revision']??0),'intercompanyAdvances'=>ica_sources($s,$entity),'policy'=>$policy,'accounts'=>exa_account_names(),'serverNow'=>gmdate('c')]);
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')exa_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))exa_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);$action=(string)($body['action']??'');

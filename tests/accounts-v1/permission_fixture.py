@@ -21,6 +21,8 @@ def append_permission_helpers(root):
 
     # Mirror shared dependencies used by the copied production endpoints.
     repo = Path(__file__).resolve().parents[2]
+    if any((Path(root)/'api'/name).exists() for name in ['export_receipts.php','export_accounting.php']):
+        shutil.copy(repo/'api/customer_receivables_core.php',Path(root)/'api/customer_receivables_core.php')
     if any((Path(root)/'api'/name).exists() for name in ['export_receipts.php','bag_purchases.php','accounts_receipt_file.php','bag_bill_file.php']):
         shutil.copy(repo/'pending_uploads.php', Path(root)/'pending_uploads.php')
         if (Path(root)/'api'/'export_receipts.php').exists():

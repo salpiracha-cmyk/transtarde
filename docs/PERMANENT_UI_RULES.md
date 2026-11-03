@@ -811,3 +811,8 @@ Owner clarification, 29 October 2026: Salaries & Staff opens the next incomplete
 - Record actual owner, active canonical supplier, cost bearer, positive shared cost allocations, reimbursement/included/separate treatment and actual-cost versus an agreed PKR-per-bag rate. Selection alone creates no stock, purchase, expense, payable, receivable or cash movement. Existing actual receipts, invoices and explicit reviewed postings remain authoritative.
 - Director/Super Admin arrangement management also requires matching trading and company Edit rights. Preserve original SODA snapshots and audited amendments, reject stale or conflicting retry identities, and preserve posted settlement terms. Custom arrangement edits never rewrite existing SODA snapshots.
 - Physical Mill projections may expose confirmed ownership and arrangement labels, never bag prices or commercial cost terms. Received fellow-owned bags cannot become company-owned or bulk through a commercial amendment.
+
+## Retired test invoice drafts — 3 November 2026
+
+- Honor exact existing owner QA-cleanup tombstones when displaying unposted, unfunded commercial draft candidates whose original contract and shipment no longer exist. Keep the original candidate available in an archived review list; do not erase journals, receipts, customer masters or genuine same-customer transactions.
+- Never archive a posted/final invoice, pending-valuation/carry-forward balance, funded candidate, restored tombstone or recreated active source under this rule. The original saved-contract/lot requirement continues to reject stale re-queue attempts.

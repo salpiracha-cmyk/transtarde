@@ -1,6 +1,20 @@
 <?php
 declare(strict_types=1);
 
+/** Honor an existing owner QA-cleanup tombstone without touching original books or genuine invoices. */
+function tt_cr_retired_draft(array $candidate,array $root,array $books=[]):bool {
+    if(!empty($candidate['journalId'])||!empty($candidate['pendingValuation'])||!empty($candidate['meta']['carryForwardShipmentId'])||($candidate['candidateType']??'')!=='CUSTOMER_EXPORT_SALE'||($candidate['meta']['invoiceStage']??'')!=='Draft')return false;
+    $ref=trim((string)($candidate['meta']['contractRef']??''));if($ref==='')return false;
+    $retired=false;foreach((array)($root['deletedShipments']??[]) as $row)if(is_array($row)&&($row['contractRef']??'')===$ref&&!empty($row['qaCleanup'])&&empty($row['restoredAt']))$retired=true;if(!$retired)return false;
+    foreach((array)($root['contracts']??[]) as $row)if(is_array($row)&&($row['ref']??'')===$ref)return false;
+    foreach((array)($root['shipments']??[]) as $row)if(is_array($row)&&($row['contractRef']??'')===$ref)return false;
+    $id=(string)($candidate['id']??'');if($id==='')return false;
+    foreach((array)($books['exportReceipts']??[]) as $receipt)foreach((array)($receipt['allocations']??[]) as $allocation)if(($allocation['targetId']??'')===$id&&(float)($allocation['foreignAmount']??0)>.005)return false;
+    foreach((array)($books['tgBankTransactions']??[]) as $receipt)if(($receipt['sourceCandidateId']??'')===$id&&(float)($receipt['settlementAmountNative']??0)>.005)return false;
+    foreach((array)($books['tgAdvanceApplications']??[]) as $receipt)if(($receipt['candidateId']??'')===$id&&(float)($receipt['amountNative']??0)>.005)return false;
+    return true;
+}
+
 /** Read-only external buyer invoice register. Never read Customs or TG settlement values. */
 function tt_customer_receivables(array $store, array $root, array $entities, string $asOf=''): array {
     $contracts=[];$customers=[];$rows=[];$candidateKeys=[];
@@ -8,7 +22,7 @@ function tt_customer_receivables(array $store, array $root, array $entities, str
     foreach((array)($root['contracts']??[]) as $c)if(is_array($c))$contracts[(string)($c['ref']??$c['id']??'')]=$c;
     $key=static fn(string $entity,string $contract,string $invoice,string $currency)=>$entity.'|'.$contract.'|'.strtoupper(trim($invoice)).'|'.$currency;
     foreach((array)($store['exportCandidates']??[]) as $id=>$c){
-        if(!is_array($c)||($c['candidateType']??'')!=='CUSTOMER_EXPORT_SALE'||!in_array($c['entity']??'', $entities,true))continue;
+        if(!is_array($c)||tt_cr_retired_draft($c,$root,$store)||($c['candidateType']??'')!=='CUSTOMER_EXPORT_SALE'||!in_array($c['entity']??'', $entities,true))continue;
         $m=(array)($c['meta']??[]);$ref=(string)($m['contractRef']??'');$invoice=trim((string)($m['commercialInvoiceNo']??''));$cur=strtoupper((string)($c['transactionCurrency']??''));
         if($invoice===''||$cur==='')continue;
         $k=$key($c['entity'],$ref,$invoice,$cur);$candidateKeys[(string)($c['id']??$id)]=$k;
