@@ -4,6 +4,8 @@ require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/other_exporter_bags_core.php';
 require_once __DIR__.'/bag_transfers_store.php';
 require_once __DIR__.'/accounts_shipment_source.php';
+require_once dirname(__DIR__).'/inventory_reconciliation.php';
+require_once __DIR__.'/operations_scope.php';
 header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');
 class OebDenied extends RuntimeException {}
 function oeb_out(array $data,int $status=200): never {http_response_code($status);echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);exit;}
@@ -50,9 +52,10 @@ try {
                 });
             }
         }elseif(($b['action']??'')==='receive'){
-            $result=bts_with_sources(true,$u,static function(array &$values,array &$state,$now)use($masters,$books,$scope,$b,$u,$authorize){return oeb_receive($values,$state,$masters,$books,$scope,$b,$u,$now,$authorize);});
+            $result=bts_with_sources(true,$u,static function(array &$values,array &$state,$now)use($masters,$books,$scope,$b,$u,$authorize){$saved=oeb_receive($values,$state,$masters,$books,$scope,$b,$u,$now,$authorize);$saved['visibleSources']=os_project($u,$values)['values'];return $saved;});
         }else throw new DomainException('Select a supported bag action.');
     }finally{flock($h,LOCK_UN);fclose($h);}
+    if(isset($result['sourceValues']))foreach($result['sourceValues'] as $key=>&$row){if(isset($result['visibleSources'][$key]))$row['value']=$result['visibleSources'][$key];else unset($result['sourceValues'][$key]);}unset($row,$result['visibleSources']);
     oeb_out(['ok'=>true,'scope'=>$scope]+$result);
 }catch(OebDenied $e){oeb_out(['ok'=>false,'error'=>$e->getMessage()],403);}
 catch(DomainException|InvalidArgumentException $e){oeb_out(['ok'=>false,'error'=>$e->getMessage()],422);}

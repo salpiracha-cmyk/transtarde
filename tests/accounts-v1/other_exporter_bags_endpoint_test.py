@@ -11,11 +11,13 @@ with tempfile.TemporaryDirectory(prefix='other-exporter-bags-') as tmp:
     root = Path(tmp)
     shutil.copytree(ROOT/'api', root/'api')
     (root/'data').mkdir()
+    for f in ['inventory_reconciliation.php','product_stage.php']: shutil.copy(ROOT/f,root/f)
     (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');
 function tt_require_login(){return ['id'=>7,'full_name'=>'Mill receiver','role'=>'Staff','location'=>($_GET['mode']??'')==='location'?'Other Mill':'Own Mill','permissions'=>($_GET['mode']??'')==='company'?['Accounts'=>['entity-brm'=>['View','Create']]]:[]];}
 function tt_user_can_open_module($u,$m){return ($_GET['mode']??'')!=='no-mill';}
-function tt_user_can_module_action($u,$m,$i,$a){return ($_GET['mode']??'')!=='read'||$a==='View';}
+function tt_user_can_module_action($u,$m,$i,$a){return $m==='Mill'&&(($_GET['mode']??'')!=='read'||$a==='View');}
+function tt_user_business_entity($u,$e,$a){return tt_user_can_access_entity($u,$e,$a);}
 function tt_user_can_access_entity($u,$e,$a){return ($_GET['mode']??'')!=='company'||$e==='BRM';}
 function tt_verify_csrf($v){return $v==='fixture';}
 function tt_release_read_session(){}
@@ -29,7 +31,7 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
     book_path=root/'data/accounts.json'
     book_path.write_text(json.dumps(books))
     ops_path=root/'data/operations.json'
-    ops_path.write_text(json.dumps({'revision':1,'values':{'tt30bags':'[]','tt33bagreceipts':'[]','tt30prod':'[]','tt36bagissues':'[]','tt35exportersale':'[]','transtrade_export_v3_operational':'{}'},'meta':{}}))
+    ops_path.write_text(json.dumps({'revision':1,'values':{'tt30bags':json.dumps([{'id':999,'entity':'TTI','mill':'Another Mill','brand':'Private marking','received':0}]),'tt33bagreceipts':'[]','tt30prod':'[]','tt36bagissues':'[]','tt35exportersale':'[]','transtrade_export_v3_operational':'{}'},'meta':{}}))
     env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
     def req(body=None, mode=''):
         query={'entity':'TTI','locationId':'M1','mode':mode}
@@ -55,6 +57,8 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
         status,error=req(dict(receipt,**changes));assert status==422,error;assert snapshot()==after,'Refused receipt changed records'
     status,saved=req(receipt);assert status==200,saved;assert saved['order']['received']==100 and saved['receipt']['sourceSnapshot']['externalOwnerId']=='HKM'
     assert saved['sourceValues']['tt30bags']['version']==1
+    assert all(r.get('brand')!='Private marking' for r in json.loads(saved['sourceValues']['tt30bags']['value'])), 'Receipt acknowledgement exposed another assigned mill'
+    assert all('visibleSources' not in r for r in [saved]), 'Unfiltered stock source escaped projection'
     receipt_snapshot=snapshot();assert req(receipt)[1]['replayed'] and snapshot()==receipt_snapshot,'Retry duplicated received bags'
     assert req(dict(receipt,qty=101))[0]==422 and snapshot()==receipt_snapshot
     status,data=req();assert status==200 and data['choices'][0]['brand']=='Amros' and data['choices'][0]['available']==100,data
