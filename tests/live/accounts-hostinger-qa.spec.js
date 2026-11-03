@@ -880,7 +880,7 @@ test('Mill Petty Cash reads the same Accounts postings without writes',async({pa
  if(cash.rows.length){const row=cash.rows[0],posted=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?'+new URLSearchParams({entity:'TTI',account:'POSTS',postId:row.postId}));expect(posted.status()).toBe(200);const view=await posted.json();expect(view.post.lines.some(line=>line.account==='1120'&&line.millLocationId===mill.id)).toBe(true);}
  const sum=Math.round(cash.rows.reduce((n,r)=>n+r.debit-r.credit,0)*100)/100;expect(cash.balance).toBe(sum);
  const ledgerResponse=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?'+new URLSearchParams({entity:'TTI',account:'CASH|TTI|MILL|'+mill.id,to:cash.asOf}));expect(ledgerResponse.status()).toBe(200);const ledger=await ledgerResponse.json();expect(ledger.closing).toBe(cash.balance);
- console.log('LIVE_MILL_CASH_RECONCILIATION '+JSON.stringify({mill:mill.name,asOf:cash.asOf,entries:cash.rows.length,received:cash.rows.reduce((n,r)=>n+r.debit,0),paid:cash.rows.reduce((n,r)=>n+r.credit,0),balance:cash.balance,accountsLedgerBalance:ledger.closing,physicalWrites:0,financialWrites:0}));
+ console.log('LIVE_MILL_CASH_RECONCILIATION '+JSON.stringify({asOf:cash.asOf,entriesChecked:cash.rows.length,receiptsMinusPaymentsAgree:cash.balance===sum,accountsLedgerAgrees:ledger.closing===cash.balance,physicalWrites:0,financialWrites:0}));
  expect(writes).toEqual([]);
 });
 
