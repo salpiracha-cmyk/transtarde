@@ -19,7 +19,7 @@ try {
     $write=$method==='POST';$raw=$write?((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:''):'';if(strlen($raw)>16000)throw new DomainException('Receipt request too large.');$b=$write?json_decode($raw,true,64,JSON_THROW_ON_ERROR):$_GET;if(!is_array($b))throw new DomainException('Invalid receipt request.');
     if($write&&!tt_verify_csrf((string)($b['csrf']??'')))oeb_out(['ok'=>false,'error'=>'Refresh the session before saving.'],419);
     $masters=tt_list_masters();$location=bti_location($masters,'',(string)($b['locationId']??''));if(!$location||$location['status']!=='Active')throw new DomainException('Select an active physical mill.');
-    $scope=['entity'=>(string)($b['entity']??''),'locationId'=>$location['locationId'],'millName'=>$location['millName']];$production=!$write&&($b['purpose']??'')==='production';oeb_access($u,$scope,$write?'Create':'View',$production);if(function_exists('tt_release_read_session'))tt_release_read_session();
+    $scope=['entity'=>(string)($b['entity']??''),'locationId'=>$location['locationId'],'millName'=>$location['millName']];$production=!$write&&($b['purpose']??'')==='production';oeb_access($u,$scope,$write?'Create':'View',$production);if(!$write&&function_exists('tt_release_read_session'))tt_release_read_session();
     $path=TT_DATA_DIR.'/accounts.json';$h=fopen($path,$write?'r+':'rb');if(!$h||!flock($h,$write?LOCK_EX:LOCK_SH))throw new RuntimeException('SODA source unavailable.');
     try {
         $books=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);if(!is_array($books))throw new RuntimeException('Invalid SODA source.');

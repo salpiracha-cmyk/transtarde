@@ -20,7 +20,7 @@ function tt_user_can_module_action($u,$m,$i,$a){return $m==='Mill'&&(($_GET['mod
 function tt_user_business_entity($u,$e,$a){return tt_user_can_access_entity($u,$e,$a);}
 function tt_user_can_access_entity($u,$e,$a){return ($_GET['mode']??'')!=='company'||$e==='BRM';}
 function tt_verify_csrf($v){return $v==='fixture';}
-function tt_release_read_session(){}
+function tt_release_read_session(){if(($_SERVER['REQUEST_METHOD']??'GET')!=='GET')throw new RuntimeException('Only read requests may release the session here.');}
 function tt_accounts_input(){return $GLOBALS['fixtureBody'];}
 function tt_list_masters(){return ['mills'=>[['id'=>'M1','values'=>['Own Mill','','Own Mill','','','Active']]]];}
 ''')
