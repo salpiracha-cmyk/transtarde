@@ -93,6 +93,7 @@ jobs:
           python3 tests/accounts-v1/master_family_roundtrip_http_test.py
           python3 tests/accounts-v1/dashboard_commodity_dues_http_test.py
           python3 tests/accounts-v1/petty_cash_http_test.py
+          python3 tests/accounts-v1/mill_petty_cash_http_test.py
           python3 tests/accounts-v1/petty_cash_balance_projection_test.py
           python3 tests/security/office_delivery_http_test.py
           python3 tests/security/office_document_policy_test.py
@@ -354,6 +355,7 @@ jobs:
           node tests/accounts-v1/maize_labour_ui_test.js
           node tests/accounts-v1/outside_corn_ui_test.js
           node tests/accounts-v1/mill_permission_reference_test.js
+          node tests/accounts-v1/mill_bag_view_permissions_test.js
           node tests/accounts-v1/rice_ledger_ui_test.js
           node tests/accounts-v1/mill_report_entry_scope_test.js
           php tests/accounts-v1/mill_recovery_test.php
