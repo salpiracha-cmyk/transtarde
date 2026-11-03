@@ -256,7 +256,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 state['salarySheets']['TTI|2026-10']={'entity':'TTI','month':'2026-10','status':'Completed','version':1,'rows':{}}
                 (root/'data/accounts.json').write_text(json.dumps(state));page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsMonth').wait_for();assert page.locator('#rsMonth').input_value()=='2026-11'
                 assert page.get_by_role('dialog',name='Review salary change').count()==0;page.locator('#rsMonth').wait_for();assert page.locator('#rsMonth').input_value()=='2026-11'
-                page.locator('#rsMonth').fill('2026-10');page.locator('#rsMonth').dispatch_event('change');page.get_by_text('SALARY COMPLETED',exact=True).wait_for()
+                page.locator('#rsMonth').fill('2026-10');page.locator('#rsMonth').dispatch_event('change');page.get_by_text('MONTH PROCESSED',exact=True).wait_for();page.get_by_text('Payment status is shown separately for each person.',exact=True).wait_for()
                 assert page.locator('#rsMasterSetup,#rsSalaryDates,#rsSalaryReview').count()==0
                 assert not errors,errors;browser.close()
                 print('PASS salary browser: one entry, advance instalments with cancelled/retried accounting review, direct next month opening and completed statement controls')
