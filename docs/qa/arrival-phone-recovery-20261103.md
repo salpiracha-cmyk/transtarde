@@ -11,6 +11,7 @@ The connected Mac session was signed in as the affected Mill Manager. An empty-f
 - Preserve superseded rejected pending originals and the legacy device queue before authoritative startup downloads. Recovery copies never post stock or money automatically.
 - Block Milling startup after a failed authoritative read rather than showing a misleading empty working screen.
 - Add a private, authenticated recovery-copy inbox. Mill queue View is required; users see their own scoped copies, Super Admin can investigate all. CSRF, size limits and assigned company/mill scope apply. Actual recovery posting uses the existing Create/Edit policy and original record ID through operations.mysql.php.
+- Preserve the original five-day entry-date limit, reject non-whole/non-finite bags/weights, and apply duplicate holds only within the selected company/mill.
 - Show five recent arrival days with an explicit date range and dates on each row; restrict queue, report and pending Pohanch options to the selected company/mill.
 - Check visible operational collection versions every 15 seconds while a Milling workflow is visible; fetch a full snapshot only when it changes. This closes the cross-device foreground refresh gap across Milling without repeatedly downloading all operational records.
 - Listen on the actual window event emitted by inbound sync, without clearing drafts or a selected Pohanch source.

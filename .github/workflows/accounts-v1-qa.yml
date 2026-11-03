@@ -336,6 +336,7 @@ jobs:
           node tests/accounts-v1/production_source_save_ui_test.js
           node tests/accounts-v1/mill_action_save_test.js
           node tests/accounts-v1/arrival_recovery_ui_test.js
+          node tests/accounts-v1/arrival_queue_validation_test.js
           node tests/accounts-v1/mill_save_transport_test.js
           node tests/accounts-v1/mill_settings_save_test.js
           node tests/accounts-v1/mill_legacy_recovery_test.js
