@@ -335,6 +335,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.getByRole('heading', {name:'Local Sales', exact:true})).toBeVisible();
   await expect(page.locator('#millLocalFrame')).toHaveAttribute('src', '/module.php?id=milling&view=local-sales&embedded=1');
   const sharedMill = page.frameLocator('#millLocalFrame');
+  await expect(sharedMill.locator('body')).toHaveAttribute('data-tt-local-sales-ready','true');
   await activate(sharedMill.getByRole('button', {name:'🏭 TTI Rice Mills Own / Default', exact:true}));
   const localParty = sharedMill.frameLocator('iframe[title="Locked Local Party Sale"]');
   await expect(localParty.getByRole('heading', {name:'Active Local Sales', exact:true})).toBeVisible({timeout:30_000});

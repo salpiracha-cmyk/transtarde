@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/mill_cash_core.php';
 
 /** Stable cash identities; names are snapshots, never keys or reassigned staff identities. */
 // Salary effective dates describe remuneration periods, not cash custody.
@@ -45,6 +46,16 @@ function pc_assert_balances(array $s,string $e):void {
     // Validate by day so an intra-day transfer/expense order does not invent a negative balance.
     $days=[];foreach(pc_rows($s,$e) as $row)if(str_contains($row['cashId'],'|STAFF|'))$days[$row['date']][$row['cashId']]=($days[$row['date']][$row['cashId']]??0)+$row['received']-$row['paid'];
     ksort($days);$balances=[];foreach($days as $rows)foreach($rows as $id=>$net){$balances[$id]=round(($balances[$id]??0)+$net,2);if($balances[$id]<-.005)throw new DomainException('This entry would spend or transfer more than the staff cash held. Check the amount and date.');}
+}
+/** Validate a custody ledger after a transfer/reversal, including later recorded spending. */
+function pc_assert_custody_balance(array $s,string $e,string $id):void {
+    $days=[];foreach(pc_rows($s,$e) as $row)if($row['cashId']===$id)$days[$row['date']]=($days[$row['date']]??0)+$row['received']-$row['paid'];
+    ksort($days);$balance=0.;foreach($days as $net){$balance=round($balance+$net,2);if($balance<-.005)throw new DomainException('This transfer or reversal would overdraw office or mill petty cash. Check its date and later spending.');}
+}
+function pc_mills(array $s,string $e):array {
+    $mills=[];foreach(mcl_locations($e) as $m){$id='CASH|'.$e.'|MILL|'.$m['id'];$mills[$id]=['id'=>$id,'locationId'=>$m['id'],'name'=>$m['name'],'active'=>true,'balance'=>pc_balance($s,$e,$id)];}
+    foreach(pc_rows($s,$e) as $row)if(str_starts_with($row['cashId'],'CASH|'.$e.'|MILL|')&&!isset($mills[$row['cashId']])){$id=$row['cashId'];$mills[$id]=['id'=>$id,'locationId'=>substr($id,strlen('CASH|'.$e.'|MILL|')),'name'=>substr($id,strlen('CASH|'.$e.'|MILL|')),'active'=>false,'balance'=>pc_balance($s,$e,$id)];}
+    return array_values($mills);
 }
 function pc_account(array $s,string $e,string $id,bool $incoming=false):array {
     if($id==='CASH|'.$e){if(isset($s['bankAccountSettings'][$id]['active'])&&!$s['bankAccountSettings'][$id]['active'])throw new DomainException('Office petty cash is inactive.');return ['id'=>$id,'name'=>'Office Petty Cash','active'=>true];}
@@ -115,6 +126,17 @@ function pc_post(array &$s,string $e,array $b,array $u,array $names):array {
         if(str_contains($from,'|STAFF|')&&empty($b['confirmed']))throw new DomainException('Confirm the staff spending amount before settling.');
         $payee=trim((string)($b['payee']??''));if($payee==='')throw new DomainException('Enter who was paid, or the cash holder for a verbal settlement.');
         $result=dex_post($s,$e,['paymentDate'=>$date,'paymentAccountId'=>$from,'payee'=>$payee,'paymentNarration'=>$note,'expenseLines'=>[pc_expense_row($s,$e,$b,$amount,$note)]],$u,$names,[]);
+    }elseif($type==='MILL_TRANSFER'){
+        if($from!=='CASH|'.$e)throw new DomainException('Mill petty cash transfers must come from Office Petty Cash.');
+        $mill=mcl_location($e,trim((string)($b['millLocationId']??'')));$receivedBy=trim((string)($b['receivedBy']??''));
+        if($receivedBy===''||strlen($receivedBy)>180)throw new DomainException('Enter who received the cash at the mill (up to 180 characters).');
+        if($amount>pc_balance($s,$e,$from,$date)+.005)throw new DomainException('Office Petty Cash has insufficient funds on this date.');
+        $to='CASH|'.$e.'|MILL|'.$mill['id'];$label='Mill Petty Cash · '.$mill['name'];
+        $debit=ev1_line('1120',$amount,0,$names,['cashAccountId'=>$to,'paymentAccountId'=>$to,'cashAccountName'=>$label,'subledger'=>$label,'millLocationId'=>$mill['id'],'millName'=>$mill['name'],'receivedBy'=>$receivedBy,'currency'=>'PKR']);
+        $credit=ev1_line('1120',0,$amount,$names,['cashAccountId'=>$from,'paymentAccountId'=>$from,'cashAccountName'=>'Office Petty Cash','subledger'=>'Office Petty Cash','currency'=>'PKR']);
+        $id=ev1_journal($s,$e,$date,'PETTY_CASH_MILL_TRANSFER','',$note,[$debit,$credit],$u,['pettyCash'=>true,'fromCashId'=>$from,'toCashId'=>$to,'millLocationId'=>$mill['id'],'millName'=>$mill['name'],'receivedBy'=>$receivedBy,'payee'=>$receivedBy,'currency'=>'PKR']);
+        $s['journals'][$id]['reference']=$id;$s['pettyCashAudit'][]=['action'=>'MILL_TRANSFER','journalId'=>$id,'fromCashId'=>$from,'toCashId'=>$to,'receivedBy'=>$receivedBy,'by'=>$u['username']??'','at'=>gmdate('c')];
+        pc_assert_custody_balance($s,$e,$from);pc_assert_custody_balance($s,$e,$to);$result=['journalId'=>$id];
     }elseif($type==='TRANSFER'){
         $to=(string)($b['to']??'');$destination=pc_account($s,$e,$to,true);if($from===$to)throw new DomainException('Choose different cash accounts.');
         $credit=$from==='CASH|'.$e?ev1_line('1120',0,$amount,$names,['cashAccountId'=>$from,'paymentAccountId'=>$from,'subledger'=>'Office Petty Cash','currency'=>'PKR']):pc_credit($s,$e,$from,$amount,$names);
@@ -127,5 +149,5 @@ function pc_post(array &$s,string $e,array $b,array $u,array $names):array {
 function pc_payload(array $s,string $e,array $u):array {
     $holders=[];foreach(pc_holders($s,$e) as $h)$holders[]=$h+['balance'=>pc_balance($s,$e,$h['id'])];
     $chart=[];$names=ev1_names();foreach(sac_entity_chart($s,$e) as $code=>$head)if(($head['class']??'')==='Expense'&&!in_array($head['level']??'',['heading','system'],true)&&isset($names[(string)$code]))$chart[]=['id'=>(string)$code,'name'=>$head['name']];
-    return pc_expense_choices($s,$e)+['ok'=>true,'entity'=>$e,'revision'=>(int)($s['revision']??0),'officeBalance'=>pc_balance($s,$e,'CASH|'.$e),'holders'=>$holders,'staff'=>array_values(pc_staff($s,$e)),'rows'=>pc_rows($s,$e),'receiptBanks'=>array_values(array_map(static fn($b)=>['id'=>$b['id'],'name'=>tt_bank_choice_label($b['bankName'],$b['currency'],$b['accountNumber'],$b['iban'],$b['accountTitle'])],array_filter(ev1_banks(),static fn($b)=>$b['entity']===$e&&in_array($b['accountType'],['Company Account','Proprietor / Owner Account','Personal Account'],true)&&$b['currency']==='PKR'&&tt_bank_can_transact($b['id'])))),'receiptHeads'=>arc_heads($s,$e),'receiptRefundHeads'=>arc_heads($s,$e,'EXPENSE_REFUND'),'receiptSubaccounts'=>array_values(array_filter(array_map(static fn($a)=>sac_resolve($s,$e,$a['id'],false),sac_accounts($s,$e)),static fn($a)=>$a['active'])),'expenseHeads'=>$chart,'canCreate'=>tt_user_can_module_action($u,'Accounts','expenses','Create')&&tt_user_can_access_entity($u,$e,'Create'),'canEdit'=>tt_user_can_module_action($u,'Accounts','expenses','Edit')&&tt_user_can_access_entity($u,$e,'Edit')];
+    return pc_expense_choices($s,$e)+['ok'=>true,'entity'=>$e,'revision'=>(int)($s['revision']??0),'officeBalance'=>pc_balance($s,$e,'CASH|'.$e),'holders'=>$holders,'mills'=>pc_mills($s,$e),'staff'=>array_values(pc_staff($s,$e)),'rows'=>pc_rows($s,$e),'receiptBanks'=>array_values(array_map(static fn($b)=>['id'=>$b['id'],'name'=>tt_bank_choice_label($b['bankName'],$b['currency'],$b['accountNumber'],$b['iban'],$b['accountTitle'])],array_filter(ev1_banks(),static fn($b)=>$b['entity']===$e&&in_array($b['accountType'],['Company Account','Proprietor / Owner Account','Personal Account'],true)&&$b['currency']==='PKR'&&tt_bank_can_transact($b['id'])))),'receiptHeads'=>arc_heads($s,$e),'receiptRefundHeads'=>arc_heads($s,$e,'EXPENSE_REFUND'),'receiptSubaccounts'=>array_values(array_filter(array_map(static fn($a)=>sac_resolve($s,$e,$a['id'],false),sac_accounts($s,$e)),static fn($a)=>$a['active'])),'expenseHeads'=>$chart,'canCreate'=>tt_user_can_module_action($u,'Accounts','expenses','Create')&&tt_user_can_access_entity($u,$e,'Create'),'canEdit'=>tt_user_can_module_action($u,'Accounts','expenses','Edit')&&tt_user_can_access_entity($u,$e,'Edit')];
 }

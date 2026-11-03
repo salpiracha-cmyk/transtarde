@@ -30,10 +30,10 @@ try {
             elseif($action==='post')$result=pc_post($s,$e,$b,$u,$names);
             else {
                 $id=(string)($b['journalId']??'');$j=$s['journals'][$id]??null;
-                if(!$j||($j['entity']??'')!==$e||!in_array($j['sourceType']??'',['PETTY_CASH_TRANSFER','PETTY_CASH_RECEIPT'],true)||!empty($j['reversedByPostId']))throw new DomainException('Choose an active petty cash transfer. Expenses are corrected through their original expense form.');
+                if(!$j||($j['entity']??'')!==$e||!in_array($j['sourceType']??'',['PETTY_CASH_TRANSFER','PETTY_CASH_RECEIPT','PETTY_CASH_MILL_TRANSFER'],true)||!empty($j['reversedByPostId']))throw new DomainException('Choose an active petty cash transfer. Expenses are corrected through their original expense form.');
                 if(($j['meta']['receiptSource']??'')==='BANK'&&(!tt_user_can_module_action($u,'Accounts','cashbank','Edit')||!tt_user_can_module_action($u,'Accounts','cashbank','View')))ev1_out(['ok'=>false,'error'=>'Bank & Cash Edit permission required to reverse this bank withdrawal.'],403);
                 $reason=trim((string)($b['reason']??''));if(strlen($reason)<5||strlen($reason)>500)throw new DomainException('Enter a reversal reason of 5 to 500 characters.');
-                $ids=ev1_reverse_journals($s,[$id],$e,$u,$names,$reason);pc_assert_balances($s,$e);$result=['journalId'=>$ids[0]??''];
+                $ids=ev1_reverse_journals($s,[$id],$e,$u,$names,$reason);pc_assert_balances($s,$e);if(($j['sourceType']??'')==='PETTY_CASH_MILL_TRANSFER'){pc_assert_custody_balance($s,$e,(string)$j['meta']['fromCashId']);pc_assert_custody_balance($s,$e,(string)$j['meta']['toCashId']);$s['pettyCashAudit'][]=['action'=>'MILL_TRANSFER_REVERSAL','originalJournalId'=>$id,'journalId'=>$ids[0]??'','reason'=>$reason,'by'=>$u['username']??'','at'=>gmdate('c')];}$result=['journalId'=>$ids[0]??''];
             }
             tt_posting_preview_exit($b,$s,$before);
             $s['pettyCashRequests'][$identity]=['fingerprint'=>$fingerprint,'result'=>$result];$s['revision']=(int)$s['revision']+1;
