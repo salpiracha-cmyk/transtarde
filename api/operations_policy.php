@@ -339,3 +339,13 @@ function operations_validate_quarantine(array $user,string $key,string $oldJson,
     }
     if(array_diff_key($index,$seen))throw new DomainException('Saved quarantine evidence cannot be removed.');
 }
+
+/** A second device must not create another physical receipt for an already-received truck. */
+function operations_validate_pohanch_identity(string $key,string $oldJson,string $nextJson): void {
+    if($key!=='tt30slips')return;
+    $old=json_decode($oldJson?:'[]',true,512,JSON_THROW_ON_ERROR);$next=json_decode($nextJson,true,512,JSON_THROW_ON_ERROR);
+    if(!is_array($old)||!array_is_list($old)||!is_array($next)||!array_is_list($next))throw new DomainException('Pohanch records must be a list.');
+    $original=[];foreach($old as $row)if(is_array($row)&&isset($row['id']))$original[(string)$row['id']]=$row;
+    $groups=[];foreach($next as $row)if(is_array($row)&&trim((string)($row['queueId']??''))!=='')$groups[(string)$row['queueId']][]=$row;
+    foreach($groups as $rows){if(count($rows)<2)continue;foreach($rows as $row){$prior=$original[(string)($row['id']??'')]??null;if(!$prior||(string)($prior['queueId']??'')!==(string)$row['queueId'])throw new DomainException('A Pohanch already exists for this Arrival List truck. Open the saved Pohanch instead of creating another.');}}
+}

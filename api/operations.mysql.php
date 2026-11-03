@@ -710,6 +710,7 @@ function operations_file_fallback(array $user): never {
             operations_validate_instruction_owner($sourceModule,$key,$old,$value);
             operations_validate_row_actions($user,$sourceModule,$key,$old,$value);
             operations_validate_quarantine($user,$key,$old,$value,(array)($store['values']??[]));
+            operations_validate_pohanch_identity($key,$old,$value);
             if ($key==='transtrade_export_v3_operational') { operations_validate_export_permissions($user,$sourceModule,$old,$value); operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule,$user); }
             if ($key==='tt30ship') tt_validate_corn_loading($value,$old);
             if ($key==='tt40exinstructions') operations_validate_exmill_completion($value,(string)($store['values']['tt35exload']??'[]'));
@@ -848,6 +849,7 @@ try {
     operations_validate_instruction_owner($sourceModule,$key,$oldPayload,$value);
     operations_validate_row_actions($user,$sourceModule,$key,$oldPayload,$value);
     operations_validate_quarantine($user,$key,$oldPayload,$value,$scopeValues);
+    operations_validate_pohanch_identity($key,$oldPayload,$value);
     if ($key === 'transtrade_export_v3_operational') {
         operations_validate_export_permissions($user,$sourceModule,$oldPayload,$value);
         operations_validate_lot_reopening($oldPayload, $value, $user, $sourceModule);

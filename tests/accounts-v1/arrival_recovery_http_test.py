@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory(prefix='arrival-recovery-') as tmp:
         for _ in range(60):
             try:client.open(base+'/fixture-session.php',timeout=3).read();break
             except OSError:time.sleep(.05)
-        staff={**user,'full_name':'Fixture Mill Operator','role':'Mill Manager','location':'TTI Rice Mills','permissions':{'Mill':{'queue':['View','Create','Edit'],'arrival':['View']}}}
+        staff={**user,'full_name':'Fixture Mill Operator','role':'Mill Manager','location':'TTI Rice Mills','permissions':{'Mill':{'queue':['View','Create','Edit'],'arrival':['View','Create','Edit']}}}
         auth=private/'auth.json';state=json.loads(auth.read_text());state['users']=[staff,{**staff,'id':2,'username':'other'}];auth.write_text(json.dumps(state))
         operations=private/'operations.json';operations.write_text(json.dumps(dict(values={'tt30queue':'[]','tt30slips':'[]','transtrade_export_v3_operational':'{}'},meta={'tt30queue':{'version':1}},revision=1)))
         record=dict(id=101,date='2026-10-31',entity='TTI',millId=1,millName='TTI Rice Mills',locationName='TTI Rice Mills',vehicle='FIX-123',bags='100',weight='5000',party='Fixture supplier')
@@ -31,6 +31,8 @@ with tempfile.TemporaryDirectory(prefix='arrival-recovery-') as tmp:
             except urllib.error.HTTPError as response:return response.code,json.load(response)
         original_books=books.read_bytes();original_ops=operations.read_bytes();status,first=request();assert status==200 and first['canCreate'] and first['recoveries']==[],(status,first)
         assert request('/api/arrival_recovery.php?version_only=1')[1]=={'ok':True,'version':1}
+        assert request('/api/mill_versions.php')[1]=={'ok':True,'versions':{'tt30queue':1}}
+        assert request('/api/mill_versions.php',{'action':'anything'})[0]==405
         assert not (private/'arrival_recovery.json').exists(),'GET created a recovery store'
         b={'action':'capture','entries':[{'record':record,'source':'pending-save'}]};status,saved=request(body=b);assert status==200 and saved['recoveries'][0]['serverStatus']=='NOT_ON_SERVER',(status,saved)
         archive=private/'arrival_recovery.json';stable=archive.read_bytes();assert request(body=b)[0]==200 and archive.read_bytes()==stable,'Duplicate capture created another recovery record'
@@ -48,8 +50,16 @@ with tempfile.TemporaryDirectory(prefix='arrival-recovery-') as tmp:
         assert books.read_bytes()==original_books,'Recovered arrival changed financial journals'
         changed={**record,'weight':'5100'};op=json.loads(operations.read_text());op['values']['tt30queue']=json.dumps([changed]);operations.write_text(json.dumps(op));assert request()[1]['recoveries'][0]['serverStatus']=='CHANGED_ON_SERVER','Recovery suggested overwriting a changed original'
         assert archive.read_bytes()==stable,'Read/confirmation rewrote the preserved original'
+        # Concurrency protection is enforced in the source API, not only by a dropdown.
+        slip=dict(id=301,queueId=record['id'],slip='PH-00301',entity='TTI',millId=1,millName='TTI Rice Mills',truck=record['vehicle'],unloadingDate='2026-10-31',loadingWeight=5000,karachiWeight=4900,payableWeight=4900,bags=100)
+        status,receipt=request('/api/operations.mysql.php',dict(key='tt30slips',value=json.dumps([slip]),baseVersion=0,sourceModule='Mill'));assert status==200,(status,receipt)
+        before_duplicate=operations.read_bytes()
+        status,duplicate=request('/api/operations.mysql.php',dict(key='tt30slips',value=json.dumps([slip,{**slip,'id':302,'slip':'PH-00302'}]),baseVersion=receipt['keyVersion'],sourceModule='Mill'));assert status==403 and 'already exists' in duplicate['error'],(status,duplicate)
+        assert operations.read_bytes()==before_duplicate,'Duplicate Pohanch changed source records'
+
         state=json.loads(auth.read_text());state['users'][0]['permissions']['Mill']['queue']=['View'];auth.write_text(json.dumps(state));assert request()[1]['canCreate'] is False
         assert request(body=b)[0]==200,'View user could not preserve their own recovery copy'
         status,forbidden=request('/api/operations.mysql.php',dict(key='tt30queue',value=json.dumps([changed,{**record,'id':102,'vehicle':'FIX-456'}]),baseVersion=json.loads(operations.read_text())['meta']['tt30queue']['version'],sourceModule='Mill'));assert status==403,(status,forbidden)
+        state=json.loads(auth.read_text());state['users'][0]['permissions']={'Accounts':{'entity-tti':['View'],'ledger':['View']}};auth.write_text(json.dumps(state));assert request('/api/mill_versions.php')[0]==403 and request()[0]==403,'Non-Milling user accessed recovery/version data'
         print('PASS original-device recovery: read-only source/permissions, private idempotent copies, CSRF/user/mill scope, no automatic arrival or financial posting, original-ID save through existing policy, confirmed-versus-changed status and View cannot post')
     finally:server.terminate();server.wait(timeout=5);log.close()

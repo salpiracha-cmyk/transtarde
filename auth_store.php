@@ -992,7 +992,7 @@ function tt_api_entity_policy(string $path): array {
     $endpoint=basename($path);
     // These routes authorize canonical source/target rows, including aggregate bridge reads.
     if(in_array($endpoint,['local_sales_entity_rule.php','export_accounting.php'],true)||(($_SERVER['REQUEST_METHOD']??'GET')==='GET'&&in_array($endpoint,['local_sales_payments.php','milling_purchase_sodas.php'],true)))return ['required'=>false,'fixed'=>''];
-    $entityIndependent=['arrival_recovery.php','operations.php','operations.mysql.php','export_documents.php','shipment_archive_file.php','export_customers.php','export_realization_master.php','masters.php','master_documents.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
+    $entityIndependent=['mill_versions.php','arrival_recovery.php','operations.php','operations.mysql.php','export_documents.php','shipment_archive_file.php','export_customers.php','export_realization_master.php','masters.php','master_documents.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
     // Shared Assets and Group Management enforce their own module/icon and company scope.
     // Its endpoint enforces module/icon rights and company scope on every request.
     if(in_array($endpoint,['assets_registry.php','group_management.php','directors_cost_defaults.php','business_reports.php'],true))return['required'=>false,'fixed'=>''];

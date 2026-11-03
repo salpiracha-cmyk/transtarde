@@ -9,7 +9,10 @@
     if(!record?.id||!record.clientSaveRequestId)throw Error('A stable production save identity is required.');
     const response=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin',headers:{Accept:'application/json'}}),snapshot=await response.json();
     if(!response.ok||!snapshot.ok||(snapshot.restrictedKeys||[]).includes(key))throw Error(snapshot.error||'Saved production could not be checked.');
-    const current=rows(snapshot.values?.[key]),matches=current.filter(r=>String(r.id)===String(record.id));
+    const absent=snapshot.values&&snapshot.meta&&!Object.prototype.hasOwnProperty.call(snapshot.values,key)&&!Object.prototype.hasOwnProperty.call(snapshot.meta,key);
+    if(!absent&&(typeof snapshot.values?.[key]!=='string'||!Number.isInteger(snapshot.meta?.[key]?.version)||snapshot.meta[key].version<0))throw Error('The saved collection and version were not confirmed. Your entry is retained.');
+    const baseVersion=absent?0:snapshot.meta[key].version;
+    const current=rows(absent?'[]':snapshot.values[key]),matches=current.filter(r=>String(r.id)===String(record.id));
     const confirmation=(record,value,version,replayed,relatedValues)=>({record,value,version,replayed,related:relatedValues});
     const readRelated=Object.fromEntries(related.filter(k=>typeof snapshot.values?.[k]==='string').map(k=>[k,{value:snapshot.values[k],version:Number(snapshot.meta?.[k]?.version||0)}]));
     if(matches.length===1&&matches[0].clientSaveRequestId===record.clientSaveRequestId){
@@ -22,7 +25,7 @@
     if(before)current[current.findIndex(r=>String(r.id)===String(record.id))]=candidate;else current.push(candidate);
     const posted=await fetch(endpoint+'?asset_refs=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({csrf:access.csrf,key,value:JSON.stringify(current),baseVersion:Number(snapshot.meta?.[key]?.version||0),sourceModule:access.module})}),saved=await posted.json();
     if(!posted.ok||!saved.ok)throw Object.assign(Error(saved.conflict?'Another production report changed meanwhile. Your entry is retained; retry Save to check the latest records.':saved.error||'Production Save was not confirmed.'),{editable:[403,422].includes(posted.status)});
-    if(typeof saved.value!=='string')throw Error('The server did not return the saved production record. Retry the same save.');
+    if(typeof saved.value!=='string'||!Number.isInteger(saved.keyVersion)||saved.keyVersion<=baseVersion)throw Error('The server did not return the saved production record. Retry the same save.');
     const confirmed=rows(saved.value).filter(r=>String(r.id)===String(candidate.id));
     if(confirmed.length!==1||confirmed[0].clientSaveRequestId!==candidate.clientSaveRequestId||!same(facts(confirmed[0]),facts(candidate)))throw Error('The server did not confirm the intended production details. Retry the same save.');
     return confirmation(confirmed[0],saved.value,Number(saved.keyVersion||0),false,saved.related||{});
