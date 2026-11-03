@@ -295,7 +295,7 @@ $sharedBootstrap = <<<'HTML'
   function bridge(){try{exportsToMill();millToExports()}catch(e){console.error('Transtrade inter-module bridge',e)}}
   function notifyRemote(keys=[]){dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy,keys}}))}
   function showSyncError(msg,conflict){console.error(msg);if(conflict)dispatchEvent(new CustomEvent('tt:shared-conflict',{detail:{message:msg}}))}
-  function checkInbound(){if(exportWorkspaceBusy()){deferInbound();return}const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
+  function checkInbound(){if(exportWorkspaceBusy()){deferInbound();return}const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);if(access.moduleId!=='milling')inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
   // A bill Save appends only its reviewed record. It never flushes another form.
   async function commitProduction(record,before=null){
     if(access.moduleId!=='milling')throw new Error('Open the Milling workspace before saving production.');

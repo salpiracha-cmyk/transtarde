@@ -25,7 +25,7 @@ The normal Accounts V1 QA and Milling/Exports QA workflows are required before m
 
 ## Original phone handoff
 
-Keep the same original phone browser profile and website data. Reload Milling under the same account and open Arrival List → Recover phone entries. Pending original save intents are copied into the private recovery inbox when connectivity/session/permissions allow; legacy cached rows can be preserved explicitly. Confirm the original truck/date/quantities before an explicit original-ID save. If no original exists, investigation remains open; never invent a replacement entry or claim historical recovery succeeded.
+Keep the same original phone browser profile and website data. Reload Milling under the same account and open Arrival List → Recover phone entries. Pending original save intents are copied into the private recovery inbox on page load, return to the tab, or reconnection when connectivity/session/permissions allow; legacy cached rows can be preserved explicitly. Confirm the original truck/date/quantities before an explicit original-ID save. If no original exists, investigation remains open; never invent a replacement entry or claim historical recovery succeeded.
 
 ## Extended Milling save audit
 

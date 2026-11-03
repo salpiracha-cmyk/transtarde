@@ -25,5 +25,6 @@ async function checkLive(){
  try{const response=await fetch('/api/mill_versions.php',{credentials:'same-origin'}),data=await response.json();if(response.ok&&data.ok&&data.versions&&Object.entries(data.versions).some(([key,version])=>Number.isInteger(version)&&version!==window.TT_SHARED_SYNC?.readVersion?.(key)))window.TT_SHARED_SYNC?.poll?.();}catch{/* A connection failure cannot clear or replay a draft. */}finally{checkingLive=false;}
 }
 function init(){const queue=document.getElementById('queue');if(!queue||queue.querySelector('[data-arrival-recovery]'))return;const button=document.createElement('button');button.type='button';button.className='sec';button.dataset.arrivalRecovery='';button.textContent='Recover phone entries';button.onclick=open;queue.querySelector('.actions')?.append(button);void capturePending();setInterval(checkLive,15000);}
+window.addEventListener('online',()=>{void capturePending();void checkLive();});window.addEventListener('focus',()=>void capturePending());
 window.TT_ARRIVAL_RECOVERY={open,capturePending,localEntries,checkLive};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
