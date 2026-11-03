@@ -94,6 +94,7 @@ jobs:
           python3 tests/accounts-v1/dashboard_commodity_dues_http_test.py
           python3 tests/accounts-v1/petty_cash_http_test.py
           python3 tests/accounts-v1/mill_petty_cash_http_test.py
+          python3 tests/accounts-v1/mill_cash_entry_http_test.py
           python3 tests/accounts-v1/petty_cash_balance_projection_test.py
           python3 tests/security/office_delivery_http_test.py
           python3 tests/security/office_document_policy_test.py
@@ -381,6 +382,7 @@ jobs:
           node tests/accounts-v1/mill_bag_location_test.js
           node tests/accounts-v1/mill_bag_artwork_test.js
           node tests/accounts-v1/mill_cash_projection_test.js
+          node tests/accounts-v1/mill_cash_entry_ui_test.js
           node tests/accounts-v1/mill_operational_status_test.js
           TZ=Asia/Karachi node tests/accounts-v1/labour_scope_test.js
           node tests/corn_weights_test.js
