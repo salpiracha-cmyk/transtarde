@@ -30,9 +30,10 @@ if ($id === 'milling') {
         static fn(): string => '<script id="milling-gate-pass">' . str_replace('</script', '<\\/script', $gatePass) . '</script>',
         $html
     );
-    foreach (['maize-labour', 'lifting-review', 'directors-exporter-links', 'other-exporter-bags'] as $task) {
+    foreach (['safe-network','live-status','shared-recovery','maize-labour', 'lifting-review', 'directors-exporter-links', 'other-exporter-bags'] as $task) {
         $taskFile = __DIR__.'/milling/'.$task.'.js';
         if (!is_file($taskFile) || ($taskScript = file_get_contents($taskFile)) === false) { http_response_code(503); exit('Milling task assets are unavailable.'); }
+        if($task==='safe-network'){$millingNetworkScript=$taskScript;continue;}
         $millingTaskScripts .= '<script id="milling-'.$task.'">'.str_replace('</script', '<\\/script', $taskScript).'</script>';
     }
     // Milling sources stay protected by .htaccess; deliver this dependency through the authenticated module.
@@ -103,7 +104,7 @@ $access = [
 // Exports/Milling bootstrap. Keep the full master available through its desk.
 unset($access['masters']['export_realization_charges']);
 $bootstrap = '<script>'.str_replace('</script','<\\/script',(string)file_get_contents(__DIR__.'/commodity-flow.js')).'</script><script>window.TT_MODULE_ACCESS='.json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT).';</script>';
-if($id==='milling')$bootstrap.='<script src="/milling/safe-network.js"></script>';
+if($id==='milling')$bootstrap.='<script id="milling-safe-network">'.str_replace('</script','<\\/script',$millingNetworkScript).'</script>';
 $sharedBootstrap = <<<'HTML'
 <style>html.tt-save-waiting body::after{content:'Saving…';position:fixed;inset:0;display:grid;place-items:center;z-index:2147482999;background:rgba(12,32,22,.45);color:#fff;font:700 20px Arial}</style>
 <script id="tt-shared-operations-bootstrap">
@@ -423,7 +424,7 @@ $accountsSourceBridge = '<script src="mill-duplicate-approvals.js"></script><scr
 $brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
-if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/arrival-recovery-ui.js"></script><script src="/milling/live-status.js"></script><script src="/milling/shared-recovery.js"></script><script src="/accounts/mill-settings-save.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
+if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/arrival-recovery-ui.js"></script><script src="/accounts/mill-settings-save.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
 $localSalesEntry='';
 if($localSalesView){
     $entry=file_get_contents(__DIR__.'/milling/local-sales-entry.js');

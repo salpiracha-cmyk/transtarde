@@ -164,7 +164,7 @@ def run():
             phone.locator('#queueSaveBtn').click();phone.wait_for_function("document.querySelector('#qVehicle').value === ''");phone.locator('#queueSaveStatus').filter(has_text='Saved to server').wait_for()
             mill.locator('#queueTable').filter(has_text='QA-909').wait_for(timeout=25000);assert mill.locator('#qVehicle').input_value()=='CURRENT-DRAFT'
             current=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30queue']);assert sum(r['vehicle']=='QA-909' for r in current)==1
-            assert phone.locator('[data-arrival-recovery]').is_visible();phone.get_by_role('button',name='Recover phone entries',exact=True).click();phone.locator('#arrivalRecoveryReview').wait_for();assert 'Confirmed on server' in phone.locator('#arrivalRecoveryReview').inner_text()
+            assert phone.locator('[data-arrival-recovery]').is_visible();phone.get_by_role('button',name='Recover phone entries',exact=True).click();phone.locator('#arrivalRecoveryReview').get_by_text('Confirmed on server',exact=True).first.wait_for()
             phone_context.close()
             assert not errors,errors
             browser.close()
