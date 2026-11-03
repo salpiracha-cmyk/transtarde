@@ -48,6 +48,7 @@ with tempfile.TemporaryDirectory(prefix='arrival-recovery-') as tmp:
         status,posted=request('/api/operations.mysql.php',dict(key='tt30queue',value=json.dumps([record]),baseVersion=1,sourceModule='Mill'));assert status==200,(status,posted)
         status,confirmed=request();assert status==200 and confirmed['recoveries'][0]['serverStatus']=='SAVED' and len(confirmed['serverArrivals'])==1,(status,confirmed)
         assert books.read_bytes()==original_books,'Recovered arrival changed financial journals'
+        no_op_before=operations.read_bytes();status,no_op=request('/api/operations.mysql.php',dict(key='tt30queue',value=posted['value'],baseVersion=posted['keyVersion'],sourceModule='Mill'));assert status==200 and no_op['keyVersion']==posted['keyVersion'] and operations.read_bytes()==no_op_before,(status,no_op)
         changed={**record,'weight':'5100'};op=json.loads(operations.read_text());op['values']['tt30queue']=json.dumps([changed]);operations.write_text(json.dumps(op));assert request()[1]['recoveries'][0]['serverStatus']=='CHANGED_ON_SERVER','Recovery suggested overwriting a changed original'
         assert archive.read_bytes()==stable,'Read/confirmation rewrote the preserved original'
         # Concurrency protection is enforced in the source API, not only by a dropdown.
