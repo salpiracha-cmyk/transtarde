@@ -140,7 +140,11 @@ def run():
             mill.get_by_role('button',name='OK — Confirm Paltai',exact=True).click();mill.wait_for_function("document.querySelector('#paltaiPanel').classList.contains('hidden')")
             op=context.request.get(base+'/api/operations.mysql.php').json();transfers=[r for r in json.loads(op['values']['tt32stockadj']) if r.get('paltaiVersion')];labour=[r for r in json.loads(op['values']['tt32labourfeed']) if r.get('paltaiSourceId')];assert len(transfers)==len(labour)==1 and transfers[0]['sourceDeductionKg']==510 and labour[0]['quantity']==10
             mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click();stock=mill.evaluate("computedStockRows()");assert next(r['kg'] for r in stock if r['name']=='IRRI-6 White Rice — SOURCE')==490
-            assert books.read_bytes()==original_books,'Nonfinancial operational saves changed the confirmed cash payment';assert not errors,errors
+            # Directors SODA preparation legitimately updates nonfinancial Accounts registers.
+            current_books=json.loads(books.read_text());cash_snapshot=json.loads(original_books)
+            for cash_key in ['journals','generalExpenses','millPettyRequests']:
+                assert current_books.get(cash_key)==cash_snapshot.get(cash_key),'Nonfinancial operational saves changed '+cash_key
+            assert not errors,errors
             # Native Pohanch uses the approved purchase feed; failure retains the entry, retry keeps one identity.
             identity=mill.evaluate("selectedPurchaseProduct()")
             ledger=json.loads(books.read_text());ledger['purchaseSodas']={'PS-FIXTURE':dict(identity,id='PS-FIXTURE',sodaNo='26001',entity='TTI',commodity='RICE',status='Open',readyRoute='DELIVER_TO_STOCK',locationName='TTI Rice Mills',locationId='mills-1',broker='',party='Fixture supplier',qtyFromKg=10000,qtyToKg=10000,ratePerKg=10,rate=10,rateUnit='KG',sodaDate='2026-10-01')};books.write_text(json.dumps(ledger))
