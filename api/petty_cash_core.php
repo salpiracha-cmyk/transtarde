@@ -1,6 +1,5 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__.'/mill_cash_core.php';
 
 /** Stable cash identities; names are snapshots, never keys or reassigned staff identities. */
 // Salary effective dates describe remuneration periods, not cash custody.
@@ -53,6 +52,7 @@ function pc_assert_custody_balance(array $s,string $e,string $id):void {
     ksort($days);$balance=0.;foreach($days as $net){$balance=round($balance+$net,2);if($balance<-.005)throw new DomainException('This transfer or reversal would overdraw office or mill petty cash. Check its date and later spending.');}
 }
 function pc_mills(array $s,string $e):array {
+    require_once __DIR__.'/mill_cash_core.php';
     $mills=[];foreach(mcl_locations($e) as $m){$id='CASH|'.$e.'|MILL|'.$m['id'];$mills[$id]=['id'=>$id,'locationId'=>$m['id'],'name'=>$m['name'],'active'=>true,'balance'=>pc_balance($s,$e,$id)];}
     foreach(pc_rows($s,$e) as $row)if(str_starts_with($row['cashId'],'CASH|'.$e.'|MILL|')&&!isset($mills[$row['cashId']])){$id=$row['cashId'];$mills[$id]=['id'=>$id,'locationId'=>substr($id,strlen('CASH|'.$e.'|MILL|')),'name'=>substr($id,strlen('CASH|'.$e.'|MILL|')),'active'=>false,'balance'=>pc_balance($s,$e,$id)];}
     return array_values($mills);
@@ -127,6 +127,7 @@ function pc_post(array &$s,string $e,array $b,array $u,array $names):array {
         $payee=trim((string)($b['payee']??''));if($payee==='')throw new DomainException('Enter who was paid, or the cash holder for a verbal settlement.');
         $result=dex_post($s,$e,['paymentDate'=>$date,'paymentAccountId'=>$from,'payee'=>$payee,'paymentNarration'=>$note,'expenseLines'=>[pc_expense_row($s,$e,$b,$amount,$note)]],$u,$names,[]);
     }elseif($type==='MILL_TRANSFER'){
+        require_once __DIR__.'/mill_cash_core.php';
         if($from!=='CASH|'.$e)throw new DomainException('Mill petty cash transfers must come from Office Petty Cash.');
         $mill=mcl_location($e,trim((string)($b['millLocationId']??'')));$receivedBy=trim((string)($b['receivedBy']??''));
         if($receivedBy===''||strlen($receivedBy)>180)throw new DomainException('Enter who received the cash at the mill (up to 180 characters).');
