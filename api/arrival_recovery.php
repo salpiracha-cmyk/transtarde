@@ -15,7 +15,12 @@ try{
     $u=tt_require_login();$owner=($u['role']??'')==='Super Admin';$method=$_SERVER['REQUEST_METHOD']??'GET';if(!in_array($method,['GET','POST'],true))ar_out(['ok'=>false,'error'=>'Method not allowed.'],405);
     if(!$owner&&(!tt_user_can_open_module($u,'Mill')||!tt_user_can_module_action($u,'Mill','queue','View')))ar_out(['ok'=>false,'error'=>'Arrival List View permission required.'],403);
     $body=[];if($method==='POST'){$raw=tt_accounts_input();if(strlen($raw)>262144)ar_out(['ok'=>false,'error'=>'Recover at most 50 arrival records at a time.'],422);$body=json_decode($raw,true,64,JSON_THROW_ON_ERROR);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))ar_out(['ok'=>false,'error'=>'Session expired. Reopen Milling; your phone entries remain retained.'],419);if(($body['action']??'')!=='capture')ar_out(['ok'=>false,'error'=>'This endpoint only preserves recovery copies; it cannot post arrivals.'],422);}
-    if($method==='GET')tt_release_read_session();$source=ar_source();$public=array_values(array_filter((array)$source['rows'],static fn($r)=>is_array($r)&&os_scope($u,$r,[])));
+    if($method==='GET')tt_release_read_session();
+    if($method==='GET'&&($_GET['version_only']??'')==='1'){
+        $db=tt_accounts_exports_db();if($db){$q=$db->prepare('SELECT version FROM tt_operation_records WHERE storage_key=?');$q->execute(['tt30queue']);$version=(int)($q->fetchColumn()?:0);}else{$version=(int)(ar_source()['version']??0);}
+        ar_out(['ok'=>true,'version'=>$version]);
+    }
+    $source=ar_source();$public=array_values(array_filter((array)$source['rows'],static fn($r)=>is_array($r)&&os_scope($u,$r,[])));
     $path=TT_DATA_DIR.'/arrival_recovery.json';$state=['records'=>[]];$h=null;$captured=[];
     if($method==='POST'){
         $entries=$body['entries']??null;if(!is_array($entries)||!array_is_list($entries)||count($entries)>50)throw new InvalidArgumentException('Select up to 50 original arrival entries.');

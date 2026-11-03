@@ -30,6 +30,7 @@ with tempfile.TemporaryDirectory(prefix='arrival-recovery-') as tmp:
                 with client.open(urllib.request.Request(base+path,data=None if body is None else json.dumps({'csrf':'fixture',**body}).encode(),headers={'Content-Type':'application/json'}),timeout=15) as response:return response.status,json.load(response)
             except urllib.error.HTTPError as response:return response.code,json.load(response)
         original_books=books.read_bytes();original_ops=operations.read_bytes();status,first=request();assert status==200 and first['canCreate'] and first['recoveries']==[],(status,first)
+        assert request('/api/arrival_recovery.php?version_only=1')[1]=={'ok':True,'version':1}
         assert not (private/'arrival_recovery.json').exists(),'GET created a recovery store'
         b={'action':'capture','entries':[{'record':record,'source':'pending-save'}]};status,saved=request(body=b);assert status==200 and saved['recoveries'][0]['serverStatus']=='NOT_ON_SERVER',(status,saved)
         archive=private/'arrival_recovery.json';stable=archive.read_bytes();assert request(body=b)[0]==200 and archive.read_bytes()==stable,'Duplicate capture created another recovery record'

@@ -18,6 +18,12 @@ async function open(){document.getElementById('arrivalRecoveryReview')?.remove()
   });window.TT_FORM_VIEWPORT?.open(panel);
  }catch(e){status.textContent=e.message;}
 }
-function init(){const queue=document.getElementById('queue');if(!queue||queue.querySelector('[data-arrival-recovery]'))return;const button=document.createElement('button');button.type='button';button.className='sec';button.dataset.arrivalRecovery='';button.textContent='Recover phone entries';button.onclick=open;queue.querySelector('.actions')?.append(button);void capturePending();}
-window.TT_ARRIVAL_RECOVERY={open,capturePending,localEntries};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+let checkingLive=false;
+async function checkLive(){
+ if(checkingLive||document.hidden||!['queue','arrival'].some(id=>document.getElementById(id)?.classList.contains('active')))return;
+ checkingLive=true;
+ try{const response=await fetch('/api/arrival_recovery.php?version_only=1',{credentials:'same-origin'}),data=await response.json();if(response.ok&&data.ok&&Number.isInteger(data.version)&&data.version!==window.TT_SHARED_SYNC?.readVersion?.('tt30queue'))window.TT_SHARED_SYNC?.poll?.();}catch{/* A connection failure cannot clear or replay a draft. */}finally{checkingLive=false;}
+}
+function init(){const queue=document.getElementById('queue');if(!queue||queue.querySelector('[data-arrival-recovery]'))return;const button=document.createElement('button');button.type='button';button.className='sec';button.dataset.arrivalRecovery='';button.textContent='Recover phone entries';button.onclick=open;queue.querySelector('.actions')?.append(button);void capturePending();setInterval(checkLive,15000);}
+window.TT_ARRIVAL_RECOVERY={open,capturePending,localEntries,checkLive};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();

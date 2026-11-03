@@ -331,7 +331,7 @@ $sharedBootstrap = <<<'HTML'
       return result;
     }finally{inFlight.delete(key);saveHolds--;waiting()}
   }
-  window.TT_SHARED_SYNC={commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
+  window.TT_SHARED_SYNC={readVersion:key=>keyVersions.get(key)??null,commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and announced through an internal event without persistent interface notices.
   // Exports must reconcile Mill actuals before app.js reads state. Milling must finish its legacy startup first,

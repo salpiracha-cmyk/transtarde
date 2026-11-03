@@ -12,6 +12,7 @@ The connected Mac session was signed in as the affected Mill Manager. An empty-f
 - Block Milling startup after a failed authoritative read rather than showing a misleading empty working screen.
 - Add a private, authenticated recovery-copy inbox. Mill queue View is required; users see their own scoped copies, Super Admin can investigate all. CSRF, size limits and assigned company/mill scope apply. Actual recovery posting uses the existing Create/Edit policy and original record ID through operations.mysql.php.
 - Show five recent arrival days with an explicit date range and dates on each row; restrict queue, report and pending Pohanch options to the selected company/mill.
+- Check only the queue version every 15 seconds while Arrival List/Pohanch is visible; fetch a full snapshot only when it changes. This closes the cross-device foreground refresh gap without repeatedly downloading all operational records.
 - Listen on the actual window event emitted by inbound sync, without clearing drafts or a selected Pohanch source.
 - Capture the original edit snapshot so a background refresh cannot silently rebase a stale form.
 - Display a saved server reference after confirmed success.
