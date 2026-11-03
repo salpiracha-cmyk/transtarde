@@ -10,7 +10,7 @@ if($rules===false||!preg_match('/<FilesMatch "([^"]+)">\\s*Require all denied\\s
 }
 $deny='~'.$matches[1].'~D';
 foreach(['auth_store.php','master_store.php','session_store.php','qa_account.php','backup_lib.php',
-         'owner_backup_jobs.php','office_backup_jobs.php','restore_jobs.php','office_backup_auth.php',
+         'journal_activity_core.php','owner_backup_jobs.php','office_backup_jobs.php','restore_jobs.php','office_backup_auth.php',
          'office_pc_pairing.php','index.html','salary_master_seed_v1.json'] as $helper){
     if(preg_match($deny,$helper)!==1)throw new RuntimeException('Direct HTTP access is not denied for '.$helper);
 }

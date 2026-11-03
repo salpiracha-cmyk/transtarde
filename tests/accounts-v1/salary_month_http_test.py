@@ -4,7 +4,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     root=pathlib.Path(temp)
     for folder in ['api','accounts','data']:(root/folder).mkdir()
-    for name in ['rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','accounts_subaccounts_core.php','accounts_receipts_core.php','accounts_reference.php','accounts_ledger_visibility.php','assets_registry_core.php','company_investments_core.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
+    for name in ['journal_activity_core.php','rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','accounts_subaccounts_core.php','accounts_receipts_core.php','accounts_reference.php','accounts_ledger_visibility.php','assets_registry_core.php','company_investments_core.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
     for name in ['accounting_master_v1.json','rent-salary-ui.js','cheque-date-ui.js','bank-payment-details.js','post-confirmation-ui.js']:
         shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -256,7 +256,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 state['salarySheets']['TTI|2026-10']={'entity':'TTI','month':'2026-10','status':'Completed','version':1,'rows':{}}
                 (root/'data/accounts.json').write_text(json.dumps(state));page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsMonth').wait_for();assert page.locator('#rsMonth').input_value()=='2026-11'
                 assert page.get_by_role('dialog',name='Review salary change').count()==0;page.locator('#rsMonth').wait_for();assert page.locator('#rsMonth').input_value()=='2026-11'
-                page.locator('#rsMonth').fill('2026-10');page.locator('#rsMonth').dispatch_event('change');page.get_by_text('SALARY COMPLETED',exact=True).wait_for()
+                page.locator('#rsMonth').fill('2026-10');page.locator('#rsMonth').dispatch_event('change');page.get_by_text('MONTH PROCESSED',exact=True).wait_for();page.get_by_text('Payment status is shown separately for each person.',exact=True).wait_for()
                 assert page.locator('#rsMasterSetup,#rsSalaryDates,#rsSalaryReview').count()==0
                 assert not errors,errors;browser.close()
                 print('PASS salary browser: one entry, advance instalments with cancelled/retried accounting review, direct next month opening and completed statement controls')
