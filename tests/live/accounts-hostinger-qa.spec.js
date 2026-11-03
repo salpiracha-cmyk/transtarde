@@ -60,12 +60,15 @@ test('Mill export bags: other-exporter receipt route and scoped production marki
   const queue=JSON.parse(arrivals.values.tt30queue),slips=JSON.parse(arrivals.values.tt30slips||'[]');
   const cachedQueue=await page.evaluate(()=>JSON.parse(window.TT_SHARED_SYNC.readCommitted('tt30queue')||'[]'));
   const queueMeta=arrivals.meta?.tt30queue||{};
+  const auditReadable=!(arrivals.restrictedKeys||[]).includes('tt37arrivalaudit'),arrivalAudit=JSON.parse(arrivals.values.tt37arrivalaudit||'[]');
   const days=['2026-10-30','2026-10-31','2026-11-01','2026-11-02','2026-11-03'];
+  const normalized=v=>String(v||'').trim().replace(/\s+/g,' ').toUpperCase(),mill=r=>normalized(r.millName||r.locationName||r.mill||'TTI Rice Mills'),linked=(r,s)=>String(s.queueId)===String(r.id)&&normalized(s.entity||'TTI')===normalized(r.entity||'TTI')&&mill(s)===mill(r);
+  const receiptReadable=!(arrivals.restrictedKeys||[]).includes('tt30slips'),alertsReadable=!(arrivals.restrictedKeys||[]).includes('tt30directoralerts'),alerts=JSON.parse(arrivals.values.tt30directoralerts||'[]');
   const daily=days.map(date=>{
-    const saved=queue.filter(row=>row.date===date),cached=cachedQueue.filter(row=>row.date===date);
-    return {date,serverArrivals:saved.length,initialCacheArrivals:cached.length,withPohanch:saved.filter(row=>slips.some(slip=>String(slip.queueId)===String(row.id))).length};
+    const saved=queue.filter(row=>row.date===date),cached=cachedQueue.filter(row=>row.date===date),receipts=slips.filter(s=>(s.arrivalDate||s.date||s.unloadingDate)===date);
+    return {date,arrivalAuditEvents:auditReadable?arrivalAudit.filter(a=>[a.date,a.after?.date,a.before?.date,a.after?.arrivalDate,a.before?.arrivalDate,String(a.time||'').slice(0,10)].includes(date)).length:null,serverArrivals:saved.length,initialCacheArrivals:cached.length,withPohanch:receiptReadable?saved.filter(row=>slips.some(s=>linked(row,s))).length:null,awaitingPohanch:receiptReadable?saved.filter(row=>!row.rejected&&!slips.some(s=>linked(row,s))).length:null,rejected:saved.filter(row=>row.rejected).length,savedPohanch:receiptReadable?receipts.length:null,orphanPohanch:receiptReadable?receipts.filter(s=>!queue.some(row=>linked(row,s))).length:null,duplicateApprovalRequests:alertsReadable?alerts.filter(a=>a.date===date&&a.status==='Pending Director Approval').length:null};
   });
-  console.log('LIVE_RECENT_ARRIVAL_SOURCE_REVIEW '+JSON.stringify({daily,version:queueMeta.version,updatedAt:queueMeta.updatedAt,updatedBy:queueMeta.updatedBy,totalServerArrivals:queue.length,physicalWrites:0,financialWrites:0}));
+  console.log('LIVE_RECENT_ARRIVAL_SOURCE_REVIEW '+JSON.stringify({daily,version:queueMeta.version,updatedAt:queueMeta.updatedAt,updatedBy:queueMeta.updatedBy,totalServerArrivals:queue.length,totalServerPohanch:receiptReadable?slips.length:null,totalServerArrivalAuditEvents:auditReadable?arrivalAudit.length:null,arrivalAuditUpdatedAt:arrivals.meta?.tt37arrivalaudit?.updatedAt||null,physicalWrites:0,financialWrites:0}));
   // A concurrent staff save is allowed; compare only when the snapshots match.
   if(JSON.stringify(queue)===JSON.stringify(cachedQueue))expect(daily.every(day=>day.serverArrivals===day.initialCacheArrivals)).toBe(true);
   expect(writes).toEqual([]);
