@@ -48,6 +48,16 @@ with tempfile.TemporaryDirectory(prefix='arrival-recovery-') as tmp:
         status,posted=request('/api/operations.mysql.php',dict(key='tt30queue',value=json.dumps([record]),baseVersion=1,sourceModule='Mill'));assert status==200,(status,posted)
         status,confirmed=request();assert status==200 and confirmed['recoveries'][0]['serverStatus']=='SAVED' and len(confirmed['serverArrivals'])==1,(status,confirmed)
         assert books.read_bytes()==original_books,'Recovered arrival changed financial journals'
+        # Staff save -> a different operator and Super Admin see the same canonical ID.
+        state=json.loads(auth.read_text());state['users'].append({**user,'id':3,'username':'owner'});auth.write_text(json.dumps(state));read_before=operations.read_bytes()
+        def signin(uid):
+            (app/'fixture-session.php').write_text("<?php require __DIR__.'/auth_store.php';$_SESSION=['user_id'=>"+str(uid)+",'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];echo 'ready';")
+            client.open(base+'/fixture-session.php').read()
+        for uid in [2,3]:
+            signin(uid);status,visible=request('/api/operations.mysql.php');assert status==200 and json.loads(visible['values']['tt30queue'])[0]['id']==record['id'],(uid,status,visible)
+        state=json.loads(auth.read_text());state['users'][1]['location']='Other mill';auth.write_text(json.dumps(state));signin(2);status,hidden=request('/api/operations.mysql.php');assert status==200 and json.loads(hidden['values']['tt30queue'])==[],'Staff read another mill through canonical API'
+        signin(1);assert operations.read_bytes()==read_before and books.read_bytes()==original_books,'Cross-user visibility checks changed business records'
+
         no_op_before=operations.read_bytes();status,no_op=request('/api/operations.mysql.php',dict(key='tt30queue',value=posted['value'],baseVersion=posted['keyVersion'],sourceModule='Mill'));assert status==200 and no_op['keyVersion']==posted['keyVersion'] and operations.read_bytes()==no_op_before,(status,no_op)
         changed={**record,'weight':'5100'};op=json.loads(operations.read_text());op['values']['tt30queue']=json.dumps([changed]);operations.write_text(json.dumps(op));assert request()[1]['recoveries'][0]['serverStatus']=='CHANGED_ON_SERVER','Recovery suggested overwriting a changed original'
         assert archive.read_bytes()==stable,'Read/confirmation rewrote the preserved original'
