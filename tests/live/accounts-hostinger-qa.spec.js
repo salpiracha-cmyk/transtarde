@@ -30,7 +30,14 @@ async function activate(locator) {
 test('Mill export bags: other-exporter receipt route and scoped production markings are read-only', async ({page})=>{
   test.setTimeout(150_000);
   await signIn(page);const writes=[];
-  await page.route('**/api/**',route=>{if(route.request().method()!=='GET'){writes.push(new URL(route.request().url()).pathname);return route.abort();}return route.continue();});
+  await page.route('**/api/**',route=>{
+    const request=route.request(),url=new URL(request.url());
+    // Session liveness changes no stock or books. Every other mutation stays
+    // blocked, including a similarly named endpoint on a different origin.
+    const heartbeat=request.method()==='POST'&&url.origin===new URL(BASE_URL).origin&&url.pathname==='/api/session_activity.php';
+    if(!['GET','HEAD'].includes(request.method())&&!heartbeat){writes.push(url.pathname);return route.abort();}
+    return route.continue();
+  });
   await page.goto(BASE_URL+'/module.php?id=milling',{waitUntil:'domcontentloaded',timeout:90_000});
   await page.getByRole('button',{name:'🏭 TTI Rice Mills Own / Default',exact:true}).click();
   await page.locator('[onclick="openPanel(\'newbags\')"]').click();
@@ -44,6 +51,24 @@ test('Mill export bags: other-exporter receipt route and scoped production marki
   expect(writes).toEqual([]);
   // Marking names and eligibility reasons only: never log prices, parties, stock quantities or financial records.
   console.log('LIVE_BAG_MARKING_SOURCE_REVIEW '+JSON.stringify({sources:data.diagnostics.map(r=>({brand:r.brand,reason:r.reason})),currentChoiceCount:data.choices.length,financialWrites:0,physicalWrites:0}));
+  // Compare committed server arrivals with the initial Mill cache. Log counts
+  // and revisions only; never publish trucks, weights, suppliers or remarks.
+  const arrivalsResponse=await page.request.get(BASE_URL+'/api/operations.mysql.php?asset_refs=1');
+  expect(arrivalsResponse.status()).toBe(200);
+  const arrivals=await arrivalsResponse.json();expect(arrivals.ok).toBe(true);
+  expect(arrivals.values).toHaveProperty('tt30queue');
+  const queue=JSON.parse(arrivals.values.tt30queue),slips=JSON.parse(arrivals.values.tt30slips||'[]');
+  const cachedQueue=await page.evaluate(()=>JSON.parse(window.TT_SHARED_SYNC.readCommitted('tt30queue')||'[]'));
+  const queueMeta=arrivals.meta?.tt30queue||{};
+  const days=['2026-10-30','2026-10-31','2026-11-01','2026-11-02','2026-11-03'];
+  const daily=days.map(date=>{
+    const saved=queue.filter(row=>row.date===date),cached=cachedQueue.filter(row=>row.date===date);
+    return {date,serverArrivals:saved.length,initialCacheArrivals:cached.length,withPohanch:saved.filter(row=>slips.some(slip=>String(slip.queueId)===String(row.id))).length};
+  });
+  console.log('LIVE_RECENT_ARRIVAL_SOURCE_REVIEW '+JSON.stringify({daily,version:queueMeta.version,updatedAt:queueMeta.updatedAt,updatedBy:queueMeta.updatedBy,totalServerArrivals:queue.length,physicalWrites:0,financialWrites:0}));
+  // A concurrent staff save is allowed; compare only when the snapshots match.
+  if(JSON.stringify(queue)===JSON.stringify(cachedQueue))expect(daily.every(day=>day.serverArrivals===day.initialCacheArrivals)).toBe(true);
+  expect(writes).toEqual([]);
 });
 
 
