@@ -1,6 +1,15 @@
 <?php
 declare(strict_types=1);
 /** Operational reads are explicit; calculation helpers below never write stock or books. */
+function dt_read_other_bag_sources():array {
+    $key='tt30bags';$db=tt_accounts_exports_db();
+    if($db){$q=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key=? LIMIT 1');$q->execute([$key]);$raw=$q->fetchColumn();}
+    else{$p=TT_DATA_DIR.'/operations.json';$v=is_file($p)?json_decode((string)file_get_contents($p),true,512,JSON_THROW_ON_ERROR):[];$raw=$v['values'][$key]??'[]';}
+    if($raw===false||$raw===null||$raw==='')return [];$v=is_string($raw)?json_decode($raw,true,512,JSON_THROW_ON_ERROR):$raw;if(!is_array($v)||!array_is_list($v))throw new DomainException('Original bag custody sources are unavailable.');return array_values(array_filter($v,static fn($r)=>($r['sourceKind']??'')==='OTHER_EXPORTER'));
+}
+function dt_assert_other_bag_route(array $before,array $after,array $sources):void {
+    foreach($sources as $r)if(($r['exporterDealId']??'')===($before['id']??'')&&!empty($r['received']))foreach(['entity','brand','packing','productionMillName'] as $field)if(trim((string)($before[$field]??''))!==trim((string)($after[$field]??'')))throw new DomainException('Received other exporter bags retain their original SODA brand, packing and mill. Reconcile the original physical source before changing its route.');
+}
 function dt_read_native_sales():array {
     $key='tt35exportersale';$db=tt_accounts_exports_db();
     if($db){$q=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key=? LIMIT 1');$q->execute([$key]);$raw=$q->fetchColumn();}

@@ -31,17 +31,18 @@ function fe_save_party(array &$s,string $entity,array $b,array $u,bool $deleting
     $s['fellowExporterParties'][$entity.'|'.$id]=$next;$s['fellowExporterAudit'][]=['action'=>$deleting?'DELETE':'SAVE','entity'=>$entity,'id'=>$id,'before'=>$old,'after'=>$next,'reason'=>$reason,'by'=>$u['username']??'','at'=>gmdate('c')];
     return ['partyId'=>$id];
 }
-function fe_delete_issue(array $s,array $d,array $nativeSales):string {
+function fe_delete_issue(array $s,array $d,array $nativeSales,array $bagSources=[]):string {
     if(($d['status']??'')==='Deleted')return 'This SODA has already been deleted.';
     if(!empty($d['loadings'])||!empty($d['settlementPosts'])||!empty($d['payments']))return 'This SODA has loading or financial history. Correct its linked loading, settlement or receipt through the original workflow first.';
     if(!empty($d['millSaleRef']))return 'This SODA is linked to an original Mill record. Correct that link before deleting it.';
+    foreach($bagSources as $source)if(($source['exporterDealId']??'')===$d['id']&&!empty($source['received']))return 'Other exporter bag receipts are linked to this SODA. Preserve their original custody and production history.';
     foreach($nativeSales as $r)if(dt_native_parent_matches($d,$r))return 'A Mill loading or dispatch record is linked to this SODA. Correct the original Mill record first.';
     foreach(['purchaseSodas','purchaseSodasV2'] as $key)foreach((array)($s[$key]??[]) as $purchase)foreach((array)($purchase['buyingForAllocations']??[]) as $allocation)if(($allocation['targetId']??'')==='EXPORTER|'.$d['id'])return 'A purchase is allocated to this SODA. Remove or correct that original buying-for allocation first.';
     foreach((array)($s['journals']??[]) as $j)if(($j['entity']??'')===$d['entity']&&($j['meta']['exporterDealId']??'')===$d['id'])return 'This SODA has accounting history. Use the original posting correction workflow first.';
     return '';
 }
-function fe_delete_deal(array &$s,array $d,array $b,array $u,array $nativeSales):array {
-    $issue=fe_delete_issue($s,$d,$nativeSales);if($issue!=='')throw new DomainException($issue);
+function fe_delete_deal(array &$s,array $d,array $b,array $u,array $nativeSales,array $bagSources=[]):array {
+    $issue=fe_delete_issue($s,$d,$nativeSales,$bagSources);if($issue!=='')throw new DomainException($issue);
     $reason=gm_text($b['reason']??'',500);if(strlen($reason)<5)throw new DomainException('Enter a deletion reason of at least five characters.');
     $before=$d;$d['status']='Deleted';$d['version']++;$d['deletedAt']=gmdate('c');$d['deletedBy']=$u['username']??'';$d['deletionReason']=$reason;
     $d['history'][]=['action'=>'delete_deal','before'=>array_diff_key($before,['history'=>true]),'reason'=>$reason,'by'=>$u['username']??'','at'=>gmdate('c')];$s['exporterDeals'][$d['id']]=$d;

@@ -24,7 +24,7 @@ try {
             if($prior){if(!hash_equals($prior['fingerprint'],$fp))dt_out(['ok'=>false,'error'=>'Save key already used for different data. Reopen the form.'],409);$result=$prior['result'];}
             else {
                 if(in_array($action,['save_exporter','delete_exporter'],true)){$result=fe_save_party($s,$entity,$b,$u,$action==='delete_exporter');$parties=dt_parties($s,$entity);
-                }elseif($action==='delete_deal'){$id=gm_text($b['id']??'',120);$d=$s['exporterDeals'][$id]??null;if(!$d||$d['entity']!==$entity)throw new DomainException('SODA not found in these company books.');if((int)($b['version']??-1)!==$d['version'])dt_out(['ok'=>false,'error'=>'SODA changed. Reopen it before deleting.'],409);$result=fe_delete_deal($s,$d,$b,$u,$nativeSales);
+                }elseif($action==='delete_deal'){$id=gm_text($b['id']??'',120);$d=$s['exporterDeals'][$id]??null;if(!$d||$d['entity']!==$entity)throw new DomainException('SODA not found in these company books.');if((int)($b['version']??-1)!==$d['version'])dt_out(['ok'=>false,'error'=>'SODA changed. Reopen it before deleting.'],409);$result=fe_delete_deal($s,$d,$b,$u,$nativeSales,dt_read_other_bag_sources());
                 }elseif($action==='save_costing'){
                     $input=(array)($b['input']??[]);$input['date']=$asOf;$calculation=dt_cost($s,$entity,$input);$id=gm_text($b['id']??'',120);$old=$id!==''?($s['directorCostings'][$id]??null):null;
                     if($id!==''&&(!$old||$old['entity']!==$entity))throw new DomainException('Costing not found.');if($old&&((int)($b['version']??-1)!==$old['version']))dt_out(['ok'=>false,'error'=>'Costing changed. Reopen and compare before saving.'],409);
@@ -54,7 +54,7 @@ try {
                     }elseif($action==='advance'){$result=dt_advance($s,$d,$b,$u,$asOf);
                     }elseif($action==='post_settlement'){$result=dt_post_settlement($s,$d,dt_working($s,$d,$lots,$asOf,$nativeSales),$u,$asOf,gm_text($b['exceptionNote']??'',1000));}
                     else{$result=dt_payment($s,$d,$b,$u,$asOf);}
-                    $d['version']++;$d['history'][]=['action'=>$action,'reason'=>gm_text($b['reason']??'',500),'before'=>array_diff_key($before,['history'=>true]),'by'=>$u['full_name']??$u['username'],'at'=>gmdate('c')];$s['exporterDeals'][$id]=$d;$result+=['id'=>$id];
+                    if(in_array($action,['amend_deal','production_instruction'],true))dt_assert_other_bag_route($before,$d,dt_read_other_bag_sources());$d['version']++;$d['history'][]=['action'=>$action,'reason'=>gm_text($b['reason']??'',500),'before'=>array_diff_key($before,['history'=>true]),'by'=>$u['full_name']??$u['username'],'at'=>gmdate('c')];$s['exporterDeals'][$id]=$d;$result+=['id'=>$id];
                 }else throw new DomainException('Select a valid trading action.');
                 dt_refresh_budget_alerts($s,$entity,$asOf,$lots);$s['directorTradingRequests'][$rid]=['fingerprint'=>$fp,'result'=>$result];$s['revision']=(int)($s['revision']??0)+1;$encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Save failed.');
             }

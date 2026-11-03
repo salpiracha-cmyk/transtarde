@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__,2).'/api/other_exporter_bags_core.php';
+require_once dirname(__DIR__,2).'/api/fellow_exporters_core.php';
+require_once dirname(__DIR__,2).'/api/directors_trading_links.php';
 (static function():void {
     $check=static function($ok,$why){if(!$ok)throw new RuntimeException($why);};
     $masters=['mills'=>[['id'=>'M1','values'=>['Own Mill','','Own Mill','','','Active']]]];$scope=['entity'=>'TTI','locationId'=>'M1','millName'=>'Own Mill','status'=>'Active'];
@@ -9,6 +11,8 @@ require_once dirname(__DIR__,2).'/api/other_exporter_bags_core.php';
     $values=['tt30bags'=>'[]','tt33bagreceipts'=>'[]','tt30prod'=>'[]','tt36bagissues'=>'[]','transtrade_export_v3_operational'=>'{}'];$state=['requests'=>[],'audit'=>[]];
     $user=['id'=>7,'full_name'=>'Mill receiver'];$body=['action'=>'receive','sodaId'=>'HKM-1','version'=>3,'packingKg'=>50,'bagType'=>'PP Woven','date'=>'2026-11-03','qty'=>100,'inspected'=>true,'requestKey'=>'other-exporter-receipt-0001'];$authorize=static function(){};
     $result=oeb_receive($values,$state,$masters,$books,$scope,$body,$user,'2026-11-03T10:00:00Z',$authorize);
+    $custody=bti_rows($values,'tt30bags');$check(fe_delete_issue($books,$deal,[],$custody)!=='','SODA with original bag custody could be deleted');
+    try{dt_assert_other_bag_route($deal,array_replace($deal,['brand'=>'OTHER']),$custody);throw new RuntimeException('Received SODA brand was relabelled');}catch(DomainException){}
     $check($books===$original,'Receipt changed SODA/commercial books');$check($result['order']['received']===100,'Actual receipt not reflected');
     $check($result['receipt']['sourceSnapshot']['externalOwnerId']==='HKM'&&$result['receipt']['sourceSnapshot']['stockOwnerType']==='OTHER_EXPORTER','External ownership was relabelled as TTI');
     $after=serialize([$values,$state]);$repeat=oeb_receive($values,$state,$masters,$books,$scope,$body,$user,'2026-11-03T10:01:00Z',$authorize);$check($repeat['replayed']&&serialize([$values,$state])===$after,'Receipt retry duplicated quantity/audit');
