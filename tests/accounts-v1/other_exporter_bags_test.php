@@ -23,6 +23,12 @@ require_once dirname(__DIR__,2).'/api/other_exporter_bags_core.php';
     $values['tt30prod']=json_encode([$prepared]);$inventory=bti_project($values,$masters,$scope,'2026-11-03','2026-11-03',$state);$lot=array_values($inventory['lots'])[0];$check($lot['availableQty']===90&&$lot['issuedQty']===10,'Production did not deduct the original bags once');
     $closed=$books;$closed['exporterDeals']['HKM-1']['status']='Closed';$check(oeb_choices($values,$inventory,$closed,$scope)['choices']===[],'Completed SODA became current production demand');
     $check(count(oeb_choices($values,$inventory,$closed,$scope)['diagnostics'])===1,'Completed bag stock disappeared from history');
+    $historical=$values;$oldOrders=bti_rows($historical,'tt30bags');$oldReceipts=bti_rows($historical,'tt33bagreceipts');
+    for($i=1;$i<=4;$i++){$oldOrders[]=['id'=>900+$i,'entity'=>'TTI','mill'=>'Own Mill','brand'=>'OLD-'.$i,'contractRef'=>'OLD-CONTRACT','size'=>'50 kg','bagType'=>'PP','received'=>10,'poNo'=>'OLD-PO-'.$i,'poLineKey'=>'L1'];$oldReceipts[]=['id'=>'OLD-R'.$i,'bagId'=>900+$i,'date'=>'2026-10-01','qty'=>10];}
+    $historical['tt30bags']=json_encode($oldOrders);$historical['tt33bagreceipts']=json_encode($oldReceipts);$historical['transtrade_export_v3_operational']=json_encode(['contracts'=>[['ref'=>'OLD-CONTRACT','status'=>'Completed']]]);
+    $oldInventory=bti_project($historical,$masters,$scope,'2026-11-03','2026-11-03',$state);$explain=oeb_choices($historical,$oldInventory,$books,$scope);
+    $check(count($explain['choices'])===1&&$explain['choices'][0]['brand']==='Amros','Four historical received brands polluted current production');
+    $check(count($explain['diagnostics'])===5,'Original historical source explanation was lost');
     $alter=json_decode($values['tt30bags'],true);$alter[0]['externalOwnerId']='TTI';try{br_guard_write($values,'tt30bags',json_encode($alter));throw new RuntimeException('External owner could be changed by generic save');}catch(DomainException){}
     $check(bti_project($values,$masters,['entity'=>'BRM','locationId'=>'M1','millName'=>'Own Mill'],'2026-11-03','2026-11-03',$state)['lots']===[],'External bags leaked into another operating company');
     echo "PASS other exporter bags: instructed source, external ownership, actual multi-receipts, replay, quarantine, source allocation/consumption, closed history, protected identity and company isolation\n";

@@ -286,7 +286,8 @@ $sharedBootstrap = <<<'HTML'
       const response=await fetch('/api/other_exporter_bags.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({...body,csrf:access.csrf})}),saved=await response.json();
       if(!response.ok||!saved.ok)throw Object.assign(new Error(saved.error||'Receipt could not be confirmed.'),{definitive:response.status>=400&&response.status<500});
       if(saved.order?.exporterDealId!==body.sodaId||saved.scope?.entity!==body.entity||saved.scope?.locationId!==body.locationId||saved.receipt?.qty!==body.qty||saved.receipt?.date!==body.date)throw new Error('The receipt acknowledgement does not match this SODA and physical receipt.');
-      for(const k of keys){const row=saved.sourceValues?.[k];if(!row||typeof row.value!=='string'||!Number.isInteger(row.version))throw new Error('Receipt source acknowledgement is incomplete. Confirm the same action.');if(!pending.has(k)&&localStorage.getItem(k)===originals.get(k)){directSet(k,row.value);committedValues.set(k,row.value);receipts.set(k,row.value);keyVersions.set(k,row.version);remoteKeys.add(k);}}
+      for(const k of keys){const row=saved.sourceValues?.[k];if(!row||typeof row.value!=='string'||!Number.isInteger(row.version))throw new Error('Receipt source acknowledgement is incomplete. Confirm the same action.');}
+      for(const k of keys){const row=saved.sourceValues[k];if(!pending.has(k)&&localStorage.getItem(k)===originals.get(k)){directSet(k,row.value);committedValues.set(k,row.value);receipts.set(k,row.value);keyVersions.set(k,row.version);remoteKeys.add(k);}}
       return saved;
     }finally{keys.forEach(k=>inFlight.delete(k));saveHolds--;waiting();}
   }

@@ -42,11 +42,12 @@ try {
                 if((int)($b['version']??-1)!==(int)$d['version'])throw new DomainException('The SODA changed. Refresh it before saving the brand.');
                 if(trim((string)($d['brand']??''))!=='')throw new DomainException('The saved SODA already has a brand. Its original marking is preserved.');
                 // A blank brand cannot be filled after physical receipt/dispatch has established another identity.
-                bts_with_sources(false,$u,static function($values)use($d){foreach(bti_rows($values,'tt30bags') as $r)if(($r['exporterDealId']??'')===$d['id']&&!empty($r['received']))throw new DomainException('Received bags already establish the original brand. Reconcile their source first.');return [];});
+                $result=bts_with_sources(true,$u,static function($values)use(&$books,&$d,$u,$brand,$rid,$fingerprint,$now,$h){foreach(bti_rows($values,'tt30bags') as $r)if(($r['exporterDealId']??'')===$d['id']&&!empty($r['received']))throw new DomainException('Received bags already establish the original brand. Reconcile their source first.');
                 require_once __DIR__.'/directors_trading_links.php';foreach(dt_read_native_sales() as $sale)if(($sale['exporterDealId']??'')===$d['id']&&!empty($sale['containers']))throw new DomainException('Dispatched goods retain their original brand.');
                 $before=array_diff_key($d,['history'=>true]);$d['brand']=$brand;$d['version']++;$d['history'][]=['action'=>'mill_bag_brand','before'=>$before,'by'=>$u['full_name']??$u['username'],'at'=>$now];$books['exporterDeals'][$d['id']]=$d;
                 $books['otherExporterBagBrands'][$rid]=['fingerprint'=>$fingerprint,'sodaId'=>$d['id'],'brand'=>$brand,'at'=>$now]+bt_actor($u);$books['revision']=(int)($books['revision']??0)+1;
-                $encoded=json_encode($books,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Brand save could not be confirmed.');$result=['deal'=>array_intersect_key($d,array_flip(['id','brand','version'])),'replayed'=>false];
+                $encoded=json_encode($books,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Brand save could not be confirmed.');return ['deal'=>array_intersect_key($d,array_flip(['id','brand','version'])),'replayed'=>false];
+                });
             }
         }elseif(($b['action']??'')==='receive'){
             $result=bts_with_sources(true,$u,static function(array &$values,array &$state,$now)use($masters,$books,$scope,$b,$u,$authorize){return oeb_receive($values,$state,$masters,$books,$scope,$b,$u,$now,$authorize);});
