@@ -21,7 +21,13 @@ $masters['business_parties']=array_values(array_filter($masters['business_partie
 $masters['business_parties'][]=['id'=>'QA-KE','values'=>['K-Electric','','Service Provider','','','','','','','','Active']];
 $user=['id'=>1000,'username'=>'qaowner','full_name'=>'QA Mill Handoff','role'=>'Super Admin','permissions'=>['Mill'=>'all','Accounts'=>'all','Directors'=>'all','Exports'=>'all'],'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($password,PASSWORD_DEFAULT),'master_access'=>true];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>[$user],'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]]));
-file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>['tt30mills'=>json_encode([['id'=>1,'name'=>'TTI Rice Mills','entity'=>'TTI','type'=>'Own / Default'],['id'=>2,'name'=>'QA Receiving Mill','entity'=>'TTI','type'=>'Own']]),'tt30bags'=>json_encode([['id'=>100,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'QA PRODUCTION','size'=>'50 kg','bagType'=>'PP','ordered'=>100,'received'=>100,'poNo'=>'QA-PO','poLineKey'=>'L1']]),'tt33bagreceipts'=>json_encode([['id'=>101,'bagId'=>100,'date'=>'2026-10-01','qty'=>100]])],'meta'=>[]]));
+$exportFixture=[
+ 'contracts'=>[['ref'=>'QA-CONTRACT','seller'=>'TTI','status'=>'Contract Received']],
+ 'shipments'=>[['id'=>'QA-LOT','contractRef'=>'QA-CONTRACT','seller'=>'TTI','bagOrders'=>[
+  ['poNo'=>'QA-PO','supplier'=>'','lines'=>[['brand'=>'QA PRODUCTION','size'=>50,'unit'=>'KG','type'=>'PP']]]
+ ]]]
+];
+file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>['tt30mills'=>json_encode([['id'=>1,'name'=>'TTI Rice Mills','entity'=>'TTI','type'=>'Own / Default'],['id'=>2,'name'=>'QA Receiving Mill','entity'=>'TTI','type'=>'Own']]),'tt30bags'=>json_encode([['id'=>100,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'QA PRODUCTION','contractRef'=>'QA-CONTRACT','size'=>'50 kg','bagType'=>'PP','ordered'=>100,'received'=>100,'poNo'=>'QA-PO','poLineKey'=>'L1']]),'transtrade_export_v3_operational'=>json_encode($exportFixture),'tt33bagreceipts'=>json_encode([['id'=>101,'bagId'=>100,'date'=>'2026-10-01','qty'=>100]])],'meta'=>[]]));
 file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['revision'=>0,'journals'=>new stdClass(),'supplierBills'=>new stdClass()]));
 file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$password,'dataDir'=>TT_DATA_DIR]));
 '''
@@ -105,6 +111,9 @@ def run():
             # raw inputs; its later acknowledged amendment survives a lost response.
             financial_before=books.read_bytes();mill.evaluate("openPanel('production')")
             mill.locator('#prodDate').fill('2026-10-17')
+            mill.locator('#brandType').select_option('rice')
+            with mill.expect_response(lambda r:'/api/other_exporter_bags.php?' in r.url and 'purpose=production' in r.url and 'asOf=2026-10-17' in r.url):mill.locator('#refreshProductionBags').click()
+            mill.locator('#brandChoice option[value="PO|100|mills-1"]').wait_for(state='attached');mill.locator('#brandChoice').select_option('PO|100|mills-1');mill.locator('[onclick="addBrandRow()"]').click()
             mill.locator('#prodTable tr').first.locator('input').first.fill('10')
             raw=mill.locator('#productionActualInput [data-raw-index="0"]')
             raw.locator('[data-field="lotRef"]').fill('QA-RAW-LOT');raw.locator('[data-field="grossKg"]').fill('600');mill.locator('#capacityReason').fill('Actual fixture production downtime')
@@ -265,6 +274,22 @@ def run():
             with mill.expect_response(lambda r:'/api/mill_liability_status.php' in r.url):mill.locator('#processingWork [data-refresh-mill-bill-status]').click()
             mill.wait_for_function("document.querySelector('[data-collection=tt39rentpayments]').textContent.includes('QA-ORIGINAL-RENT')")
             assert mill.locator('#rentPayAmount').input_value()=='77','Checking Accounts cleared an unfinished rent reference'
+            # Actual new custody flow: one explicit receipt also fills a missing SODA brand.
+            custody_books=json.loads(books.read_text());custody_books.setdefault('exporterDeals',{})['QA-OTHER-BAGS']={'id':'QA-OTHER-BAGS','entity':'TTI','direction':'SALE','status':'Open','partyId':'QA-OTHER','party':'QA Other Exporter','date':'2026-10-01','brand':'','packing':'50 kg PP bags','version':1,'productionReady':True,'productionMillName':'TTI Rice Mills','productionBagTareGrams':80,'history':[]}
+            books.write_text(json.dumps(custody_books));original_journals=custody_books['journals']
+            mill.evaluate("openPanel('newbags')");mill.get_by_label('Other Exporter Bags',exact=True).check()
+            mill.locator('#otherBagSoda option[value="QA-OTHER-BAGS"]').wait_for(state='attached');mill.locator('#otherBagSoda').select_option('QA-OTHER-BAGS')
+            mill.locator('#otherBagBrand').fill('QA OTHER BRAND');mill.locator('#otherBagDate').fill('2026-10-17');mill.locator('#otherBagMaterial').select_option('PP Woven');mill.locator('#otherBagQty').fill('30');mill.locator('#otherBagInspected').check()
+            with mill.expect_response(lambda r:'/api/other_exporter_bags.php' in r.url and r.request.method=='POST' and r.request.post_data_json.get('action')=='receive') as other_receipt:mill.locator('#otherBagReceive').click()
+            assert other_receipt.value.status==200,other_receipt.value.text();mill.wait_for_function("document.querySelector('#otherBagMessage').textContent.includes('Actual receipt saved')")
+            custody=json.loads(books.read_text());assert custody['journals']==original_journals and custody['exporterDeals']['QA-OTHER-BAGS']['brand']=='QA OTHER BRAND'
+            other_lot=other_receipt.value.json()['order'];assert other_lot['received']==30 and other_lot['externalOwnerId']=='QA-OTHER' and other_lot['sourceKind']=='OTHER_EXPORTER'
+            selected_id='PO|'+str(other_lot['id'])+'|mills-1'
+            mill.evaluate("openPanel('production')");mill.locator('#prodDate').fill('2026-10-17');mill.locator('#brandType').select_option('rice')
+            with mill.expect_response(lambda r:'/api/other_exporter_bags.php?' in r.url and 'purpose=production' in r.url and 'asOf=2026-10-17' in r.url):mill.locator('#refreshProductionBags').click()
+            mill.locator('#brandChoice option').filter(has_text='QA OTHER BRAND').wait_for(state='attached');mill.locator('#brandChoice').select_option(selected_id);mill.locator('[onclick="addBrandRow()"]').click()
+            assert mill.evaluate("productionRows.some(r=>r.product==='Ready Rice — QA OTHER BRAND'&&r.exporterDealId==='QA-OTHER-BAGS'&&r.bagWeight===50)")
+            if output:mill.screenshot(path=str(output/'other-exporter-production-marking.png'),full_page=True)
             assert not errors,errors
             if output:
                 output.mkdir(parents=True,exist_ok=True);accounts.screenshot(path=str(output/'mill-source-handoff-accounts.png'),full_page=True);mill.screenshot(path=str(output/'mill-source-handoff-mill.png'),full_page=True)

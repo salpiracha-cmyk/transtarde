@@ -70,6 +70,12 @@ function bti_validate_allocations(array $run,array $allocations,array $lots,arra
     }
     $expected=[];foreach($required as $key=>$row)$expected[$key]=$row['qty'];ksort($expected);ksort($actual);
     if($expected!==$actual)throw new DomainException('Actual production bags and original-source allocations disagree.');
+    $selected=[];foreach((array)($run['rows']??[]) as $row)if(!empty($row['bagSourceLotId'])&&!empty($row['actualBagCount']??$row['bags']??0)){
+        $source=(string)$row['bagSourceLotId'];$lot=$lots[$source]??null;$qty=bti_count($row['actualBagCount']??$row['bags']??0);
+        if(!$lot||$qty===null||($row['exporterDealId']??'')!==($lot['exporterDealId']??''))throw new DomainException('Production marking must retain its selected original bag source and SODA.');
+        $selected[$source]=($selected[$source]??0)+$qty;
+    }
+    foreach($selected as $source=>$qty){$allocated=0;foreach($allocations as $a)if(($a['lotId']??'')===$source)$allocated+=(int)$a['qty'];if($allocated!==$qty)throw new DomainException('Use the actual bags from the source selected for this production marking.');}
 }
 function bti_lot_id(string $bagId,string $location): string {return 'PO|'.$bagId.'|'.$location;}
 function bti_hold(array &$lot,string $why): void {if(!in_array($why,$lot['holds'],true))$lot['holds'][]=$why;}
@@ -99,6 +105,7 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
         if(!in_array($entity,['TTI','BRM'],true)){$unassigned[]=['entity'=>'','locationId'=>$location['locationId'],'brand'=>(string)($order['brand']??'')];if($location['locationId']===($scope['locationId']??''))$warnings[]='A bag source has no unambiguous actual stock owner; assign its original PO before moving it.';continue;}
         $id=bti_lot_id($bagId,$location['locationId']);$brand=(string)($order['brand']??'');$packing=(string)($order['size']??$po['packingSize']??'');$type=trim((string)($order['bagType']??''))!==''?(string)$order['bagType']:(string)($po['bagType']??'');$kg=bti_packing_kg($packing);
         $lot=$blank()+['id'=>$id,'originBagId'=>$bagId,'poNo'=>(string)($order['poNo']??''),'poLineKey'=>bqa_mill_line_key($order),'brand'=>$brand,'packingSize'=>$packing,'packingKg'=>$kg,'bagType'=>$type,'entity'=>$entity,'locationId'=>$location['locationId'],'millName'=>$location['millName'],'isTransferStock'=>false,'skuKey'=>bt_hash(['brand'=>bti_norm($brand),'packing'=>bti_norm($packing),'type'=>bti_norm($type)])];
+        if(($order['sourceKind']??'')==='OTHER_EXPORTER')foreach(['sourceKind','exporterDealId','externalOwnerId','externalOwnerName','stockOwnerType','sodaReference'] as $key)$lot[$key]=$order[$key]??'';
         if($bagId===''||($orderIds[$bagId]??0)!==1)bti_hold($lot,'Original bag order identity is missing or duplicated.');
         if($po&&($po['entity']!==$entity||bti_norm($po['brand'])!==bti_norm($brand)))bti_hold($lot,'Original PO owner or brand disagrees with the saved Mill source.');
         if($brand===''||$packing===''||$type==='')bti_hold($lot,'Original bag brand, packing or material is unverified.');
@@ -208,7 +215,8 @@ function bti_production_access(array $user,string $entity,array $location,string
 }
 function bti_bag_facts(array $run): array {
     $allocs=[];foreach((array)($run['bagAllocations']??[]) as $a)$allocs[]=['lotId'=>(string)($a['lotId']??''),'qty'=>$a['qty']??null];usort($allocs,static fn($a,$b)=>strcmp($a['lotId'],$b['lotId']));
-    return ['entity'=>$run['entity']??'','millName'=>$run['millName']??$run['mill']??'','locationId'=>$run['locationId']??'','date'=>$run['date']??'','usage'=>bti_usage($run),'allocations'=>$allocs];
+    $bindings=[];foreach((array)($run['rows']??[]) as $row)if(!empty($row['bagSourceLotId']))$bindings[]=['product'=>$row['product']??'','packing'=>$row['bagWeight']??null,'lotId'=>$row['bagSourceLotId'],'sodaId'=>$row['exporterDealId']??''];
+    return ['entity'=>$run['entity']??'','millName'=>$run['millName']??$run['mill']??'','locationId'=>$run['locationId']??'','date'=>$run['date']??'','usage'=>bti_usage($run),'allocations'=>$allocs,'sourceBindings'=>$bindings];
 }
 /** Validate only explicitly versioned allocations; preserve legacy facts for separate review. */
 function bti_prepare_production(array $values,string $json,array $masters,array $user,string $now): string {
@@ -241,7 +249,7 @@ function bti_prepare_production(array $values,string $json,array $masters,array 
         if(!preg_match('/^[a-f0-9]{64}$/D',(string)($r['bagStockFingerprint']??''))||!hash_equals($review['fingerprint'],$r['bagStockFingerprint']))throw new DomainException('The reviewed bag stock changed. Retain production entry and review the actual source lots again.');
         bti_validate_allocations($r,$r['bagAllocations'],$review['lots'],$masters);
         $canonical=[];foreach($r['bagAllocations'] as $a){$lot=$review['lots'][(string)$a['lotId']];$qty=bt_qty($a['qty']);if(!is_int($lot['committableQty'])||$lot['committableQty']<$qty)throw new DomainException('The selected source bag lot is held or has insufficient available stock.');
-            $canonical[]=['lotId'=>(string)$a['lotId'],'qty'=>$qty,'sourceSnapshot'=>array_intersect_key($lot,array_flip(['originBagId','poNo','poLineKey','brand','packingSize','bagType','skuKey','entity','locationId','millName']))];}
+            $canonical[]=['lotId'=>(string)$a['lotId'],'qty'=>$qty,'sourceSnapshot'=>array_intersect_key($lot,array_flip(['originBagId','poNo','poLineKey','brand','packingSize','bagType','skuKey','entity','locationId','millName','sourceKind','exporterDealId','externalOwnerId','externalOwnerName','stockOwnerType','sodaReference']))];}
         $r['bagAllocations']=$canonical;$r['bagAllocationScope']=$scope;$r['bagAllocationActor']=['userId'=>(int)$user['id'],'by'=>(string)($user['full_name']??$user['username']??''),'at'=>$now];
     }unset($r);
     return json_encode($rows,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);

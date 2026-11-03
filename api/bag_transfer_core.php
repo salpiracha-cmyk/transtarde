@@ -77,10 +77,11 @@ function bt_dispatch(array &$state,array $inventory,array $destination,array $bo
     foreach($allocations as $a){
         $lotId=(string)($a['lotId']??'');if($lotId===''||isset($seen[$lotId]))throw new DomainException('Select each actual source lot once.');$seen[$lotId]=true;
         $lot=$inventory['lots'][$lotId]??null;if(!is_array($lot)||($lot['entity']??'')!==$entity||($lot['locationId']??'')!==($source['locationId']??''))throw new DomainException('The source lot does not belong to this company and mill.');
+        if(($lot['sourceKind']??'')==='OTHER_EXPORTER')throw new DomainException('Other exporter custody bags stay against their instructed SODA and physical mill.');
         if(!empty($lot['hold'])||empty($lot['originBagId'])||empty($lot['skuKey']))throw new DomainException('Resolve the source lot identity, specifications or unallocated consumption before dispatch.');
         $qty=bt_qty($a['qty']??null);if(!isset($lot['availableQty'])||!is_int($lot['availableQty'])||($lot['committableQty']??$lot['availableQty'])<$qty)throw new DomainException('Insufficient verified source bags in the selected lot.');
         $lineId='BTL-'.substr(hash('sha256',$id.'|'.$lotId),0,24);
-        $lines[]=['lineId'=>$lineId,'sourceLotId'=>$lotId,'originBagId'=>(string)$lot['originBagId'],'qty'=>$qty,'sourceSnapshot'=>array_intersect_key($lot,array_flip(['originBagId','poNo','poLineKey','brand','packingSize','bagType','skuKey','entity','locationId','millName']))];
+        $lines[]=['lineId'=>$lineId,'sourceLotId'=>$lotId,'originBagId'=>(string)$lot['originBagId'],'qty'=>$qty,'sourceSnapshot'=>array_intersect_key($lot,array_flip(['originBagId','poNo','poLineKey','brand','packingSize','bagType','skuKey','entity','locationId','millName','sourceKind','exporterDealId','externalOwnerId','externalOwnerName','stockOwnerType','sodaReference']))];
     }
     $record=['id'=>$id,'entity'=>$entity,'date'=>$date,'source'=>$source,'destination'=>array_intersect_key($destination,array_flip(['id','name'])),'sourceFingerprint'=>$inventory['fingerprint'],'lines'=>$lines,'receipts'=>[],'returns'=>[],'createdAt'=>$now,'createdBy'=>$request['actor']];
     $state['transfers'][$id]=$record;bt_commit_request($state,$request,$record,'DISPATCH',$now);

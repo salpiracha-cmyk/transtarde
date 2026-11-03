@@ -27,6 +27,25 @@ async function activate(locator) {
   await locator.evaluate(element => element.click());
 }
 
+test('Mill export bags: other-exporter receipt route and scoped production markings are read-only', async ({page})=>{
+  test.setTimeout(150_000);
+  await signIn(page);const writes=[];
+  await page.route('**/api/**',route=>{if(route.request().method()!=='GET'){writes.push(new URL(route.request().url()).pathname);return route.abort();}return route.continue();});
+  await page.goto(BASE_URL+'/module.php?id=milling',{waitUntil:'domcontentloaded',timeout:90_000});
+  await page.getByRole('button',{name:'🏭 TTI Rice Mills Own / Default',exact:true}).click();
+  await page.locator('[onclick="openPanel(\'newbags\')"]').click();
+  await expect(page.getByLabel('Our Bags',{exact:true})).toBeChecked();
+  await page.getByLabel('Other Exporter Bags',{exact:true}).check();
+  await expect(page.locator('#otherBagSoda')).toBeVisible();
+  await expect(page.locator('#otherBagMessage')).toContainText('Select an instructed SODA',{timeout:45_000});
+  const scope=await page.evaluate(()=>({entity:'TTI',locationId:String(window.TT_MODULE_ACCESS.masters.mills.find(m=>m.values?.[0]==='TTI Rice Mills').id)}));
+  const response=await page.request.get(BASE_URL+'/api/other_exporter_bags.php?'+new URLSearchParams({...scope,purpose:'production'}));expect(response.status()).toBe(200);const data=await response.json();expect(data.ok).toBe(true);
+  for(const row of data.choices){expect(row.available).toBeGreaterThan(0);expect(row.lotId).toBeTruthy();}
+  expect(writes).toEqual([]);
+  // Marking names and eligibility reasons only: never log prices, parties, stock quantities or financial records.
+  console.log('LIVE_BAG_MARKING_SOURCE_REVIEW '+JSON.stringify({sources:data.diagnostics.map(r=>({brand:r.brand,reason:r.reason})),currentChoiceCount:data.choices.length,financialWrites:0,physicalWrites:0}));
+});
+
 
 function traceSessionNavigation(page) {
   const trace = [];
