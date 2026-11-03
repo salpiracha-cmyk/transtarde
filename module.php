@@ -200,19 +200,22 @@ $sharedBootstrap = <<<'HTML'
   document.addEventListener('submit',blockWhileSaving,true);
   document.addEventListener('keydown',event=>{if(event.key==='Enter'&&document.documentElement.classList.contains('tt-save-waiting'))blockWhileSaving(event)},true);
 
+  // Preserve this device's arrival cache before the authoritative download replaces it.
+  // This is a local recovery copy, never a stock posting or an automatic replay.
+  if(access.moduleId==='milling'&&access.userId){try{const raw=originalGet.call(localStorage,'tt30queue');if(raw&&raw!=='[]'){const entries=JSON.parse(raw);if(Array.isArray(entries)&&entries.length){const key='tt_ui_arrival_device_'+access.userId,prior=JSON.parse(originalGet.call(localStorage,key)||'[]');for(const row of entries)if(!prior.some(x=>JSON.stringify(x)===JSON.stringify(row)))prior.push(row);originalSet.call(localStorage,key,JSON.stringify(prior));}}}catch{window.TT_ARRIVAL_RECOVERY_COPY_ERROR=true;}}
   const initial=getRemote(true);
-  if(access.moduleId==='exports'&&!initial?.ok){
+  if(['exports','milling'].includes(access.moduleId)&&!initial?.ok){
     // A failed read must never look like an empty shipment book or create a fresh one.
     Storage.prototype.setItem=originalSet;Storage.prototype.removeItem=originalRemove;Storage.prototype.getItem=originalGet;Storage.prototype.clear=originalClear;
-    window.TT_EXPORTS_LOAD_ERROR=true;
-    window.TT_SHARED_SYNC={saveNow:()=>Promise.reject(new Error('Exports data has not loaded. Reload before saving.'))};
+    window.TT_EXPORTS_LOAD_ERROR=true;window.TT_MILLING_LOAD_ERROR=access.moduleId==='milling';
+    window.TT_SHARED_SYNC={saveNow:()=>Promise.reject(new Error('Saved records have not loaded. Reload before saving.'))};
     const showLoadError=()=>{
-      const app=document.getElementById('app');if(app)app.hidden=true;
+      const app=document.getElementById('app')||(access.moduleId==='milling'?document.querySelector('main'):null);if(app)app.hidden=true;
       const panel=document.createElement('section');panel.id='ttExportsLoadError';panel.setAttribute('role','alert');
       panel.style.cssText='max-width:760px;margin:40px auto;padding:24px;background:white;border:1px solid #b42318;border-radius:12px;font:16px Arial;color:#222';
-      const title=document.createElement('h2');title.textContent='Exports data could not be loaded';
-      const message=document.createElement('p');message.textContent='The server did not return your shipment records. Reload to try again.';
-      const retry=document.createElement('button');retry.type='button';retry.textContent='Reload Exports';retry.onclick=()=>location.reload();
+      const title=document.createElement('h2');title.textContent=(access.moduleId==='milling'?'Milling':'Exports')+' data could not be loaded';
+      const message=document.createElement('p');message.textContent='The server did not return your saved records. Entries on this device are retained. Reload to try again; do not re-enter trucks.';
+      const retry=document.createElement('button');retry.type='button';retry.textContent='Reload '+(access.moduleId==='milling'?'Milling':'Exports');retry.onclick=()=>location.reload();
       const back=document.createElement('a');back.href='/index.php';back.textContent='Return to Control Centre';back.style.marginLeft='16px';
       panel.append(title,message,retry,back);document.body.appendChild(panel);
     };
@@ -378,7 +381,7 @@ $accountsSourceBridge = '<script src="mill-duplicate-approvals.js"></script><scr
 $brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
-if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
+if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/arrival-recovery-ui.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
 $localSalesEntry='';
 if($localSalesView){
     $entry=file_get_contents(__DIR__.'/milling/local-sales-entry.js');
