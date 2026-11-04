@@ -16,11 +16,13 @@
     }catch(_error){return 0}
   };
   const writeShared=value=>{try{localStorage.setItem(KEY,String(value))}catch(_error){}};
-  const redirectInactive=()=>{
+  const redirectToSignIn=url=>{
     if(signingOut)return;
     signingOut=true;
-    window.location.replace('/logout.php?reason=inactive');
+    try{if(window.TT_SESSION_BEFORE_REDIRECT?.({url})===false)return;}catch(_error){/* Authentication still ends if a recovery hook fails. */}
+    window.location.replace(url);
   };
+  const redirectInactive=()=>redirectToSignIn('/logout.php?reason=inactive');
   const heartbeat=async force=>{
     const token=csrf();
     if(!token||(!force&&Date.now()-lastHeartbeat<HEARTBEAT_MS))return;
@@ -31,9 +33,10 @@
         headers:{'Content-Type':'application/json','X-TT-User-Activity':'1','X-CSRF-Token':token},
         body:JSON.stringify({csrf:token})
       });
-      if(response.status===401)window.location.replace('/login.php?expired=inactive');
+      if(response.status===401)redirectToSignIn('/login.php?expired=inactive');
     }catch(_error){/* Normal application requests still enforce the server timeout. */}
   };
+  addEventListener('tt:session-expired',()=>redirectToSignIn('/login.php?expired=inactive'));
   const markActivity=()=>{
     const now=Date.now();
     lastActivity=now;
