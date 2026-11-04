@@ -9,3 +9,20 @@ assert.equal(values.get('tt30bags')[0].id,'RECEIPT-KEEP','A hidden bag instructi
 const rows=values.get('tt30ship');assert.equal(rows.length,1);assert.equal(rows[0].id,'CARD-KEEP');assert.equal(rows[0]._ttBridgeIndex,1);assert.equal(rows[0]._ttBridgeId,'S1|C1|L1|1');assert.deepEqual(rows[0].containers,old.containers);
 assert.equal(rows[0].dryon,'Yes');assert.equal(rows[0].craft,'Yes');assert.equal(rows[0].inspection,'SGS');assert.equal(rows[0].dpp,'Yes');
 console.log('PASS scoped allocation retains canonical bridge identity, committed containers and inherited physical instructions');
+
+(async()=>{
+ const snapshot={ok:true,revision:11,values:{tt30queue:'[]',tt30slips:'[]',tt30directoralerts:'[]',tt30ship:'SERVER-SHIP',transtrade_export_v3_operational:'SERVER-ROOT'},meta:{tt30queue:{version:3},tt30ship:{version:5}},restrictedKeys:['tt34ghati']};
+ let requests=0,applied=null,serverFailure=false,duringRead=null;
+ const pending=new Map([['transtrade_export_v3_operational','KEEP-STAGED-EXPORT'],['tt30ship','KEEP-STAGED-SHIP']]),inFlight=new Set();
+ const refreshContext={pending,inFlight,endpoint:'/operations',allowed:key=>/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(key)&&key!=='tt34ghati',fetch:async url=>{requests++;assert.match(url,/asset_refs=1/);return {json:async()=>{duringRead?.();return serverFailure?{ok:false,error:'Read failed'}:snapshot}}},applyRemote:data=>{applied=data},Promise,Error,Set,Object,Date};
+ vm.createContext(refreshContext);vm.runInContext(source.slice(source.indexOf('  function refreshNow('),source.indexOf('  const legacyToken=',source.indexOf('  function refreshNow('))),refreshContext);
+ await assert.rejects(refreshContext.refreshNow(),/Finish the current save/);assert.equal(requests,0);
+ const result=await refreshContext.refreshNow({keys:['tt30queue','tt30slips','tt30directoralerts']});
+ assert.deepEqual(Object.keys(result.values).sort(),['tt30directoralerts','tt30queue','tt30slips']);assert.deepEqual(Object.keys(applied.meta),['tt30queue']);assert.equal(applied.restrictedKeys.length,0);assert.equal(applied.values.tt30ship,undefined);assert.equal(applied.values.transtrade_export_v3_operational,undefined);assert.equal(pending.get('tt30ship'),'KEEP-STAGED-SHIP');assert.equal(pending.get('transtrade_export_v3_operational'),'KEEP-STAGED-EXPORT');assert.equal(pending.size,2);
+ pending.set('tt30queue','KEEP-UNCONFIRMED-ARRIVAL');await assert.rejects(refreshContext.refreshNow({keys:['tt30queue']}),/Finish the current save/);assert.equal(pending.get('tt30queue'),'KEEP-UNCONFIRMED-ARRIVAL');pending.delete('tt30queue');
+ inFlight.add('tt30ship');await assert.rejects(refreshContext.refreshNow({keys:['tt30queue']}),/Finish the current save/);inFlight.clear();
+ await assert.rejects(refreshContext.refreshNow({keys:[]}),/invalid/);await assert.rejects(refreshContext.refreshNow({keys:['tt34ghati']}),/invalid/);
+ duringRead=()=>pending.set('tt30queue','EDIT-DURING-REFRESH');applied=null;await assert.rejects(refreshContext.refreshNow({keys:['tt30queue']}),/Finish the current save/);assert.equal(applied,null);assert.equal(pending.get('tt30queue'),'EDIT-DURING-REFRESH');pending.delete('tt30queue');duringRead=null;
+ serverFailure=true;applied=null;await assert.rejects(refreshContext.refreshNow({keys:['tt30queue']}),/Read failed/);assert.equal(applied,null);assert.equal(pending.size,2);
+ console.log('PASS scoped Arrival report refresh preserves unrelated staged bridge data, rejects edited sources/in-flight saves and applies no failed or unrelated snapshot');
+})().catch(error=>{console.error(error);process.exitCode=1});
