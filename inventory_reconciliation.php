@@ -87,6 +87,11 @@ function tt_inv_date(string $value): string {
     if(!$d||($e!==false&&($e['warning_count']||$e['error_count']))||$d->format('Y-m-d')!==$value)throw new InvalidArgumentException('A valid calendar date is required.');
     return $value;
 }
+/** Production permits every valid past business date, without a rolling cutoff. */
+function tt_inv_production_date(string $value,string $now):string {
+    $date=tt_inv_date($value);$today=(new DateTimeImmutable($now))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('Y-m-d');
+    if($date>$today)throw new DomainException('Production date cannot be in the future. Choose today or the actual past production date.');return $date;
+}
 function tt_inv_kg(mixed $value,bool $zero=true): float {
     if(!(is_int($value)||is_float($value)||(is_string($value)&&trim($value)!==''&&is_numeric($value))))throw new InvalidArgumentException('A numeric weight is required.');
     $n=(float)$value;if(!is_finite($n)||$n<0||(!$zero&&$n===0.0))throw new InvalidArgumentException('A valid non-negative weight is required.');
@@ -247,6 +252,7 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
                 $r=$before;
             }
         }elseif($key==='tt30prod'){
+            if(!$before||($before['date']??'')!==($r['date']??''))$r['date']=tt_inv_production_date((string)($r['date']??''),$now);
             if(!empty($before['clientSaveRequestId'])&&empty($r['clientSaveRequestId']))throw new DomainException('Reload the saved production report before amending its acknowledged source.');
             if(!empty($before['recoveryVersion'])&&empty($r['recoveryVersion']))throw new DomainException('Actual-input production cannot be downgraded to a legacy entry.');
             if($before&&!mr_is_calculated($before)&&mr_is_calculated($r)&&mr_actual_input($before)!==null)throw new DomainException('Historical measured input must retain its original calculation basis.');

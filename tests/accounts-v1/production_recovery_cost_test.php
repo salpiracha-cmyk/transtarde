@@ -57,3 +57,8 @@ $arrival['unloadingDate']='2099-01-01';$without['tt30slips']=json_encode([$arriv
 echo "PASS calculated production rejects insufficient or future-funded raw stock inside the canonical inventory transaction\n";
 
 $loose=$guardRun;$loose['rows'][]=['id'=>993,'product'=>'Sweeping','outputUnit'=>'KG','systemKg'=>25,'bags'=>0,'bagWeight'=>0];near(tt_inv_output_kg($loose,'Sweeping'),25,'Physical reconciliation reads loose actual kilograms consistently with stock and recovery');
+
+near(strlen(tt_inv_production_date('2018-01-01','2026-11-04T12:00:00Z')),10,'All past production dates remain valid, without five-day or financial-year cutoff');
+if(tt_inv_production_date('2026-11-04','2026-11-03T22:00:00Z')!=='2026-11-04')throw new RuntimeException('Production date must use Karachi business day');
+try{tt_inv_production_date('2026-11-05','2026-11-04T12:00:00Z');throw new RuntimeException('Future production accepted');}catch(DomainException $e){}
+echo "PASS unrestricted historical production dates, Karachi date boundary and future-date rejection\n";
