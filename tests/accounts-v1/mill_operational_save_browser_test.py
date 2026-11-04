@@ -168,7 +168,7 @@ def run():
             with context.expect_page() as printed:mill.evaluate("s=>printGate(s.containers[0],s)",shipment)
             popup=printed.value;popup.locator('.serial').filter(has_text='GP-000003').wait_for();popup.close()
             # Separate phone and PC storage contexts: a saved phone arrival becomes live while PC keeps its draft.
-            mill.evaluate("openPanel('queue')");mill.locator('#qVehicle').fill('CURRENT-DRAFT')
+            mill.evaluate("openPanel('queue')");mill.locator('#qVehicle').fill('DRAFT-901')
             phone_context=browser.new_context(storage_state=context.storage_state(),viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
             phone=phone_context.new_page();phone.on('pageerror',lambda e:errors.append(str(e)));phone.on('dialog',lambda d:d.accept());phone.goto(base+'/module.php?id=milling');phone.locator('.mill-card[onclick="chooseMill(1)"]').click();phone.evaluate("openPanel('petty')");phone.locator('#pettyBalance').filter(has_text='975.00').wait_for();phone.evaluate("openPanel('queue')")
             lose_phone=[True]
@@ -179,13 +179,13 @@ def run():
             phone_context.route('**/api/operations.mysql.php?asset_refs=1',phone_ack)
             phone.locator('#qVehicle').fill('QA-909');phone.locator('#qBags').fill('12');phone.locator('#qWeight').fill('1200');phone.locator('#queueSaveBtn').click();phone.locator('[data-mill-action-recovery]').wait_for();assert phone.locator('#qVehicle').input_value()=='QA-909'
             phone.locator('#queueSaveBtn').click();phone.wait_for_function("document.querySelector('#qVehicle').value === ''");phone.locator('#queueSaveStatus').filter(has_text='Saved to server').wait_for()
-            mill.locator('#queueTable').filter(has_text='QA-909').wait_for(timeout=25000);assert mill.locator('#qVehicle').input_value()=='CURRENT-DRAFT'
+            mill.locator('#queueTable').filter(has_text='QA-909').wait_for(timeout=25000);assert mill.locator('#qVehicle').input_value()=='DRAFT-901'
             current=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30queue']);assert sum(r['vehicle']=='QA-909' for r in current)==1
             assert phone.locator('[data-arrival-recovery]').is_visible();phone.get_by_role('button',name='Recover phone entries',exact=True).click();phone.locator('#arrivalRecoveryReview').get_by_text('Confirmed on server',exact=True).first.wait_for()
             # Report mode hides entry controls and retains the PC's unfinished truck/date.
             pc_date=mill.locator('#queueViewDate').input_value();mill.locator('#queueRangeMode').check();assert not mill.locator('#queueEntryControls').is_visible();assert not mill.locator('#queueResults').is_visible()
             mill.locator('#queueViewFrom').fill(mill.evaluate('dateMinus(4)'));mill.locator('#queueViewTo').fill(mill.evaluate('today()'));mill.locator('#queueViewTo').dispatch_event('change');mill.locator('#queueTable').filter(has_text='QA-909').wait_for();assert mill.locator('#queueTable tr[onclick]').count()==0
-            mill.locator('#queueRangeMode').uncheck();assert mill.locator('#qVehicle').input_value()=='CURRENT-DRAFT' and mill.locator('#queueViewDate').input_value()==pc_date
+            mill.locator('#queueRangeMode').uncheck();assert mill.locator('#qVehicle').input_value()=='DRAFT-901',mill.locator('#qVehicle').input_value();assert mill.locator('#queueViewDate').input_value()==pc_date,(mill.locator('#queueViewDate').input_value(),pc_date)
             # Actual expired session: original device fields survive redirect, re-login and explicit restore.
             phone.get_by_role('button',name='Close recovery',exact=True).click();phone.locator('#qVehicle').fill('QA-910');phone.locator('#qBags').fill('8');phone.locator('#qWeight').fill('800');phone.locator('#qParty').fill('Unsubmitted before expired sign-in')
             (app/'fixture-expire.php').write_text("<?php require __DIR__.'/auth_store.php';$_SESSION['last_activity_at']=time()-3601;echo 'expired fixture';")
