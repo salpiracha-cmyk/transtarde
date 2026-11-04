@@ -1,6 +1,6 @@
 (()=>{
   'use strict';
-  const IDLE_MS=60*60*1000;
+  const IDLE_MS=15*60*1000;
   const HEARTBEAT_MS=60*1000;
   const KEY='tt_session_last_activity_v1';
   let lastActivity=Date.now();
@@ -19,7 +19,7 @@
   const redirectToSignIn=url=>{
     if(signingOut)return;
     signingOut=true;
-    try{if(window.TT_SESSION_BEFORE_REDIRECT?.({url})===false)return;}catch(_error){/* Authentication still ends if a recovery hook fails. */}
+    try{if(window.TT_SESSION_BEFORE_REDIRECT?.({url})===false&&access().moduleId!=='milling')return;}catch(_error){/* Authentication still ends if a recovery hook fails. */}
     window.location.replace(url);
   };
   const redirectInactive=()=>redirectToSignIn('/logout.php?reason=inactive');

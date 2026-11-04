@@ -87,6 +87,11 @@ function tt_inv_date(string $value): string {
     if(!$d||($e!==false&&($e['warning_count']||$e['error_count']))||$d->format('Y-m-d')!==$value)throw new InvalidArgumentException('A valid calendar date is required.');
     return $value;
 }
+/** Production permits every valid past business date, without a rolling cutoff. */
+function tt_inv_production_date(string $value,string $now):string {
+    $date=tt_inv_date($value);$today=(new DateTimeImmutable($now))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('Y-m-d');
+    if($date>$today)throw new DomainException('Production date cannot be in the future. Choose today or the actual past production date.');return $date;
+}
 function tt_inv_kg(mixed $value,bool $zero=true): float {
     if(!(is_int($value)||is_float($value)||(is_string($value)&&trim($value)!==''&&is_numeric($value))))throw new InvalidArgumentException('A numeric weight is required.');
     $n=(float)$value;if(!is_finite($n)||$n<0||(!$zero&&$n===0.0))throw new InvalidArgumentException('A valid non-negative weight is required.');
@@ -114,7 +119,7 @@ function tt_inv_output_name(array $production,array $row): string {
 function tt_inv_output_kg(array $production,string $stockName): float {
     $kg=0.;foreach((array)($production['rows']??[])as$r){
         if(!is_array($r)||tt_inv_is_private_row($r)||!empty($r['noStockPost']))continue;
-        if(tt_inv_norm(tt_inv_output_name($production,$r))===tt_inv_norm($stockName))$kg+=(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);
+        if(tt_inv_norm(tt_inv_output_name($production,$r))===tt_inv_norm($stockName))$kg+=!empty($production['recoveryVersion'])?mr_output_kg($r):(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);
     }return round($kg,3);
 }
 function tt_inv_resolve_stock(array $map,array $shipment): string {
@@ -142,8 +147,8 @@ function tt_inv_stock(array $values,array $scope, ?callable $observe=null): arra
     foreach(tt_inv_rows($values,'tt30slips')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt30slips',$r,$i,'Arrival');$add((string)($r['displayName']??tt_inv_product($r,(string)($r['productStage']??'RAW'))),(float)($r['payableWeight']??0));}
     foreach(tt_inv_rows($values,'tt30prod')as$i=>$p){if(!tt_inv_same_scope($scope,$p))continue;$source('tt30prod',$p,$i,'Production output');$input=0.;
         foreach((array)($p['rows']??[])as$r){if(!is_array($r)||tt_inv_is_private_row($r)||!empty($r['noStockPost']))continue;$kg=(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);if(!empty($p['recoveryVersion']))$kg=mr_output_kg($r);$add(tt_inv_output_name($p,$r),$kg);$input+=$kg;}
-        if(!empty($p['recoveryVersion']))$input=mr_actual_input($p)??$input;
-        $context['kind']='Production consumption';if(empty($p['recoveryVersion'])||mr_actual_input($p)===null)$context['basis']='Provisional — input inferred from output';
+        if(!empty($p['recoveryVersion']))$input=mr_consumption_kg($p)??$input;
+        $context['kind']='Production consumption';if(mr_is_calculated($p))$context['basis']='Calculated from recorded physical outputs';elseif(empty($p['recoveryVersion'])||mr_actual_input($p)===null)$context['basis']='Provisional — input inferred from output';
         $add((string)($p['inputStockName']??tt_inv_product($p,(string)($p['inputStage']??'RAW'))),-$input);
     }
     foreach(tt_inv_rows($values,'tt35localsales')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt35localsales',$r,$i,'Local sale');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['kg']??0)],(array)($r['loads']??[]));
@@ -173,6 +178,16 @@ function tt_inv_quantities(array $reports,string $stockName): array {
     $out=[];foreach($reports as$p)$out[(string)($p['id']??'')]=tt_inv_output_kg($p,$stockName);ksort($out);return $out;
 }
 /** Preserve server-only portions when a filtered browser saves its operational projection. */
+/** Compare dated raw-stock trajectories inside the existing inventory save lock. */
+function tt_inv_production_timeline(array $values,array $scope,string $stock):array {
+    $events=[];tt_inv_stock($values,$scope,static function($event)use(&$events,$stock){if(($event['product']??'')!==$stock)return;$parts=(array)($event['parts']??[]);$kg=(float)$event['kg'];if($parts&&abs(array_sum(array_column($parts,'kg'))-$kg)<.001){foreach($parts as $part){$date=(string)($part['date']??'');$amount=(float)$part['kg'];if(mr_valid_date($date)||$amount<0)$events[mr_valid_date($date)?$date:'']=($events[mr_valid_date($date)?$date:'']??0)+$amount;}}else{$date=(string)($event['date']??'');if(mr_valid_date($date)||$kg<0)$events[mr_valid_date($date)?$date:'']=($events[mr_valid_date($date)?$date:'']??0)+$kg;}});return $events;
+}
+function tt_inv_guard_calculated_stock(array $before,array $after,array $changed):void {
+    $checked=[];foreach($changed as $run){if(!mr_is_calculated($run)||!(mr_consumption_kg($run)>0))continue;$scope=tt_inv_scope($run);$stock=(string)($run['inputStockName']??tt_inv_product($run,(string)($run['inputStage']??'RAW')));$key=json_encode([$scope,$stock]);if(isset($checked[$key]))continue;$checked[$key]=true;
+        $old=tt_inv_production_timeline($before,$scope,$stock);$next=tt_inv_production_timeline($after,$scope,$stock);$dates=array_unique(array_merge(array_keys($old),array_keys($next)));sort($dates);$a=0.;$b=0.;foreach($dates as $date){$a+=(float)($old[$date]??0);$b+=(float)($next[$date]??0);if($b<-.001&&$b<$a-.001)throw new DomainException('Insufficient dated '.$stock.' stock at this company and mill. Production is not saved; reconcile the original raw-stock receipts before retrying.');}
+    }
+}
+
 function tt_inv_prepare_write(array $values,string $key,string $json,array $user,string $now): string {
     tt_guard_arrival_collection($key,(string)($values[$key]??'[]'),$json);
     if(in_array($key,['tt30bags','tt33bagreceipts'],true)){require_once __DIR__.'/api/bag_receipts_core.php';$json=br_guard_write($values,$key,$json);}
@@ -237,10 +252,13 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
                 $r=$before;
             }
         }elseif($key==='tt30prod'){
+            if(!$before||($before['date']??'')!==($r['date']??''))$r['date']=tt_inv_production_date((string)($r['date']??''),$now);
             if(!empty($before['clientSaveRequestId'])&&empty($r['clientSaveRequestId']))throw new DomainException('Reload the saved production report before amending its acknowledged source.');
             if(!empty($before['recoveryVersion'])&&empty($r['recoveryVersion']))throw new DomainException('Actual-input production cannot be downgraded to a legacy entry.');
-            if(!empty($r['clientSaveRequestId']))$r['recoveryVersion']=1;
-            mr_validate_inputs($r,$before===null);if($before===null)$r['recoveryVersion']=1;
+            if($before&&!mr_is_calculated($before)&&mr_is_calculated($r)&&mr_actual_input($before)!==null)throw new DomainException('Historical measured input must retain its original calculation basis.');
+            if($before&&mr_is_calculated($before)&&!mr_is_calculated($r))throw new DomainException('Retain the saved calculated consumption basis when amending this shift.');
+            if(!empty($r['clientSaveRequestId']))$r['recoveryVersion']=mr_is_calculated($r)?2:1;
+            mr_validate_inputs($r,$before===null);if($before===null)$r['recoveryVersion']=mr_is_calculated($r)?2:1;
             $hidden=array_values(array_filter((array)($before['rows']??[]),static fn($x)=>is_array($x)&&tt_inv_is_private_row($x)));
             foreach((array)($r['rows']??[])as$x)if(is_array($x)&&tt_inv_is_private_row($x))throw new DomainException('Reconciliation rows cannot be entered as production.');
             $r['rows']=array_merge((array)($r['rows']??[]),$hidden);
@@ -263,6 +281,7 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         }
         // A final-entry tick belongs to a complete shift, not to one partial lot.
         $changed=[];foreach($out as$r){$b=$index[(string)$r['id']]??null;$a=$r;unset($a['createdAt'],$a['updatedAt'],$a['serverSequence']);if($b){unset($b['createdAt'],$b['updatedAt'],$b['serverSequence']);}if($a!==$b)$changed[]=$r;}
+        tt_inv_guard_calculated_stock($values,array_replace($values,['tt30prod'=>tt_inv_json($out)]),$changed);
         foreach($changed as$r)foreach($out as&$other)if((string)$other['id']!==(string)$r['id']&&tt_inv_same_scope($r,$other)&&($r['date']??'')===($other['date']??'')&&tt_inv_shift_name((string)($r['shift']??''))===tt_inv_shift_name((string)($other['shift']??'')))$other['shiftEntriesComplete']=false;unset($other);
     }
     if($key==='tt32stockadj')foreach($old as$r)if(($r['type']??'')==='Paltai Transfer'&&!isset($seen[(string)$r['id']]))throw new DomainException('Saved Paltai transfers cannot be removed.');

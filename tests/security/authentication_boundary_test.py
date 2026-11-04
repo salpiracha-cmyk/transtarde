@@ -67,15 +67,15 @@ if(($cfg['action']??'')==='seed'){
         result=json.loads(output)
         assert meta['status']==200 and meta['last']==last, 'Read-only session checks extended inactivity'
         assert set(result)=={'ok','idleTimeoutSeconds','idleRemainingSeconds'} and result['ok']
-        assert result['idleTimeoutSeconds']==3600 and 3460<=result['idleRemainingSeconds']<=3480
+        assert result['idleTimeoutSeconds']==900 and 760<=result['idleRemainingSeconds']<=780
         meta, _ = run(path='/api/session_activity.php',method='POST',sid=seed['sid'],csrf='wrong')
         assert meta['status']==403 and meta['last']==last
         meta, output = run(path='/api/session_activity.php',method='POST',sid=seed['sid'],csrf=seed['csrf'])
         assert meta['status']==200 and meta['last']>=last+120 and json.loads(output)['ok']
-    seed, _ = run(action='seed',authenticated=True,last=int(time.time())-3601)
+    seed, _ = run(action='seed',authenticated=True,last=int(time.time())-901)
     meta, output = run(path='/api/session_activity.php',method='GET',sid=seed['sid'],activity='1')
     assert meta['status']==401 and meta['user'] is None and not json.loads(output)['ok']
-    print('PASS read-only session check never renews idle time, leaks no identity/token, rejects expiry; heartbeat retains CSRF and one-hour limit')
+    print('PASS read-only session check never renews idle time, leaks no identity/token, rejects expiry; heartbeat retains CSRF and 15-minute limit')
 
     seed, _ = run(action='seed', authenticated=True, flag=True)
     sid, csrf = seed['sid'], seed['csrf']

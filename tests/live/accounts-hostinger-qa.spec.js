@@ -58,14 +58,10 @@ test('Mill export bags: other-exporter receipt route and scoped production marki
   await activate(page.locator('[onclick="openPanel(\'production\')"]'));
   const instructed=data.deals.filter(d=>!d.commodity||d.commodity==='RICE');
   await expect.poll(()=>page.evaluate(()=>window.TT_BAG_CHOICES.instructions().length),{timeout:45_000}).toBe(instructed.length);
-  for(const deal of instructed){
-    await page.locator('#productionFellowSoda').selectOption(deal.id);
-    const text=await page.locator('#productionFellowDetails').innerText();
-    expect(text.includes(deal.brand||'Unbranded'),'Saved instructed brand must be visible').toBe(true);
-    expect(text.includes(deal.product||'See original SODA'),'Saved instructed product must be visible').toBe(true);
-    expect(text.includes(deal.packing||'Not specified'),'Saved instructed packing must be visible').toBe(true);
-    if(!data.choices.some(c=>c.exporterDealId===deal.id))expect(text.includes('No received bag lot is linked'),'Unreceived instruction must explain bag status').toBe(true);
-  }
+  await expect(page.getByRole('combobox',{name:'Ready Rice brand / SODA'}).first()).toBeVisible();
+  await expect(page.locator('#productionActualInput')).toBeHidden();
+  const displayed=await page.getByRole('combobox',{name:'Ready Rice brand / SODA'}).first().textContent();
+  for(const deal of instructed){expect(displayed.includes(deal.brand||'Brand not entered'),'Instructed brand must remain selectable before bag receipt').toBe(true);expect(displayed.includes(deal.party),'SODA must display its business party').toBe(true);}
   await expect(page.locator('#productionAddBrand')).toBeDisabled();
   expect(await page.locator('#production .search-icon').evaluate(el=>{const b=el.getBoundingClientRect(),c=el.closest('.card').getBoundingClientRect();return b.x>=c.x&&b.y>=c.y&&b.right<=c.right&&b.bottom<=c.bottom;}),'Report search must remain in its Production card').toBe(true);
   console.log('LIVE_PRODUCTION_INSTRUCTIONS_OK '+JSON.stringify({instructedSodasChecked:instructed.length,stocklessInstructionsVisible:instructed.filter(d=>!data.choices.some(c=>c.exporterDealId===d.id)).length,physicalWrites:0,financialWrites:0}));
@@ -100,7 +96,7 @@ test('Arrival date-range mode is separate from the entry draft and never posts',
  test.setTimeout(120_000);await signIn(page);const writes=[];
  await page.route('**/*',route=>{const r=route.request(),u=new URL(r.url());if(!['GET','HEAD'].includes(r.method())&&!(r.method()==='POST'&&u.origin===new URL(BASE_URL).origin&&u.pathname==='/api/session_activity.php')){writes.push(u.pathname);return route.abort();}return route.continue();});
  await page.goto(BASE_URL+'/module.php?id=milling',{waitUntil:'domcontentloaded',timeout:90_000});await page.getByRole('button',{name:'🏭 TTI Rice Mills Own / Default',exact:true}).click();await page.locator('[onclick="openPanel(\'queue\')"]').click();
- await expect.poll(()=>page.evaluate(()=>window.TT_MILL_SESSION?.ready()||false)).toBe(true);const check=await page.request.get(BASE_URL+'/api/session_activity.php');expect(check.status()).toBe(200);expect(check.headers()['cache-control']).toContain('no-store');const session=await check.json();expect(session.ok).toBe(true);expect(session.idleTimeoutSeconds).toBe(3600);expect(session.idleRemainingSeconds).toBeGreaterThan(0);expect(Object.keys(session).sort()).toEqual(['idleRemainingSeconds','idleTimeoutSeconds','ok']);
+ await expect.poll(()=>page.evaluate(()=>window.TT_MILL_SESSION?.ready()||false)).toBe(true);const check=await page.request.get(BASE_URL+'/api/session_activity.php');expect(check.status()).toBe(200);expect(check.headers()['cache-control']).toContain('no-store');const session=await check.json();expect(session.ok).toBe(true);expect(session.idleTimeoutSeconds).toBe(900);expect(session.idleRemainingSeconds).toBeGreaterThan(0);expect(Object.keys(session).sort()).toEqual(['idleRemainingSeconds','idleTimeoutSeconds','ok']);
  await expect(page.locator('#queueEntryControls')).toBeVisible();await expect(page.locator('#queueRangeFields')).toBeHidden();const day=await page.locator('#queueViewDate').inputValue();const fullRefreshBlockedByStagedChanges=await page.evaluate(async()=>{try{await window.TT_SHARED_SYNC.refresh();return false}catch(error){if(error.message==='Finish the current save before refreshing.')return true;throw error}});console.log('LIVE_ARRIVAL_REFRESH_BOUNDARY '+JSON.stringify({fullRefreshBlockedByStagedChanges,financialWrites:0,physicalWrites:0}));await page.locator('#qVehicle').fill('VIEW-909');await page.locator('#qBags').fill('1');await page.locator('#qWeight').fill('1');
  await page.getByLabel('View date-range arrivals',{exact:true}).check();await expect(page.locator('#queueEntryControls')).toBeHidden();await expect(page.locator('#queueResults')).toBeHidden();await expect(page.locator('#queueReportMessage')).toContainText('Select From and To');
  const from=await page.evaluate(()=>dateMinus(4));await page.locator('#queueViewFrom').fill(from);await page.locator('#queueViewTo').fill(day);await page.locator('#queueViewTo').dispatchEvent('change');try{await expect(page.locator('#queueResults')).toBeVisible({timeout:45_000});}catch(error){const state=await page.evaluate(()=>({range:window.TT_ARRIVAL_VIEW.range(),message:document.getElementById('queueReportMessage').textContent}));console.log('LIVE_ARRIVAL_REPORT_FAILURE '+JSON.stringify(state));throw error}await expect(page.locator('#queueTable tr[onclick]')).toHaveCount(0);

@@ -51,3 +51,11 @@
  #production .production-raw-table td:first-child,#production .production-raw-table td:nth-child(5){grid-column:1/-1}
  #production .production-raw-table td[data-label]::before{content:attr(data-label);display:block;font-size:12px;font-weight:650;color:#566273;margin-bottom:5px}
 }
+
+#production #productionActualInput[hidden],#production #productionRegisterBrand[hidden]{display:none!important}
+#production [data-production-order]{width:100%;min-width:0;font-size:13px}
+#production [data-order-info]{display:block;margin-top:5px;font-size:12px;line-height:1.5}
+#production .production-table-scroll>table{table-layout:auto}
+#production .production-table-scroll th:first-child{width:36%}
+#production #productionShiftSummary{grid-template-columns:repeat(3,minmax(0,1fr));margin:18px 0}
+@media(max-width:650px){#production #productionShiftSummary{grid-template-columns:repeat(2,minmax(0,1fr))}}

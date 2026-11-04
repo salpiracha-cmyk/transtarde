@@ -19,7 +19,7 @@ try {
     $write=$method==='POST';$raw=$write?((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:''):'';if(strlen($raw)>16000)throw new DomainException('Receipt request too large.');$b=$write?json_decode($raw,true,64,JSON_THROW_ON_ERROR):$_GET;if(!is_array($b))throw new DomainException('Invalid receipt request.');
     if($write&&!tt_verify_csrf((string)($b['csrf']??'')))oeb_out(['ok'=>false,'error'=>'Refresh the session before saving.'],419);
     $masters=tt_list_masters();$location=bti_location($masters,'',(string)($b['locationId']??''));if(!$location||$location['status']!=='Active')throw new DomainException('Select an active physical mill.');
-    $scope=['entity'=>(string)($b['entity']??''),'locationId'=>$location['locationId'],'millName'=>$location['millName']];$production=!$write&&($b['purpose']??'')==='production';oeb_access($u,$scope,$write?'Create':'View',$production);if(!$write&&function_exists('tt_release_read_session'))tt_release_read_session();
+    $scope=['entity'=>(string)($b['entity']??''),'locationId'=>$location['locationId'],'millName'=>$location['millName']];$production=($b['purpose']??'')==='production';oeb_access($u,$scope,$write?'Create':'View',$production);if(!$write&&function_exists('tt_release_read_session'))tt_release_read_session();
     $path=TT_DATA_DIR.'/accounts.json';$h=fopen($path,$write?'r+':'rb');if(!$h||!flock($h,$write?LOCK_EX:LOCK_SH))throw new RuntimeException('SODA source unavailable.');
     try {
         $books=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);if(!is_array($books))throw new RuntimeException('Invalid SODA source.');
@@ -32,8 +32,11 @@ try {
                 foreach((array)($books['exporterDeals']??[]) as $d)if(($d['date']??'')<=$date&&oeb_active($d,(array)$exports)){try{oeb_deal($books,$scope,(string)$d['id']);}catch(DomainException){continue;}$deals[]=oeb_instruction_projection($d);}
                 $ids=[];foreach($inventory['lots'] as $lot)if(($lot['sourceKind']??'')==='OTHER_EXPORTER')$ids[(string)$lot['originBagId']]=true;
                 $history=[];foreach(bti_rows($values,'tt33bagreceipts') as $r)if(isset($ids[(string)($r['bagId']??'')])&&($r['date']??'')<=$date)$history[]=array_intersect_key($r,array_flip(['id','bagId','date','qty','brand','inspectionStatus','sourceSnapshot']))+br_position($r,(array)($state['receiptDispositions']??[]),$date);
-                return ['deals'=>$deals,'inventory'=>$inventory,'receiptHistory'=>$history]+oeb_choices($values,$inventory,$books,$scope);
+                return ['productionOrders'=>oeb_production_orders($values,$books,$scope,$date,$inventory),'deals'=>$deals,'inventory'=>$inventory,'receiptHistory'=>$history]+oeb_choices($values,$inventory,$books,$scope);
             });
+        }elseif(($b['action']??'')==='register_production_brand'){
+            oeb_access($u,$scope,'Create',true);
+            $result=bts_with_sources(true,$u,static function(array &$values,array &$state,$now)use($books,$scope,$b,$u){return oeb_register_production_brand($values,$state,$books,$scope,$b,$u,$now);});
         }elseif(($b['action']??'')==='fill_brand'){
             $d=oeb_deal($books,$scope,(string)($b['sodaId']??''));if(!oeb_active($d,tt_accounts_exports_root()))throw new DomainException('This SODA or linked contract is closed.');
             $brand=trim((string)($b['brand']??''));if($brand===''||mb_strlen($brand)>200||preg_match('/[\x00-\x1f]/',$brand))throw new DomainException('Enter the actual bag brand, up to 200 characters.');

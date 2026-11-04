@@ -16,7 +16,7 @@ function usage(record){
   const key=norm(name)+'|'+packing,prior=result.get(key);result.set(key,{brand:name,packingKg:packing,qty:(prior?.qty||0)+quantity});
  }return [...result.entries()].sort(([a],[b])=>a.localeCompare(b));
 }
-function signature(record){const mill=location(record);return JSON.stringify([record.entity,mill.id,record.date,usage(record)]);}
+function signature(record){const mill=location(record);return JSON.stringify([record.entity,mill.id,record.date,usage(record),(record.rows||[]).filter(row=>brand(row)).map(row=>[String(row.id),row.productionOrderId||'',row.exporterDealId||''])]);}
 function current(){const mill=typeof currentMill==='undefined'?null:currentMill;if(!mill)throw Error('Select the production mill first.');return {id:typeof editingProdId==='undefined'?null:editingProdId,entity:document.querySelector('#prodEntity')?.value||mill.entity,millName:mill.name,date:document.querySelector('#prodDate')?.value,rows:typeof productionRows==='undefined'?[]:productionRows};}
 function mount(){
  if(host?.isConnected)return host;const production=document.querySelector('#production'),save=production?.querySelector('[onclick="saveProduction()"]');if(!save)return null;
@@ -56,6 +56,18 @@ function prepare(record){
  if(actual.size!==required.size||[...required].some(([key,row])=>actual.get(key)!==row.qty))throw Error('Source lot quantities must equal the actual bags used for each brand and packing size.');
  return {...record,locationId:mill.id,bagAllocationVersion:1,bagStockFingerprint:review.inventory.fingerprint,bagAllocations:allocations};
 }
+async function autoReview(record){
+ const required=new Map(usage(record));if(!required.size)return;
+ if(baseline?.bagAllocationVersion===1&&signature(baseline)===signature(record))return;
+ if(review?.signature===signature(record))return;
+ await load();if(!review||review.signature!==signature(record))throw Error('Bag availability could not be confirmed. Your production entry is retained.');
+ const inputs=[...host.querySelectorAll('[data-source-lot]')];
+ for(const [group,need] of required){const matching=Object.values(review.inventory.lots||{}).filter(lot=>norm(lot.brand)+'|'+Number(lot.packingKg)===group&&!lot.hold);
+  const rows=record.rows.filter(row=>brand(row)&&norm(brand(row))+'|'+Number(row.bagWeight)===group);
+  const selected=new Map();for(const row of rows){let id=row.bagSourceLotId;if(!id){const eligible=matching.filter(lot=>row.exporterDealId?lot.exporterDealId===row.exporterDealId:!lot.exporterDealId);if(eligible.length!==1){host.open=true;throw Error('Choose the actual received source bags for '+need.brand+'. No bag receipt or ambiguous source is assumed.');}id=eligible[0].id;row.bagSourceLotId=id;}selected.set(id,(selected.get(id)||0)+Number(row.actualBagCount??row.bags??0));}
+  for(const [id,qty] of selected){const lot=review.inventory.lots[id],input=inputs.find(i=>i.dataset.sourceLot===id);if(!lot||!input||lot.hold||qty>(lot.committableQty??lot.availableQty??0))throw Error('Insufficient received bags for '+need.brand+'. Record or reconcile the actual receipt before saving.');input.value=qty;}
+ }
+}
 function restore(record=null){baseline=record?clone(record):null;review=null;sequence++;if(mount()){host.querySelector('[data-review-source-bags]').disabled=false;host.querySelector('[data-bag-source-review]').innerHTML=baseline?.bagAllocationVersion?'<h4>Saved source bags</h4><table><thead><tr><th>Original PO / line</th><th>Brand / packing / material</th><th>Bags used</th></tr></thead><tbody>'+(baseline.bagAllocations||[]).map(a=>'<tr><td>'+esc(a.sourceSnapshot?.poNo||a.lotId)+' · '+esc(a.sourceSnapshot?.poLineKey||'')+'</td><td>'+esc(a.sourceSnapshot?.brand||'')+' · '+esc(a.sourceSnapshot?.packingSize||'')+' · '+esc(a.sourceSnapshot?.bagType||'')+'</td><td>'+esc(a.qty)+'</td></tr>').join('')+'</tbody></table>':'';host.querySelector('[data-bag-message]').textContent=baseline?.bagAllocationVersion?'Saved source allocations are retained until you explicitly review a replacement.':'';counts(typeof productionRows==='undefined'?[]:productionRows);}}
-window.TT_PRODUCTION_BAGS={prepare,load,restore,outputs:counts,usage,signature};mount();
+window.TT_PRODUCTION_BAGS={autoReview,prepare,load,restore,outputs:counts,usage,signature};mount();
 })();

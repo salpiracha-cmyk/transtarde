@@ -22,12 +22,12 @@ $masters['business_parties'][]=['id'=>'QA-KE','values'=>['K-Electric','','Servic
 $user=['id'=>1000,'username'=>'qaowner','full_name'=>'QA Mill Handoff','role'=>'Super Admin','permissions'=>['Mill'=>'all','Accounts'=>'all','Directors'=>'all','Exports'=>'all'],'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($password,PASSWORD_DEFAULT),'master_access'=>true];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>[$user],'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]]));
 $exportFixture=[
- 'contracts'=>[['ref'=>'QA-CONTRACT','seller'=>'TTI','status'=>'Contract Received']],
+ 'contracts'=>[['ref'=>'QA-CONTRACT','seller'=>'TTI','status'=>'Contract Received','qty'=>75,'product'=>'IRRI-6 White Rice','packings'=>[['brand'=>'QA PRODUCTION','size'=>50,'unit'=>'KG','type'=>'PP']]]],
  'shipments'=>[['id'=>'QA-LOT','contractRef'=>'QA-CONTRACT','seller'=>'TTI','bagOrders'=>[
   ['poNo'=>'QA-PO','supplier'=>'','lines'=>[['brand'=>'QA PRODUCTION','size'=>50,'unit'=>'KG','type'=>'PP']]]
  ]]]
 ];
-file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>['tt30mills'=>json_encode([['id'=>1,'name'=>'TTI Rice Mills','entity'=>'TTI','type'=>'Own / Default'],['id'=>2,'name'=>'QA Receiving Mill','entity'=>'TTI','type'=>'Own']]),'tt30bags'=>json_encode([['id'=>100,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'QA PRODUCTION','contractRef'=>'QA-CONTRACT','size'=>'50 kg','bagType'=>'PP','ordered'=>100,'received'=>100,'poNo'=>'QA-PO','poLineKey'=>'L1']]),'transtrade_export_v3_operational'=>json_encode($exportFixture),'tt33bagreceipts'=>json_encode([['id'=>101,'bagId'=>100,'date'=>'2026-10-01','qty'=>100]])],'meta'=>[]]));
+file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>['tt32stockadj'=>json_encode([['id'=>'fixture-raw-opening','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','date'=>'2026-07-01','openingStock'=>true,'rawRiceKg'=>10000,'rawStockName'=>'IRRI-6 White Raw Rice']]),'tt30mills'=>json_encode([['id'=>1,'name'=>'TTI Rice Mills','entity'=>'TTI','type'=>'Own / Default'],['id'=>2,'name'=>'QA Receiving Mill','entity'=>'TTI','type'=>'Own']]),'tt30bags'=>json_encode([['id'=>100,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'QA PRODUCTION','contractRef'=>'QA-CONTRACT','size'=>'50 kg','bagType'=>'PP','ordered'=>100,'received'=>100,'poNo'=>'QA-PO','poLineKey'=>'L1']]),'transtrade_export_v3_operational'=>json_encode($exportFixture),'tt33bagreceipts'=>json_encode([['id'=>101,'bagId'=>100,'date'=>'2026-10-01','qty'=>100]])],'meta'=>[]]));
 file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['revision'=>0,'journals'=>new stdClass(),'supplierBills'=>new stdClass()]));
 file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$password,'dataDir'=>TT_DATA_DIR]));
 '''
@@ -108,27 +108,25 @@ def run():
             accounts.locator('[data-refresh]').click();accounts.wait_for_function("document.querySelector('[data-review]').textContent.includes('Outstanding PKR 500.00')")
             current=json.loads(books.read_text());assert sum(l.get('debit',0)-l.get('credit',0) for j in current['journals'].values() for l in j['lines'] if l['account']=='5200')==2000
             # Real authenticated production form: a failed source Save retains its
-            # raw inputs; its later acknowledged amendment survives a lost response.
+            # finished output; its later acknowledged amendment survives a lost response.
             financial_before=books.read_bytes();mill.evaluate("openPanel('production')")
             mill.locator('#prodDate').fill('2026-10-17')
-            mill.locator('#brandType').select_option('rice')
             with mill.expect_response(lambda r:'/api/other_exporter_bags.php?' in r.url and 'purpose=production' in r.url and 'asOf=2026-10-17' in r.url):mill.locator('#refreshProductionBags').click()
-            mill.locator('#brandChoice option[value="PO|100|mills-1"]').wait_for(state='attached');mill.locator('#brandChoice').select_option('PO|100|mills-1');mill.locator('[onclick="addBrandRow()"]').click()
+            mill.get_by_role('combobox',name='Ready Rice brand / SODA').first.select_option('EXPORT|QA-CONTRACT|0')
             mill.locator('#prodTable tr').first.locator('input').first.fill('10')
-            raw=mill.locator('#productionActualInput [data-raw-index="0"]')
-            raw.locator('[data-field="lotRef"]').fill('QA-RAW-LOT');raw.locator('[data-field="grossKg"]').fill('600');mill.locator('#capacityReason').fill('Actual fixture production downtime')
+            assert not mill.locator('#productionActualInput').is_visible()
             mill.locator('[data-review-source-bags]').click();mill.locator('[data-source-lot]').wait_for();mill.locator('[data-source-lot]').fill('10')
             blocked[0]=True;mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for()
-            assert raw.locator('[data-field="grossKg"]').input_value()=='600' and books.read_bytes()==financial_before
+            assert mill.locator('.tt-number-display[aria-label="Ready Rice — QA PRODUCTION quantity"]').input_value()=='10' and books.read_bytes()==financial_before
             with mill.expect_response(lambda r:'/api/operations.mysql.php?asset_refs=1' in r.url and r.request.method=='POST') as production_response:mill.get_by_role('button',name='Save Production',exact=True).click()
             assert production_response.value.status==200,production_response.value.text()
-            mill.wait_for_function("document.querySelector('#productionActualInput [data-field=grossKg]').value === ''")
+            mill.wait_for_function("editingProdId!==null")
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json();productions=json.loads(saved_ops['values']['tt30prod']);assert len(productions)==1
-            run=productions[0];assert run['rawInputs'][0]['grossKg']==600 and run['rows'][0]['bags']==10
+            run=productions[0];assert run['rawInputs']==[] and run['inputBasis']=='OUTPUT_DERIVED' and run['calculatedInputKg']==500 and run['rows'][0]['bags']==10
             assert run['bagAllocationVersion']==1 and run['bagAllocations'][0]['qty']==10 and run['bagAllocations'][0]['sourceSnapshot']['poNo']=='QA-PO'
             inventory=context.request.get(base+'/api/bag_transfers.php?purpose=production&entity=TTI&locationId=mills-1&asOf=2026-10-17').json();assert inventory['inventory']['lots']['PO|100|mills-1']['availableQty']==90
             issues=json.loads(saved_ops['values']['tt36bagissues']);assert len(issues)==1 and issues[0]['usage']['QA PRODUCTION']==10 and issues[0]['userId']==1000
-            mill.evaluate('(id)=>loadProductionForEdit(id)',run['id']);assert mill.locator('#capacityReason').input_value()=='Actual fixture production downtime';raw=mill.locator('#productionActualInput [data-raw-index="0"]');raw.locator('[data-field="grossKg"]').fill('700');mill.locator('#prodTable tr').first.locator('input').first.fill('12')
+            mill.evaluate('(id)=>loadProductionForEdit(id)',run['id']);assert not mill.locator('#productionActualInput').is_visible();mill.locator('#prodTable tr').first.locator('input').first.fill('12')
             mill.locator('[data-review-source-bags]').click();mill.locator('[data-source-lot]').wait_for();mill.locator('[data-source-lot]').fill('12')
             context.unroute('**/api/operations.mysql.php?asset_refs=1',intercept);lost=[True];source_posts=[]
             def lost_ack(route):
@@ -138,11 +136,11 @@ def run():
                         lost[0]=False;response=route.fetch();assert response.status==200,response.text();route.abort();return
                 route.continue_()
             context.route('**/api/operations.mysql.php?asset_refs=1',lost_ack)
-            mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for();assert raw.locator('[data-field="grossKg"]').input_value()=='700'
-            mill.get_by_role('button',name='Save Production',exact=True).click();mill.wait_for_function("document.querySelector('#productionActualInput [data-field=grossKg]').value === ''")
+            mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for();assert mill.locator('.tt-number-display[aria-label="Ready Rice — QA PRODUCTION quantity"]').input_value()=='12'
+            mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for(state='detached');mill.wait_for_function("editingProdId!==null")
             assert len(source_posts)==1,'Confirming the real lost response sent another production mutation'
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json();productions=json.loads(saved_ops['values']['tt30prod']);issues=json.loads(saved_ops['values']['tt36bagissues']);audits=json.loads(saved_ops['values']['tt30prodaudit'])
-            assert len(productions)==1 and productions[0]['id']==run['id'] and productions[0]['rows'][0]['bags']==12 and productions[0]['rawInputs'][0]['grossKg']==700
+            assert len(productions)==1 and productions[0]['id']==run['id'] and productions[0]['rows'][0]['bags']==12 and productions[0]['rawInputs']==[] and productions[0]['calculatedInputKg']==600
             assert len(issues)==1 and issues[0]['usage']['QA PRODUCTION']==12 and len(audits)==1 and audits[0]['userId']==1000 and audits[0]['before']['rows'][0]['bags']==10 and audits[0]['after']['rows'][0]['bags']==12
             assert books.read_bytes()==financial_before,'Production Save or retry wrote financial journals'
             # Native transfer UI -> actual acknowledged controller. No PO or books rewrite.
@@ -285,10 +283,13 @@ def run():
             custody=json.loads(books.read_text());assert custody['journals']==original_journals and custody['exporterDeals']['QA-OTHER-BAGS']['brand']=='QA OTHER BRAND'
             other_lot=other_receipt.value.json()['order'];assert other_lot['received']==30 and other_lot['externalOwnerId']=='QA-OTHER' and other_lot['sourceKind']=='OTHER_EXPORTER'
             selected_id='PO|'+str(other_lot['id'])+'|mills-1'
-            mill.evaluate("openPanel('production')");mill.locator('#prodDate').fill('2026-10-17');mill.locator('#brandType').select_option('rice')
+            mill.evaluate("openPanel('production')");mill.locator('#prodDate').fill('2026-10-17')
             with mill.expect_response(lambda r:'/api/other_exporter_bags.php?' in r.url and 'purpose=production' in r.url and 'asOf=2026-10-17' in r.url):mill.locator('#refreshProductionBags').click()
-            mill.locator('#brandChoice option').filter(has_text='QA OTHER BRAND').wait_for(state='attached');mill.locator('#brandChoice').select_option(selected_id);mill.locator('[onclick="addBrandRow()"]').click()
-            assert mill.evaluate("productionRows.some(r=>r.product==='Ready Rice — QA OTHER BRAND'&&r.exporterDealId==='QA-OTHER-BAGS'&&r.bagWeight===50)")
+            mill.get_by_role('button',name='+ Add another brand',exact=True).click()
+            marking=mill.get_by_role('combobox',name='Ready Rice brand / SODA').last
+            marking.locator('option[value="FELLOW|QA-OTHER-BAGS"]').wait_for(state='attached');marking.select_option('FELLOW|QA-OTHER-BAGS')
+            assert mill.evaluate("productionRows.some(r=>r.product==='Ready Rice — QA OTHER BRAND'&&r.productionOrderId==='FELLOW|QA-OTHER-BAGS'&&r.exporterDealId==='QA-OTHER-BAGS'&&r.bagWeight===50)")
+            assert mill.evaluate('(id)=>productionRows.some(r=>r.bagSourceLotId===id)',selected_id),'Production did not retain the original physical receipt source'
             if output:mill.screenshot(path=str(output/'other-exporter-production-marking.png'),full_page=True)
             assert not errors,errors
             if output:

@@ -209,9 +209,9 @@ function pc_production(array $ops,string $entity='TTI'): array {
         if(!is_array($p)||strtoupper((string)($p['entity']??'TTI'))!==$entity)continue;
         $date=(string)($p['date']??'');if(!mr_valid_date($date))continue;
         $outputs=[];$readyKg=0.;foreach(mr_output_rows($p) as $o){$ready=$o['kind']==='finished';$outputs[]=['product'=>$o['product'],'kg'=>$o['kg'],'ready'=>$ready];if($ready)$readyKg+=$o['kg'];}
-        if(!$outputs&&mr_actual_input($p)===null)continue;
-        $input=mr_actual_input($p);$variety=(string)($p['sourceVariety']??$p['displayName']??$p['variety']??'Rice');
-        $rows[]=['id'=>(string)($p['id']??($date.'|'.($p['shift']??'').'-'.count($rows))),'entity'=>$entity,'date'=>$date,'shift'=>(string)($p['shift']??''),'variety'=>$variety,'varietyKey'=>pc_variety_key($variety),'inputKg'=>$input??0,'inputComplete'=>$input!==null&&$input>0,'readyKg'=>round($readyKg,3),'outputs'=>$outputs,'source'=>$p];
+        if(!$outputs&&mr_consumption_kg($p)===null)continue;
+        $input=mr_consumption_kg($p);$variety=(string)($p['sourceVariety']??$p['displayName']??$p['variety']??'Rice');
+        $rows[]=['id'=>(string)($p['id']??($date.'|'.($p['shift']??'').'-'.count($rows))),'entity'=>$entity,'date'=>$date,'shift'=>(string)($p['shift']??''),'variety'=>$variety,'varietyKey'=>pc_variety_key($variety),'inputBasis'=>mr_is_calculated($p)?'OUTPUT_DERIVED':'MEASURED','inputKg'=>$input??0,'inputComplete'=>$input!==null&&$input>0,'readyKg'=>round($readyKg,3),'outputs'=>$outputs,'source'=>$p];
     }
     usort($rows,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strcmp($a['shift'],$b['shift']));return $rows;
 }

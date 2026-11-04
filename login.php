@@ -9,7 +9,7 @@ if ($current=tt_current_user()) { header('Location: ' . (is_file(TT_DATA_DIR.'/r
 if (session_status()!==PHP_SESSION_ACTIVE) { session_id(''); session_start(); }
 $error = '';
 $notice=match((string)($_GET['expired']??'')){
-    'inactive'=>'You were signed out after one hour without activity.',
+    'inactive'=>'You were signed out after 15 minutes without activity.',
     'credentials'=>'Your login was ended because the account password or access status changed.',
     default=>'',
 };

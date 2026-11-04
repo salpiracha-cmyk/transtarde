@@ -24,7 +24,7 @@ session_write_close();echo json_encode($result);
     first=run(old_a,'create')
     assert first['counter']==7 and first['id']=='migration-fixture'
     assert pathlib.Path(first['path']).resolve()==(root/'transtrade_private/sessions').resolve()
-    assert first['lifetime']==3600 and first['mode']==0o700
+    assert first['lifetime']==900 and first['mode']==0o700
     assert run(old_b,'increment','php_serialize')['counter']==7, 'A worker codec change must not destroy the session'
     record=next((root/'transtrade_private/sessions/records').glob('*.json'))
     original_inode=record.stat().st_ino

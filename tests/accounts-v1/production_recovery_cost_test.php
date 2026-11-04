@@ -36,3 +36,29 @@ require_once dirname(__DIR__,2).'/api/shipment_statement_core.php';
 $shipmentCost=ss_contract_goods($clean,$allocatedOps,['costEntity'=>'TTI','contract'=>'C1'],'2026-10-27',.35);
 near($shipmentCost['rawKg'],500,'Shipment reverses half of actual contract finished output to raw input');near($shipmentCost['rawValue'],30000,'Shipment automatic FIFO purchase cost');near($shipmentCost['processingValue'],1000,'Shipment actual conversion allocation');near($shipmentCost['byproductValue'],2500,'Shipment by-product credit');near($shipmentCost['amountPKR'],28500,'Shipment FIFO contract goods cost reconciles');
 echo "PASS shipment goods working reuses actual contract-linked raw input, finalized purchase rates, conversion and by-product costs\n";
+
+$derived=$p;$derived['id']=991;$derived['inputBasis']='OUTPUT_DERIVED';$derived['recoveryVersion']=2;$derived['rawInputs']=[];$derived['actualInputKg']=null;$derived['calculatedInputKg']=1000;$derived['shiftEntriesComplete']=false;
+mr_validate_inputs($derived,true);ok(mr_actual_input($derived)===null,'Calculated shifts never fabricate weighed input');near(mr_consumption_kg($derived),1000,'Consumption equals recorded outputs');
+$derivedValues=['tt30prod'=>json_encode([$derived]),'tt30slips'=>'[]'];$derivedStock=tt_inv_stock($derivedValues,['entity'=>'TTI','millName'=>'TTI Rice Mills']);near($derivedStock['IRRI-6 White Raw Rice']??0,-1000,'Output-accounted stock consumption matches production');
+$derivedReport=mr_report([$derived],['entity'=>'TTI','mode'=>'daily']);near($derivedReport['totals']['recoveryPct'],70,'Calculated recovery uses all recorded outputs');ok($derivedReport['groups'][0]['provisional'],'Incomplete shift is explicitly provisional');ok(in_array('OUTPUT_DERIVED',$derivedReport['groups'][0]['inputBasis'],true),'Reports retain calculated basis');
+$bad=$derived;$bad['calculatedInputKg']=900;try{mr_validate_inputs($bad,true);throw new RuntimeException('Forged calculated input accepted');}catch(DomainException $e){}
+$bad=$derived;$bad['rawInputs']=$p['rawInputs'];try{mr_validate_inputs($bad,true);throw new RuntimeException('Derived shift accepted fabricated actual lots');}catch(DomainException $e){}
+$bad=$derived;$bad['processingLossKg']=10;try{mr_validate_inputs($bad,true);throw new RuntimeException('Uncontrolled loss accepted');}catch(DomainException $e){}
+$derived['rows'][0]['bags']=28;$derived['calculatedInputKg']=1700;mr_validate_inputs($derived,true);$derivedValues['tt30prod']=json_encode([$derived]);$replaced=tt_inv_stock($derivedValues,['entity'=>'TTI','millName'=>'TTI Rice Mills']);near($replaced['IRRI-6 White Raw Rice']??0,-1700,'Replaced report consumes its revised total once, never old plus new');
+echo "PASS output-accounted consumption, honest measured basis, provisional recovery, forged-weight/loss rejection and replacement stock reconciliation\n";
+
+$multi=$derived;$multi['rows'][]=array_replace($multi['rows'][0],['id'=>992,'product'=>'Ready Rice — Other brand','bags'=>14]);$multi['calculatedInputKg']=2400;$multi['recoveryBrand']='';$multi['recoveryContractRef']='';$multi['recoveryOutputContexts']=[];mr_validate_inputs($multi,true);$multiReport=mr_report([$multi],['entity'=>'TTI','mode'=>'brand']);near($multiReport['totals']['inputKg'],2400,'Multi-brand allocated consumption is counted once');near($multiReport['totals']['byProductKg'],300,'Shared physical by-products are counted once across brands');foreach($multiReport['groups'] as $group)ok($group['inputComplete'],'Every finished brand has its explicit calculated consumption share');
+echo "PASS multi-brand calculated consumption and by-product allocation totals remain reconciled\n";
+
+$guardRun=$multi;$guardRun['rows']=[$p['rows'][0],$p['rows'][1]];$guardRun['calculatedInputKg']=1000;
+$without=['tt30prod'=>'[]','tt30slips'=>'[]'];$incoming=['tt30prod'=>json_encode([$guardRun]),'tt30slips'=>'[]'];try{tt_inv_guard_calculated_stock($without,$incoming,[$guardRun]);throw new RuntimeException('Unfunded raw stock accepted');}catch(DomainException $e){}
+$arrival=['entity'=>'TTI','millName'=>'TTI Rice Mills','date'=>'2026-09-01','unloadingDate'=>'2026-09-01','displayName'=>'IRRI-6 White Raw Rice','payableWeight'=>3000];$without['tt30slips']=json_encode([$arrival]);$incoming['tt30slips']=$without['tt30slips'];tt_inv_guard_calculated_stock($without,$incoming,[$guardRun]);
+$arrival['unloadingDate']='2099-01-01';$without['tt30slips']=json_encode([$arrival]);$incoming['tt30slips']=$without['tt30slips'];try{tt_inv_guard_calculated_stock($without,$incoming,[$guardRun]);throw new RuntimeException('Future arrival funded past production');}catch(DomainException $e){}
+echo "PASS calculated production rejects insufficient or future-funded raw stock inside the canonical inventory transaction\n";
+
+$loose=$guardRun;$loose['rows'][]=['id'=>993,'product'=>'Sweeping','outputUnit'=>'KG','systemKg'=>25,'bags'=>0,'bagWeight'=>0];near(tt_inv_output_kg($loose,'Sweeping'),25,'Physical reconciliation reads loose actual kilograms consistently with stock and recovery');
+
+near(strlen(tt_inv_production_date('2018-01-01','2026-11-04T12:00:00Z')),10,'All past production dates remain valid, without five-day or financial-year cutoff');
+if(tt_inv_production_date('2026-11-04','2026-11-03T22:00:00Z')!=='2026-11-04')throw new RuntimeException('Production date must use Karachi business day');
+try{tt_inv_production_date('2026-11-05','2026-11-04T12:00:00Z');throw new RuntimeException('Future production accepted');}catch(DomainException $e){}
+echo "PASS unrestricted historical production dates, Karachi date boundary and future-date rejection\n";
