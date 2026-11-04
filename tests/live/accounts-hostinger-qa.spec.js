@@ -54,6 +54,21 @@ test('Mill export bags: other-exporter receipt route and scoped production marki
   const scope=await page.evaluate(()=>({entity:'TTI',locationId:String(window.TT_MODULE_ACCESS.masters.mills.find(m=>m.values?.[0]==='TTI Rice Mills').id)}));
   const response=await page.request.get(BASE_URL+'/api/other_exporter_bags.php?'+new URLSearchParams({...scope,purpose:'production'}));expect(response.status()).toBe(200);const data=await response.json();expect(data.ok).toBe(true);
   for(const row of data.choices){expect(row.available).toBeGreaterThan(0);expect(row.lotId).toBeTruthy();}
+  await activate(page.locator('#newbags > button.back'));
+  await activate(page.locator('[onclick="openPanel(\'production\')"]'));
+  const instructed=data.deals.filter(d=>!d.commodity||d.commodity==='RICE');
+  await expect.poll(()=>page.evaluate(()=>window.TT_BAG_CHOICES.instructions().length),{timeout:45_000}).toBe(instructed.length);
+  for(const deal of instructed){
+    await page.locator('#productionFellowSoda').selectOption(deal.id);
+    const text=await page.locator('#productionFellowDetails').innerText();
+    expect(text.includes(deal.brand||'Unbranded'),'Saved instructed brand must be visible').toBe(true);
+    expect(text.includes(deal.product||'See original SODA'),'Saved instructed product must be visible').toBe(true);
+    expect(text.includes(deal.packing||'Not specified'),'Saved instructed packing must be visible').toBe(true);
+    if(!data.choices.some(c=>c.exporterDealId===deal.id))expect(text.includes('No received bag lot is linked'),'Unreceived instruction must explain bag status').toBe(true);
+  }
+  await expect(page.locator('#productionAddBrand')).toBeDisabled();
+  expect(await page.locator('#production .search-icon').evaluate(el=>{const b=el.getBoundingClientRect(),c=el.closest('.card').getBoundingClientRect();return b.x>=c.x&&b.y>=c.y&&b.right<=c.right&&b.bottom<=c.bottom;}),'Report search must remain in its Production card').toBe(true);
+  console.log('LIVE_PRODUCTION_INSTRUCTIONS_OK '+JSON.stringify({instructedSodasChecked:instructed.length,stocklessInstructionsVisible:instructed.filter(d=>!data.choices.some(c=>c.exporterDealId===d.id)).length,physicalWrites:0,financialWrites:0}));
   expect(writes).toEqual([]);
   // Marking names and eligibility reasons only: never log prices, parties, stock quantities or financial records.
   console.log('LIVE_BAG_MARKING_SOURCE_REVIEW '+JSON.stringify({sources:data.diagnostics.map(r=>({brand:r.brand,reason:r.reason})),currentChoiceCount:data.choices.length,financialWrites:0,physicalWrites:0}));

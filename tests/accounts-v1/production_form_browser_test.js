@@ -30,6 +30,7 @@ const native=name=>{const a=html.indexOf('function '+name+'('),b=html.indexOf('\
   assert.equal(await page.evaluate(()=>productionRows.find(row=>row.exporterDealId==='F1').bagSourceLotId),'FIX-LOT-1');assert.equal(await page.evaluate(()=>productionRows.find(row=>row.exporterDealId==='F1').bagWeight),40);assert.equal(await page.locator('[data-field=lotRef]').inputValue(),'KEEP-RAW-LOT');
   assert.equal(await page.evaluate(()=>TT_PRODUCTION_RECOVERY.capture(productionRows).rawInputs.some(row=>'undefined' in row)),false,'Numeric display control created an undefined raw-input field');
   assert.deepEqual(await page.evaluate(()=>writes),[],'Planning/output selection posted business data');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2),false,'Page overflow at '+width);assert.deepEqual(errors,[]);
+  assert(await page.locator('#production .search-icon').evaluate(el=>{const b=el.getBoundingClientRect(),c=el.closest('.card').getBoundingClientRect();return b.x>=c.x&&b.y>=c.y&&b.right<=c.right&&b.bottom<=c.bottom;}),'Production report search escaped its section');
   const output=process.env.TT_QA_OUTPUT||(process.env.RUNNER_TEMP?path.join(process.env.RUNNER_TEMP,'inventory-evidence'):'');if(output){fs.mkdirSync(output,{recursive:true});await page.screenshot({path:path.join(output,'production-clean-'+width+'.png'),fullPage:true});}
   await page.close();
  }}finally{await browser.close();}
