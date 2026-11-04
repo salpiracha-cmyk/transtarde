@@ -375,6 +375,7 @@ jobs:
           python3 tests/accounts-v1/mill_gate_pass_http_test.py
           python3 tests/accounts-v1/mill_recovery_http_test.py
           node tests/accounts-v1/mill_recovery_ui_test.js
+          node tests/accounts-v1/production_form_browser_test.js
           node tests/accounts-v1/mill_print_presentation_test.js
           node tests/accounts-v1/mill_reference_scope_test.js
           node tests/accounts-v1/mill_reference_ui_test.js

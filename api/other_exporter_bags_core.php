@@ -4,6 +4,11 @@ require_once __DIR__.'/bag_receipts_core.php';
 require_once __DIR__.'/bag_arrangement_core.php';
 
 /** External ownership is a physical custody dimension, never a TTI bag purchase. */
+function oeb_instruction_projection(array $deal): array {
+    // Operational instructions remain visible before a physical bag receipt.
+    // Commercial rates, settlements and internal agreement history stay private.
+    return array_intersect_key($deal,array_flip(['id','entity','party','partyId','brand','packing','reference','version','date','quantityMT','commodity','product','productionReady','productionMillId','productionMillName','productionStockName','specificationMode','fullSpecification','productionNotes','productionBagTareGrams']))+['bagResponsibility'=>ba_physical_responsibility($deal)];
+}
 function oeb_active(array $deal,array $exports=[]): bool {
     if(($deal['direction']??'')!=='SALE'||preg_match('/^(deleted|closed|completed|cancelled)$/i',(string)($deal['status']??'')))return false;
     $ref=(string)($deal['contractRef']??'');
