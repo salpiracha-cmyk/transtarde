@@ -286,7 +286,7 @@ def browser_checks(base,clients,request,get,post,private,scope,output):
             check(not page.locator('body').inner_text().lower().find('ghati')>=0,'No Ghati wording in operational page')
             if output:page.screenshot(path=str(Path(output)/'mill-physical-workflow.png'),full_page=True)
             page.evaluate("openPanel('production')")
-            check(page.locator('#productionActualInput').is_visible(),'Actual input card appears in the production form')
+            check(not page.locator('#productionActualInput').is_visible(),'Ordinary shifts do not require measured raw-input entry');check(page.locator('#prodTable tr').first.get_by_role('combobox',name='Ready Rice brand / SODA').count()==1,'Production starts with Ready Rice')
             if output:page.screenshot(path=str(Path(output)/'mill-actual-input-entry.png'),full_page=True)
             check(page.locator('#prodShiftComplete').is_visible(),'Mill only confirms that all shift lots have been entered')
             # Direct management URL remains blocked even from the authenticated Mill browser.
