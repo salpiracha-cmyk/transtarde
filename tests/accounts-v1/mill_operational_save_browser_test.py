@@ -192,10 +192,23 @@ def run():
             assert mill.evaluate("""()=>{const d=window.__arrivalOtherDraft;if(localStorage.getItem(d.key)!==d.attempted)return false;return window.TT_SHARED_SYNC.restoreStaged(d.key,d.before,d.attempted)}""")
             # Actual expired session: original device fields survive redirect, re-login and explicit restore.
             phone.get_by_role('button',name='Close recovery',exact=True).click();phone.locator('#qVehicle').fill('QA-910');phone.locator('#qBags').fill('8');phone.locator('#qWeight').fill('800');phone.locator('#qParty').fill('Unsubmitted before expired sign-in')
+            # Failed resume checks lock all entry without posting or losing the original.
+            before_locked=(data/'operations.json').read_bytes()
+            def fail_session_read(route):
+                if route.request.method=='GET':route.abort()
+                else:route.continue_()
+            phone_context.route('**/api/session_activity.php',fail_session_read)
+            phone.evaluate('void window.TT_MILL_SESSION.verify()');phone.locator('#ttMillSessionGate').filter(has_text='Unable to confirm').wait_for()
+            phone.locator('#queueSaveBtn').evaluate('(button)=>button.click()');assert (data/'operations.json').read_bytes()==before_locked
+            assert phone.locator('#qVehicle').input_value()=='QA-910' and phone.locator('#qBags').input_value()=='8'
+            phone_context.unroute('**/api/session_activity.php',fail_session_read);phone.get_by_role('button',name='Retry session check',exact=True).click();phone.wait_for_function('window.TT_MILL_SESSION.ready()')
             (app/'fixture-expire.php').write_text("<?php require __DIR__.'/auth_store.php';$_SESSION['last_activity_at']=time()-3601;echo 'expired fixture';")
             assert phone_context.request.get(base+'/fixture-expire.php').status==200
-            phone.evaluate("void window.TT_ARRIVAL_RECOVERY.checkLive()");phone.wait_for_url('**/login.php*')
-            device_draft=phone.evaluate("Object.keys(localStorage).filter(k=>k.startsWith('tt_ui_arrival_form_')).map(k=>JSON.parse(localStorage.getItem(k)))");assert any(d['fields']['qVehicle']=='QA-910' and d['fields']['qBags']=='8' for d in device_draft)
+            # Phone timers are suspended: the very first key after six hours must
+            # check the server and redirect BEFORE inserting that extra digit.
+            phone.evaluate('window.__fixtureClock=Date.now;Date.now=()=>window.__fixtureClock()+6*60*60*1000')
+            phone.locator('#qBags').press('9');phone.wait_for_url('**/login.php*')
+            device_draft=phone.evaluate("Object.keys(localStorage).filter(k=>k.startsWith('tt_ui_arrival_form_')).map(k=>JSON.parse(localStorage.getItem(k)))");assert any(d['fields']['qVehicle']=='QA-910' and d['fields']['qBags']=='8' for d in device_draft),'Expired first key altered the preserved original'
             phone.locator('[name="username"]').fill('qaowner');phone.locator('[name="password"]').fill(credentials['password']);phone.locator('button[type="submit"]').click();phone.wait_for_load_state('domcontentloaded');phone.goto(base+'/module.php?id=milling');phone.locator('.mill-card[onclick="chooseMill(1)"]').click();phone.evaluate("openPanel('queue')")
             assert phone.locator('#qVehicle').input_value()=='';phone.get_by_role('button',name='Restore arrival draft',exact=True).click();assert phone.locator('#qVehicle').input_value()=='QA-910' and phone.locator('#qWeight').input_value()=='800'
             before_submit=json.loads(phone_context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30queue']);assert not any(r['vehicle']=='QA-910' for r in before_submit),'Device recovery posted an unsubmitted arrival'

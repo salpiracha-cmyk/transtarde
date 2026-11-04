@@ -33,11 +33,13 @@
         headers:{'Content-Type':'application/json','X-TT-User-Activity':'1','X-CSRF-Token':token},
         body:JSON.stringify({csrf:token})
       });
-      if(response.status===401)redirectToSignIn('/login.php?expired=inactive');
+      if(response.status===401||(response.status===403&&window.TT_MILL_SESSION))redirectToSignIn('/login.php?expired=inactive');
+      else if(response.ok)window.TT_MILL_SESSION?.activityConfirmed?.(lastHeartbeat);
     }catch(_error){/* Normal application requests still enforce the server timeout. */}
   };
   addEventListener('tt:session-expired',()=>redirectToSignIn('/login.php?expired=inactive'));
   const markActivity=()=>{
+    if(window.TT_MILL_SESSION?.ready?.()===false)return;
     const now=Date.now();
     lastActivity=now;
     writeShared(now);
@@ -45,7 +47,8 @@
   };
 
   const shared=readShared();
-  if(shared>0)lastActivity=shared;else writeShared(lastActivity);
+  if(access().moduleId==='milling')writeShared(lastActivity);
+  else if(shared>0)lastActivity=shared;else writeShared(lastActivity);
   for(const name of ['pointerdown','keydown','input','change','touchstart','scroll']){
     addEventListener(name,markActivity,{capture:true,passive:true});
   }

@@ -23,6 +23,8 @@ header('X-LiteSpeed-Cache-Control: no-cache');
 $html = (string)file_get_contents($modules[$id]);
 $millingTaskScripts = '';
 if ($id === 'milling') {
+    $sessionGateFile=__DIR__.'/accounts/mill-session-gate.js';
+    if(!is_file($sessionGateFile)||($millingSessionGate=file_get_contents($sessionGateFile))===false){http_response_code(503);exit('Milling session protection is unavailable. Reload before making entries.');}
     $gatePassFile = __DIR__.'/milling/gate-pass.js';
     if (!is_file($gatePassFile) || ($gatePass = file_get_contents($gatePassFile)) === false) { http_response_code(503); exit('Gate pass assets are unavailable.'); }
     $html = tt_replace_html_once(
@@ -106,6 +108,7 @@ $access = [
 unset($access['masters']['export_realization_charges']);
 $bootstrap = '<script>'.str_replace('</script','<\\/script',(string)file_get_contents(__DIR__.'/commodity-flow.js')).'</script><script>window.TT_MODULE_ACCESS='.json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT).';</script>';
 if($id==='milling')$bootstrap.='<script id="milling-safe-network">'.str_replace('</script','<\\/script',$millingNetworkScript).'</script>';
+if($id==='milling')$bootstrap.='<script id="milling-session-gate">'.str_replace('</script','<\\/script',$millingSessionGate).'</script>';
 $sharedBootstrap = <<<'HTML'
 <style>html.tt-save-waiting body::after{content:'Saving…';position:fixed;inset:0;display:grid;place-items:center;z-index:2147482999;background:rgba(12,32,22,.45);color:#fff;font:700 20px Arial}</style>
 <script id="tt-shared-operations-bootstrap">
