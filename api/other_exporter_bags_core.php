@@ -87,7 +87,7 @@ function oeb_production_orders(array $values,array $books,array $scope,string $d
     $historical=$date<(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
     $closed=static fn($r)=>!empty($r['completed'])||(bool)preg_match('/^(closed|completed)$/i',(string)($r['status']??''));
     $active=static fn($r)=>empty($r['cancelled'])&&!preg_match('/^(cancelled|deleted)$/i',(string)($r['status']??''))&&($historical||!$closed($r))&&($r['date']??'')<=$date;
-    foreach((array)($books['exporterDeals']??[]) as $d){if(($d['entity']??'')!==$scope['entity']||(!$historical&&!oeb_active($d,(array)$root))||!$active($d)||($d['date']??'')>$date||(($d['commodity']??'RICE')!=='RICE'))continue;
+    foreach((array)($books['exporterDeals']??[]) as $d){if(($d['direction']??'')!=='SALE'||($d['entity']??'')!==$scope['entity']||(!$historical&&!oeb_active($d,(array)$root))||!$active($d)||($d['date']??'')>$date||(($d['commodity']??'RICE')!=='RICE'))continue;
         if(!empty($d['productionMillName'])&&bti_norm($d['productionMillName'])!==bti_norm($scope['millName']))continue;
         $rows[]=['orderId'=>'FELLOW|'.$d['id'],'sourceKind'=>'FELLOW','historicalClosed'=>$closed($d),'sourceId'=>$d['id'],'entity'=>$scope['entity'],'party'=>(string)($d['party']??''),'brand'=>(string)($d['brand']??''),'quantityMT'=>$d['quantityMT']??null,'product'=>(string)($d['product']??''),'packing'=>(string)($d['packing']??''),'contractRef'=>'','bagResponsibility'=>ba_physical_responsibility($d),'ready'=>!empty($d['productionReady']),'version'=>(int)($d['version']??0)];
     }
@@ -97,8 +97,8 @@ function oeb_production_orders(array $values,array $books,array $scope,string $d
         foreach($packs as $i=>$pack)$rows[]=['orderId'=>'EXPORT|'.$ref.'|'.$i,'sourceKind'=>'EXPORT','historicalClosed'=>$closed($c),'sourceId'=>$ref,'entity'=>$entity,'party'=>$customers[(string)($c['customerId']??'')]??(string)($c['customer']??''),'brand'=>(string)($pack['brand']??''),'quantityMT'=>$c['qty']??null,'product'=>(string)($c['product']??''),'packing'=>trim((string)($pack['size']??'').' '.(string)($pack['unit']??'')),'contractRef'=>$ref,'ready'=>true,'version'=>hash('sha256',json_encode([$c['packings']??[],$c['qty']??null,$c['status']??'']))];
     }
     foreach(bti_rows($values,'tt35localsales') as $r){if(($r['entity']??'TTI')!==$scope['entity']||!$active($r)||bti_norm($r['millName']??$r['mill']??'TTI Rice Mills')!==bti_norm($scope['millName']))continue;
-        $qty=(float)($r['qty']??0);$loaded=array_sum(array_column((array)($r['loads']??[]),'kg'));if($qty>0&&$loaded>=$qty)continue;
-        $id=(string)($r['ref']??$r['id']??'');if($id==='')continue;$rows[]=['orderId'=>'LOCAL|'.$id,'sourceKind'=>'LOCAL','sourceId'=>$id,'entity'=>$scope['entity'],'party'=>(string)($r['buyer']??$r['party']??'Local sale'),'brand'=>(string)($r['brand']??'Local Bags'),'quantityMT'=>$qty/1000,'product'=>(string)($r['product']??''),'packing'=>'','contractRef'=>'','ready'=>true,'version'=>hash('sha256',json_encode([$r['brand']??'',$r['qty']??0,$r['status']??'']))];
+        $qty=(float)($r['qty']??0);$loaded=array_sum(array_column((array)($r['loads']??[]),'kg'));if(!$historical&&$qty>0&&$loaded>=$qty)continue;
+        $id=(string)($r['ref']??$r['id']??'');if($id==='')continue;$rows[]=['orderId'=>'LOCAL|'.$id,'sourceKind'=>'LOCAL','historicalClosed'=>$closed($r)||($qty>0&&$loaded>=$qty),'sourceId'=>$id,'entity'=>$scope['entity'],'party'=>(string)($r['buyer']??$r['party']??'Local sale'),'brand'=>(string)($r['brand']??'Local Bags'),'quantityMT'=>$qty/1000,'product'=>(string)($r['product']??''),'packing'=>'','contractRef'=>'','ready'=>true,'version'=>hash('sha256',json_encode([$r['brand']??'',$r['qty']??0,$r['status']??'']))];
     }
     foreach((array)($inventory['lots']??[]) as $lot){
         $original=null;foreach(bti_rows($values,'tt30bags') as $bag)if((string)($bag['id']??'')===(string)($lot['originBagId']??''))$original=$bag;if(!$original)continue;
