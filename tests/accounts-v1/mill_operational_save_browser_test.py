@@ -190,6 +190,23 @@ def run():
             mill.locator('#queueViewFrom').fill(mill.evaluate('dateMinus(4)'));mill.locator('#queueViewTo').fill(mill.evaluate('today()'));mill.locator('#queueViewTo').dispatch_event('change');mill.locator('#queueTable').filter(has_text='QA-909').wait_for();assert mill.locator('#queueTable tr[onclick]').count()==0
             mill.locator('#queueRangeMode').uncheck();assert mill.locator('#qVehicle').input_value()=='DRAFT-901',mill.locator('#qVehicle').input_value();assert mill.locator('#queueViewDate').input_value()==pc_date,(mill.locator('#queueViewDate').input_value(),pc_date)
             assert mill.evaluate("""()=>{const d=window.__arrivalOtherDraft;if(localStorage.getItem(d.key)!==d.attempted)return false;return window.TT_SHARED_SYNC.restoreStaged(d.key,d.before,d.attempted)}""")
+            # The Accounts replica uses a nested authenticated Mill frame. Real
+            # clicks must wait for its initial session check and still open the
+            # same Local Sales screen without posting anything.
+            replica_books=books.read_bytes();replica_ops=(data/'operations.json').read_bytes()
+            replica=context.new_page();replica.on('pageerror',lambda e:errors.append(str(e)));replica.goto(base+'/accounts/local-sales.php?entity=TTI')
+            shared_mill=replica.frame_locator('#millLocalFrame')
+            try:
+                shared_mill.locator('body[data-tt-local-sales-ready="true"]').wait_for()
+                chooser=shared_mill.get_by_role('button',name='🏭 TTI Rice Mills Own / Default',exact=True)
+                if chooser.count() and chooser.is_visible():chooser.click()
+                shared_mill.frame_locator('iframe[title="Locked Local Party Sale"]').get_by_role('heading',name='Active Local Sales',exact=True).wait_for()
+            except Exception as error:
+                raise AssertionError({'replicaUrl':replica.url,'replicaText':replica.locator('body').inner_text()[:1000],'frames':[(frame.url,frame.locator('body').inner_text()[:1400]) for frame in replica.frames],'errors':errors}) from error
+            assert books.read_bytes()==replica_books and (data/'operations.json').read_bytes()==replica_ops,'Replica navigation changed stock or books'
+            replica.close()
+            print('PASS native Accounts replica iframe navigation waits for Mill session verification and keeps books/stock unchanged')
+            # The phone deliberately shares the cloned server session; test the replica before expiring that session.
             # Actual expired session: original device fields survive redirect, re-login and explicit restore.
             phone.get_by_role('button',name='Close recovery',exact=True).click();phone.locator('#qVehicle').fill('QA-910');phone.locator('#qBags').fill('8');phone.locator('#qWeight').fill('800');phone.locator('#qParty').fill('Unsubmitted before expired sign-in')
             # Failed resume checks lock all entry without posting or losing the original.
