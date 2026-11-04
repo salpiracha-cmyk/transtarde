@@ -20,7 +20,7 @@ assert.match(accountsIndex,/tt_replace_html_once/);
 assert.doesNotMatch(accountsIndex,/app-bundle\.php\?v=\d/,'Accounts must not depend on a hand-maintained bundle version');
 assert.match(bundle,/private, no-cache, must-revalidate/);
 assert.doesNotMatch(bundle,/immutable/);
-assert.match(auth,/TT_SESSION_IDLE_TIMEOUT = 3600/);
+assert.match(auth,/TT_SESSION_IDLE_TIMEOUT = 900/);
 assert.match(auth,/tt_bind_user_session/);
 assert.match(auth,/last_activity_at/);
 assert.match(auth,/HTTP_X_TT_USER_ACTIVITY/);
