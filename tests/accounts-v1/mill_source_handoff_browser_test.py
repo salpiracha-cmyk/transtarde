@@ -283,10 +283,13 @@ def run():
             custody=json.loads(books.read_text());assert custody['journals']==original_journals and custody['exporterDeals']['QA-OTHER-BAGS']['brand']=='QA OTHER BRAND'
             other_lot=other_receipt.value.json()['order'];assert other_lot['received']==30 and other_lot['externalOwnerId']=='QA-OTHER' and other_lot['sourceKind']=='OTHER_EXPORTER'
             selected_id='PO|'+str(other_lot['id'])+'|mills-1'
-            mill.evaluate("openPanel('production')");mill.locator('#prodDate').fill('2026-10-17');mill.locator('#brandType').select_option('rice')
+            mill.evaluate("openPanel('production')");mill.locator('#prodDate').fill('2026-10-17')
             with mill.expect_response(lambda r:'/api/other_exporter_bags.php?' in r.url and 'purpose=production' in r.url and 'asOf=2026-10-17' in r.url):mill.locator('#refreshProductionBags').click()
-            mill.locator('#brandChoice option').filter(has_text='QA OTHER BRAND').wait_for(state='attached');mill.locator('#brandChoice').select_option(selected_id);mill.locator('[onclick="addBrandRow()"]').click()
-            assert mill.evaluate("productionRows.some(r=>r.product==='Ready Rice — QA OTHER BRAND'&&r.exporterDealId==='QA-OTHER-BAGS'&&r.bagWeight===50)")
+            mill.get_by_role('button',name='+ Add another brand',exact=True).click()
+            marking=mill.get_by_role('combobox',name='Ready Rice brand / SODA').last
+            marking.locator('option[value="FELLOW|QA-OTHER-BAGS"]').wait_for(state='attached');marking.select_option('FELLOW|QA-OTHER-BAGS')
+            assert mill.evaluate("productionRows.some(r=>r.product==='Ready Rice — QA OTHER BRAND'&&r.productionOrderId==='FELLOW|QA-OTHER-BAGS'&&r.exporterDealId==='QA-OTHER-BAGS'&&r.bagWeight===50)")
+            assert mill.evaluate('(id)=>productionRows.some(r=>r.bagSourceLotId===id)',selected_id),'Production did not retain the original physical receipt source'
             if output:mill.screenshot(path=str(output/'other-exporter-production-marking.png'),full_page=True)
             assert not errors,errors
             if output:
