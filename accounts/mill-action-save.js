@@ -50,7 +50,7 @@
   try{localStorage.setItem(token,JSON.stringify(intent));}catch{alert('The retry identity could not be retained. No request was sent.');return;}
   busy=true;const form=document.querySelector('.panel.active'),wasInert=form?.inert;if(form)form.inert=true;
   try{const saved=await window.TT_SHARED_SYNC.commitMillAction(key,intent.record,before,prefix);localStorage.removeItem(token);document.querySelectorAll('[data-mill-action-recovery]').forEach(e=>{if(e.dataset.millActionRecovery===token)e.remove();});try{onSaved?.(saved);}catch{alert(label+' is saved. Reopen the screen to refresh its display.');}return saved;}
-  catch(e){if(e.editable){intent.editable=true;localStorage.setItem(token,JSON.stringify(intent));}pendingPanel(token,intent);window.TT_ARRIVAL_RECOVERY?.capturePending();alert(e.message+' Your entry is retained. Retry Save to confirm the same record.');}
+  catch(e){if(key==='tt30queue'){const status=document.getElementById('queueSaveStatus');if(status){status.textContent='NOT SAVED TO SERVER — '+e.message+' Your original entry is retained for confirmation.';status.style.color='#b42318';}}if(e.editable){intent.editable=true;localStorage.setItem(token,JSON.stringify(intent));}pendingPanel(token,intent);window.TT_ARRIVAL_RECOVERY?.capturePending();alert(e.message+' Your entry is retained. Retry Save to confirm the same record.');}
   finally{busy=false;if(form)form.inert=wasInert;}
  }
  window.TT_MILL_ACTION_SAVE={commit,save,showRecovery};

@@ -133,6 +133,25 @@ jobs:
             }catch(Throwable){$row['complete']=false;}
             $out['hostStorage']['generatedArtifacts'][$kind]=$row;
           }
+          // ARRIVAL_OPERATOR_AUDIT_FUNCTION_START
+          function arrival_operator_readonly_summary(array $auth,?array $ops,?array $inbox):array {
+            $rows=null;if(isset($ops['values']['tt30queue'])){$rows=json_decode((string)$ops['values']['tt30queue'],true);if(!is_array($rows)||!array_is_list($rows))$rows=null;}
+            $out=['fileQueueReadable'=>$rows!==null,'fileQueueRecords'=>$rows===null?null:count($rows),'fileQueueVersion'=>$ops['meta']['tt30queue']['version']??null,'fileQueueUpdatedAt'=>$ops['meta']['tt30queue']['updatedAt']??null,'affectedDateCounts'=>[],'accounts'=>[],'recoveryInboxReadable'=>$inbox!==null,'physicalWrites'=>0,'financialWrites'=>0];
+            foreach(['2026-10-30','2026-10-31','2026-11-01','2026-11-02','2026-11-03','2026-11-04'] as $day)$out['affectedDateCounts'][$day]=$rows===null?null:count(array_filter($rows,static fn($r)=>is_array($r)&&($r['date']??'')===$day));
+            foreach((array)($auth['users']??[]) as $user){
+              $name=strtolower(preg_replace('/[^a-z]/i','',(string)($user['username']??'').' '.(string)($user['full_name']??'')));
+              $label=str_contains($name,'irfan')?'Irfan':(str_contains($name,'yarazam')||str_contains($name,'yaraazam')?'Yar Azam':'');if($label==='')continue;
+              $grant=$user['permissions']['Mill']??null;$queue=is_array($grant)?($grant['queue']??[]):[];$roles=['Super Admin','Director'];$derived=in_array($user['role']??'',$roles,true)||$grant==='all';
+              $actions=$derived?['View','Create','Edit']:array_values(array_intersect(['View','Create','Edit','Approve','Delete','Print','Reports'],is_array($queue)?array_merge(array_values(array_filter((array)$grant,'is_string')),$queue):[]));
+              $recovered=$inbox===null?null:count(array_filter((array)($inbox['records']??[]),static fn($r)=>(int)($r['userId']??0)===(int)($user['id']??-1)&&($r['record']['date']??'')>='2026-10-30'&&($r['record']['date']??'')<='2026-11-04'));
+              $out['accounts'][]=['matchedOperator'=>$label,'active'=>!empty($user['active']),'role'=>(string)($user['role']??''),'configuredQueueActions'=>$actions,'assignedLocation'=>(string)($user['location']??''),'configuredTtiActions'=>array_values(array_intersect(['View','Create','Edit'],(array)($user['permissions']['Accounts']['entity-tti']??[]))),'lastSuccessfulSignInAt'=>$user['last_login_at']??null,'recentServerRecoveryCopies'=>$recovered];
+            }
+            return $out;
+          }
+          // ARRIVAL_OPERATOR_AUDIT_FUNCTION_END
+          $arrivalRead=static function(string $file):?array {if(!is_file($file)||is_link($file))return null;$h=@fopen($file,'rb');if(!$h||!flock($h,LOCK_SH)){if(is_resource($h))fclose($h);return null;}try{$value=json_decode((string)stream_get_contents($h),true);return is_array($value)?$value:null;}finally{flock($h,LOCK_UN);fclose($h);}};
+          $arrivalAuth=$arrivalRead($private.'/auth.json');
+          $out['arrivalOperatorReview']=$arrivalAuth===null?['authReadable'=>false]:arrival_operator_readonly_summary($arrivalAuth,$arrivalRead($private.'/operations.json'),is_file($private.'/arrival_recovery.json')?$arrivalRead($private.'/arrival_recovery.json'):['records'=>[]]);
           echo json_encode($out,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n";
           PHP
           echo 'HOST_FILESYSTEM_INODES total used free percentage'

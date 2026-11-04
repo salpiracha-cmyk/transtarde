@@ -18,5 +18,5 @@ try {
     }
     // Same collection visibility as operational reads, without records or actor metadata.
     $versions=array_filter($versions,static fn($key)=>isset(os_key_grants()[$key])&&os_key_visible($user,$key),ARRAY_FILTER_USE_KEY);
-    echo json_encode(['ok'=>true,'versions'=>(object)$versions],JSON_THROW_ON_ERROR);
+    echo json_encode(['ok'=>true,'versions'=>(object)$versions,'clientBuild'=>is_file(dirname(__DIR__).'/.transtrade-release')?trim((string)file_get_contents(dirname(__DIR__).'/.transtrade-release')):hash_file('sha256',dirname(__DIR__).'/module.php')],JSON_THROW_ON_ERROR);
 } catch(Throwable $e){error_log('Mill versions: '.$e->getMessage());http_response_code(503);echo json_encode(['ok'=>false,'error'=>'Live updates could not be checked. Your entry is retained.']);}

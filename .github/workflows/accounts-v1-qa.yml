@@ -210,6 +210,7 @@ jobs:
           php tests/security/master_permission_migration_test.php
           php tests/security/authentication_hardening_test.php
           php tests/security/session_web_hardening_test.php
+          php tests/security/arrival_operator_diagnostic_test.php
           php tests/security/server_backup_hardening_test.php
           php tests/security/upload_validation_test.php
           python3 tests/security/export_document_index_integrity_test.py
@@ -339,6 +340,7 @@ jobs:
           node tests/accounts-v1/arrival_recovery_ui_test.js
           node tests/accounts-v1/arrival_queue_validation_test.js
           node tests/accounts-v1/arrival_visibility_test.js
+          node tests/accounts-v1/arrival_session_recovery_test.js
           node tests/accounts-v1/mill_save_transport_test.js
           node tests/accounts-v1/mill_settings_save_test.js
           node tests/accounts-v1/mill_legacy_recovery_test.js

@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory(prefix='arrival-recovery-') as tmp:
             except urllib.error.HTTPError as response:return response.code,json.load(response)
         original_books=books.read_bytes();original_ops=operations.read_bytes();status,first=request();assert status==200 and first['canCreate'] and first['recoveries']==[],(status,first)
         assert request('/api/arrival_recovery.php?version_only=1')[1]=={'ok':True,'version':1}
-        assert request('/api/mill_versions.php')[1]=={'ok':True,'versions':{'tt30queue':1}}
+        version_info=request('/api/mill_versions.php')[1];assert version_info['ok'] and version_info['versions']=={'tt30queue':1} and len(version_info['clientBuild'])==64
         assert request('/api/mill_versions.php',{'action':'anything'})[0]==405
         assert not (private/'arrival_recovery.json').exists(),'GET created a recovery store'
         b={'action':'capture','entries':[{'record':record,'source':'pending-save'}]};status,saved=request(body=b);assert status==200 and saved['recoveries'][0]['serverStatus']=='NOT_ON_SERVER',(status,saved)

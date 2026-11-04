@@ -61,7 +61,7 @@ test('Mill export bags: other-exporter receipt route and scoped production marki
   const cachedQueue=await page.evaluate(()=>JSON.parse(window.TT_SHARED_SYNC.readCommitted('tt30queue')||'[]'));
   const queueMeta=arrivals.meta?.tt30queue||{};
   const auditReadable=!(arrivals.restrictedKeys||[]).includes('tt37arrivalaudit'),arrivalAudit=JSON.parse(arrivals.values.tt37arrivalaudit||'[]');
-  const days=['2026-10-30','2026-10-31','2026-11-01','2026-11-02','2026-11-03'];
+  const days=['2026-10-30','2026-10-31','2026-11-01','2026-11-02','2026-11-03','2026-11-04'];
   const normalized=v=>String(v||'').trim().replace(/\s+/g,' ').toUpperCase(),mill=r=>normalized(r.millName||r.locationName||r.mill||'TTI Rice Mills'),linked=(r,s)=>String(s.queueId)===String(r.id)&&normalized(s.entity||'TTI')===normalized(r.entity||'TTI')&&mill(s)===mill(r);
   const receiptReadable=!(arrivals.restrictedKeys||[]).includes('tt30slips'),alertsReadable=!(arrivals.restrictedKeys||[]).includes('tt30directoralerts'),alerts=JSON.parse(arrivals.values.tt30directoralerts||'[]');
   const daily=days.map(date=>{
@@ -72,6 +72,18 @@ test('Mill export bags: other-exporter receipt route and scoped production marki
   // A concurrent staff save is allowed; compare only when the snapshots match.
   if(JSON.stringify(queue)===JSON.stringify(cachedQueue))expect(daily.every(day=>day.serverArrivals===day.initialCacheArrivals)).toBe(true);
   expect(writes).toEqual([]);
+});
+
+
+test('Arrival date-range mode is separate from the entry draft and never posts',async({page})=>{
+ test.setTimeout(120_000);await signIn(page);const writes=[];
+ await page.route('**/*',route=>{const r=route.request(),u=new URL(r.url());if(!['GET','HEAD'].includes(r.method())&&!(r.method()==='POST'&&u.origin===new URL(BASE_URL).origin&&u.pathname==='/api/session_activity.php')){writes.push(u.pathname);return route.abort();}return route.continue();});
+ await page.goto(BASE_URL+'/module.php?id=milling',{waitUntil:'domcontentloaded',timeout:90_000});await page.getByRole('button',{name:'🏭 TTI Rice Mills Own / Default',exact:true}).click();await page.locator('[onclick="openPanel(\'queue\')"]').click();
+ await expect(page.locator('#queueEntryControls')).toBeVisible();await expect(page.locator('#queueRangeFields')).toBeHidden();const day=await page.locator('#queueViewDate').inputValue();await page.locator('#qVehicle').fill('VIEW-909');await page.locator('#qBags').fill('1');await page.locator('#qWeight').fill('1');
+ await page.getByLabel('View date-range arrivals',{exact:true}).check();await expect(page.locator('#queueEntryControls')).toBeHidden();await expect(page.locator('#queueResults')).toBeHidden();await expect(page.locator('#queueReportMessage')).toContainText('Select From and To');
+ const from=await page.evaluate(()=>dateMinus(4));await page.locator('#queueViewFrom').fill(from);await page.locator('#queueViewTo').fill(day);await page.locator('#queueViewTo').dispatchEvent('change');await expect(page.locator('#queueResults')).toBeVisible({timeout:45_000});await expect(page.locator('#queueTable tr[onclick]')).toHaveCount(0);
+ const versions=await page.request.get(BASE_URL+'/api/mill_versions.php');expect(versions.status()).toBe(200);const build=await versions.json();expect(build.ok).toBe(true);expect(await page.evaluate(server=>window.TT_MODULE_ACCESS.clientBuild===server,build.clientBuild)).toBe(true);
+ await page.getByLabel('View date-range arrivals',{exact:true}).uncheck();await expect(page.locator('#qVehicle')).toHaveValue('VIEW-909');await expect(page.locator('#qBags')).toHaveValue('1');await expect(page.locator('#queueViewDate')).toHaveValue(day);await page.evaluate(()=>clearQueueForm());expect(writes).toEqual([]);console.log('LIVE_ARRIVAL_MODE_OK separate report controls, original entry draft/date retained, client build matches production, financialWrites 0, physicalWrites 0');
 });
 
 
