@@ -144,7 +144,8 @@ jobs:
               $grant=$user['permissions']['Mill']??null;$queue=is_array($grant)?($grant['queue']??[]):[];$roles=['Super Admin','Director'];$derived=in_array($user['role']??'',$roles,true)||$grant==='all';
               $actions=$derived?['View','Create','Edit']:array_values(array_intersect(['View','Create','Edit','Approve','Delete','Print','Reports'],is_array($queue)?array_merge(array_values(array_filter((array)$grant,'is_string')),$queue):[]));
               $recovered=$inbox===null?null:count(array_filter((array)($inbox['records']??[]),static fn($r)=>(int)($r['userId']??0)===(int)($user['id']??-1)&&($r['record']['date']??'')>='2026-10-30'&&($r['record']['date']??'')<='2026-11-04'));
-              $out['accounts'][]=['matchedOperator'=>$label,'active'=>!empty($user['active']),'role'=>(string)($user['role']??''),'configuredQueueActions'=>$actions,'assignedLocation'=>(string)($user['location']??''),'configuredTtiActions'=>array_values(array_intersect(['View','Create','Edit'],(array)($user['permissions']['Accounts']['entity-tti']??[]))),'lastSuccessfulSignInAt'=>$user['last_login_at']??null,'recentServerRecoveryCopies'=>$recovered];
+              $loginDay=null;if(!empty($user['last_login_at']))try{$loginDay=(new DateTimeImmutable((string)$user['last_login_at']))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('Y-m-d');}catch(Throwable){}
+              $out['accounts'][]=['matchedOperator'=>$label,'active'=>!empty($user['active']),'role'=>(string)($user['role']??''),'configuredQueueActions'=>$actions,'assignedLocation'=>(string)($user['location']??''),'configuredTtiActions'=>array_values(array_intersect(['View','Create','Edit'],(array)($user['permissions']['Accounts']['entity-tti']??[]))),'signedInOnReportedDay'=>$loginDay===null?null:$loginDay==='2026-11-04','recentServerRecoveryCopies'=>$recovered];
             }
             return $out;
           }
