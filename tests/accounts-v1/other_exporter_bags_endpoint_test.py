@@ -27,7 +27,7 @@ function tt_list_masters(){return ['mills'=>[['id'=>'M1','values'=>['Own Mill','
     (root/'runner.php').write_text('''<?php
 $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQUEST_METHOD']=$r['body']===null?'GET':'POST';$GLOBALS['fixtureBody']=json_encode($r['body']);register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_code()?:200));});require __DIR__.'/api/other_exporter_bags.php';
 ''')
-    books = {'revision':1,'journals':[{'immutable':'original money'}], 'exporterDeals':{'HK':{'id':'HK','entity':'TTI','direction':'SALE','status':'Open','partyId':'HKM','party':'HKM','date':'2026-10-01','brand':'','packing':'50 kg PP bags','version':1,'productionReady':True,'productionMillName':'Own Mill','productionBagTareGrams':80,'price':987654,'payments':[],'history':[]}}}
+    books = {'revision':1,'journals':[{'immutable':'original money'}], 'exporterDeals':{'HK':{'id':'HK','entity':'TTI','direction':'SALE','status':'Open','partyId':'HKM','party':'HKM','date':'2026-10-01','brand':'','packing':'50 kg PP bags','product':'White rice 5% broken','quantityMT':75,'productionStockName':'Planned rice output','productionNotes':'Fixture production instruction','version':1,'productionReady':True,'productionMillName':'Own Mill','productionBagTareGrams':80,'price':987654,'payments':[],'history':[]}}}
     book_path=root/'data/accounts.json'
     book_path.write_text(json.dumps(books))
     ops_path=root/'data/operations.json'
@@ -40,6 +40,8 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
         return int(out.stderr.rsplit('STATUS:',1)[1]),json.loads(out.stdout)
     def snapshot():return (book_path.read_bytes(),ops_path.read_bytes())
     before=snapshot();status,data=req();assert status==200 and len(data['deals'])==1 and 'price' not in data['deals'][0],data
+    assert not data['choices'] and data['deals'][0]['product']=='White rice 5% broken' and data['deals'][0]['productionStockName']=='Planned rice output','Unreceived instructed SODA disappeared with its bag choices'
+    assert not set(data['deals'][0]).intersection({'price','payments','history','settlements','bankId','currency'}),'Mill planning feed exposed commercial data'
     assert snapshot()==before,'Read created stock or edited books'
     base={'csrf':'fixture','entity':'TTI','locationId':'M1','sodaId':'HK','version':1}
     brand=dict(base,action='fill_brand',brand='Amros',requestKey='actual-missing-brand-0001')

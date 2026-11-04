@@ -23,6 +23,8 @@ header('X-LiteSpeed-Cache-Control: no-cache');
 $html = (string)file_get_contents($modules[$id]);
 $millingTaskScripts = '';
 if ($id === 'milling') {
+    $productionLayoutFile=__DIR__.'/milling/production-layout.css';
+    if(!is_file($productionLayoutFile)||($productionLayout=file_get_contents($productionLayoutFile))===false){http_response_code(503);exit('Production layout assets are unavailable.');}
     $sessionGateFile=__DIR__.'/accounts/mill-session-gate.js';
     if(!is_file($sessionGateFile)||($millingSessionGate=file_get_contents($sessionGateFile))===false){http_response_code(503);exit('Milling session protection is unavailable. Reload before making entries.');}
     $gatePassFile = __DIR__.'/milling/gate-pass.js';
@@ -432,6 +434,7 @@ HTML;
 $brandHead = $id === 'exports' ? '<link rel="stylesheet" href="/export-assets.php?name=release-theme.css">' : '';
 // Layout polish loads first; the owner-approved palette remains authoritative.
 $brandHead .= '<link rel="stylesheet" href="/brand-theme.css?v=20261006-number-entry-1">';
+if($id==='milling')$brandHead.='<style id="milling-production-layout">'.$productionLayout.'</style>';
 if($localSalesView)$brandHead.='<style>.panel{display:none!important}#local.active,#millLanding.active{display:block!important}</style>';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
