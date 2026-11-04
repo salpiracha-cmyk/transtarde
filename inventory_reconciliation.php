@@ -173,6 +173,16 @@ function tt_inv_quantities(array $reports,string $stockName): array {
     $out=[];foreach($reports as$p)$out[(string)($p['id']??'')]=tt_inv_output_kg($p,$stockName);ksort($out);return $out;
 }
 /** Preserve server-only portions when a filtered browser saves its operational projection. */
+/** Compare dated raw-stock trajectories inside the existing inventory save lock. */
+function tt_inv_production_timeline(array $values,array $scope,string $stock):array {
+    $events=[];tt_inv_stock($values,$scope,static function($event)use(&$events,$stock){if(($event['product']??'')!==$stock)return;$parts=(array)($event['parts']??[]);$kg=(float)$event['kg'];if($parts&&abs(array_sum(array_column($parts,'kg'))-$kg)<.001){foreach($parts as $part){$date=(string)($part['date']??'');$amount=(float)$part['kg'];if(mr_valid_date($date)||$amount<0)$events[mr_valid_date($date)?$date:'']=($events[mr_valid_date($date)?$date:'']??0)+$amount;}}else{$date=(string)($event['date']??'');if(mr_valid_date($date)||$kg<0)$events[mr_valid_date($date)?$date:'']=($events[mr_valid_date($date)?$date:'']??0)+$kg;}});return $events;
+}
+function tt_inv_guard_calculated_stock(array $before,array $after,array $changed):void {
+    $checked=[];foreach($changed as $run){if(!mr_is_calculated($run)||!(mr_consumption_kg($run)>0))continue;$scope=tt_inv_scope($run);$stock=(string)($run['inputStockName']??tt_inv_product($run,(string)($run['inputStage']??'RAW')));$key=json_encode([$scope,$stock]);if(isset($checked[$key]))continue;$checked[$key]=true;
+        $old=tt_inv_production_timeline($before,$scope,$stock);$next=tt_inv_production_timeline($after,$scope,$stock);$dates=array_unique(array_merge(array_keys($old),array_keys($next)));sort($dates);$a=0.;$b=0.;foreach($dates as $date){$a+=(float)($old[$date]??0);$b+=(float)($next[$date]??0);if($b<-.001&&$b<$a-.001)throw new DomainException('Insufficient dated '.$stock.' stock at this company and mill. Production is not saved; reconcile the original raw-stock receipts before retrying.');}
+    }
+}
+
 function tt_inv_prepare_write(array $values,string $key,string $json,array $user,string $now): string {
     tt_guard_arrival_collection($key,(string)($values[$key]??'[]'),$json);
     if(in_array($key,['tt30bags','tt33bagreceipts'],true)){require_once __DIR__.'/api/bag_receipts_core.php';$json=br_guard_write($values,$key,$json);}
@@ -265,6 +275,7 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         }
         // A final-entry tick belongs to a complete shift, not to one partial lot.
         $changed=[];foreach($out as$r){$b=$index[(string)$r['id']]??null;$a=$r;unset($a['createdAt'],$a['updatedAt'],$a['serverSequence']);if($b){unset($b['createdAt'],$b['updatedAt'],$b['serverSequence']);}if($a!==$b)$changed[]=$r;}
+        tt_inv_guard_calculated_stock($values,array_replace($values,['tt30prod'=>tt_inv_json($out)]),$changed);
         foreach($changed as$r)foreach($out as&$other)if((string)$other['id']!==(string)$r['id']&&tt_inv_same_scope($r,$other)&&($r['date']??'')===($other['date']??'')&&tt_inv_shift_name((string)($r['shift']??''))===tt_inv_shift_name((string)($other['shift']??'')))$other['shiftEntriesComplete']=false;unset($other);
     }
     if($key==='tt32stockadj')foreach($old as$r)if(($r['type']??'')==='Paltai Transfer'&&!isset($seen[(string)$r['id']]))throw new DomainException('Saved Paltai transfers cannot be removed.');
