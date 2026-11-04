@@ -24,6 +24,12 @@ async function signIn(page) {
 
 async function activate(locator) {
   await expect(locator).toBeVisible({ timeout: 30_000 });
+  // Scripted clicks do not perform the browser's inert/actionability wait.
+  // Respect the same verified-session boundary as a real Mill user.
+  await expect.poll(()=>locator.evaluate(element=>{
+    const gate=element.ownerDocument.defaultView.TT_MILL_SESSION;
+    return !gate||gate.ready();
+  }),{timeout:30_000}).toBe(true);
   await locator.evaluate(element => element.click());
 }
 
@@ -644,6 +650,7 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
         await expect.poll(()=>page.evaluate(()=>window.TT_SHIPMENT_FILES?.__officeHooked===true),{timeout:30_000}).toBe(true);
       }else{await expect(page.locator('#homeGrid')).toHaveCount(1);await expect.poll(()=>page.evaluate(()=>typeof window.TT_PRODUCTION_RECOVERY?.outputKg),{timeout:30_000}).toBe('function');await expect(page.locator('#milling-production-recovery-entry')).toHaveCount(1);}
       if(moduleId==='milling'){
+        await expect.poll(()=>page.evaluate(()=>window.TT_MILL_SESSION?.ready()||false),{timeout:30_000}).toBe(true);
         await expect.poll(()=>page.evaluate(()=>typeof window.TT_LIFTING_REVIEW?.confirm),{timeout:30_000}).toBe('function');
         await page.evaluate(()=>{openPanel('labour');const commodity=document.getElementById('labCommodity');commodity.value='Maize';commodity.dispatchEvent(new Event('change'));});
         await expect(page.locator('#maizeLabour')).toBeVisible();
