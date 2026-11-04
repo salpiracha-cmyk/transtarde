@@ -114,7 +114,7 @@ function tt_inv_output_name(array $production,array $row): string {
 function tt_inv_output_kg(array $production,string $stockName): float {
     $kg=0.;foreach((array)($production['rows']??[])as$r){
         if(!is_array($r)||tt_inv_is_private_row($r)||!empty($r['noStockPost']))continue;
-        if(tt_inv_norm(tt_inv_output_name($production,$r))===tt_inv_norm($stockName))$kg+=(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);
+        if(tt_inv_norm(tt_inv_output_name($production,$r))===tt_inv_norm($stockName))$kg+=!empty($production['recoveryVersion'])?mr_output_kg($r):(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);
     }return round($kg,3);
 }
 function tt_inv_resolve_stock(array $map,array $shipment): string {

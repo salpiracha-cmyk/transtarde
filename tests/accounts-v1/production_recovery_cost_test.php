@@ -55,3 +55,5 @@ $without=['tt30prod'=>'[]','tt30slips'=>'[]'];$incoming=['tt30prod'=>json_encode
 $arrival=['entity'=>'TTI','millName'=>'TTI Rice Mills','date'=>'2026-09-01','unloadingDate'=>'2026-09-01','displayName'=>'IRRI-6 White Raw Rice','payableWeight'=>3000];$without['tt30slips']=json_encode([$arrival]);$incoming['tt30slips']=$without['tt30slips'];tt_inv_guard_calculated_stock($without,$incoming,[$guardRun]);
 $arrival['unloadingDate']='2099-01-01';$without['tt30slips']=json_encode([$arrival]);$incoming['tt30slips']=$without['tt30slips'];try{tt_inv_guard_calculated_stock($without,$incoming,[$guardRun]);throw new RuntimeException('Future arrival funded past production');}catch(DomainException $e){}
 echo "PASS calculated production rejects insufficient or future-funded raw stock inside the canonical inventory transaction\n";
+
+$loose=$guardRun;$loose['rows'][]=['id'=>993,'product'=>'Sweeping','outputUnit'=>'KG','systemKg'=>25,'bags'=>0,'bagWeight'=>0];near(tt_inv_output_kg($loose,'Sweeping'),25,'Physical reconciliation reads loose actual kilograms consistently with stock and recovery');
