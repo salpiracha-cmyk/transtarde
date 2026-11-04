@@ -159,9 +159,20 @@ $sharedBootstrap = <<<'HTML'
     if(!pending.size&&!inFlight.size)return Promise.resolve({ok:true,revision});
     return new Promise((resolve,reject)=>{const waiter={resolve,reject,intent,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);if(!commitWaiters.length)waiting();reject(new Error('Save was not confirmed before the connection timed out. Reload and review the server state before retrying.'))}},120000);commitWaiters.push(waiter);waiting();flush()})
   }
-  function refreshNow(){
-    if(pending.size||inFlight.size)return Promise.reject(new Error('Finish the current save before refreshing.'));
-    return fetch(endpoint+'?r='+Date.now(),{credentials:'same-origin'}).then(r=>r.json()).then(data=>{if(!data?.ok)throw new Error(data?.error||'Shared data could not be refreshed.');applyRemote(data,false);return data})
+  function refreshNow(options){
+    const requested=options?.keys;
+    if(requested!==undefined&&(!Array.isArray(requested)||!requested.length||requested.some(key=>typeof key!=='string'||!allowed(key))))return Promise.reject(new Error('The requested refresh source is invalid.'));
+    const keys=requested===undefined?null:new Set(requested);
+    // A read-only report must not discard another icon's staged bridge data.
+    // Keep the full-workspace guard for existing callers and reject any save
+    // already in flight or staged edits to the requested report sources.
+    if(inFlight.size||(keys?[...keys].some(key=>pending.has(key)):pending.size))return Promise.reject(new Error('Finish the current save before refreshing.'));
+    return fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin'}).then(r=>r.json()).then(data=>{
+      if(!data?.ok)throw new Error(data?.error||'Shared data could not be refreshed.');
+      if(inFlight.size||(keys?[...keys].some(key=>pending.has(key)):pending.size))throw new Error('Finish the current save before refreshing.');
+      const snapshot=keys?{...data,values:Object.fromEntries(Object.entries(data.values||{}).filter(([key])=>keys.has(key))),meta:Object.fromEntries(Object.entries(data.meta||{}).filter(([key])=>keys.has(key))),restrictedKeys:(data.restrictedKeys||[]).filter(key=>keys.has(key))}:data;
+      applyRemote(snapshot,false);return snapshot
+    })
   }
   const legacyToken=key=>'tt_ui_mill_shared_pending_'+access.userId+'_'+key;
   const legacySame=(a,b,key='')=>{try{

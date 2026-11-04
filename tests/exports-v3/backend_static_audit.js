@@ -71,7 +71,7 @@ assert.match(modulePhp,/addEventListener\('focus',checkInbound\)/,'returning to 
 assert.match(modulePhp,/visibilitychange/,'restoring a module tab must check for cross-module updates');
 assert.match(modulePhp,/poll:checkInbound/,'legacy manual poll entry point must perform only the inbound check');
 assert.match(modulePhp,/function saveNow\(\)/,'shared bridge must expose an awaitable explicit-save acknowledgement');
-assert.match(modulePhp,/function refreshNow\(\)/,'receiving modules must expose an explicit authoritative refresh');
+assert.match(modulePhp,/function refreshNow\((?:options)?\)/,'receiving modules must expose an explicit authoritative refresh');
 assert.match(modulePhp,/if\(access\.moduleId==='exports'\)bridge\(\);else addEventListener\('DOMContentLoaded'/,'Exports must reconcile Mill actuals before loading state while Milling waits until its startup completes');
 assert.doesNotMatch(js,/id="refreshMillUpdates"/,'Exports home must not duplicate the shared top-header refresh notice');
 assert.doesNotMatch(customerMaster,/nav\.appendChild\(b\)/,'Export must not inject the removed Master Data button beside +FI');
