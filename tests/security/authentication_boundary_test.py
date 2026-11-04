@@ -4,6 +4,7 @@ import pathlib
 import shutil
 import subprocess
 import tempfile
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tti-auth-boundary-') as directory:
@@ -22,9 +23,10 @@ $cfg=json_decode($argv[2],true);$_SERVER['REQUEST_METHOD']=$cfg['method']??'GET'
 $_SERVER['REQUEST_URI']=$cfg['path']??'/login.php';$_SERVER['REMOTE_ADDR']=$cfg['address']??'192.0.2.40';
 $_COOKIE['TRANSTRADE_SESSION']=$cfg['sid']??'';$_GET=$cfg['query']??[];$_POST=$cfg['form']??[];
 if(isset($cfg['csrf']))$_SERVER['HTTP_X_CSRF_TOKEN']=$cfg['csrf'];
+if(isset($cfg['activity']))$_SERVER['HTTP_X_TT_USER_ACTIVITY']=$cfg['activity'];
 register_shutdown_function(static function()use($argv){file_put_contents($argv[3],json_encode([
  'status'=>http_response_code()?:200,'user'=>$_SESSION['user_id']??null,
- 'csrf'=>$_SESSION['csrf']??null,'sid'=>session_id(),'reached'=>$GLOBALS['reached']??false]));});
+ 'csrf'=>$_SESSION['csrf']??null,'last'=>$_SESSION['last_activity_at']??null,'sid'=>session_id(),'reached'=>$GLOBALS['reached']??false]));});
 $app=$argv[1];
 if(($cfg['action']??'')==='seed'){
  require $app.'/auth_store.php';
@@ -57,6 +59,23 @@ if(($cfg['action']??'')==='seed'){
                                 capture_output=True, text=True)
         assert result.returncode == 0, result.stdout + result.stderr
         return json.loads(meta.read_text()), result.stdout
+
+    for activity in ['0','1']:
+        last=int(time.time())-120
+        seed, _ = run(action='seed', authenticated=True, last=last)
+        meta, output = run(path='/api/session_activity.php', method='GET', sid=seed['sid'], activity=activity)
+        result=json.loads(output)
+        assert meta['status']==200 and meta['last']==last, 'Read-only session checks extended inactivity'
+        assert set(result)=={'ok','idleTimeoutSeconds','idleRemainingSeconds'} and result['ok']
+        assert result['idleTimeoutSeconds']==3600 and 3460<=result['idleRemainingSeconds']<=3480
+        meta, _ = run(path='/api/session_activity.php',method='POST',sid=seed['sid'],csrf='wrong')
+        assert meta['status']==403 and meta['last']==last
+        meta, output = run(path='/api/session_activity.php',method='POST',sid=seed['sid'],csrf=seed['csrf'])
+        assert meta['status']==200 and meta['last']>=last+120 and json.loads(output)['ok']
+    seed, _ = run(action='seed',authenticated=True,last=int(time.time())-3601)
+    meta, output = run(path='/api/session_activity.php',method='GET',sid=seed['sid'],activity='1')
+    assert meta['status']==401 and meta['user'] is None and not json.loads(output)['ok']
+    print('PASS read-only session check never renews idle time, leaks no identity/token, rejects expiry; heartbeat retains CSRF and one-hour limit')
 
     seed, _ = run(action='seed', authenticated=True, flag=True)
     sid, csrf = seed['sid'], seed['csrf']

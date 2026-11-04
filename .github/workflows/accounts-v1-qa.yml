@@ -341,6 +341,7 @@ jobs:
           node tests/accounts-v1/arrival_queue_validation_test.js
           node tests/accounts-v1/arrival_visibility_test.js
           node tests/accounts-v1/arrival_session_recovery_test.js
+          node tests/accounts-v1/mill_session_gate_test.js
           node tests/accounts-v1/mill_save_transport_test.js
           node tests/accounts-v1/mill_settings_save_test.js
           node tests/accounts-v1/mill_legacy_recovery_test.js
