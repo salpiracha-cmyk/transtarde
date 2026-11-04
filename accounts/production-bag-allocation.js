@@ -24,7 +24,7 @@ function mount(){
  save.closest('.card').insertAdjacentElement('afterend',host);host.querySelector('[data-review-source-bags]').onclick=()=>void load();return host;
 }
 function counts(rows){
- if(!mount())return;const entries=rows.filter(row=>brand(row)&&(Number(row.bags)>0||Number(row.actualBagCount)>0));
+ if(!mount())return;const entries=rows.filter(row=>brand(row)&&(Number(row.bags)>0||Number(row.actualBagCount)>0));host.hidden=!entries.length;
  host.querySelector('[data-bag-counts]').innerHTML=entries.length?'<table><thead><tr><th>Brand / packing</th><th>Output bag equivalents</th><th>Actual empty bags used</th></tr></thead><tbody>'+entries.map(row=>'<tr><td>'+esc(brand(row))+' · '+esc(row.bagWeight)+' kg</td><td>'+esc(row.bags)+'</td><td><input inputmode="numeric" data-actual-bags="'+esc(row.id)+'" aria-label="Actual empty bags used for '+esc(brand(row))+'" value="'+esc(row.actualBagCount??(Number.isSafeInteger(Number(row.bags))?row.bags:''))+'"></td></tr>').join('')+'</tbody></table>':'<p>No branded export bags are required by the current output rows.</p>';
  host.querySelectorAll('[data-actual-bags]').forEach(input=>{input.oninput=()=>{const row=rows.find(row=>String(row.id)===input.dataset.actualBags);if(row){const number=Number(input.value);row.actualBagCount=input.value.trim()!==''&&Number.isSafeInteger(number)&&number>=0?number:input.value;}host.querySelector('[data-bag-message]').textContent='Packing count changed. Review source bags again before saving.';};});
 }

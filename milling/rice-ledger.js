@@ -5,10 +5,10 @@
  const el=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const displayDate=v=>window.TT_DATE?.display(v)||v;
  const num=v=>Number(v||0).toLocaleString(undefined,{maximumFractionDigits:3});
- function filters(){return {entity:stockEntityForView(),mill:currentMill?.name||'',from:el('riceLedgerMode').value==='range'?el('ledgerFrom').value:'',to:el('ledgerTo').value,product:el('riceLedgerProduct').value,movement:el('riceLedgerMovement').value};}
+ function filters(){return {pool:'mill',entity:stockEntityForView(),mill:currentMill?.name||'',from:el('riceLedgerMode').value==='range'?el('ledgerFrom').value:'',to:el('ledgerTo').value,product:el('riceLedgerProduct').value,movement:el('riceLedgerMovement').value};}
  const key=f=>JSON.stringify(f);
  function table(d){
-  let out='<p>'+esc(d.scope.entity)+' · '+esc(d.scope.millName)+' · '+esc(displayDate(d.filters.from)||'Beginning')+' to '+esc(displayDate(d.filters.to)||'Latest')+' · '+esc(d.filters.movement)+' · '+esc(d.filters.product||'All products')+'</p><p>'+esc(d.note)+'</p>';
+  let out='<p>'+esc(d.scope.physicalPool?'Physical stock · TTI + BRM':d.scope.entity)+' · '+esc(d.scope.millName)+' · '+esc(displayDate(d.filters.from)||'Beginning')+' to '+esc(displayDate(d.filters.to)||'Latest')+' · '+esc(d.filters.movement)+' · '+esc(d.filters.product||'All products')+'</p><p>'+esc(d.note)+'</p>';
   out+='<table><thead><tr><th>Product</th><th>Opening Kg</th><th>Inward Kg</th><th>Outward Kg</th><th>Closing Kg</th><th>Status</th></tr></thead><tbody>';
   out+=d.summaries.map(s=>'<tr>'+[s.product,num(s.openingKg),num(s.inwardKg),num(s.outwardKg),num(s.closingKg),s.status].map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="6">No stock movements recorded for this scope.</td></tr>';
   out+='</tbody></table><h4>Dated movements</h4><table><thead><tr><th>Date</th><th>Product</th><th>Movement</th><th>Inward Kg</th><th>Outward Kg</th><th>Product Balance Kg</th><th>Source / Basis</th></tr></thead><tbody>';

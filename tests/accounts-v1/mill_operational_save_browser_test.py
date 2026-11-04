@@ -165,7 +165,7 @@ def run():
             production.goto(base+'/module.php?id=milling');production.get_by_role('button',name='🏭 TTI Rice Mills Own / Default',exact=True).click();production.get_by_role('button',name='⚙️ Production',exact=True).click()
             assert production.locator('#prodDate').input_value()==production.evaluate('today()'),'New production must default to the current business date'
             production.get_by_role('combobox',name='Ready Rice brand / SODA').first.select_option('LOCAL');production.locator('.tt-number-display[aria-label="Ready Rice — Local Bags quantity"]').fill('10')
-            production.get_by_role('combobox',name='Quantity unit for B2 — LOCAL').select_option('KG');production.locator('.tt-number-display[aria-label="B2 — LOCAL quantity"]').fill('100')
+            production.locator('.tt-number-display[aria-label="B2 — LOCAL total kg"]').fill('100')
             assert not production.locator('#productionActualInput').is_visible()
             lose_production=[True]
             def production_lost_ack(route):

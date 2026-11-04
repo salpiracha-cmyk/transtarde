@@ -59,3 +59,16 @@
 #production .production-table-scroll th:first-child{width:36%}
 #production #productionShiftSummary{grid-template-columns:repeat(3,minmax(0,1fr));margin:18px 0}
 @media(max-width:650px){#production #productionShiftSummary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* One row per product; the same five columns remain on phone and desktop. */
+#production .production-table-scroll>table{min-width:600px;table-layout:fixed}
+#production .production-table-scroll th:first-child{width:34%}
+#production .production-table-scroll input{width:100%;min-width:0;text-align:right}
+#production .production-table-scroll tfoot th{background:#edf3e9;padding:18px 8px;font-size:20px;color:#29452a}
+#production #estimatedInputKg{font-size:25px;white-space:nowrap}
+#production [data-production-order]{font-size:14px}
+#production #prodTable details{font-size:12px;margin-top:5px}
+#production .production-bag-tools{margin:0}
+#production .production-bag-tools>details{width:100%;font-size:13px;margin:8px 0}
+#production .metrics{display:flex;flex-wrap:wrap;gap:16px;padding:12px 18px;background:#edf3e9;border-radius:10px}
+#production .metrics .metric{background:none;border:0;padding:0;flex:1;min-width:130px}

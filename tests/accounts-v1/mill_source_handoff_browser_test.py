@@ -111,6 +111,7 @@ def run():
             # finished output; its later acknowledged amendment survives a lost response.
             financial_before=books.read_bytes();mill.evaluate("openPanel('production')")
             mill.locator('#prodDate').fill('2026-10-17')
+            if not mill.locator('#refreshProductionBags').is_visible():mill.get_by_text('Bag stock / refresh',exact=True).click()
             with mill.expect_response(lambda r:'/api/other_exporter_bags.php?' in r.url and 'purpose=production' in r.url and 'asOf=2026-10-17' in r.url):mill.locator('#refreshProductionBags').click()
             mill.get_by_role('combobox',name='Ready Rice brand / SODA').first.select_option('EXPORT|QA-CONTRACT|0')
             mill.locator('#prodTable tr').first.locator('input').first.fill('10')
@@ -284,8 +285,9 @@ def run():
             other_lot=other_receipt.value.json()['order'];assert other_lot['received']==30 and other_lot['externalOwnerId']=='QA-OTHER' and other_lot['sourceKind']=='OTHER_EXPORTER'
             selected_id='PO|'+str(other_lot['id'])+'|mills-1'
             mill.evaluate("openPanel('production')");mill.locator('#prodDate').fill('2026-10-17')
+            if not mill.locator('#refreshProductionBags').is_visible():mill.get_by_text('Bag stock / refresh',exact=True).click()
             with mill.expect_response(lambda r:'/api/other_exporter_bags.php?' in r.url and 'purpose=production' in r.url and 'asOf=2026-10-17' in r.url):mill.locator('#refreshProductionBags').click()
-            mill.get_by_role('button',name='+ Add another brand',exact=True).click()
+            mill.get_by_role('combobox',name='Ready Rice brand / SODA').first.select_option('ADD_LINE')
             marking=mill.get_by_role('combobox',name='Ready Rice brand / SODA').last
             marking.locator('option[value="FELLOW|QA-OTHER-BAGS"]').wait_for(state='attached');marking.select_option('FELLOW|QA-OTHER-BAGS')
             assert mill.evaluate("productionRows.some(r=>r.product==='Ready Rice — QA OTHER BRAND'&&r.productionOrderId==='FELLOW|QA-OTHER-BAGS'&&r.exporterDealId==='QA-OTHER-BAGS'&&r.bagWeight===50)")
