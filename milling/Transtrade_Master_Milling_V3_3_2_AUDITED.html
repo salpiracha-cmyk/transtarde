@@ -1035,7 +1035,7 @@ async function addQueue(){
  if(broker&&!masterBrokerNames().some(name=>name.toLowerCase()===broker.toLowerCase()))return alert('Select an active Broker profile, or leave Broker blank for a direct purchase.');
  if(!validTruckNo(vehicle))return alert('Truck Number must contain letters followed by numbers with the fixed hyphen, for example TUE-138.');
  if(!Number.isSafeInteger(Number(qBags.value))||Number(qBags.value)<=0||!Number.isFinite(Number(qWeight.value))||Number(qWeight.value)<=0)return alert('Enter positive whole Bags and a valid Loading Weight greater than zero.');
- if(day<dateMinus(4)||day>today())return alert('Entry date must be within the past five days, including today. Use recovery for an original older pending entry.');
+ if(day>today())return alert('Arrival date cannot be in the future.');
  let all=get(STORE_QUEUE,[]);
  let norm=normalizeTruck(vehicle);
  let dup=all.find(x=>stockScopeMatches(x)&&x.date===day && x.id!==editingQueueId && normalizeTruck(x.vehicle)===norm);
