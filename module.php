@@ -146,7 +146,7 @@ $sharedBootstrap = <<<'HTML'
     Object.entries(data.values||{}).forEach(([k,v])=>{remoteKeys.add(k);if(allowed(k)&&typeof v==='string'&&!pending.has(k)&&!inFlight.has(k)){committedValues.set(k,v);receipts.set(k,v);if(localStorage.getItem(k)!==v){directSet(k,v);changed.push(k);lastRemoteBy=data.meta?.[k]?.updatedBy||lastRemoteBy}}});
     Object.entries(data.meta||{}).forEach(([k,m])=>{if(!pending.has(k)&&!inFlight.has(k))keyVersions.set(k,Number(m?.version||0))});
     applying=false;revision=Math.max(revision,incoming);window.TRANSTRADE_SERVER_NOW_ISO=data.serverNow||window.TRANSTRADE_SERVER_NOW_ISO;
-    if(changed.length&&!initial){bridge();notifyRemote(changed)}
+    if(changed.length&&!initial){if(changed.some(key=>!['tt30queue','tt30slips','tt30directoralerts','tt37arrivalaudit'].includes(key)))bridge();notifyRemote(changed)}
   }
   function settleCommits(error=''){
     if(!error&&(inFlight.size||pending.size))return;
