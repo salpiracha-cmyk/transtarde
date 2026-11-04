@@ -67,7 +67,7 @@ register_shutdown_function(static function(): void {
 });
 require_once __DIR__ . '/offline_idempotency.php';
 const TT_AUTH_RATE_FILE = TT_DATA_DIR . '/auth-rate.json';
-const TT_SESSION_IDLE_TIMEOUT = 3600;
+const TT_SESSION_IDLE_TIMEOUT = 900;
 // Public dummy hash equalizes password verification for unknown users. It is
 // not an account credential and has no access to the application.
 const TT_LOGIN_DUMMY_HASH = '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.';
@@ -1264,7 +1264,7 @@ function tt_require_login(): array {
     if (!$user) {
         $reason=(string)($GLOBALS['TT_SESSION_END_REASON']??'');
         if (str_starts_with($path,'/api/')) {
-            tt_api_json_error(401,$reason==='inactive'?'You were signed out after one hour without activity. Sign in again.':'Your session has expired. Sign in again.');
+            tt_api_json_error(401,$reason==='inactive'?'You were signed out after 15 minutes without activity. Sign in again.':'Your session has expired. Sign in again.');
         }
         header('Location: /login.php'.($reason!==''?'?expired='.rawurlencode($reason):''));
         exit;

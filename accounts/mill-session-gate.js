@@ -1,12 +1,13 @@
 /* A resumed Mill tab must confirm its session before accepting entry. No record posts. */
 (()=>{'use strict';
  if(window.TT_MODULE_ACCESS?.moduleId!=='milling')return;
- const IDLE_MS=60*60*1000,nativeFetch=window.fetch.bind(window);
+ const IDLE_MS=15*60*1000,nativeFetch=window.fetch.bind(window);
  let ready=false,expired=false,checking=null,deadline=0,lastInteraction=Date.now(),needsCheck=true,oldInert=false,ownedMain=null,previousFocus=null;
  const panelId='ttMillSessionGate';
- function lock(text,retry=false){
+ function lock(text='',retry=false){
   ready=false;
   const main=document.querySelector('main');if(main&&ownedMain!==main){ownedMain=main;oldInert=!!main.inert;previousFocus=main.contains(document.activeElement)?document.activeElement:null;main.inert=true;}
+  if(!text){document.getElementById(panelId)?.remove();return;}
   if(!document.body)return;
   let panel=document.getElementById(panelId);if(!panel){panel=document.createElement('section');panel.id=panelId;panel.setAttribute('role','status');panel.style.cssText='position:fixed;top:0;left:0;right:0;z-index:100400;background:#fff6f4;color:#8f1d15;padding:10px 18px;border-bottom:2px solid #b42318;font:15px Arial';const title=document.createElement('strong');title.textContent='Milling';const message=document.createElement('p');message.dataset.sessionMessage='';message.setAttribute('role','status');const again=document.createElement('button');again.type='button';again.dataset.sessionRetry='';again.textContent='Retry session check';again.onclick=()=>void verify();panel.append(title,message,again);document.body.append(panel);}
   panel.querySelector('[data-session-message]').textContent=text;panel.querySelector('[data-session-retry]').hidden=!retry||expired;
@@ -15,7 +16,7 @@
  function end(){expired=true;ready=false;window.dispatchEvent(new Event('tt:session-expired'));}
  function verify(){
   if(expired)return Promise.resolve(false);if(checking)return checking;
-  lock('Connecting…');
+  lock();
   const controller=new AbortController(),checkedAt=Date.now(),timer=setTimeout(()=>controller.abort(),12000);
   checking=Promise.resolve().then(async()=>{try{
    const response=await nativeFetch('/api/session_activity.php',{method:'GET',credentials:'same-origin',cache:'no-store',signal:controller.signal});

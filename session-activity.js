@@ -1,6 +1,6 @@
 (()=>{
   'use strict';
-  const IDLE_MS=60*60*1000;
+  const IDLE_MS=15*60*1000;
   const HEARTBEAT_MS=60*1000;
   const KEY='tt_session_last_activity_v1';
   let lastActivity=Date.now();

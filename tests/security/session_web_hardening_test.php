@@ -4,7 +4,7 @@ declare(strict_types=1);
 require dirname(__DIR__,2).'/auth_store.php';
 function sw_check(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);}
 
-sw_check(TT_SESSION_IDLE_TIMEOUT===3600,'Inactive users must be signed out after exactly one hour.');
+sw_check(TT_SESSION_IDLE_TIMEOUT===900,'Inactive users must be signed out after exactly 15 minutes.');
 sw_check(tt_user_session_version([])===1,'Existing users must receive the compatible initial session version.');
 sw_check(tt_user_session_version(['session_version'=>4])===4,'Stored session versions must be enforced.');
 
@@ -27,4 +27,4 @@ sw_check(str_contains($login,'tt_admin_recovery_configured()'),'The recovery lin
 sw_check(str_contains($htaccess,'Strict-Transport-Security'),'HTTPS transport policy must be enabled.');
 sw_check(str_contains($htaccess,'scripts|tests'),'Internal scripts and tests must not be web-readable.');
 
-echo "PASS one-hour inactivity and web security controls\n";
+echo "PASS 15-minute inactivity and web security controls\n";
