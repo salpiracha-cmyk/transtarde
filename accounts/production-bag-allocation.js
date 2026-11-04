@@ -16,7 +16,7 @@ function usage(record){
   const key=norm(name)+'|'+packing,prior=result.get(key);result.set(key,{brand:name,packingKg:packing,qty:(prior?.qty||0)+quantity});
  }return [...result.entries()].sort(([a],[b])=>a.localeCompare(b));
 }
-function signature(record){const mill=location(record);return JSON.stringify([record.entity,mill.id,record.date,usage(record)]);}
+function signature(record){const mill=location(record);return JSON.stringify([record.entity,mill.id,record.date,usage(record),(record.rows||[]).filter(row=>brand(row)).map(row=>[String(row.id),row.productionOrderId||'',row.exporterDealId||''])]);}
 function current(){const mill=typeof currentMill==='undefined'?null:currentMill;if(!mill)throw Error('Select the production mill first.');return {id:typeof editingProdId==='undefined'?null:editingProdId,entity:document.querySelector('#prodEntity')?.value||mill.entity,millName:mill.name,date:document.querySelector('#prodDate')?.value,rows:typeof productionRows==='undefined'?[]:productionRows};}
 function mount(){
  if(host?.isConnected)return host;const production=document.querySelector('#production'),save=production?.querySelector('[onclick="saveProduction()"]');if(!save)return null;

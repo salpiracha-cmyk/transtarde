@@ -40,3 +40,8 @@ require_once dirname(__DIR__,2).'/api/directors_trading_links.php';
     $check(bti_project($values,$masters,['entity'=>'BRM','locationId'=>'M1','millName'=>'Own Mill'],'2026-11-03','2026-11-03',$state)['lots']===[],'External bags leaked into another operating company');
     echo "PASS other exporter bags: instructed source, external ownership, actual multi-receipts, replay, quarantine, source allocation/consumption, closed history, protected identity and company isolation\n";
 })();
+
+$calendarValues=[];$calendarState=['requests'=>[]];$calendarScope=['entity'=>'TTI','locationId'=>'M1','millName'=>'Own Mill'];$calendarBooks=['exporterDeals'=>['MID'=>['id'=>'MID','entity'=>'TTI','direction'=>'SALE','status'=>'Open','date'=>'2026-11-04','party'=>'Fixture exporter','partyId'=>'MID-P','brand'=>'','quantityMT'=>1,'product'=>'IRRI-6 White Rice','version'=>1]]];
+$calendarResult=oeb_register_production_brand($calendarValues,$calendarState,$calendarBooks,$calendarScope,['orderId'=>'FELLOW|MID','version'=>1,'brand'=>'Midnight marking','requestKey'=>'midnight-brand-fixture-0001'],['id'=>7,'full_name'=>'Fixture operator'],'2026-11-03T22:00:00Z');
+if(($calendarResult['brand']['brand']??'')!=='Midnight marking')throw new RuntimeException('Karachi current-day SODA unavailable after midnight');
+echo "PASS production brand registration uses Karachi business date across the UTC midnight boundary\n";

@@ -112,7 +112,7 @@ function oeb_production_orders(array $values,array $books,array $scope,string $d
 }
 function oeb_register_production_brand(array &$values,array &$state,array $books,array $scope,array $body,array $user,string $now): array {
     $request=bt_request($state,$body,$user,'PRODUCTION_BRAND');if($request['prior'])return array_replace($request['prior']['result'],['replayed'=>true]);
-    $orders=oeb_production_orders($values,$books,$scope,substr($now,0,10));$order=null;foreach($orders as $r)if($r['orderId']===($body['orderId']??''))$order=$r;
+    $orders=oeb_production_orders($values,$books,$scope,(new DateTimeImmutable($now))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('Y-m-d'));$order=null;foreach($orders as $r)if($r['orderId']===($body['orderId']??''))$order=$r;
     if(!$order||isset($order['parentOrderId']))throw new DomainException('Choose the original running SODA in this company.');
     if((string)($body['version']??'')!==(string)$order['version'])throw new DomainException('The SODA changed. Refresh before registering its brand.');
     $brand=is_string($body['brand']??null)?trim($body['brand']):'';if($brand===''||mb_strlen($brand)>200||preg_match('/[\x00-\x1f]/',$brand))throw new DomainException('Enter the actual brand, up to 200 characters.');
