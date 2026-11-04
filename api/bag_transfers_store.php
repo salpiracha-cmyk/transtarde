@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 const BTS_STATE_KEY='tt41bagtransfers';
-const BTS_SOURCE_KEYS=['transtrade_export_v3_operational','tt30bags','tt30prod','tt33bagreceipts','tt36bagissues',BTS_STATE_KEY];
+const BTS_SOURCE_KEYS=['transtrade_export_v3_operational','tt30bags','tt30prod','tt33bagreceipts','tt36bagissues','tt35localsales','tt35brandmeta',BTS_STATE_KEY];
 function bts_state(array $values): array {
     $raw=$values[BTS_STATE_KEY]??'';$state=$raw===''?[]:(is_string($raw)?json_decode($raw,true,512,JSON_THROW_ON_ERROR):$raw);
     if(!is_array($state)||($state&&($state['schemaVersion']??null)!==1))throw new DomainException('The saved bag movement schema requires review.');
@@ -26,7 +26,7 @@ function bts_with_sources(bool $write,array $user,callable $fn): array {
                 if($state!==$before)$values[BTS_STATE_KEY]=json_encode($state,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
                 foreach($values as $changedKey=>$payload){
                     if(($sourceBefore[$changedKey]??null)===$payload)continue;
-                    if(!in_array($changedKey,[BTS_STATE_KEY,'tt30bags','tt33bagreceipts'],true))throw new RuntimeException('Unsupported bag source mutation.');
+                    if(!in_array($changedKey,[BTS_STATE_KEY,'tt30bags','tt33bagreceipts','tt35brandmeta'],true))throw new RuntimeException('Unsupported bag source mutation.');
                     $newVersion=($versions[$changedKey]??0)+1;$versions[$changedKey]=$newVersion;if($changedKey===BTS_STATE_KEY)$version=$newVersion;
                     $stamp=(new DateTimeImmutable($now))->format('Y-m-d H:i:s.u');$name=(string)($user['full_name']??$user['username']??'');
                     $q=$db->prepare('INSERT INTO tt_operation_records (storage_key,payload,version,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload),version=VALUES(version),updated_at=VALUES(updated_at),updated_by=VALUES(updated_by),updated_by_user=VALUES(updated_by_user),updated_by_module=VALUES(updated_by_module)');$q->execute([$changedKey,$payload,$newVersion,$stamp,$name,(int)$user['id'],'Mill']);
@@ -46,7 +46,7 @@ function bts_with_sources(bool $write,array $user,callable $fn): array {
             if($state!==$before)$values[BTS_STATE_KEY]=json_encode($state,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);$changed=false;
             foreach($values as $changedKey=>$payload){
                 if(($sourceBefore[$changedKey]??null)===$payload)continue;
-                if(!in_array($changedKey,[BTS_STATE_KEY,'tt30bags','tt33bagreceipts'],true))throw new RuntimeException('Unsupported bag source mutation.');
+                if(!in_array($changedKey,[BTS_STATE_KEY,'tt30bags','tt33bagreceipts','tt35brandmeta'],true))throw new RuntimeException('Unsupported bag source mutation.');
                 $newVersion=(int)($store['meta'][$changedKey]['version']??0)+1;if($changedKey===BTS_STATE_KEY)$version=$newVersion;
                 $store['values'][$changedKey]=$payload;$store['meta'][$changedKey]=['version'=>$newVersion,'updatedAt'=>$now,'updatedBy'=>(string)($user['full_name']??$user['username']??''),'userId'=>(int)$user['id'],'module'=>'Mill'];$changed=true;
             }

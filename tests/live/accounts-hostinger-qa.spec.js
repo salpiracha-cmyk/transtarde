@@ -58,14 +58,10 @@ test('Mill export bags: other-exporter receipt route and scoped production marki
   await activate(page.locator('[onclick="openPanel(\'production\')"]'));
   const instructed=data.deals.filter(d=>!d.commodity||d.commodity==='RICE');
   await expect.poll(()=>page.evaluate(()=>window.TT_BAG_CHOICES.instructions().length),{timeout:45_000}).toBe(instructed.length);
-  for(const deal of instructed){
-    await page.locator('#productionFellowSoda').selectOption(deal.id);
-    const text=await page.locator('#productionFellowDetails').innerText();
-    expect(text.includes(deal.brand||'Unbranded'),'Saved instructed brand must be visible').toBe(true);
-    expect(text.includes(deal.product||'See original SODA'),'Saved instructed product must be visible').toBe(true);
-    expect(text.includes(deal.packing||'Not specified'),'Saved instructed packing must be visible').toBe(true);
-    if(!data.choices.some(c=>c.exporterDealId===deal.id))expect(text.includes('No received bag lot is linked'),'Unreceived instruction must explain bag status').toBe(true);
-  }
+  await expect(page.getByRole('combobox',{name:'Ready Rice brand / SODA'}).first()).toBeVisible();
+  await expect(page.locator('#productionActualInput')).toBeHidden();
+  const displayed=await page.getByRole('combobox',{name:'Ready Rice brand / SODA'}).first().textContent();
+  for(const deal of instructed){expect(displayed.includes(deal.brand||'Brand not entered'),'Instructed brand must remain selectable before bag receipt').toBe(true);expect(displayed.includes(deal.party),'SODA must display its business party').toBe(true);}
   await expect(page.locator('#productionAddBrand')).toBeDisabled();
   expect(await page.locator('#production .search-icon').evaluate(el=>{const b=el.getBoundingClientRect(),c=el.closest('.card').getBoundingClientRect();return b.x>=c.x&&b.y>=c.y&&b.right<=c.right&&b.bottom<=c.bottom;}),'Report search must remain in its Production card').toBe(true);
   console.log('LIVE_PRODUCTION_INSTRUCTIONS_OK '+JSON.stringify({instructedSodasChecked:instructed.length,stocklessInstructionsVisible:instructed.filter(d=>!data.choices.some(c=>c.exporterDealId===d.id)).length,physicalWrites:0,financialWrites:0}));

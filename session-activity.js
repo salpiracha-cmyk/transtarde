@@ -19,7 +19,7 @@
   const redirectToSignIn=url=>{
     if(signingOut)return;
     signingOut=true;
-    try{if(window.TT_SESSION_BEFORE_REDIRECT?.({url})===false)return;}catch(_error){/* Authentication still ends if a recovery hook fails. */}
+    try{if(window.TT_SESSION_BEFORE_REDIRECT?.({url})===false&&access().moduleId!=='milling')return;}catch(_error){/* Authentication still ends if a recovery hook fails. */}
     window.location.replace(url);
   };
   const redirectInactive=()=>redirectToSignIn('/logout.php?reason=inactive');

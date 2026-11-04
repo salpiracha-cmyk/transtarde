@@ -54,5 +54,5 @@
     catch(error){if(error.editable){intent.editable=true;try{localStorage.setItem(storageKey,JSON.stringify(intent));}catch{}}pendingPanel(storageKey,intent);alert(error.message+' Your production entry is retained.');}
     finally{busy=false;if(form)form.inert=wasInert;if(!acknowledged&&focus?.isConnected)focus.focus({preventScroll:true});}
   }
-  window.TT_PRODUCTION_SOURCE_SAVE={commit,save,remember:row=>{baseline=row?clone(row):null;generation++;},showRecovery};
+  window.TT_PRODUCTION_SOURCE_SAVE={commit,save,baseline:()=>baseline?clone(baseline):null,remember:row=>{baseline=row?clone(row):null;generation++;},showRecovery};
 })();

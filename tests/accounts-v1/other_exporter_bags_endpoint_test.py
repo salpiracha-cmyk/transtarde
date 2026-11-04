@@ -44,6 +44,18 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
     assert not set(data['deals'][0]).intersection({'price','payments','history','settlements','bankId','currency'}),'Mill planning feed exposed commercial data'
     assert snapshot()==before,'Read created stock or edited books'
     base={'csrf':'fixture','entity':'TTI','locationId':'M1','sodaId':'HK','version':1}
+    order=data['productionOrders'][0];assert order['sourceId']=='HK' and order['entity']=='TTI' and not order['brand']
+    registered=dict(action='register_production_brand',purpose='production',csrf='fixture',entity='TTI',locationId='M1',orderId=order['orderId'],version=order['version'],brand='Actual marking',requestKey='register-actual-brand-0001')
+    for mode in ['no-mill','location','company','read']:
+        assert req(registered,mode)[0]==403 and snapshot()==before,'Brand registration bypassed production/location/company Create rights'
+    assert req(dict(registered,csrf='bad'))[0]==419 and snapshot()==before
+    assert req(dict(registered,orderId='FELLOW|missing'))[0]==422 and snapshot()==before
+    status,brand_saved=req(registered);assert status==200 and brand_saved['brand']['brand']=='Actual marking',brand_saved
+    branded=snapshot();assert branded[0]==before[0],'Brand registration changed Accounts books or commercial terms'
+    assert req(registered)[1]['replayed'] and snapshot()==branded,'Lost brand response created a duplicate registration'
+    visible=req()[1]['productionOrders'];assert any(r['brand']=='Actual marking' and r['sourceId']=='HK' for r in visible)
+    assert req(dict(registered,requestKey='register-same-brand-0002'))[0]==200 and snapshot()==branded,'Same marking duplicated its source'
+    before=branded
     brand=dict(base,action='fill_brand',brand='Amros',requestKey='actual-missing-brand-0001')
     for mode in ['no-mill','location','company','read']:
         status,error=req(brand,mode);assert status==403,error;assert snapshot()==before

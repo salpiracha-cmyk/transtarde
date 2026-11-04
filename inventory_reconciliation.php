@@ -142,8 +142,8 @@ function tt_inv_stock(array $values,array $scope, ?callable $observe=null): arra
     foreach(tt_inv_rows($values,'tt30slips')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt30slips',$r,$i,'Arrival');$add((string)($r['displayName']??tt_inv_product($r,(string)($r['productStage']??'RAW'))),(float)($r['payableWeight']??0));}
     foreach(tt_inv_rows($values,'tt30prod')as$i=>$p){if(!tt_inv_same_scope($scope,$p))continue;$source('tt30prod',$p,$i,'Production output');$input=0.;
         foreach((array)($p['rows']??[])as$r){if(!is_array($r)||tt_inv_is_private_row($r)||!empty($r['noStockPost']))continue;$kg=(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);if(!empty($p['recoveryVersion']))$kg=mr_output_kg($r);$add(tt_inv_output_name($p,$r),$kg);$input+=$kg;}
-        if(!empty($p['recoveryVersion']))$input=mr_actual_input($p)??$input;
-        $context['kind']='Production consumption';if(empty($p['recoveryVersion'])||mr_actual_input($p)===null)$context['basis']='Provisional — input inferred from output';
+        if(!empty($p['recoveryVersion']))$input=mr_consumption_kg($p)??$input;
+        $context['kind']='Production consumption';if(mr_is_calculated($p))$context['basis']='Calculated from recorded physical outputs';elseif(empty($p['recoveryVersion'])||mr_actual_input($p)===null)$context['basis']='Provisional — input inferred from output';
         $add((string)($p['inputStockName']??tt_inv_product($p,(string)($p['inputStage']??'RAW'))),-$input);
     }
     foreach(tt_inv_rows($values,'tt35localsales')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt35localsales',$r,$i,'Local sale');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['kg']??0)],(array)($r['loads']??[]));
@@ -239,8 +239,10 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         }elseif($key==='tt30prod'){
             if(!empty($before['clientSaveRequestId'])&&empty($r['clientSaveRequestId']))throw new DomainException('Reload the saved production report before amending its acknowledged source.');
             if(!empty($before['recoveryVersion'])&&empty($r['recoveryVersion']))throw new DomainException('Actual-input production cannot be downgraded to a legacy entry.');
-            if(!empty($r['clientSaveRequestId']))$r['recoveryVersion']=1;
-            mr_validate_inputs($r,$before===null);if($before===null)$r['recoveryVersion']=1;
+            if($before&&!mr_is_calculated($before)&&mr_is_calculated($r)&&mr_actual_input($before)!==null)throw new DomainException('Historical measured input must retain its original calculation basis.');
+            if($before&&mr_is_calculated($before)&&!mr_is_calculated($r))throw new DomainException('Retain the saved calculated consumption basis when amending this shift.');
+            if(!empty($r['clientSaveRequestId']))$r['recoveryVersion']=mr_is_calculated($r)?2:1;
+            mr_validate_inputs($r,$before===null);if($before===null)$r['recoveryVersion']=mr_is_calculated($r)?2:1;
             $hidden=array_values(array_filter((array)($before['rows']??[]),static fn($x)=>is_array($x)&&tt_inv_is_private_row($x)));
             foreach((array)($r['rows']??[])as$x)if(is_array($x)&&tt_inv_is_private_row($x))throw new DomainException('Reconciliation rows cannot be entered as production.');
             $r['rows']=array_merge((array)($r['rows']??[]),$hidden);
