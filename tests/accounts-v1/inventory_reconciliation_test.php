@@ -139,7 +139,7 @@ equal(tt_inv_rate(loadFixture($scope,$stock),'TTI','2026-09-22'),100.0,'Manageme
 check(tt_inv_rate($ready,'TTI','2026-09-22')===null,'Ready receipt cannot supply a guessed Raw Rice rate');
 
 // A subsequent save in the same second is still a distinct subsequent production report.
-$rows=tt_inv_rows($absent,'tt30prod');$rows[]=production($scope,90,0,true,'ASAS','2026-09-22');
+$rows=tt_inv_rows($absent,'tt30prod');$rows[]=production($scope,90,0,true,'ASAS','2026-09-21');
 $sameSecond=writeSource($absent,'tt30prod',$rows,'2026-09-21T12:00:00Z');
 equal(tt_inv_rows($sameSecond,'tt34nilqueue')[0]['productionId'],90,'Same-second later report receives the fixed row once');
 rejects(static fn()=>tt_inv_prepare_write($sameSecond,'tt30prod',tt_inv_json(tt_inv_rows($absent,'tt30prod')),$mill,'2026-09-22T09:00:00Z'),'Deleting a production report cannot erase its fixed reference');
