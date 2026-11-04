@@ -26,3 +26,16 @@ console.log('PASS scoped allocation retains canonical bridge identity, committed
  serverFailure=true;applied=null;await assert.rejects(refreshContext.refreshNow({keys:['tt30queue']}),/Read failed/);assert.equal(applied,null);assert.equal(pending.size,2);
  console.log('PASS scoped Arrival report refresh preserves unrelated staged bridge data, rejects edited sources/in-flight saves and applies no failed or unrelated snapshot');
 })().catch(error=>{console.error(error);process.exitCode=1});
+
+{
+ // Arrival/Pohanch sources are not inputs of the Exports display bridge.
+ // Their delivery must redraw consumers without rebuilding another icon's draft.
+ const local=new Map([['tt30ship','KEEP-STAGED-SHIP']]),pending=new Map([['tt30ship','KEEP-STAGED-SHIP']]),committedValues=new Map(),receipts=new Map(),keyVersions=new Map(),remoteKeys=new Set();let bridges=0,notified=[];
+ const c={LOCAL_ONLY_STORES:new Set(),localStorage:{getItem:key=>local.get(key),removeItem:key=>local.delete(key)},pending,remoteKeys,keyVersions,committedValues,receipts,inFlight:new Set(),exportWorkspaceBusy:()=>false,deferInbound:()=>{throw Error('Unexpected defer')},applying:false,revision:0,lastRemoteBy:'',allowed:()=>true,directSet:(key,value)=>local.set(key,value),window:{},bridge:()=>bridges++,notifyRemote:keys=>notified.push(...keys),Number,Math,Object};
+ vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  function applyRemote('),source.indexOf('  function settleCommits(',source.indexOf('  function applyRemote('))),c);
+ c.applyRemote({ok:true,revision:5,values:{tt30queue:'[{"id":1}]',tt30slips:'[]',tt30ship:'DO-NOT-REPLACE'},meta:{tt30queue:{version:4},tt30ship:{version:2}}},false);
+ assert.equal(bridges,0,'Arrival delivery rebuilt unrelated display bridge drafts');assert.equal(local.get('tt30ship'),'KEEP-STAGED-SHIP');assert.equal(pending.get('tt30ship'),'KEEP-STAGED-SHIP');assert(notified.includes('tt30queue'));assert.equal(committedValues.get('tt30queue'),'[{"id":1}]');assert.equal(keyVersions.get('tt30queue'),4);
+ c.applyRemote({ok:true,revision:6,values:{tt30bags:'[{"id":2}]'},meta:{tt30bags:{version:1}}},false);
+ assert.equal(bridges,1,'A real bridge input lost its existing reconciliation');assert(notified.includes('tt30bags'));assert.equal(local.get('tt30ship'),'KEEP-STAGED-SHIP');
+ console.log('PASS incoming Arrival/Pohanch redraw skips unrelated display-bridge rebuild; other bridge inputs keep existing reconciliation');
+}
