@@ -219,8 +219,14 @@ def run():
             # same Local Sales screen without posting anything.
             replica_books=books.read_bytes();replica_ops=(data/'operations.json').read_bytes()
             replica=context.new_page();replica.on('pageerror',lambda e:errors.append(str(e)));replica.goto(base+'/accounts/local-sales.php?entity=TTI')
-            shared_mill=replica.frame_locator('#millLocalFrame');shared_mill.get_by_role('button',name='🏭 TTI Rice Mills Own / Default',exact=True).click()
-            shared_mill.frame_locator('iframe[title="Locked Local Party Sale"]').get_by_role('heading',name='Active Local Sales',exact=True).wait_for()
+            shared_mill=replica.frame_locator('#millLocalFrame')
+            try:
+                shared_mill.locator('body[data-tt-local-sales-ready="true"]').wait_for()
+                chooser=shared_mill.get_by_role('button',name='🏭 TTI Rice Mills Own / Default',exact=True)
+                if chooser.count() and chooser.is_visible():chooser.click()
+                shared_mill.frame_locator('iframe[title="Locked Local Party Sale"]').get_by_role('heading',name='Active Local Sales',exact=True).wait_for()
+            except Exception as error:
+                raise AssertionError({'replicaUrl':replica.url,'replicaText':replica.locator('body').inner_text()[:1000],'frames':[(frame.url,frame.locator('body').inner_text()[:1400]) for frame in replica.frames],'errors':errors}) from error
             assert books.read_bytes()==replica_books and (data/'operations.json').read_bytes()==replica_ops,'Replica navigation changed stock or books'
             replica.close()
             print('PASS native Accounts replica iframe navigation waits for Mill session verification and keeps books/stock unchanged')
