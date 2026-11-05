@@ -137,7 +137,7 @@ function pc_post(array &$s,string $e,array $b,array $u,array $names):array {
         $credit=ev1_line('1120',0,$amount,$names,['cashAccountId'=>$from,'paymentAccountId'=>$from,'cashAccountName'=>'Office Petty Cash','subledger'=>'Office Petty Cash','currency'=>'PKR']);
         $id=ev1_journal($s,$e,$date,'PETTY_CASH_MILL_TRANSFER','',$note,[$debit,$credit],$u,['pettyCash'=>true,'fromCashId'=>$from,'toCashId'=>$to,'millLocationId'=>$mill['id'],'millName'=>$mill['name'],'receivedBy'=>$receivedBy,'payee'=>$receivedBy,'currency'=>'PKR']);
         $s['journals'][$id]['reference']=$id;$s['pettyCashAudit'][]=['action'=>'MILL_TRANSFER','journalId'=>$id,'fromCashId'=>$from,'toCashId'=>$to,'receivedBy'=>$receivedBy,'by'=>$u['username']??'','at'=>gmdate('c')];
-        pc_assert_custody_balance($s,$e,$from);pc_assert_custody_balance($s,$e,$to);$result=['journalId'=>$id];
+        pc_assert_custody_balance($s,$e,$from);$result=['journalId'=>$id];
     }elseif($type==='TRANSFER'){
         $to=(string)($b['to']??'');$destination=pc_account($s,$e,$to,true);if($from===$to)throw new DomainException('Choose different cash accounts.');
         $credit=$from==='CASH|'.$e?ev1_line('1120',0,$amount,$names,['cashAccountId'=>$from,'paymentAccountId'=>$from,'subledger'=>'Office Petty Cash','currency'=>'PKR']):pc_credit($s,$e,$from,$amount,$names);

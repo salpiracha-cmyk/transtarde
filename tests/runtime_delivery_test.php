@@ -48,6 +48,10 @@ check(strlen($projected)<strlen($rawState)/50,'Embedded artwork still bloats the
 check(!str_contains($projected,'data:image/'),'Module transfer still embeds artwork.');
 $restored=tt_inv_restore_artwork($projected,['transtrade_export_v3_operational'=>$rawState]);
 check($restored===$rawState,'Saving a projected record changed or removed original artwork, empty objects, amounts or text.');
+check(tt_inv_restore_artwork($projected,['transtrade_export_v3_operational'=>$rawState],strlen($rawState))===$rawState,'The exact restored size must fit the configured budget.');
+$oversized=false;
+try{tt_inv_restore_artwork($projected,['transtrade_export_v3_operational'=>$rawState],strlen($rawState)-1);}catch(InvalidArgumentException $e){$oversized=true;}
+check($oversized,'Artwork expansion must stop at the configured budget.');
 $crossKey=json_encode(['artworkData'=>TT_INV_ARTWORK_URL.hash('sha256',$embedded)],JSON_UNESCAPED_SLASHES);
 check(json_decode(tt_inv_restore_artwork($crossKey,['transtrade_export_v3_operational'=>$rawState]),true)['artworkData']===$embedded,'Milling bridge saves cannot resolve artwork from the Exports source.');
 $unknown=json_encode(['artworkData'=>TT_INV_ARTWORK_URL.str_repeat('0',64)],JSON_UNESCAPED_SLASHES);
