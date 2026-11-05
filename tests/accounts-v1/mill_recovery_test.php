@@ -25,3 +25,20 @@ $x=mr_report([$prior,$current],['entity'=>'TTI','mode'=>'production','from'=>'20
 $duplicate=$current;$duplicate['id']='R';$duplicate['rawInputs']=[['grossKg'=>10000]];$x=mr_report([$current,$duplicate],['entity'=>'TTI','mode'=>'production']);verify($x['performance'][0]['hours']===10.0&&$x['performance'][0]['tonsPerHour']===8.0,'Multiple product runs share actual shift hours, not double-counted hours');
 unset($current['start']);$x=mr_report([$current],['entity'=>'TTI','mode'=>'production']);verify($x['performance'][0]['tonsPerHour']===null,'Missing shift time never becomes a fabricated 24-hour denominator');
 echo "PASS prior shift, overnight hours, shared intervals and missing time\n";
+
+
+$downtimeRun=$prior;
+$downtimeRun['operatingHours']=8.5;
+$downtimeRun['downtimeReason']='Power breakdown';
+$interval=mr_shift_interval($downtimeRun);
+verify(mr_operating_hours($downtimeRun,$interval)===8.5,'Explicit operating hours survive the overnight range');
+mr_validate_shift_timing($downtimeRun,true);
+foreach([['operatingHours'=>11],['operatingHours'=>0],['downtimeReason'=>'']] as $invalid){
+    $rejected=false;
+    try{mr_validate_shift_timing(array_replace($downtimeRun,$invalid),true);}catch(DomainException $e){$rejected=true;}
+    verify($rejected,'Invalid operating hours or missing narration rejected');
+}
+$report=mr_report([$downtimeRun],['entity'=>'TTI','mode'=>'production']);
+$speed=$report['performance'][0];
+verify($speed['scheduledHours']===10.0&&$speed['hours']===8.5&&$speed['downtimeHours']===1.5,'Report deducts downtime from scheduled hours');
+verify(abs($speed['tonsPerHour']-$speed['inputKg']/1000/8.5)<.0001&&$speed['downtimeReasons']===['Power breakdown'],'Report uses actual hours and carries narration');
