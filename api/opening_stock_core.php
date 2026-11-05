@@ -27,6 +27,6 @@ function osb_apply(string $json,array $input,array $user,string $now):string{
     if(!hash_equals(hash('sha256',$json),(string)($input['revision']??'')))throw new RuntimeException('Stock changed. Reopen the opening stock page before saving.',409);
     $rows=osb_rows($json);
     foreach($rows as $r)if(($r['id']??'')==='OPENSTOCK-TTI-IRRI6-20260701')throw new DomainException('An opening record already uses this reference. Review it before changing stock.');
-    $rows[]=osb_scope()+['id'=>'OPENSTOCK-TTI-IRRI6-20260701','date'=>OSB_DATE,'type'=>'Opening stock','openingStock'=>true,'managementOnly'=>true,'byProducts'=>$quantities,'ref'=>'Opening by-product quantities as at 1 July 2026','valuationStatus'=>'Quantity only — no monetary valuation posted','createdAt'=>$now,'createdBy'=>(string)($user['full_name']??$user['username']??''),'createdByUserId'=>(int)$user['id']];
+    $rows[]=osb_scope()+['riceType'=>'White','id'=>'OPENSTOCK-TTI-IRRI6-20260701','date'=>OSB_DATE,'type'=>'Opening stock','openingStock'=>true,'managementOnly'=>true,'byProducts'=>$quantities,'ref'=>'Opening by-product quantities as at 1 July 2026','valuationStatus'=>'Quantity only — no monetary valuation posted','createdAt'=>$now,'createdBy'=>(string)($user['full_name']??$user['username']??''),'createdByUserId'=>(int)$user['id']];
     return tt_inv_json($rows);
 }
