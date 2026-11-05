@@ -15,11 +15,35 @@ const app=source.replace('mount();restoreContractCheckpoint();',hook),STORE='tra
     window.alerts=[];window.alert=m=>alerts.push(m);window.confirm=()=>true;window.prompt=()=>'Fixture correction';
     window.server={ok:true,revision:1,values:{},meta:{}};window.posts=[];window.fault='';
     window.XMLHttpRequest=class{open(){}send(){this.status=200;this.responseText=JSON.stringify(server)}};
+    // Model the server's versioned record/field patch, not the legacy full-root upload.
+    // FI and cancellation actions still need to obey the same acknowledgement rules.
+    const applyChanges=(json,changes)=>{
+     const root=JSON.parse(json||'{}');
+     for(const {action,path,value} of changes){
+      let node=root;
+      for(const segment of path.slice(0,-1)){
+       node=typeof segment==='object'?node.find(row=>row.id===segment.id):node[segment];
+       if(node===undefined)throw Error('Fixture patch target not found');
+      }
+      const last=path.at(-1);
+      if(last===null){
+       if(!Array.isArray(node))throw Error('Fixture patch target is not a list');
+       if(action==='append')node.push(...value);
+       else if(action==='prepend')node.unshift(...value);
+       else if(action==='order'){const indexed=new Map(node.map(row=>[row.id,row]));node.splice(0,node.length,...value.map(id=>indexed.get(id)))}
+       else throw Error('Fixture patch list action is invalid');
+      }else if(action==='remove'){delete node[last]}
+      else if(action==='set')node[last]=value;
+      else throw Error('Fixture patch field action is invalid');
+     }
+     return JSON.stringify(root);
+    };
     window.fetch=async(url,o={})=>{
      if(o.method!=='POST')return{ok:true,json:async()=>server};
      const body=JSON.parse(o.body);posts.push(body);
      if(fault==='rejected')return{ok:false,json:async()=>({ok:false,error:'Fixture permission rejection'})};
-     server.values[body.key]=body.value;server.meta[body.key]={version:(server.meta[body.key]?.version||0)+1};server.revision++;
+     server.values[body.key]=body.contractChanges?applyChanges(server.values[body.key],JSON.parse(body.contractChanges)):body.value;
+     server.meta[body.key]={version:(server.meta[body.key]?.version||0)+1};server.revision++;
      if(fault==='lost-ack')throw Error('Disconnected after commit');
      if(fault==='delayed')await new Promise(resolve=>window.releaseSave=resolve);
      return{ok:true,json:async()=>({ok:true,revision:server.revision,keyVersion:server.meta[body.key].version,value:server.values[body.key]})};

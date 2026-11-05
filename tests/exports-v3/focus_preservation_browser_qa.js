@@ -46,12 +46,29 @@ async function pageFor(moduleId='exports', withApp=true) {
    open(method,url,async=true){this.async=async}
    send(){this.status=200;this.responseText=JSON.stringify(server);if(this.async){network.gets++;const deliver=()=>this.onload?.();if(network.hold)network.held.push(deliver);else setTimeout(deliver,0)}}
   };
+  // Model scoped Exports updates on the canonical test book, as production does.
+  const applyPatch=(json,changes)=>{
+   const root=JSON.parse(json||'{}');
+   for(const {action,path,value} of changes){
+    let node=root;for(const part of path.slice(0,-1)){node=typeof part==='object'?node.find(row=>row.id===part.id):node[part];if(node===undefined)throw Error('Unknown patch fixture target')}
+    const last=path.at(-1);
+    if(last===null){
+     if(action==='append')node.push(...value);
+     else if(action==='prepend')node.unshift(...value);
+     else if(action==='order'){const indexed=new Map(node.map(row=>[row.id,row]));node.splice(0,node.length,...value.map(id=>indexed.get(id)))}
+     else throw Error('Invalid patch list action');
+    }else if(action==='remove')delete node[last];
+    else if(action==='set')node[last]=value;
+    else throw Error('Invalid patch field action');
+   }
+   return JSON.stringify(root);
+  };
   window.fetch=async(url,options={})=>{
    if(options.method==='POST'){
     const body=JSON.parse(options.body);network.posts.push(body);
     const version=Number(server.meta[body.key]?.version||0);
     if(body.baseVersion!==version)return{ok:false,json:async()=>({ok:false,conflict:true,error:'Version conflict'})};
-    server.revision++;server.values[body.key]=body.value;server.meta[body.key]={version:version+1,updatedBy:'Isolated Focus QA'};
+    server.revision++;server.values[body.key]=body.contractChanges?applyPatch(server.values[body.key],JSON.parse(body.contractChanges)):body.value;server.meta[body.key]={version:version+1,updatedBy:'Isolated Focus QA'};
     return{ok:true,json:async()=>({ok:true,revision:server.revision,keyVersion:version+1,value:server.values[body.key]})};
    }
    return{ok:true,json:async()=>structuredClone(server)};
