@@ -20,8 +20,26 @@ assert.notEqual(app,source);
    window.TT_MODULE_ACCESS={moduleId:'exports',module:'Exports',user:'Fixture',role:'Super Admin',super:true,masters:{},csrf:'fixture'};
    window.server={ok:true,revision:1,values:{},meta:{}};window.posts=[];window.reads=[];window.replies={};
    window.XMLHttpRequest=class{open(){}send(){this.status=200;this.responseText=JSON.stringify(server)}};
+   // Simulate the live scoped Exports protocol, including server-side patch application.
+   const applyPatch=(original,changes)=>{
+    const root=JSON.parse(original||'{}');
+    for(const {action,path,value} of changes){
+     let node=root;
+     for(const part of path.slice(0,-1)){node=typeof part==='object'?node.find(row=>row.id===part.id):node[part];if(node===undefined)throw Error('Unknown patch fixture target')}
+     const last=path.at(-1);
+     if(last===null){
+      if(action==='append')node.push(...value);
+      else if(action==='prepend')node.unshift(...value);
+      else if(action==='order'){const ids=new Map(node.map(row=>[row.id,row]));node.splice(0,node.length,...value.map(id=>ids.get(id)))}
+      else throw Error('Invalid list fixture patch');
+     }else if(action==='remove')delete node[last];
+     else if(action==='set')node[last]=value;
+     else throw Error('Invalid field fixture patch');
+    }
+    return JSON.stringify(root);
+   };
    window.fetch=async(url,options={})=>{
-    if(options.method==='POST'){const body=JSON.parse(options.body);posts.push(body);server.values[body.key]=body.value;server.meta[body.key]={version:(server.meta[body.key]?.version||0)+1};return{ok:true,json:async()=>({ok:true,revision:++server.revision,keyVersion:server.meta[body.key].version,value:server.values[body.key]})}}
+    if(options.method==='POST'){const body=JSON.parse(options.body);posts.push(body);server.values[body.key]=body.contractChanges?applyPatch(server.values[body.key],JSON.parse(body.contractChanges)):body.value;server.meta[body.key]={version:(server.meta[body.key]?.version||0)+1};return{ok:true,json:async()=>({ok:true,revision:++server.revision,keyVersion:server.meta[body.key].version,value:server.values[body.key]})}}
     if(String(url).includes('shipment-status')){reads.push(String(url));if(window.holdCheck)await new Promise(resolve=>window.releaseCheck=resolve);const lot=new URL(url,location.href).searchParams.get('lot');const reply=replies[lot]||{ok:true,found:false};if(reply.throw)throw Error(reply.throw);return{ok:reply.ok,json:async()=>reply}}
     return{ok:true,json:async()=>server};
    };
