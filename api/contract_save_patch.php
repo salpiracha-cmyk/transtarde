@@ -28,8 +28,12 @@ function operations_expand_contract_changes(string $patch,array $values,array $u
             }elseif(is_int($segment)&&is_array($cursor)&&array_key_exists($segment,$cursor)){
                 $cursor=&$cursor[$segment];
             }elseif(is_string($segment)&&$cursor instanceof stdClass){
-                if(!property_exists($cursor,$segment)&&in_array($action,['append','prepend'],true)&&($depth===0||($depth===1&&$path[0]==='millSync')))$cursor->$segment=$path[0]==='millSync'&&$depth===0?(object)[]:[];
-                if(!property_exists($cursor,$segment))throw new InvalidArgumentException('A linked record changed. Reload Exports before saving the contract.');
+                if(!property_exists($cursor,$segment)){
+                    $next=$path[$depth+1]??$last;
+                    if($next===null&&in_array($action,['append','prepend'],true))$cursor->$segment=[];
+                    elseif(is_string($next)&&$action!=='remove')$cursor->$segment=(object)[];
+                    else throw new InvalidArgumentException('A linked record changed. Reload Exports before saving the contract.');
+                }
                 $cursor=&$cursor->$segment;
             }else throw new InvalidArgumentException('Invalid sales contract change path.');
         }

@@ -82,11 +82,13 @@ function tt_user_can_open_module($u,$m){return true;}
         assert state['customers'][0]['nextSeq']==2
         status,saved=send(7,[
             {'action':'set','path':['contracts',{'id':'NEW'},'qty'],'value':60},
+            {'action':'append','path':['contracts',{'id':'NEW'},'versions',None],'value':[{'at':'2026-11-05T00:00:00Z','snapshot':{'qty':50}}]},
             {'action':'set','path':['shipments',{'id':'NEW-P'},'plannedQty'],'value':60},
         ])
         assert status==200 and saved['keyVersion']==8, saved
         state=json.loads(saved['value'])
         assert state['shipments'][1]['plannedQty']==60 and state['contracts'][1]['qty']==60
+        assert state['contracts'][1]['versions'][0]['snapshot']['qty']==50
         assert state['shipments'][0]['bagOrders']==shipment['bagOrders']
         print('PASS scoped Exports HTTP saves: wording, new draft, issue and linked quantity amendment on a 17 MiB book')
     except Exception:
