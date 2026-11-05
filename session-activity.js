@@ -19,6 +19,7 @@
   const redirectToSignIn=url=>{
     if(signingOut)return;
     signingOut=true;
+    if(window.TT_MILL_SESSION?.expire){window.TT_MILL_SESSION.expire();return;}
     try{if(window.TT_SESSION_BEFORE_REDIRECT?.({url})===false&&access().moduleId!=='milling')return;}catch(_error){/* Authentication still ends if a recovery hook fails. */}
     window.location.replace(url);
   };
@@ -39,7 +40,7 @@
   };
   addEventListener('tt:session-expired',()=>redirectToSignIn('/login.php?expired=inactive'));
   const markActivity=()=>{
-    if(window.TT_MILL_SESSION?.ready?.()===false)return;
+    if(signingOut||window.TT_MILL_SESSION?.ready?.()===false)return;
     const now=Date.now();
     lastActivity=now;
     writeShared(now);

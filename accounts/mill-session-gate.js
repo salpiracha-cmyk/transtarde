@@ -3,7 +3,8 @@
  if(window.TT_MODULE_ACCESS?.moduleId!=='milling')return;
  const IDLE_MS=15*60*1000,nativeFetch=window.fetch.bind(window);
  let ready=false,expired=false,checking=null,deadline=0,lastInteraction=Date.now(),needsCheck=true,oldInert=false,ownedMain=null,previousFocus=null;
- const panelId='ttMillSessionGate';
+ const panelId='ttMillSessionGate',dialogId='ttMillIdleDialog',logoutUrl='/logout.php?reason=inactive';
+ let logoutConfirmed=false;
  function lock(text='',retry=false){
   ready=false;
   const main=document.querySelector('main');if(main&&ownedMain!==main){ownedMain=main;oldInert=!!main.inert;previousFocus=main.contains(document.activeElement)?document.activeElement:null;main.inert=true;}
@@ -13,7 +14,26 @@
   panel.querySelector('[data-session-message]').textContent=text;panel.querySelector('[data-session-retry]').hidden=!retry||expired;
  }
  function unlock(){if(expired)return;ready=true;needsCheck=false;document.getElementById(panelId)?.remove();if(ownedMain){ownedMain.inert=oldInert;ownedMain=null;if(!oldInert&&previousFocus?.isConnected)previousFocus.focus({preventScroll:true});previousFocus=null;}}
- function end(){expired=true;ready=false;window.dispatchEvent(new Event('tt:session-expired'));}
+ function goToSignIn(){window.location.replace(logoutConfirmed?'/login.php?expired=inactive':logoutUrl);}
+ function end(){
+  if(expired)return;
+  expired=true;lock();
+  try{window.TT_SESSION_BEFORE_REDIRECT?.({url:logoutUrl});}catch{/* A draft recovery error must leave entry locked. */}
+  void nativeFetch(logoutUrl,{credentials:'same-origin',cache:'no-store',redirect:'manual',keepalive:true})
+   .then(response=>{logoutConfirmed=response.type==='opaqueredirect';}).catch(()=>{});
+  const dialog=document.createElement('dialog');dialog.id=dialogId;
+  dialog.setAttribute('aria-labelledby','ttMillIdleTitle');
+  dialog.style.cssText='width:min(24rem, calc(100% - 3rem));padding:1.25rem;border:1px solid #ccd6c8;border-radius:12px;color:#203022;background:#fff;box-shadow:0 12px 40px #0005';
+  const heading=document.createElement('h2');heading.id='ttMillIdleTitle';heading.textContent='Session expired';
+  const message=document.createElement('p');message.textContent='You were signed out after 15 minutes of inactivity. Select OK to sign in again.';
+  const ok=document.createElement('button');ok.type='button';ok.className='btn';ok.textContent='OK';ok.onclick=goToSignIn;
+  dialog.append(heading,message,ok);document.body.append(dialog);
+  dialog.addEventListener('cancel',event=>{event.preventDefault();goToSignIn();});
+  try{history.pushState(null,'',location.href);}catch{/* A restored protected page is still checked. */}
+  if(typeof dialog.showModal==='function')dialog.showModal();else dialog.open=true;
+  ok.focus();
+ }
+ function checkIdle(){if(!expired&&Date.now()-lastInteraction>=IDLE_MS)end();}
  function verify(){
   if(expired)return Promise.resolve(false);if(checking)return checking;
   lock();
@@ -27,7 +47,9 @@
   }finally{clearTimeout(timer);checking=null;}});return checking;
  }
  function guard(event){
-  if(event.target?.closest?.('#'+panelId+',#arrivalSessionLock'))return;
+  if(event.target?.closest?.('#'+dialogId))return;
+  checkIdle();
+  if(!expired&&event.target?.closest?.('#'+panelId+',#arrivalSessionLock'))return;
   const now=Date.now();if(!ready||needsCheck||now>=deadline||now-lastInteraction>=IDLE_MS){
    if(event.cancelable)event.preventDefault();event.stopImmediatePropagation();if(!expired&&!checking&&!document.getElementById(panelId))void verify();return;
   }
@@ -35,12 +57,14 @@
  }
  // Installed in the head, before native handlers or the shared activity clock.
  for(const name of ['pointerdown','keydown','beforeinput','input','change','touchstart','scroll','click','submit'])window.addEventListener(name,guard,{capture:true,passive:false});
- document.addEventListener('visibilitychange',()=>{if(document.hidden)needsCheck=true;else if(needsCheck)void verify();});
- window.addEventListener('focus',()=>{if(needsCheck||Date.now()-lastInteraction>=60000)void verify();});
- window.addEventListener('pageshow',event=>{if(event.persisted){needsCheck=true;void verify();}});
- window.addEventListener('offline',()=>{needsCheck=true;window.TT_ARRIVAL_DEVICE_GUARD?.preserve?.();window.TT_PRODUCTION_RECOVERY?.preserveDeviceDraft?.();lock('Connection unavailable. Entry is locked until your sign-in can be checked. Existing details have been kept.',true);});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)needsCheck=true;else{checkIdle();if(needsCheck)void verify();}});
+ window.addEventListener('focus',()=>{checkIdle();if(needsCheck||Date.now()-lastInteraction>=60000)void verify();});
+ window.addEventListener('pageshow',event=>{if(event.persisted){if(expired){goToSignIn();return;}needsCheck=true;void verify();}});
+ window.addEventListener('popstate',()=>{checkIdle();if(expired)goToSignIn();});
+ window.addEventListener('offline',()=>{if(expired)return;needsCheck=true;window.TT_ARRIVAL_DEVICE_GUARD?.preserve?.();window.TT_PRODUCTION_RECOVERY?.preserveDeviceDraft?.();lock('Connection unavailable. Entry is locked until your sign-in can be checked. Existing details have been kept.',true);});
  window.addEventListener('online',()=>{if(needsCheck)void verify();});
- const prior=window.TT_SESSION_BEFORE_REDIRECT;window.TT_SESSION_BEFORE_REDIRECT=details=>{expired=true;ready=false;window.TT_PRODUCTION_RECOVERY?.preserveDeviceDraft?.();prior?.(details);return true;};
- window.TT_MILL_SESSION={verify,ready:()=>ready&&!expired,activityConfirmed:at=>{if(ready&&!expired)deadline=(Number.isFinite(at)?Math.min(at,Date.now()):Date.now())+IDLE_MS;}};
+ const prior=window.TT_SESSION_BEFORE_REDIRECT;window.TT_SESSION_BEFORE_REDIRECT=details=>{window.TT_PRODUCTION_RECOVERY?.preserveDeviceDraft?.();prior?.(details);return true;};
+ setInterval(checkIdle,1000);
+ window.TT_MILL_SESSION={verify,expire:end,ready:()=>ready&&!expired,activityConfirmed:at=>{if(ready&&!expired)deadline=(Number.isFinite(at)?Math.min(at,Date.now()):Date.now())+IDLE_MS;}};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>void verify());else void verify();
 })();
