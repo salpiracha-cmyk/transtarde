@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/fi_credit_advice_link.php';
+require_once __DIR__.'/contract_save_patch.php';
 require_once __DIR__.'/operations_policy.php';
 require_once __DIR__.'/operations_read_policy.php';
 require_once __DIR__.'/commodity_weights_core.php';
@@ -690,6 +691,8 @@ function operations_file_fallback(array $user): never {
     $body = json_decode($raw, true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf']??''))) operations_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $key=(string)($body['key']??''); $value=$body['value']??null; $baseVersion=max(0,(int)($body['baseVersion']??0)); $sourceModule=trim((string)($body['sourceModule']??''));
+    $contractChanges=operations_contract_input($body,$key,$sourceModule);
+    if($contractChanges!==null)$value='{}';
     if (!operations_key_allowed($key) || !is_string($value)) operations_respond(['ok'=>false,'error'=>'Invalid operational update.'],422);
     json_decode($value,true); if (json_last_error()!==JSON_ERROR_NONE) operations_respond(['ok'=>false,'error'=>'Operational data must be valid JSON.'],422);
     if (!in_array($sourceModule,['Exports','Mill','Milling','Accounts','Super Admin'],true)) operations_respond(['ok'=>false,'error'=>'Invalid source module.'],422);
@@ -702,12 +705,12 @@ function operations_file_fallback(array $user): never {
     $handle=fopen($path,'c+'); if ($handle===false || !flock($handle,LOCK_EX)) throw new RuntimeException('Shared operational storage is unavailable.');
     $conflict=false;
     try {
-        rewind($handle); $existing=stream_get_contents($handle); $store=$existing?json_decode($existing,true):null;
+        rewind($handle); $store=json_decode(stream_get_contents($handle)?:'null',true);
         if (!is_array($store)) $store=['revision'=>0,'values'=>[],'meta'=>[]];
         $old=(string)($store['values'][$key]??''); $keyVersion=(int)($store['meta'][$key]['version']??0);
         if ($baseVersion!==$keyVersion) $conflict=true;
         else {
-            $value=operations_restore_write_artwork($key,$value,(array)($store['values']??[]));
+            $value=$contractChanges===null?operations_restore_write_artwork($key,$value,(array)($store['values']??[])):operations_expand_contract_changes($contractChanges,(array)($store['values']??[]),$user);
             $value=os_prepare_write($user,$key,$value,(array)($store['values']??[]));
             $value=operations_instruction_ack($user,$key,$old,$value,(array)($store['values']??[]));
             $value=operations_duplicate_prepare($user,$key,$old,$value,(array)($store['values']??[]));
@@ -739,7 +742,7 @@ function operations_file_fallback(array $user): never {
             $keyVersion=(int)($store['meta'][$key]['version']??0);
             if($nextValues!==$beforeValues){
                 $encoded=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-                rewind($handle);if(!ftruncate($handle,0)||fwrite($handle,$encoded)!==strlen($encoded))throw new RuntimeException('Shared operational storage could not be written.');fflush($handle);
+                rewind($handle);if(!ftruncate($handle,0)||fwrite($handle,$encoded)!==strlen($encoded))throw new RuntimeException('Shared operational storage could not be written.');fflush($handle);unset($encoded);
             }
         }
         $revision=(int)($store['revision']??0);
@@ -789,6 +792,8 @@ try {
     $value = $body['value'] ?? null;
     $baseVersion = max(0, (int)($body['baseVersion'] ?? 0));
     $sourceModule = trim((string)($body['sourceModule'] ?? ''));
+    $contractChanges=operations_contract_input($body,$key,$sourceModule);
+    if($contractChanges!==null)$value='{}';
     if (!operations_key_allowed($key) || !is_string($value)) operations_respond(['ok' => false, 'error' => 'Invalid operational update.'], 422);
     json_decode($value, true);
     if (json_last_error() !== JSON_ERROR_NONE) operations_respond(['ok' => false, 'error' => 'Operational data must be valid JSON.'], 422);
@@ -840,6 +845,7 @@ try {
         return $json=(string)($rootRead->fetchColumn()?:'');
     };
     $scopeValues=[];foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll() as $r)$scopeValues[(string)$r['storage_key']]=(string)$r['payload'];
+    if($contractChanges!==null)$value=operations_expand_contract_changes($contractChanges,$scopeValues,$user);
     $value=os_prepare_write($user,$key,$value,$scopeValues);
     $value=operations_instruction_ack($user,$key,$oldPayload,$value,$scopeValues);
     $value=operations_duplicate_prepare($user,$key,$oldPayload,$value,$scopeValues);
