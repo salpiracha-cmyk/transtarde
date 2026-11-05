@@ -9,7 +9,7 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
  vm.runInContext(`window=globalThis;class TestStorage{constructor(){this.values=new Map();this.quota=false}getItem(k){return this.values.get(String(k))??null}setItem(k,v){if(this.quota){const e=new Error('full');e.name='QuotaExceededError';throw e}this.values.set(String(k),String(v))}removeItem(k){this.values.delete(String(k))}clear(){this.values.clear()}};Storage=TestStorage;localStorage=new Storage();sessionStorage=new Storage();`,c);
  c.localStorage.quota=quota;
  c.XMLHttpRequest=class{open(){}send(){this.status=200;this.responseText=JSON.stringify({ok:true,revision:1,values:{[STORE]:initial},meta:{[STORE]:{version:1}}})}};
- c.fetch=(url,opts)=>new Promise((resolve,reject)=>requests.push({body:JSON.parse(opts.body),resolve,reject}));
+ c.fetch=(url,opts)=>new Promise((resolve,reject)=>requests.push({body:opts.body?JSON.parse(opts.body):null,resolve,reject}));
  vm.runInContext(source,c);
  return{c,requests,timers,classes,ack:(n,value)=>{const r=requests[n];r.resolve({ok:true,json:async()=>({ok:true,revision:n+2,keyVersion:n+2,value:value??r.body.value})})}};
 }
@@ -32,6 +32,18 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
  for(const moduleId of ['milling','exports']){f=fixture({moduleId,initial:a});f.c.localStorage.setItem(STORE,a);p=f.c.TT_SHARED_SYNC.saveNow();f.requests[0].resolve({ok:true,json:async()=>({ok:true,value:a,keyVersion:1,revision:1})});await p;assert.equal(f.c.TT_SHARED_SYNC.readCommitted(STORE),a);}console.log('PASS exact no-op server acknowledgements do not require a fabricated version increment');
  f=fixture();f.c.localStorage.setItem(STORE,a);p=f.c.TT_SHARED_SYNC.saveNow({key:STORE,value:a});const rejected=assert.rejects(p,/not confirmed/);f.timers[0]();await rejected;f.c.TT_SHARED_SYNC.restoreStaged(STORE,'{"shipments":[]}',a);f.ack(0);await tick();assert.equal(f.c.TT_SHARED_SYNC.readCommitted(STORE),a);assert.equal(f.requests.length,1);
  console.log('PASS timeout then late commit retains receipt without automatically reopening server lot');
+ f=fixture();f.c.localStorage.setItem(STORE,a);
+ p=f.c.TT_SHARED_SYNC.saveNow({key:STORE,value:a});const lost=assert.rejects(p,/not confirmed/);
+ f.requests[0].reject(new Error('Response lost after commit'));await lost;
+ let verify=f.c.TT_SHARED_SYNC.confirmExportSave(a,value=>value===a);
+ assert.equal(f.requests[1].body,null,'Checking a lost response must not post a second write');
+ f.requests[1].resolve({ok:true,json:async()=>({ok:true,revision:2,values:{[STORE]:b},meta:{[STORE]:{version:2}}})});
+ assert.equal(await verify,false,'Different server facts cannot confirm the save');
+ verify=f.c.TT_SHARED_SYNC.confirmExportSave(a,value=>value===a);
+ f.requests[2].resolve({ok:true,json:async()=>({ok:true,revision:2,values:{[STORE]:a},meta:{[STORE]:{version:2}}})});
+ assert.equal(await verify,true);await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,3);
+ assert.equal(f.c.TT_SHARED_SYNC.readCommitted(STORE),a);
+ console.log('PASS contract recovery confirms exact server facts without sending a duplicate write');
  f=fixture();const release=f.c.TT_SHARED_SYNC.hold();assert.equal(f.classes.has('tt-save-waiting'),true);await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.classes.has('tt-save-waiting'),true);release();assert.equal(f.classes.has('tt-save-waiting'),false);
  f.c.localStorage.setItem('archiveMarker','new');f.c.localStorage.removeItem('archiveMarker');assert.equal(f.c.localStorage.getItem('archiveMarker'),null);
  assert.throws(()=>{f.c.sessionStorage.quota=true;f.c.sessionStorage.setItem('x','y')},/full/);

@@ -14,7 +14,7 @@ const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Jazib',module:'Exports'},addEventListener(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-source=source.replace('mount();',`window.__AUDIT__={state,makeShipment,makeLotRecord,blankDocuments,processStatus,lotStatus,fiUsed,actualTotals,plannedTotals,customsPlannedRows,plannedPhysicalRows,millActualsComplete,invoiceLines,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,coveringDoc,lcDraftDoc,lcControlDoc,tgInternalDoc,salesContractPrint,paymentText,contractPaymentSectionText,contractPaymentHTML,commercialPaymentLabel,inspectionContractContext,defaultDocsFor,effectiveTerms,lcSpecificTerms,contractSpecRows,DEFAULT_QUALITY};mount();`);
+source=source.replace('mount();',`window.__AUDIT__={state,makeShipment,makeLotRecord,blankDocuments,processStatus,lotStatus,fiUsed,actualTotals,plannedTotals,customsPlannedRows,plannedPhysicalRows,millActualsComplete,invoiceLines,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,coveringDoc,lcDraftDoc,lcControlDoc,tgInternalDoc,salesContractPrint,contractNeedsPaymentDeadline,salesContractNotifyFields,contractSaveMatches,paymentText,contractPaymentSectionText,contractPaymentHTML,commercialPaymentLabel,inspectionContractContext,defaultDocsFor,effectiveTerms,lcSpecificTerms,contractSpecRows,DEFAULT_QUALITY};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__AUDIT__;
 
@@ -23,6 +23,19 @@ const contract={id:'CT-1',ref:'TTI/NS/01',seller:'TTI',customerId:customer.id,da
 t.state.contracts.push(contract);
 const process=t.makeShipment(contract);process.lc={saved:true,lcNo:'LC-99881',lcDate:'2026-09-08',currency:'USD',amount:230000,issuingBank:'FIRST BANK',advisingBank:'MEEZAN BANK',documents:['Commercial Invoice','Packing List'],conditions:['No transshipment']};process.bagOrders=[{poNo:'PO-260001'}];process.production.sentToMill=true;t.state.shipments.push(process);
 assert.equal(contract.paymentDeadline,'2026-09-15','L/C deadline defaults to five banking days');assert.ok(t.effectiveTerms(contract).some(x=>x.includes('FIRST-CLASS BANK')));assert.ok(t.effectiveTerms(contract).some(x=>x.includes('PARTIAL SHIPMENT')));
+const cad={...contract,paymentCode:'CAD100',contractNotifyParty:{enabled:true,name:'Notify & Co',address:'Address <Suite 2>'}};
+assert.equal(t.contractNeedsPaymentDeadline(cad),false);
+assert.equal(t.contractNeedsPaymentDeadline(contract),true);
+const cadPrint=t.salesContractPrint(cad);
+assert.match(cadPrint,/Signed \/ stamped copy of Sales Contract to be received latest by/);
+assert.doesNotMatch(cadPrint,/Payment to be received latest|L\/C to be received latest/);
+assert.match(cadPrint,/100% Cash Against Documents/i);
+assert.match(cadPrint,/NOTIFY PARTY[\s\S]*Notify &amp; Co[\s\S]*Address &lt;Suite 2&gt;/);
+assert.doesNotMatch(t.salesContractPrint({...cad,contractNotifyParty:{...cad.contractNotifyParty,enabled:false}}),/Notify &amp; Co/);
+assert.match(t.salesContractNotifyFields(cad),/cContractNotifyEnabled[^>]*checked/);
+assert.equal(t.contractSaveMatches({contracts:[structuredClone(cad)],shipments:[process]},cad,process.id),true);
+assert.equal(t.contractSaveMatches({contracts:[{...cad,paymentCode:'ADV100'}],shipments:[process]},cad,process.id),false);
+assert.equal(t.contractSaveMatches({contracts:[cad],shipments:[]},cad,process.id),false);
 const plan1={lotId:'LOT-01',loadingDate:'2026-09-12',tba:false,allocations:[{packIndex:0,name:'TTI Rice Mills',type:'TTI',containers:5,weightPer:27,emptyBags:50}]};
 const plan2={lotId:'LOT-02',loadingDate:'2026-09-13',tba:false,allocations:[{packIndex:1,name:'External Mill',type:'Ex-Mill',containers:5,weightPer:27,emptyBags:20}]};
 const lot1=t.makeLotRecord(process,plan1),lot2=t.makeLotRecord(process,plan2);t.state.shipments.push(lot1,lot2);
