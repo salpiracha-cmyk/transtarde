@@ -1,0 +1,15 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+const html=fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html','utf8');
+const native=name=>{const a=html.indexOf('function '+name+'('),b=html.indexOf('\nfunction ',a+9);assert(a>=0,name);return html.slice(a,b);};
+const dom=new JSDOM('<select id="prodVariety"><option>IRRI-6 White Rice</option><option>C-9 White Rice</option></select><table><tbody><tr><td></td><td><input data-output-bags></td><td><input data-output-weight></td><td><input id="pkg1"></td></tr></tbody></table>',{url:'https://fixture.test',runScripts:'outside-only'}),w=dom.window;
+w.currentMill={id:1,name:'Fixture Mill'};w.productionRows=[{id:1,product:'B2 — LOCAL',bags:10,bagWeight:50}];let posts=0;w.fetch=()=>posts++;w.calcProduction=()=>{};
+w.eval(['productionWeightKey','productionWeightDefault','updateProd','updateProductionKg'].map(native).join('\n'));
+assert.equal(w.productionWeightDefault('Powder'),35);assert.equal(w.productionWeightDefault('B3'),50);
+w.updateProd(1,'bagWeight','45');assert.equal(w.productionWeightDefault('B2 — LOCAL'),45);assert.equal(posts,0);
+w.currentMill.id=2;assert.equal(w.productionWeightDefault('B2 — LOCAL'),50);w.currentMill.id=1;
+w.document.getElementById('prodVariety').value='C-9 White Rice';assert.equal(w.productionWeightDefault('B2 — LOCAL'),50);w.document.getElementById('prodVariety').value='IRRI-6 White Rice';assert.equal(w.productionWeightDefault('B2 — LOCAL'),45);
+w.updateProductionKg(1,'125');assert.equal(w.productionRows[0].bags,1);assert.equal(w.productionRows[0].bagWeight,125);assert.equal(w.productionWeightDefault('B2 — LOCAL'),45,'Loose kg must not replace remembered packing preference');
+w.productionRows[0]={id:1,product:'B2 — MARK',bags:0,bagWeight:40};w.updateProductionKg(1,'100');assert.equal(w.productionRows[0].bags,2.5,'Actual branded packing size retained; whole physical bag validation must still run');assert.equal(w.productionRows[0].bagWeight,40);
+assert.equal(posts,0,'Calculator and preferences cannot save business records');
+console.log('PASS compact production calculator: Powder35/other50, mill/variety-specific remembered preferences, direct kg, original branded packing and no business autosave.');

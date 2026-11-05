@@ -23,3 +23,18 @@ $unowned=['tt30slips'=>[['id'=>'LEGACY','arrivalDate'=>'2026-09-01','displayName
 $staged=['tt30slips'=>[]];foreach(['RAW','READY','FINISHED'] as $stage)$staged['tt30slips'][]=$scope+['id'=>$stage,'baseVariety'=>'IRRI-6','riceType'=>'White','productStage'=>$stage,'arrivalDate'=>'2026-09-01','payableWeight'=>100];
 $stageReport=report($staged);$identities=[];foreach(['RAW','READY','FINISHED'] as $stage){$name=tt_inv_product(['baseVariety'=>'IRRI-6','riceType'=>'White'],$stage);$identities[]=$name;eq(summary($stageReport,$name)['closingKg'],100.0,'Retain the actual arrival stage in its own stock balance');}eq(count(array_unique($identities)),3,'Raw, Ready and Finished identities remain distinct');
 echo "PASS Rice Ledger: scoped canonical stock, production, openings, container dates, hidden movements, amendments/removal, provisional/undated history and malformed-source failures.\n";
+
+// Pool the physical quantity projection only. Accounting ownership stays untouched.
+$poolRows=[];
+foreach([['A','TTI','IRRI-6','TTI Rice Mills',100],['B','BRM','IRRI-6','TTI Rice Mills',200],['C','TTI','C-9','TTI Rice Mills',300],['D','BRM','IRRI-6','Other Mill',900],['E','TTI','','TTI Rice Mills',40]]as[$id,$entity,$variety,$mill,$kg])$poolRows[]=['id'=>$id,'entity'=>$entity,'baseVariety'=>$variety,'riceType'=>'White','millName'=>$mill,'date'=>'2026-11-01','rows'=>[['product'=>'B2 — '.($id==='A'?'ASAS':'AMT'),'bags'=>1,'bagWeight'=>$kg],['product'=>'Powder','bags'=>1,'bagWeight'=>35]]];
+$poolValues=values(['tt30prod'=>$poolRows]);$bytes=serialize($poolValues);
+$physical=rl_report($poolValues,$scope+['physicalPool'=>true],['movement'=>'All']);
+eq(summary($physical,'IRRI-6 White Rice — B2')['closingKg'],300.0,'Same-mill same-variety TTI/BRM ASAS/AMT by-products pool');
+eq(summary($physical,'C-9 White Rice — B2')['closingKg'],300.0,'Different varieties stay separate');
+eq(summary($physical,'IRRI-6 White Rice — Powder')['closingKg'],70.0,'Different products stay separate and other mills excluded');
+eq(summary($physical,'UNASSIGNED VARIETY — B2')['closingKg'],40.0,'Unknown legacy variety is never inferred');
+eq(tt_inv_stock($poolValues,$scope)['B2 — ASAS'],100.0,'Company accounting source projection preserved');
+eq(isset(tt_inv_stock($poolValues,$scope)['B2 — AMT']),true,'Existing company source names remain intact');
+eq(serialize($poolValues),$bytes,'Physical projection does not rewrite sources');
+eq(count(array_filter($physical['rows'],fn($r)=>($r['sourceEntity']??'')==='BRM'))>0,true,'Original company remains traceable');
+echo "PASS physical pooling: same mill/variety/product across companies and brands, distinct varieties/mills, unassigned legacy identity, immutable accounting sources and source-company trace.\n";

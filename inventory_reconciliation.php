@@ -133,8 +133,34 @@ function tt_inv_resolve_stock(array $map,array $shipment): string {
     if(empty($shipment['baseVariety'])&&empty($shipment['riceType'])&&count($matches)===1)return $matches[0];
     return $finished;
 }
+/** Physical by-products belong to a mill and variety, independent of the accounting owner.
+ * Unknown historical variety remains unassigned. Never infer it from another lot.
+ */
+function tt_inv_physical_name(string $name,array $record): string {
+    $name=trim($name);
+    if(!preg_match('/^(?:B2(?:\s*[—-].*)?|B2 \/ BROKEN|BROKEN(?:\s*[—-].*)?|B3|CSR|B2 CSR|PADDY|POWDER|SWEEPING|STONE \/ SUTLI \/ DUST)$/iu',$name))return $name;
+    $product=preg_match('/^(?:B2(?! CSR)|BROKEN)/iu',$name)?'B2':$name;
+    $base=trim((string)($record['baseVariety']??$record['variety']??''));
+    $variety=$base!==''?tt_inv_product($record):'UNASSIGNED VARIETY';
+    return $variety.' — '.$product;
+}
+function tt_inv_physical_stock(array $values,array $scope,?callable $observe=null): array {
+    $total=[];$records=[];
+    foreach(array_slice(TT_INV_SOURCE_KEYS,0,6)as$key)foreach(tt_inv_rows($values,$key)as$i=>$r)$records[$key][(string)($r['id']??$r['ref']??$r['slip']??'#'.($i+1))]=$r;
+    foreach(['TTI','BRM']as$entity){
+        $company=$scope;unset($company['physicalPool']);$company['entity']=$entity;
+        tt_inv_stock($values,$company,static function(array $event)use(&$total,$records,$observe,$entity):void{
+            $record=$records[$event['source']][$event['sourceId']]??[];
+            $name=tt_inv_physical_name($event['product'],$record);
+            $total[$name]=round(($total[$name]??0)+(float)$event['kg'],3);
+            if($observe){$event['product']=$name;$event['sourceEntity']=$entity;$observe($event);}
+        });
+    }
+    return $total;
+}
 /** Same quantity ledger as Milling; management-only rows never become production. */
 function tt_inv_stock(array $values,array $scope, ?callable $observe=null): array {
+    if(!empty($scope['physicalPool']))return tt_inv_physical_stock($values,$scope,$observe);
     $m=[];$context=[];
     $add=static function(string $n,float $kg)use(&$m,&$context,$observe):void{
         $before=$m[$n]??0.;$m[$n]=round($before+$kg,3);
