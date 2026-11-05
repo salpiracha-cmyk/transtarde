@@ -72,4 +72,35 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
  f.c.localStorage.setItem('tt30bags','[]');p=f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,2);f.ack(1);await p;
   f=fixture();f.c.localStorage.setItem(STORE,'{"shipments":[]}');p=f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,1,'Explicit Export root save must obtain fresh server validation');f.ack(0);await p;
  console.log('PASS empty initialization and unchanged receipts do not stage writes; clearing existing data still saves');
+
+ // Exercise the active amendment handler with a failed print after a successful save.
+ const app=fs.readFileSync(require('node:path').join(__dirname,'../../exports/app.js'),'utf8');
+ const handler=app.slice(app.indexOf('function saveContract(print)'),app.indexOf('function nextBagPoNo()'));
+ const original={id:'CONTRACT-1',ref:'QA/001',status:'Awaiting Customer Confirmation',issued:true,qty:25};
+ const shipment={id:'PROCESS-1',kind:'process',contractRef:original.ref};
+ const state={contracts:[original],shipments:[shipment],millSync:{},fi:[]};
+ const button={disabled:false},feedback={hidden:true},saves=[],prints=[];
+ const ctx=vm.createContext({
+  state,contractDraft:{...original,qty:26},structuredClone,view:'contracts',activeWorkspace:'contract',
+  document:{getElementById:id=>id==='issueContract'?button:feedback},
+  window:{TT_SHARED_SYNC:{}},validateContractStep:()=>'',contractNeedsPaymentDeadline:()=>false,
+  documentsPresented:()=>[],incotermBase:()=> 'FOB',syncDocumentSources(){},paymentText:()=> '100% CAD',
+  customer:()=>({name:'QA Buyer'}),shipmentModeOf:()=> 'FCL',isBreakBulk:()=>false,
+  refreshContractMillHandoffs(){},audit(){},save:()=>JSON.stringify(state),
+  confirmSalesContract:async(payload,contract,processId)=>saves.push({payload,contract,processId}),
+  clearContractCheckpoint(){},salesContractPrint:()=>'<p>Contract</p>',
+  directPrint:async(...args)=>{prints.push(args);return prints.length>1;},render(){}
+ });
+ const saveAndPrint=vm.runInContext(handler+';saveContract(true)',ctx);
+ assert.equal(await saveAndPrint,false);
+ assert.equal(saves[0].processId,'PROCESS-1');
+ assert.equal(JSON.parse(saves[0].payload).contracts[0].qty,26);
+ assert.equal(button.textContent,'PRINT SAVED CONTRACT');
+ assert.equal(feedback.hidden,false);
+ assert.equal(await button.onclick(),true);
+ assert.equal(saves.length,1);
+ assert.equal(state.contracts[0].versions.length,1);
+ assert.equal(state.shipments.length,1);
+ assert(prints.every(args=>args[3]===true),'Printing an amendment must not start another save');
+ console.log('PASS amended contract confirms the exact save, preserves the linked shipment, and retries printing without a second amendment');
 })().catch(error=>{console.error(error);process.exitCode=1});
