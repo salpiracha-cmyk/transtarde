@@ -530,14 +530,17 @@ function tt_inv_artwork_index(array $publicValues): array {
     }
     return $index;
 }
-function tt_inv_restore_artwork(string $json,array $publicValues): string {
+function tt_inv_restore_artwork(string $json,array $publicValues,?int $maxBytes=null): string {
     if(!str_contains($json,TT_INV_ARTWORK_URL))return $json;
     $index=tt_inv_artwork_index($publicValues);
     $data=json_decode($json,false,512,JSON_THROW_ON_ERROR);
-    $data=tt_inv_walk_artwork($data,static function(string $value)use($index):string{
+    $expandedBytes=strlen($json);
+    $data=tt_inv_walk_artwork($data,static function(string $value)use($index,$maxBytes,&$expandedBytes):string{
         if(!str_starts_with($value,TT_INV_ARTWORK_URL))return $value;
         $hash=substr($value,strlen(TT_INV_ARTWORK_URL));
         if(!preg_match('/^[a-f0-9]{64}$/',$hash)||!isset($index[$hash]))throw new InvalidArgumentException('An artwork reference is unavailable. Reload and review before saving.');
+        $expandedBytes+=strlen($index[$hash])-strlen($value);
+        if($maxBytes!==null&&$expandedBytes>$maxBytes)throw new InvalidArgumentException('Saved artwork makes the shared workspace too large to update.');
         return $index[$hash];
     });
     return json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_PRESERVE_ZERO_FRACTION|JSON_THROW_ON_ERROR);

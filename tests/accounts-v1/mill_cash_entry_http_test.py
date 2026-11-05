@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory(prefix='mill-cash-entry-') as directory:
   b=dict(entity='TTI',locationId='M1',revision=d['revision'],requestKey='mill-payment-first-exact',type='Milling Expense',date='2026-08-01',amount=125.25,payee='Fixture Worker',expenseType='Packing labour',narration='Actual shift labour paid')
   seq=json.loads(auth.read_text()).get('post_sequence');p=post({**b,'preview':True});assert len(p['previews'])==1 and json.loads(auth.read_text()).get('post_sequence')==seq
   lines=p['previews'][0]['lines'];assert lines[0]['account']=='5200' and lines[-1]['millLocationId']=='M1' and lines[-1]['credit']==125.25
-  for patch in [{'amount':1001},{'amount':-5},{'narration':''},{'expenseType':''},{'payee':''},{'type':'RECEIPT'},{'date':'2099-01-01'},{'date':'2026-06-30'},{'locationId':'M2'},{'entity':'BRM'}]:post({**b,**patch,'requestKey':'bad-'+str(time.time_ns())},422)
+  for patch in [{'amount':-5},{'narration':''},{'expenseType':''},{'payee':''},{'type':'RECEIPT'},{'date':'2099-01-01'},{'locationId':'M2'},{'entity':'BRM'}]:post({**b,**patch,'requestKey':'bad-'+str(time.time_ns())},422)
   post({**b,'csrf':'wrong'},419);post({**b,'revision':0},409)
   done=post(b);jid=done['result']['journalId'];assert done['balance']==874.75 and done['rows'][-1]['balance']==874.75 and done['journal']['meta']['millPettyType']=='Milling Expense',done
   state=json.loads(books.read_text());assert state['generalExpenses'][done['result']['generalExpenseId']]['journalId']==jid
@@ -53,5 +53,7 @@ with tempfile.TemporaryDirectory(prefix='mill-cash-entry-') as directory:
   code,amended=req('/api/expenses_v1.php',amendment);assert code==200,(code,amended)
   d=read();assert d['balance']==880 and len(d['rows'])==4,d
   code,ledger=req('/api/accounts_ledger_browser.php?entity=TTI&account=CASH%7CTTI%7CMILL%7CM1&to=2026-12-31');assert code==200 and ledger['closing']==880,(code,ledger)
-  print('PASS Mill cash: staff canonical expense, owner ledger agreement, receipt-payment arithmetic, cents, future/reversed exclusion, category heads, zero-write preview, retry/conflict, dated funds, permission/company/location/CSRF guards')
+  deficit=post({**b,'revision':d['revision'],'requestKey':'mill-native-expense-deficit','amount':881})
+  assert deficit['balance']==-1 and deficit['rows'][-1]['balance']==-1,deficit
+  print('PASS Mill cash: staff canonical expense, owner ledger agreement, receipt-payment arithmetic, cents, future/reversed exclusion, category heads, zero-write preview, retry/conflict, negative Mill cash, permission/company/location/CSRF guards')
  finally:server.terminate();server.wait(timeout=10);log.close()

@@ -13,6 +13,15 @@ require_once dirname(__DIR__) . '/inventory_reconciliation.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
+// Keep the upload limit unchanged. The stored Exports root also contains legacy artwork
+// which is sent to the browser by reference and restored only after a request is accepted.
+function operations_restore_write_artwork(string $key,string $value,array $values): string {
+    $limit=($key==='transtrade_export_v3_operational'?32:16)*1024*1024;
+    if(str_contains($value,TT_INV_ARTWORK_URL))$value=tt_inv_restore_artwork($value,tt_inv_public_values($values)['values'],$limit);
+    if(strlen($value)>$limit)throw new InvalidArgumentException('Saved artwork makes the shared workspace too large to update.');
+    return $value;
+}
+
 function operations_respond(array $data, int $status = 200): never {
     if(($_GET['asset_refs']??'')==='1'){
         if(isset($data['values']))foreach($data['values']as$key=>$json)if(is_string($json))$data['values'][$key]=tt_inv_artwork_json($json);
@@ -698,8 +707,7 @@ function operations_file_fallback(array $user): never {
         $old=(string)($store['values'][$key]??''); $keyVersion=(int)($store['meta'][$key]['version']??0);
         if ($baseVersion!==$keyVersion) $conflict=true;
         else {
-            if(str_contains($value,TT_INV_ARTWORK_URL))$value=tt_inv_restore_artwork($value,tt_inv_public_values((array)($store['values']??[]))['values']);
-            if(strlen($value)>16*1024*1024)throw new InvalidArgumentException('Operational data is too large.');
+            $value=operations_restore_write_artwork($key,$value,(array)($store['values']??[]));
             $value=os_prepare_write($user,$key,$value,(array)($store['values']??[]));
             $value=operations_instruction_ack($user,$key,$old,$value,(array)($store['values']??[]));
             $value=operations_duplicate_prepare($user,$key,$old,$value,(array)($store['values']??[]));
@@ -820,8 +828,7 @@ try {
     if(str_contains($value,TT_INV_ARTWORK_URL)){
         $referenceValues=[];
         foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll()as$row)$referenceValues[(string)$row['storage_key']]=(string)$row['payload'];
-        $value=tt_inv_restore_artwork($value,tt_inv_public_values($referenceValues)['values']);
-        if(strlen($value)>16*1024*1024)throw new InvalidArgumentException('Operational data is too large.');
+        $value=operations_restore_write_artwork($key,$value,$referenceValues);
     }
     // The large Export root is needed only if linked rows are being removed.
     // Ordinary instruction saves must not read it for every bridge key.

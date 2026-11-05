@@ -30,10 +30,8 @@ function mcl_post(array &$s,string $e,array $mill,array $b,array $u):array {
     $amount=ev1_amount($b['amount']??0);$note=trim((string)($b['narration']??''));$purpose=trim((string)($b['expenseType']??''));$payee=trim((string)($b['payee']??''));
     if($note===''||strlen($note)>500||$purpose===''||strlen($purpose)>180||$payee===''||strlen($payee)>180)throw new DomainException('Enter paid to, expense type and narration within their displayed limits.');
     $cash='CASH|'.$e.'|MILL|'.$mill['id'];
-    if($amount>pc_balance($s,$e,$cash,$date)+.005)throw new DomainException('Mill Petty Cash has insufficient funds on this date.');
     $result=dex_post($s,$e,['paymentDate'=>$date,'paymentAccountId'=>$cash,'payee'=>$payee,'paymentNarration'=>$note,'expenseLines'=>[['category'=>$types[$type],'amount'=>$amount,'purpose'=>$purpose,'expenseArea'=>$types[$type]==='MILL'?'MILL':'OFFICE']]],$u,ev1_names(),[]);
     $jid=$result['journalId'];$s['journals'][$jid]['meta']+=['millPettyType'=>$type,'millLocationId'=>$mill['id'],'millName'=>$mill['name'],'entryModule'=>'Mill'];
     $s['generalExpenses'][$result['generalExpenseId']]['millPettyType']=$type;
-    pc_assert_custody_balance($s,$e,$cash);
     return $result;
 }

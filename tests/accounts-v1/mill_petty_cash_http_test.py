@@ -50,6 +50,12 @@ with tempfile.TemporaryDirectory(prefix='petty-cash-') as directory:
         state=json.loads(books.read_text());assert len([x for x in state['pettyCashAudit'] if x['action']=='MILL_TRANSFER'])==1 and any(x['action']=='MILL_TRANSFER_REVERSAL' for x in state['pettyCashAudit'])
         # Future office spending cannot be silently unfunded by a backdated transfer.
         state['journals']['FUTURE-OFFICE']={'id':'FUTURE-OFFICE','entity':'TTI','status':'Posted','date':'2026-08-10','lines':[{'account':'6900','debit':900,'credit':0},{'account':'1120','debit':0,'credit':900}]};books.write_text(json.dumps(state));post({**b,'requestKey':'mill-backdated-unfund','revision':get()['revision']},422)
+        expense={'entity':'TTI','locationId':'M1','revision':get()['revision'],'requestKey':'mill-negative-spend','type':'Milling Expense','date':'2026-08-02','amount':150,'payee':'Fixture Payee','expenseType':'Mill repair','narration':'Actual mill expense before funding'}
+        st,expense_result=request('/api/mill_cash_ledger.php',expense);assert st==200 and expense_result['balance']==-150,(st,expense_result)
+        st,again=request('/api/mill_cash_ledger.php',expense);assert st==200 and again['balance']==-150 and again['result']==expense_result['result']
+        funded=post({**b,'requestKey':'mill-partial-funding','revision':get()['revision'],'amount':50,'date':'2026-08-03'})
+        assert funded['mills'][0]['balance']==-100,funded
+        st,ledger=request('/api/accounts_ledger_browser.php?entity=TTI&account=CASH%7CTTI%7CMILL%7CM1&to=2026-12-31');assert st==200 and ledger['closing']==-100,(st,ledger)
         a=json.loads(auth.read_text());a['users']=[{**user,'role':'Staff','permissions':{'Accounts':{'expenses':['View']}},'entities':['TTI']}];auth.write_text(json.dumps(a));post({**b,'requestKey':'mill-no-create','revision':get()['revision']},403)
         print('PASS Office→Mill transfer: active company mills, receiver, two 1120 legs, shared mill and Accounts ledgers, zero-write preview, retry/conflict, overdrafts/date/future funding, authorized audited reversal and permission boundaries')
     finally:
