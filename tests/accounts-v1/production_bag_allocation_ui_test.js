@@ -19,5 +19,15 @@ const record=()=>({id:100,entity:w.prodEntity.value,millName:w.currentMill.name,
  const saved={...prepared,bagAllocationActor:{userId:7},bagAllocationScope:{locationId:'M1'},bagAllocations:prepared.bagAllocations.map(a=>({...a,sourceSnapshot:{poNo:a.lotId}}))};
  w.editingProdId=100;api.restore(saved);const before=calls.length;let amended=api.prepare({...record(),rawInputs:[{grossKg:1000}]});assert.equal(calls.length,before);assert.deepEqual(JSON.parse(JSON.stringify(amended.bagAllocations)),JSON.parse(JSON.stringify(saved.bagAllocations)));assert.match(q('[data-bag-source-review]').textContent,/Saved source bags/);
  const savedDisplay=q('[data-bag-source-review]').textContent;let finish;deferred=new Promise(resolve=>{finish=resolve;});const loading=api.load();await Promise.resolve();w.prodDate.value='2026-10-16';finish();await loading;assert.equal(q('[data-bag-source-review]').textContent,savedDisplay);deferred=null;
+ w.editingProdId=null;w.prodDate.value='2026-10-17';
+ w.productionRows=[{id:4,product:'Ready Rice — ASAS',bags:8,bagWeight:50,exporterDealId:'fixture-soda'}];
+ Object.assign(lots.P2,{exporterDealId:'fixture-soda',sodaReference:'OTHER|EXP-fixture-id',externalOwnerName:'Fixture supplier'});
+ api.restore(null);await api.load();
+ assert.equal(q('[data-source-lot="P2"]').value,'');
+ assert.doesNotMatch(q('[data-bag-source-review]').textContent,/EXP-fixture-id/);
+ const next=record();await api.autoReview(next);const automatic=api.prepare(next);
+ assert.equal(automatic.bagAllocations[0].lotId,'P2');assert.equal(automatic.bagAllocations[0].qty,8);
+ Object.assign(lots.P2,{availableQty:0,committableQty:0,quarantinedQty:20});
+ api.restore(null);await assert.rejects(api.autoReview(record()),/8 bags needed, 0 available.*20 received bags are in quarantine/);
  w.close();console.log('PASS explicit production bag source UI: actual fractional count, multi-PO/packing allocation, no typing reads or writes, quantity/scope/date holds, retained failed review, immutable saved allocation and late-response isolation');
 })().catch(error=>{console.error(error);process.exitCode=1;w.close();});

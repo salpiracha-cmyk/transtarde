@@ -224,6 +224,59 @@ function tt_inv_guard_calculated_stock(array $before,array $after,array $changed
     }
 }
 
+/** Physical used arrival bags, separate from accepted branded supplier receipts. */
+function tt_inv_arrival_packing_qty(array $run): int {
+    $ratios=['powder'=>2,'b3'=>2,'csr'=>2,'b2 csr'=>2,'paddy'=>1,'sweeping'=>1,'stone / sutli / dust'=>1];
+    $total=0;
+    foreach((array)($run['rows']??[]) as $row){
+        if(!is_array($row)||tt_inv_is_private_row($row)||!empty($row['noStockPost'])||mr_output_kg($row)<=0)continue;
+        $product=strtolower(trim((string)($row['product']??'')));
+        if(!isset($ratios[$product]))continue;
+        $override=$row['arrivalBagsUsed']??null;
+        if($override!==null&&$override!==''){
+            $qty=$override;
+        }else{
+            if(!empty($row['arrivalPackingKgOnly'])||($row['outputUnit']??'')==='KG')throw new DomainException('Enter actual arrival bags used for '.$row['product'].' because the output was entered by weight.');
+            $qty=$row['bags']??0;
+        }
+        if(!is_numeric($qty)||!is_finite((float)$qty)||(float)$qty<0||(float)$qty>100000000||(float)$qty!==floor((float)$qty))
+            throw new DomainException('Enter a whole arrival bag count for '.$row['product'].'.');
+        $total+=(int)$qty*($override!==null&&$override!==''?1:$ratios[$product]);
+    }
+    return $total;
+}
+
+function tt_inv_arrival_bag_timeline(array $values,array $scope): array {
+    $daily=[];
+    $add=static function(array $row,string $date,mixed $qty,int $sign)use(&$daily,$scope):void{
+        if(empty($row['entity'])||!($row['millId']??$row['millName']??$row['locationName']??$row['mill']??null)||!tt_inv_same_scope($row,$scope)||!mr_valid_date($date))return;
+        if(!is_numeric($qty)||!is_finite((float)$qty)||(float)$qty<0||(float)$qty!==floor((float)$qty))return;
+        $daily[$date]=($daily[$date]??0)+$sign*(int)$qty;
+    };
+    foreach(tt_inv_rows($values,'tt30slips') as $row)$add($row,(string)($row['unloadingDate']??$row['arrivalDate']??''),$row['bags']??0,1);
+    foreach(tt_inv_rows($values,'tt37usedbags') as $row)if(($row['source']??'')==='arrival'&&in_array($row['movement']??'',['Inward','Outward'],true))
+        $add($row,(string)($row['date']??''),$row['qty']??0,$row['movement']==='Inward'?1:-1);
+    foreach(tt_inv_rows($values,'tt30prod') as $row)if(($row['arrivalPackingVersion']??null)===1)
+        $add($row,(string)($row['date']??''),$row['arrivalPackingQty']??0,-1);
+    return $daily;
+}
+
+function tt_inv_guard_arrival_bags(array $before,array $after,array $affected): void {
+    $scopes=[];
+    foreach($affected as $row){
+        if(($row['arrivalPackingVersion']??null)!==1||empty($row['arrivalPackingQty']))continue;
+        $scopes[tt_inv_entity($row).'|'.tt_inv_location($row)]=$row;
+    }
+    foreach($scopes as $scope){
+        $old=tt_inv_arrival_bag_timeline($before,$scope);$next=tt_inv_arrival_bag_timeline($after,$scope);
+        $dates=array_unique(array_merge(array_keys($old),array_keys($next)));sort($dates);
+        $previous=0;$current=0;
+        foreach($dates as $date){
+            $previous+=$old[$date]??0;$current+=$next[$date]??0;
+            if($current<0&&$current<$previous)throw new DomainException('Insufficient Arrival / Pohanch bags on '.$date.'. Short by '.number_format(abs($current)).' bags. Review arrival receipts or enter the actual bags used.');
+        }
+    }
+}
 function tt_inv_prepare_write(array $values,string $key,string $json,array $user,string $now): string {
     tt_guard_arrival_collection($key,(string)($values[$key]??'[]'),$json);
     if(in_array($key,['tt30bags','tt33bagreceipts'],true)){require_once __DIR__.'/api/bag_receipts_core.php';$json=br_guard_write($values,$key,$json);}
@@ -235,6 +288,7 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         $seen=[];foreach($incoming as &$row){if(!is_array($row))throw new DomainException('Production history must contain records.');$id=$identity($row);if(isset($managed[$id])){if(isset($seen[$id])||($public[$id]??null)!=$row)throw new DomainException('Saved production history is maintained by its explicit source save.');$row=$managed[$id];$seen[$id]=true;}elseif(!empty($row['serverManaged']))throw new DomainException('Production history cannot be attributed by a client.');}unset($row);
         if(array_diff_key($managed,$seen))throw new DomainException('Saved production history cannot be removed from an operational collection.');$json=tt_inv_json($incoming);
     }
+    if($key==='tt37usedbags'||$key==='tt30slips')tt_inv_guard_arrival_bags($values,array_replace($values,[$key=>$json]),tt_inv_rows($values,'tt30prod'));
     if($key==='tt32labourfeed')return pt_guard_labour($values,$json);
     if(in_array($key,TT_BAG_SERVER_KEYS,true))throw new DomainException('Bag movement acknowledgements are server-owned. Use the explicit bag movement workflow.');
     if($key==='tt30prod'){require_once __DIR__.'/api/bag_inventory_core.php';$decoded=json_decode($json,true);$versioned=false;foreach(array_merge(is_array($decoded)?$decoded:[],tt_inv_rows($values,$key)) as $row)if(is_array($row)&&!empty($row['bagAllocationVersion'])){$versioned=true;break;}if($versioned)$json=bti_prepare_production($values,$json,tt_list_masters(),$user,$now);}
@@ -294,6 +348,10 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
             if($before&&!mr_is_calculated($before)&&mr_is_calculated($r)&&mr_actual_input($before)!==null)throw new DomainException('Historical measured input must retain its original calculation basis.');
             if($before&&mr_is_calculated($before)&&!mr_is_calculated($r))throw new DomainException('Retain the saved calculated consumption basis when amending this shift.');
             if(!empty($r['clientSaveRequestId']))$r['recoveryVersion']=mr_is_calculated($r)?2:1;
+            if(($r['arrivalPackingVersion']??null)===1||($before['arrivalPackingVersion']??null)===1){
+                $r['arrivalPackingVersion']=1;
+                $r['arrivalPackingQty']=tt_inv_arrival_packing_qty($r);
+            }else unset($r['arrivalPackingVersion'],$r['arrivalPackingQty']);
             mr_validate_inputs($r,$before===null);if($before===null)$r['recoveryVersion']=mr_is_calculated($r)?2:1;
             $hidden=array_values(array_filter((array)($before['rows']??[]),static fn($x)=>is_array($x)&&tt_inv_is_private_row($x)));
             foreach((array)($r['rows']??[])as$x)if(is_array($x)&&tt_inv_is_private_row($x))throw new DomainException('Reconciliation rows cannot be entered as production.');
@@ -317,7 +375,9 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         }
         // A final-entry tick belongs to a complete shift, not to one partial lot.
         $changed=[];foreach($out as$r){$b=$index[(string)$r['id']]??null;$a=$r;unset($a['createdAt'],$a['updatedAt'],$a['serverSequence']);if($b){unset($b['createdAt'],$b['updatedAt'],$b['serverSequence']);}if($a!==$b)$changed[]=$r;}
-        tt_inv_guard_calculated_stock($values,array_replace($values,['tt30prod'=>tt_inv_json($out)]),$changed);
+        $projected=array_replace($values,['tt30prod'=>tt_inv_json($out)]);
+        tt_inv_guard_arrival_bags($values,$projected,$changed);
+        tt_inv_guard_calculated_stock($values,$projected,$changed);
         foreach($changed as$r)foreach($out as&$other)if((string)$other['id']!==(string)$r['id']&&tt_inv_same_scope($r,$other)&&($r['date']??'')===($other['date']??'')&&tt_inv_shift_name((string)($r['shift']??''))===tt_inv_shift_name((string)($other['shift']??'')))$other['shiftEntriesComplete']=false;unset($other);
     }
     if($key==='tt32stockadj')foreach($old as$r)if(($r['type']??'')==='Paltai Transfer'&&!isset($seen[(string)$r['id']]))throw new DomainException('Saved Paltai transfers cannot be removed.');

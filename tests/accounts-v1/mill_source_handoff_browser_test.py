@@ -116,6 +116,7 @@ def run():
             mill.get_by_role('combobox',name='Ready Rice brand / SODA').first.select_option('EXPORT|QA-CONTRACT|0')
             mill.locator('#prodTable tr').first.locator('input').first.fill('10')
             assert not mill.locator('#productionActualInput').is_visible()
+            mill.locator('#productionSourceBags summary').click()
             mill.locator('[data-review-source-bags]').click();mill.locator('[data-source-lot]').wait_for();mill.locator('[data-source-lot]').fill('10')
             blocked[0]=True;mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for()
             assert mill.locator('.tt-number-display[aria-label="Ready Rice — QA PRODUCTION quantity"]').input_value()=='10' and books.read_bytes()==financial_before
@@ -128,6 +129,7 @@ def run():
             inventory=context.request.get(base+'/api/bag_transfers.php?purpose=production&entity=TTI&locationId=mills-1&asOf=2026-10-17').json();assert inventory['inventory']['lots']['PO|100|mills-1']['availableQty']==90
             issues=json.loads(saved_ops['values']['tt36bagissues']);assert len(issues)==1 and issues[0]['usage']['QA PRODUCTION']==10 and issues[0]['userId']==1000
             mill.evaluate('(id)=>loadProductionForEdit(id)',run['id']);assert not mill.locator('#productionActualInput').is_visible();mill.locator('#prodTable tr').first.locator('input').first.fill('12')
+            mill.locator('#productionSourceBags summary').click()
             mill.locator('[data-review-source-bags]').click();mill.locator('[data-source-lot]').wait_for();mill.locator('[data-source-lot]').fill('12')
             context.unroute('**/api/operations.mysql.php?asset_refs=1',intercept);lost=[True];source_posts=[]
             def lost_ack(route):

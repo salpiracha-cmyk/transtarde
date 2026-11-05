@@ -49,5 +49,5 @@ echo "PASS production brand registration uses Karachi business date across the U
 $pastValues=['tt35localsales'=>json_encode([['id'=>'PAST-L','entity'=>'TTI','millName'=>'Own Mill','date'=>'2018-01-01','status'=>'Completed','qty'=>1000,'loads'=>[['kg'=>1000]],'brand'=>'Past local']])];
 $pastBooks=['exporterDeals'=>['S'=>['id'=>'S','entity'=>'TTI','direction'=>'SALE','date'=>'2018-01-01','status'=>'Closed','commodity'=>'RICE','brand'=>'Past sale'], 'B'=>['id'=>'B','entity'=>'TTI','direction'=>'BUY','date'=>'2018-01-01','status'=>'Closed','commodity'=>'RICE','brand'=>'Purchase']]];
 $pastOrders=oeb_production_orders($pastValues,$pastBooks,$calendarScope,'2018-01-02');$pastIds=array_column($pastOrders,'orderId');
-if(!in_array('FELLOW|S',$pastIds,true)||in_array('FELLOW|B',$pastIds,true)||!in_array('LOCAL|PAST-L',$pastIds,true)||count(array_filter($pastOrders,fn($r)=>!empty($r['historicalClosed'])))!==2)throw new RuntimeException('Past SODA reference mixed purchase direction or hid completed local history');
-echo "PASS past production references retain sale direction and completed local history without reopening orders\n";
+if($pastIds)throw new RuntimeException('Closed orders must not be selectable for a new production entry even with a past date');
+echo "PASS past production dates do not reopen closed order choices\n";
