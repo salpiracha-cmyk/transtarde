@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/fi_credit_advice_link.php';
+require_once __DIR__.'/contract_payment_amendment.php';
 require_once __DIR__.'/operations_policy.php';
 require_once __DIR__.'/operations_read_policy.php';
 require_once __DIR__.'/commodity_weights_core.php';
@@ -671,6 +672,16 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
  * It uses the existing private operations.json shared by Mill and Accounts,
  * while preserving V3 revision checks and module-aware Export merging.
  */
+function operations_payment_request(array $body,string $key,string $module): ?array {
+    if(!array_key_exists('contractPayment',$body))return null;
+    if($key!=='transtrade_export_v3_operational'||$module!=='Exports'||!is_array($body['contractPayment']))throw new InvalidArgumentException('Invalid contract payment save route.');
+    return $body['contractPayment'];
+}
+function operations_payment_result(array $result,int $version): never {
+    if(!empty($result['conflict']))operations_respond(['ok'=>false,'conflict'=>true,'error'=>'Exports changed while this contract was open. Reopen the contract before saving.'],409);
+    operations_respond(['ok'=>true,'keyVersion'=>$version,'contractPayment'=>$result['ack']]);
+}
+
 function operations_file_fallback(array $user): never {
     $path = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'operations.json';
     tt_ensure_data_dir();
@@ -690,6 +701,8 @@ function operations_file_fallback(array $user): never {
     $body = json_decode($raw, true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf']??''))) operations_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $key=(string)($body['key']??''); $value=$body['value']??null; $baseVersion=max(0,(int)($body['baseVersion']??0)); $sourceModule=trim((string)($body['sourceModule']??''));
+    $payment=operations_payment_request($body,$key,$sourceModule);
+    if($payment!==null)$value='{}';
     if (!operations_key_allowed($key) || !is_string($value)) operations_respond(['ok'=>false,'error'=>'Invalid operational update.'],422);
     json_decode($value,true); if (json_last_error()!==JSON_ERROR_NONE) operations_respond(['ok'=>false,'error'=>'Operational data must be valid JSON.'],422);
     if (!in_array($sourceModule,['Exports','Mill','Milling','Accounts','Super Admin'],true)) operations_respond(['ok'=>false,'error'=>'Invalid source module.'],422);
@@ -705,7 +718,16 @@ function operations_file_fallback(array $user): never {
         rewind($handle); $existing=stream_get_contents($handle); $store=$existing?json_decode($existing,true):null;
         if (!is_array($store)) $store=['revision'=>0,'values'=>[],'meta'=>[]];
         $old=(string)($store['values'][$key]??''); $keyVersion=(int)($store['meta'][$key]['version']??0);
-        if ($baseVersion!==$keyVersion) $conflict=true;
+        if($payment!==null){
+            $paymentResult=contract_payment_amendment($old,$payment,$user,$baseVersion,$keyVersion);
+            if(isset($paymentResult['value'])){
+                $store['values'][$key]=$paymentResult['value'];
+                $store['revision']=(int)($store['revision']??0)+1;
+                $store['meta'][$key]=['version'=>++$keyVersion,'updatedAt'=>gmdate('c'),'updatedBy'=>(string)($user['full_name']??$user['username']??'Staff'),'userId'=>(int)($user['id']??0),'module'=>'Exports'];
+                $encoded=tt_inv_json($store);
+                rewind($handle);if(!ftruncate($handle,0)||fwrite($handle,$encoded)!==strlen($encoded))throw new RuntimeException('Shared operational storage could not be written.');fflush($handle);
+            }
+        }else if ($baseVersion!==$keyVersion) $conflict=true;
         else {
             $value=operations_restore_write_artwork($key,$value,(array)($store['values']??[]));
             $value=os_prepare_write($user,$key,$value,(array)($store['values']??[]));
@@ -744,6 +766,7 @@ function operations_file_fallback(array $user): never {
         }
         $revision=(int)($store['revision']??0);
     } finally { flock($handle,LOCK_UN); fclose($handle); }
+    if($payment!==null)operations_payment_result($paymentResult,$keyVersion);
     if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
     if($key==='transtrade_export_v3_operational'&&tt_receipt_invoice_source_changed($old,(string)($store['values'][$key]??$value)))try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>operations_public_value($key,(string)($store['values'][$key]??$value),$user,(array)$store['values']), 'related'=>in_array($key,['tt30prod','tt32stockadj'],true)?operations_production_related($store['values'],$store['meta'],$user):[]]);
@@ -789,6 +812,8 @@ try {
     $value = $body['value'] ?? null;
     $baseVersion = max(0, (int)($body['baseVersion'] ?? 0));
     $sourceModule = trim((string)($body['sourceModule'] ?? ''));
+    $payment=operations_payment_request($body,$key,$sourceModule);
+    if($payment!==null)$value='{}';
     if (!operations_key_allowed($key) || !is_string($value)) operations_respond(['ok' => false, 'error' => 'Invalid operational update.'], 422);
     json_decode($value, true);
     if (json_last_error() !== JSON_ERROR_NONE) operations_respond(['ok' => false, 'error' => 'Operational data must be valid JSON.'], 422);
@@ -816,6 +841,17 @@ try {
     $existing = $select->fetch();
     $oldPayload = $existing ? (string)$existing['payload'] : '';
     $version = $existing ? (int)$existing['version'] : 0;
+    if($payment!==null){
+        $result=contract_payment_amendment($oldPayload,$payment,$user,$baseVersion,$version);
+        if(isset($result['value'])){
+            $updated=(new DateTimeImmutable('now',new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+            $name=(string)($user['full_name']??$user['username']??'Staff');$actor=$user['id']??null;
+            $db->prepare('UPDATE tt_operation_records SET payload=?,version=?,updated_at=?,updated_by=?,updated_by_user=?,updated_by_module=? WHERE storage_key=?')->execute([$result['value'],++$version,$updated,$name,$actor,'Exports',$key]);
+            $db->prepare('INSERT INTO tt_operation_history (storage_key,version,payload_sha256,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?)')->execute([$key,$version,hash('sha256',$result['value']),$updated,$name,$actor,'Exports']);
+        }
+        $db->commit();
+        operations_payment_result($result,$version);
+    }
     if ($baseVersion !== $version) {
         $db->rollBack();
         operations_respond([

@@ -91,6 +91,7 @@ jobs:
       - name: Verify lot persistence and reopening permissions
         run: |
           node tests/exports-v3/shared_save_persistence_test.js
+          php tests/exports-v3/contract_payment_amendment_test.php
           node tests/exports-v3/fi_action_ack_browser_test.js
           php tests/exports-v3/contract_cancellation_merge_test.php
           node tests/exports-v3/export_corrections_20260916_audit.js

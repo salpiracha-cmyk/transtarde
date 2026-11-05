@@ -391,7 +391,42 @@ $sharedBootstrap = <<<'HTML'
     keys.forEach(k=>inFlight.add(k));saveHolds++;waiting();
     try{return await window.TT_MILL_SETTINGS_SAVE.commit({endpoint,access,entries,onConfirmed:row=>{directSet(row.key,row.value);committedValues.set(row.key,row.value);receipts.set(row.key,row.value);keyVersions.set(row.key,row.version);remoteKeys.add(row.key);}});}finally{keys.forEach(k=>inFlight.delete(k));saveHolds--;waiting();}
   }
-  window.TT_SHARED_SYNC={recoverLegacy,commitMillSettings,readVersion:key=>keyVersions.get(key)??null,commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,confirmExportSave:async(attempted,matches)=>{
+  async function commitContractPayment(intent){
+    const key=EXPORT_STORE;
+    if(access.moduleId!=='exports'||!allowed(key)||inFlight.has(key))throw new Error('Finish the existing Exports save or reload before saving this wording.');
+    const before=localStorage.getItem(key),baseVersion=keyVersions.get(key);
+    if(typeof before!=='string'||!Number.isInteger(baseVersion))throw new Error('Reload the saved contract before changing its payment wording.');
+    const root=JSON.parse(before),canonical=JSON.parse(committedValues.get(key)||'{}');
+    const find=workspace=>workspace.contracts?.find(row=>row.id===intent.id);
+    if(!find(root)||!find(canonical))throw new Error('Reopen the saved contract before saving this wording.');
+    const queued=pending.get(key);
+    if(queued!==undefined&&(queued!==before||queuedBase.get(key)!==baseVersion))throw new Error('Reload Exports before saving this wording.');
+    if(intent.baseVersion==null)intent.baseVersion=baseVersion;
+    if(intent.baseVersion!==baseVersion)throw new Error('Exports changed while the contract was open. Reopen it before saving.');
+    inFlight.add(key);saveHolds++;waiting();
+    try{
+      const response=await fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({key,sourceModule:'Exports',csrf:access.csrf,baseVersion,contractPayment:{id:intent.id,requestId:intent.requestId,changes:intent.changes}})});
+      const saved=await response.json(),ack=saved.contractPayment;
+      if(!response.ok||!saved.ok)throw new Error(saved.error||'The payment wording could not be saved.');
+      if(saved.keyVersion!==baseVersion+1||ack?.id!==intent.id||ack.requestId!==intent.requestId||ack.versionEntry?.paymentRequest!==intent.requestId||ack.audit?.id!=='AUD-'+intent.requestId)throw new Error('The payment wording save was not confirmed. Retry the same save.');
+      if(localStorage.getItem(key)!==before||pending.get(key)!==queued)throw new Error('The payment wording was saved. Reload Exports to see the confirmed version.');
+      const apply=(workspace,snapshot)=>{
+        const contract=find(workspace);
+        Object.assign(contract,intent.changes,{versions:[...(contract.versions||[]),{...ack.versionEntry,snapshot}]});
+        if(ack.amendedAt)contract.lastAmendedAfterReceiptAt=ack.amendedAt;
+        (workspace.audits??=[]).unshift(ack.audit);
+        return contract;
+      };
+      const snapshot={...find(canonical),versions:[]};
+      apply(canonical,snapshot);
+      const contract=apply(root,snapshot),value=JSON.stringify(root);
+      directSet(key,value);committedValues.set(key,JSON.stringify(canonical));receipts.set(key,value);keyVersions.set(key,saved.keyVersion);
+      if(queued!==undefined){pending.set(key,value);queuedBase.set(key,saved.keyVersion);}
+      remoteKeys.add(key);
+      return {contract,audit:ack.audit};
+    }finally{inFlight.delete(key);saveHolds--;waiting();}
+  }
+  window.TT_SHARED_SYNC={recoverLegacy,commitContractPayment,commitMillSettings,readVersion:key=>keyVersions.get(key)??null,commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,confirmExportSave:async(attempted,matches)=>{
     if(access.moduleId!=='exports'||!allowed(EXPORT_STORE)||typeof matches!=='function')return false;
     const response=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin',cache:'no-store'}),snapshot=await response.json();
     const value=snapshot.values?.[EXPORT_STORE],version=snapshot.meta?.[EXPORT_STORE]?.version;

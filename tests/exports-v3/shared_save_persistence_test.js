@@ -102,5 +102,38 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
  assert.equal(state.contracts[0].versions.length,1);
  assert.equal(state.shipments.length,1);
  assert(prints.every(args=>args[3]===true),'Printing an amendment must not start another save');
+ const artwork='X'.repeat(17*1024*1024);
+ const old={...original,paymentSectionOverride:'Original wording',balanceAdditionalEnabled:true};
+ const workspace={contracts:[old],shipments:[{...shipment,artwork}],audits:[]};
+ const compact=fixture({initial:JSON.stringify(workspace),quota:true});
+ const draft={...old,paymentSectionOverride:'Pay against documents'};
+ compact.c.localStorage.setItem(STORE,JSON.stringify({...workspace,displayUpgrade:true}));
+ const compactState={...workspace,contracts:[old],audits:[]};
+ const compactButton={disabled:false};
+ const compactContext=vm.createContext({
+  state:compactState,contractDraft:draft,structuredClone,view:'contracts',activeWorkspace:'contract',
+  document:{getElementById:id=>id==='issueContract'?compactButton:{hidden:true}},
+  crypto:{randomUUID:()=> 'dbe71234-004a-41ea-abef-1234567890ab'},
+  window:{TT_SHARED_SYNC:compact.c.TT_SHARED_SYNC},validateContractStep:step=>{assert.equal(step,6);return ''},
+  paymentText:record=>record.paymentSectionOverride,clearContractCheckpoint(){},salesContractPrint:()=>'<p>Contract</p>',
+  save(){throw Error('Whole Exports root was staged')},directPrint:async()=>true,render(){}
+ });
+ const start=app.indexOf('function contractSaveMatches(');
+ const amended=vm.runInContext(app.slice(start,app.indexOf('function nextBagPoNo()'))+';saveContract(true)',compactContext);
+ assert.equal(compact.requests.length,1);
+ const sent=compact.requests[0].body;
+ assert(JSON.stringify(sent).length<1024);assert.equal(sent.value,undefined);
+ assert.deepEqual(sent.contractPayment.changes,{paymentSectionOverride:'Pay against documents',paymentText:'Pay against documents'});
+ compact.requests[0].reject(Error('Connection lost'));assert.equal(await amended,false);
+ const retry=compactButton.onclick();assert.deepEqual(compact.requests[1].body,sent);
+ const requestId=sent.contractPayment.requestId;
+ compact.requests[1].resolve({ok:true,json:async()=>({ok:true,keyVersion:2,contractPayment:{id:old.id,requestId,versionEntry:{paymentRequest:requestId},audit:{id:'AUD-'+requestId}}})});
+ assert.equal(await retry,true);assert.equal(compact.requests.length,2);
+ assert.equal(compactState.contracts[0].paymentSectionOverride,'Pay against documents');
+ assert.equal(compactState.shipments[0].artwork,artwork);
+ const committed=JSON.parse(compact.c.TT_SHARED_SYNC.readCommitted(STORE));
+ assert.equal(committed.shipments[0].artwork,artwork);assert.equal(committed.displayUpgrade,undefined);
+ assert.equal(committed.contracts[0].versions.length,1);
+ console.log('PASS payment wording saves only one contract with a sub-1 KB request despite a 17 MiB workspace, retaining retry identity and unrelated staged changes');
  console.log('PASS amended contract confirms the exact save, preserves the linked shipment, and retries printing without a second amendment');
 })().catch(error=>{console.error(error);process.exitCode=1});

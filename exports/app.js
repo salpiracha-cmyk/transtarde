@@ -304,9 +304,38 @@ async function confirmSalesContract(payload,contract,processId){
   if(!confirmed)throw error;
  }
 }
+function paymentOnlyContractChange(previous,draft){
+ if(!previous?.issued||previous.cancelled||/^(draft|closed|completed|cancelled)$/i.test(previous.status||''))return null;
+ const editable=['balanceAdditionalEnabled','balanceAdditionalText','paymentWordingOverride','paymentSectionOverride'];
+ const before=structuredClone(previous),after=structuredClone(draft);
+ // Opening the preview can initialize standard terms on an older contract.
+ if(after.termsInitialized&&!before.termsInitialized)ensureContractTerms(before);
+ if(!before.buyerDetails&&after.buyerDetails)before.buyerDetails=defaultContractBuyerDetails(customer(before.customerId)||{});
+ const changes={};
+ for(const field of editable){
+  const fallback=field==='balanceAdditionalEnabled'?false:'';
+  if((before[field]??fallback)!==(after[field]??fallback))changes[field]=after[field]??fallback;
+  delete before[field];delete after[field];
+ }
+ if(!Object.keys(changes).length||!contractSaveMatches({contracts:[before]},after))return null;
+ return {...changes,paymentText:paymentText(draft)};
+}
 function saveContract(print){
  if(document.getElementById('issueContract')?.disabled)return false;
  const old=state.contracts.find(row=>row.id===contractDraft?.id);
+ const changes=window.TT_SHARED_SYNC?.commitContractPayment?paymentOnlyContractChange(old,contractDraft):null;
+ if(changes){
+  const error=validateContractStep(6);
+  if(error){contractStep=6;renderContractEditor();return alert(error)}
+  const intent={id:old.id,requestId:crypto.randomUUID(),changes};
+  return finishContractSave(print,async()=>{
+   const saved=await window.TT_SHARED_SYNC.commitContractPayment(intent);
+   state.contracts[state.contracts.findIndex(row=>row.id===old.id)]=saved.contract;
+   (state.audits??=[]).unshift(saved.audit);
+   contractDraft=structuredClone(saved.contract);
+   return saved.contract;
+  });
+ }
  for(let step=1;step<=7;step++){const error=validateContractStep(step);if(error){contractStep=step;renderContractEditor();return alert(error)}}
  const duplicate=state.contracts.find(row=>row.id!==contractDraft.id&&String(row.ref||'').toLowerCase()===String(contractDraft.ref||'').toLowerCase());if(duplicate)return alert('Contract Reference already exists.');
  if(old?.received)contractDraft.lastAmendedAfterReceiptAt=new Date().toISOString();
@@ -320,21 +349,27 @@ function saveContract(print){
  if(index>=0){const previous=state.contracts[index],oldRef=previous.ref,newBuyer=customer(c.customerId)?.name||'';c.versions=[...(previous.versions||[]),{at:new Date().toISOString(),snapshot:structuredClone({...previous,versions:[]})}];c.issued=true;c.status=issuingDraft?'Awaiting Customer Confirmation':c.status;state.contracts[index]=c;for(const linked of state.shipments.filter(row=>row.contractRef===oldRef)){linked.contractRef=c.ref;linked.buyer=newBuyer||linked.buyer;linked.seller=c.seller;linked.shipmentMode=shipmentModeOf(c);if(linked.kind==='process'){linked.plannedQty=c.qty;linked.containers=isBreakBulk(c)?0:c.containers}if(linked.bl?.notify&&(linked.bl.notify===previous.customer||linked.bl.notify===customer(previous.customerId)?.name))linked.bl.notify=newBuyer}for(const key of ['newExportBags','productionInstructions','exportLoading'])for(const row of state.millSync[key]||[])if(row.contractRef===oldRef)row.contractRef=c.ref;refreshContractMillHandoffs(previous,c);for(const fi of state.fi)for(const allocation of fi.allocations||[])if(allocation.contractRef===oldRef)allocation.contractRef=c.ref;if(issuingDraft&&!state.shipments.some(row=>row.kind!=='lot'&&row.contractRef===c.ref)){const buyer=customer(c.customerId);if(buyer)buyer.nextSeq=num(buyer.nextSeq)+1;state.shipments.push(makeShipment(c));audit('Sales Contract','Created',c.ref)}else audit('Sales Contract','Amended',c.ref)}else{c.issued=true;c.status='Awaiting Customer Confirmation';state.contracts.push(c);const buyer=customer(c.customerId);if(buyer)buyer.nextSeq=num(buyer.nextSeq)+1;state.shipments.push(makeShipment(c));audit('Sales Contract','Created',c.ref)}
  contractDraft=structuredClone(c);
  const processId=state.shipments.find(row=>row.kind!=='lot'&&row.contractRef===c.ref)?.id;
+ let payload;
+ return finishContractSave(print,async()=>{
+  payload??=save();
+  if(window.TT_SHARED_SYNC)await confirmSalesContract(payload,c,processId);
+  return c;
+ });
+}
+function finishContractSave(print,commit){
  const button=document.getElementById('issueContract'),feedback=document.getElementById('contractSaveError');
- let payload,confirmed=false;
+ let confirmed=null;
  async function finish(){
   if(button?.disabled)return false;
   if(button){button.disabled=true;button.textContent=confirmed?'OPENING PRINT…':'SAVING…'}
   if(feedback)feedback.hidden=true;
   try{
    if(!confirmed){
-    payload??=save();
-    if(window.TT_SHARED_SYNC)await confirmSalesContract(payload,c,processId);
-    confirmed=true;
+    confirmed=await commit();
     clearContractCheckpoint();
    }
    if(print){
-    if(!await directPrint('SALES CONTRACT',salesContractPrint(c),'with',true))throw new Error('Print did not open.');
+    if(!await directPrint('SALES CONTRACT',salesContractPrint(confirmed),'with',true))throw new Error('Print did not open.');
     contractDraft=null;view='home';activeWorkspace='';render();
    }else renderContractEditor();
    return true;
@@ -2005,8 +2040,9 @@ function contractPriceHTML__legacy_v1(c,packings){
  return`<div class="contractPriceBlock">${lines.join('')}${grandTotal}<div class="contractPriceWords"><b>(${esc(amountWords(total,c.currency))}.)</b></div></div>`
 }
 function contractSignatureHTML(c){const seller=sellerOf(c),buyer=buyerOf(c);return `<div class="contractSignatureGrid"><div><h3>SELLER</h3><div class="contractSignatureSpace">${seller.sign?`<img src="${esc(seller.sign)}" alt="Seller signature">`:''}</div><div>For ${esc(seller.name)}</div></div><div><h3>BUYER</h3><div class="contractSignatureSpace"></div><div>For ${esc(buyer.name)}</div></div></div>`}
+function defaultContractBuyerDetails(cu){return {address:cu.address||'',country:cu.country||'',email:cu.email||'',phone:cu.phone||'',tax:cu.tax||'',showCountry:!!cu.showCountry,showEmail:!!cu.showEmail,showPhone:!!cu.showPhone,showTax:!!cu.showTax}}
 function prepareContractBuyerDetails(body,c,cu){
- const d=c.buyerDetails||(c.buyerDetails={address:cu.address||'',country:cu.country||'',email:cu.email||'',phone:cu.phone||'',tax:cu.tax||'',showCountry:!!cu.showCountry,showEmail:!!cu.showEmail,showPhone:!!cu.showPhone,showTax:!!cu.showTax}),old=body.querySelector('.field.full textarea[readonly]')?.closest('.field');
+ const d=c.buyerDetails||(c.buyerDetails=defaultContractBuyerDetails(cu)),old=body.querySelector('.field.full textarea[readonly]')?.closest('.field');
  if(old)old.outerHTML=`<div class="field full"><button class="btn soft" id="cAmendBuyerDetails" type="button" aria-expanded="false">AMEND CUSTOMER DETAILS</button><div class="metaText">Customer name remains fixed. Open this tab to amend only the details used on this Sales Contract.</div></div><div id="cBuyerDetailsPanel" class="field full hidden"><div class="grid2"><div class="field full"><label>Customer Name — fixed</label><input value="${esc(cu.name||'')}" readonly></div><div class="field full"><label>Buyer Address</label><textarea id="cBuyerAddress">${esc(d.address||'')}</textarea></div><div class="field"><label>Country</label><input id="cBuyerCountry" value="${esc(d.country||'')}"><label class="checkItem"><input id="cBuyerShowCountry" type="checkbox" ${d.showCountry?'checked':''}> Show on contract</label></div><div class="field"><label>Email</label><input id="cBuyerEmail" value="${esc(d.email||'')}"><label class="checkItem"><input id="cBuyerShowEmail" type="checkbox" ${d.showEmail?'checked':''}> Show on contract</label></div><div class="field"><label>Telephone</label><input id="cBuyerPhone" value="${esc(d.phone||'')}"><label class="checkItem"><input id="cBuyerShowPhone" type="checkbox" ${d.showPhone?'checked':''}> Show on contract</label></div><div class="field"><label>Tax / Registration</label><input id="cBuyerTax" value="${esc(d.tax||'')}"><label class="checkItem"><input id="cBuyerShowTax" type="checkbox" ${d.showTax?'checked':''}> Show on contract</label></div></div></div>`;
  const button=document.getElementById('cAmendBuyerDetails'),panel=document.getElementById('cBuyerDetailsPanel');
  if(button&&panel)button.onclick=()=>{const open=panel.classList.toggle('hidden')===false;button.setAttribute('aria-expanded',String(open));button.textContent=open?'CLOSE CUSTOMER DETAILS':'AMEND CUSTOMER DETAILS'};
