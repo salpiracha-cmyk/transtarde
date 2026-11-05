@@ -47,12 +47,36 @@ async function pageFor(moduleId='exports', withApp=true, remote=null) {
    open(method,url,async=true){this.async=async}
    send(){this.status=200;this.responseText=JSON.stringify(server);if(this.async){network.gets++;const deliver=()=>this.onload?.();if(network.hold)network.held.push(deliver);else setTimeout(deliver,0)}}
   };
+  // The hosted Exports API now applies a scoped patch to the canonical book.
+  // Mirror that operation so lot completion, conflicts and acknowledgement tests
+  // exercise the same protocol without mutating the fixture on rejection.
+  window.previewServerChange=body=>{
+   if(!body.contractChanges)return body.value;
+   const root=structuredClone(JSON.parse(server.values[body.key]||'{}'));
+   for(const {action,path,value} of JSON.parse(body.contractChanges)){
+    let target=root;
+    for(const part of path.slice(0,-1)){
+     target=typeof part==='object'?target.find(row=>row.id===part.id):target[part];
+     if(target===undefined)throw Error('Unknown fixture patch target');
+    }
+    const last=path.at(-1);
+    if(last===null){
+     if(action==='append')target.push(...value);
+     else if(action==='prepend')target.unshift(...value);
+     else if(action==='order'){const byId=new Map(target.map(row=>[row.id,row]));target.splice(0,target.length,...value.map(id=>byId.get(id)))}
+     else throw Error('Invalid list patch');
+    }else if(action==='remove')delete target[last];
+    else if(action==='set')target[last]=value;
+    else throw Error('Invalid field patch');
+   }
+   return JSON.stringify(root);
+  };
   window.fetch=async(url,options={})=>{
    if(options.method==='POST'){
     const body=JSON.parse(options.body);network.posts.push(body);
     const version=Number(server.meta[body.key]?.version||0);
     if(body.baseVersion!==version)return{ok:false,json:async()=>({ok:false,conflict:true,error:'Version conflict'})};
-    server.revision++;server.values[body.key]=body.value;server.meta[body.key]={version:version+1,updatedBy:'Isolated Focus QA'};
+    server.revision++;server.values[body.key]=previewServerChange(body);server.meta[body.key]={version:version+1,updatedBy:'Isolated Focus QA'};
     return{ok:true,json:async()=>({ok:true,revision:server.revision,keyVersion:version+1,value:server.values[body.key]})};
    }
    return{ok:true,json:async()=>structuredClone(server)};
@@ -81,7 +105,7 @@ async function ready(page,quota=false){
    localStorage.quota=true;
   }
   window.testFetch=window.fetch;window.fetch=async(url,options)=>{
-   if(options?.method==='POST'){const body=JSON.parse(options.body),root=body.key===STORE?JSON.parse(body.value):null;
+   if(options?.method==='POST'){const body=JSON.parse(options.body),root=body.key===STORE?JSON.parse(previewServerChange(body)):null;
     if(root?.shipments?.find(s=>s.id==='L-FOCUS')?.reopenedAt&&!root?.shipments?.find(s=>s.id==='L-FOCUS')?.completed&&window.rejectReopening)return{ok:false,json:async()=>({ok:false,error:'Reopening denied'})};
     if(root?.shipments?.find(s=>s.id==='L-FOCUS')?.completed&&window.rejectCompletion)return{ok:false,json:async()=>({ok:false,error:'Completion denied'})};
     const response=await testFetch(url,options);
