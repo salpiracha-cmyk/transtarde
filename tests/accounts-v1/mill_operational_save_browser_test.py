@@ -167,6 +167,10 @@ def run():
             production.get_by_role('combobox',name='Ready Rice brand / SODA').first.select_option('LOCAL');production.locator('.tt-number-display[aria-label="Ready Rice — Local Bags quantity"]').fill('10')
             production.locator('.tt-number-display[aria-label="B2 — LOCAL total kg"]').fill('100')
             assert not production.locator('#productionActualInput').is_visible()
+            assert production.locator('#prodOperatingHours').input_value()=='10.00'
+            production.locator('.tt-number-display[aria-label="Actual production hours"]').fill('8.5')
+            assert '1.50 hours' in production.locator('#prodDowntimeLabel').inner_text()
+            production.locator('#prodDowntimeReason').fill('Power breakdown')
             lose_production=[True]
             def production_lost_ack(route):
                 if route.request.method=='POST' and route.request.post_data_json.get('key')=='tt30prod' and lose_production[0]:
@@ -175,12 +179,18 @@ def run():
             production.route('**/api/operations.mysql.php?asset_refs=1',production_lost_ack)
             production.get_by_role('button',name='Save Production',exact=True).click();production.locator('[data-production-save-recovery]').wait_for();assert production.locator('.tt-number-display[aria-label="Ready Rice — Local Bags quantity"]').input_value()=='10'
             saved_runs=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30prod']);assert len(saved_runs)==1 and saved_runs[0]['calculatedInputKg']==600 and saved_runs[0]['inputBasis']=='OUTPUT_DERIVED';production_id=saved_runs[0]['id']
-            production.get_by_role('button',name='Save Production',exact=True).click();production.wait_for_function('editingProdId!==null');assert production.evaluate('editingProdId')==production_id
+            production.get_by_role('button',name='Save Production',exact=True).click();production.wait_for_function("editingProdId===null && productionRows.every(row=>!row.bags)")
+            assert production.locator('#prodDowntimeReason').input_value()==''
+            production.get_by_role('button',name='Change',exact=True).first.click()
+            assert production.evaluate('editingProdId')==production_id
+            assert float(production.locator('#prodOperatingHours').input_value())==8.5
+            assert production.locator('#prodDowntimeReason').input_value()=='Power breakdown'
             production.locator('.tt-number-display[aria-label="Ready Rice — Local Bags quantity"]').fill('12');production.get_by_role('button',name='Save Production',exact=True).click()
             production.wait_for_function("get(STORE_PROD,[]).length===1&&get(STORE_PROD,[])[0].calculatedInputKg===700")
+            production.get_by_role('button',name='Change',exact=True).first.click()
             production.locator('#prodShiftComplete').check();production.locator('#capacityReason').fill('Fixture low-volume completed shift');production.get_by_role('button',name='Save Production',exact=True).click()
             production.wait_for_function("get(STORE_PROD,[]).length===1&&get(STORE_PROD,[])[0].shiftEntriesComplete===true")
-            final_runs=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30prod']);assert len(final_runs)==1 and final_runs[0]['id']==production_id and final_runs[0]['calculatedInputKg']==700 and final_runs[0]['rawInputs']==[]
+            final_runs=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30prod']);assert len(final_runs)==1 and final_runs[0]['id']==production_id and final_runs[0]['calculatedInputKg']==700 and final_runs[0]['rawInputs']==[] and final_runs[0]['operatingHours']==8.5 and final_runs[0]['downtimeReason']=='Power breakdown'
             assert books.read_bytes()==production_books,'Output-accounted production changed financial books'
             production.close();print('PASS native output-accounted production lost-ack retry, retained Ready Rice input, same-record progress replacement and completion, direct-kg by-product, raw-stock validation and unchanged books')
             # The authenticated native print uses committed loading and the shared half-A4 template.

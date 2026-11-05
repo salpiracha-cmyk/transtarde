@@ -121,7 +121,7 @@ def run():
             assert mill.locator('.tt-number-display[aria-label="Ready Rice — QA PRODUCTION quantity"]').input_value()=='10' and books.read_bytes()==financial_before
             with mill.expect_response(lambda r:'/api/operations.mysql.php?asset_refs=1' in r.url and r.request.method=='POST') as production_response:mill.get_by_role('button',name='Save Production',exact=True).click()
             assert production_response.value.status==200,production_response.value.text()
-            mill.wait_for_function("editingProdId!==null")
+            mill.wait_for_function("editingProdId===null && productionRows.every(row=>!row.bags)")
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json();productions=json.loads(saved_ops['values']['tt30prod']);assert len(productions)==1
             run=productions[0];assert run['rawInputs']==[] and run['inputBasis']=='OUTPUT_DERIVED' and run['calculatedInputKg']==500 and run['rows'][0]['bags']==10
             assert run['bagAllocationVersion']==1 and run['bagAllocations'][0]['qty']==10 and run['bagAllocations'][0]['sourceSnapshot']['poNo']=='QA-PO'
@@ -138,7 +138,7 @@ def run():
                 route.continue_()
             context.route('**/api/operations.mysql.php?asset_refs=1',lost_ack)
             mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for();assert mill.locator('.tt-number-display[aria-label="Ready Rice — QA PRODUCTION quantity"]').input_value()=='12'
-            mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for(state='detached');mill.wait_for_function("editingProdId!==null")
+            mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for(state='detached');mill.wait_for_function("editingProdId===null && productionRows.every(row=>!row.bags)")
             assert len(source_posts)==1,'Confirming the real lost response sent another production mutation'
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json();productions=json.loads(saved_ops['values']['tt30prod']);issues=json.loads(saved_ops['values']['tt36bagissues']);audits=json.loads(saved_ops['values']['tt30prodaudit'])
             assert len(productions)==1 and productions[0]['id']==run['id'] and productions[0]['rows'][0]['bags']==12 and productions[0]['rawInputs']==[] and productions[0]['calculatedInputKg']==600

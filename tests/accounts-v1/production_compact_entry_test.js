@@ -21,3 +21,17 @@ assert.match(w.updateProductionKg(1,'5'),/saved adjustment/);
 assert.equal(w.productionRows[0].bags,2,'Impossible net weight must leave the prior calculation intact');
 assert.equal(posts,0,'Calculator and preferences cannot save business records');
 console.log('PASS compact production calculator: Powder35/other50, mill/variety-specific remembered preferences, direct kg, original branded packing and no business autosave.');
+
+w.document.body.insertAdjacentHTML('beforeend','<input id="prodStart" value="20:00"><input id="prodEnd" value="06:00"><input id="prodOperatingHours" type="number"><div id="prodDowntimeWrap"><label id="prodDowntimeLabel"></label><textarea id="prodDowntimeReason"></textarea></div>');
+w.eval(['productionTiming','restoreProductionTiming'].map(native).join('\n'));
+const field=w.document.getElementById('prodOperatingHours');
+assert.equal(w.productionTiming().actual,10);
+assert.equal(field.value,'10.00');
+field.value='8.5';
+assert.equal(w.productionTiming().lost,1.5);
+assert.equal(w.document.getElementById('prodDowntimeWrap').classList.contains('hidden'),false);
+w.restoreProductionTiming({operatingHours:8.5,downtimeReason:'Power breakdown'});
+assert.equal(w.productionTiming().reason,'Power breakdown');
+w.restoreProductionTiming();
+assert.equal(w.productionTiming().actual,10);
+assert.equal(w.document.getElementById('prodDowntimeReason').value,'');

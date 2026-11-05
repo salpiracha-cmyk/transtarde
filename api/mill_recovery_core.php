@@ -47,6 +47,38 @@ function mr_allocate_calculated_outputs(array $rows):array {
     foreach($rows as $row){if($row['kind']!=='byproduct'||$row['brand']!==''||$row['contractRef']!==''){$out[]=$row;continue;}$remaining=$row['kg'];foreach($weights as $key=>$weight){[$brand,$contract]=json_decode($key,true);$kg=$key===$last?$remaining:round($row['kg']*$weight/$total,3);$remaining=round($remaining-$kg,3);$share=array_replace($row,['kg'=>$kg,'brand'=>$brand,'contractRef'=>$contract,'allocationBasis'=>'FINISHED_OUTPUT_SHARE']);if(count($weights)>1){$share['bags']=null;$share['grossKg']=null;$share['lessKg']=null;}$out[]=$share;}}
     return $out;
 }
+function mr_shift_interval(array $run): ?array {
+    $start=(string)($run['start']??'');
+    $end=(string)($run['end']??'');
+    $pattern='/^(?:[01]\d|2[0-3]):[0-5]\d$/D';
+    if(!preg_match($pattern,$start)||!preg_match($pattern,$end)||$start===$end)return null;
+    $minute=static fn(string $t):int=>(int)substr($t,0,2)*60+(int)substr($t,3,2);
+    $from=$minute($start);
+    $to=$minute($end);
+    return [$from,$to<$from?$to+1440:$to];
+}
+
+function mr_operating_hours(array $run,array $interval): ?float {
+    $elapsed=($interval[1]-$interval[0])/60;
+    if(!array_key_exists('operatingHours',$run))return $elapsed;
+    $value=$run['operatingHours'];
+    if(!is_numeric($value)||!is_finite((float)$value))return null;
+    $hours=(float)$value;
+    $scheduled=round($elapsed,2);
+    if($hours<0||$hours>$scheduled||abs($hours-round($hours,2))>1e-9)return null;
+    return $hours===$scheduled?$elapsed:$hours;
+}
+
+function mr_validate_shift_timing(array $run,bool $hasOutput):void {
+    if(!array_key_exists('operatingHours',$run)&&!array_key_exists('downtimeReason',$run))return;
+    $interval=mr_shift_interval($run);
+    $hours=$interval?mr_operating_hours($run,$interval):null;
+    if($hours===null||($hasOutput&&$hours<=0))throw new DomainException('Enter valid operating hours within the selected shift. Positive output requires positive operating hours.');
+    $reason=$run['downtimeReason']??'';
+    if(!is_string($reason)||strlen($reason)>2000)throw new DomainException('Enter a valid downtime narration.');
+    if($hours<($interval[1]-$interval[0])/60-0.00001&&trim($reason)==='')throw new DomainException('Explain why actual production hours are shorter than the shift.');
+}
+
 function mr_validate_inputs(array $run,bool $required=false):void {
     $required=$required||!empty($run['recoveryVersion']);
     $inputs=$run['rawInputs']??[];if(!is_array($inputs)||!array_is_list($inputs))throw new DomainException('Raw inputs must be a list of actual lots.');
@@ -57,6 +89,7 @@ function mr_validate_inputs(array $run,bool $required=false):void {
     }
     if($required)foreach((array)($run['rows']??[]) as $row){if(!is_array($row)||!mr_operational($row))continue;foreach(['bags','bagWeight','lessKg','systemKg'] as $field)if(isset($row[$field])&&(!is_numeric($row[$field])||!is_finite((float)$row[$field])||(float)$row[$field]<0))throw new DomainException('Production output quantities must be non-negative numbers.');if(isset($row['loadingAdjustmentKg'])&&(!is_numeric($row['loadingAdjustmentKg'])||!is_finite((float)$row['loadingAdjustmentKg'])))throw new DomainException('Output adjustment must be a valid number.');if(mr_output_kg($row)<0)throw new DomainException('Output deductions cannot exceed its recorded weight.');}
     $outputs=mr_output_rows($run);$actual=mr_actual_input($run);
+    mr_validate_shift_timing($run,(bool)$outputs||$actual>0);
     if(mr_is_calculated($run)){
         if($inputs||mr_number($run['actualInputKg']??0)>0)throw new DomainException('Calculated consumption cannot contain fabricated measured raw lots.');
         if(mr_number($run['processingLossKg']??0)!=0)throw new DomainException('Record verified physical loss through the authorized stock adjustment procedure.');
@@ -106,17 +139,41 @@ function mr_shift_performance(array $runs,array $filters,array $groups):array {
     $shifts=[];
     foreach($runs as $r){
         if(!is_array($r)||strtoupper((string)($r['entity']??'TTI'))!==($filters['entity']??'TTI')||!mr_valid_date((string)($r['date']??''))||!in_array($r['shift']??'',['Day','Night'],true))continue;
-        if(!mr_input_rows($r)&&!mr_output_rows($r))continue;
+        if(!mr_input_rows($r)&&!mr_output_rows($r)&&!array_key_exists('operatingHours',$r))continue;
         $mill=(string)($r['millName']??$r['locationName']??'TTI Rice Mills');
         if(!empty($filters['mill'])&&$mill!==$filters['mill'])continue;
         $key=json_encode([$mill,$r['date'],$r['shift']]);
         if(!isset($shifts[$key]))$shifts[$key]=['date'=>$r['date'],'shift'=>$r['shift'],'mill'=>$mill,'inputKg'=>0.,'complete'=>true,'timesComplete'=>true,'provisional'=>false,'intervals'=>[],'visible'=>false];
         $s=&$shifts[$key];$s['provisional']=$s['provisional']||(mr_is_calculated($r)&&empty($r['shiftEntriesComplete']));$input=mr_consumption_kg($r);$s['complete']=$s['complete']&&$input!==null;$s['inputKg']+=$input??0;$s['visible']=$s['visible']||isset($visible[(string)($r['id']??'')]);
-        if(preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/',(string)($r['start']??''))&&preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/',(string)($r['end']??''))&&$r['start']!==$r['end']){
-            $minute=static fn($t)=>(int)substr($t,0,2)*60+(int)substr($t,3,2);$start=$minute($r['start']);$end=$minute($r['end']);if($end<$start)$end+=1440;$s['intervals'][]=[$start,$end];
-        }else $s['timesComplete']=false;unset($s);
+        $interval=mr_shift_interval($r);
+        $hours=$interval?mr_operating_hours($r,$interval):null;
+        if($hours===null){$s['timesComplete']=false;unset($s);continue;}
+        [$start,$end]=$interval;
+        $key=$start.'-'.$end;
+        $downtime=max(0,($end-$start)/60-$hours);
+        $prior=$s['intervals'][$key]??null;
+        if($prior&&$prior[2]>0&&$downtime>0&&abs($prior[2]-$downtime)>1e-9)$s['timesComplete']=false;
+        $s['intervals'][$key]=[$start,$end,max($downtime,$prior[2]??0)];
+        if($downtime>0&&trim((string)($r['downtimeReason']??''))!=='')$s['downtimeReasons'][]=trim($r['downtimeReason']);
+        unset($s);
     }
-    foreach($shifts as &$s){sort($s['intervals']);$minutes=0;$end=-1;foreach($s['intervals'] as [$a,$b]){$minutes+=max(0,$b-max($a,$end));$end=max($end,$b);}$s['hours']=$s['timesComplete']&&$minutes>0?round($minutes/60,4):null;$s['tonsPerHour']=$s['complete']&&$s['hours']?round($s['inputKg']/1000/$s['hours'],4):null;unset($s['intervals']);}unset($s);
+    foreach($shifts as &$s){
+        sort($s['intervals']);
+        $minutes=0;$end=-1;$downtime=0.;$overlap=false;
+        foreach($s['intervals'] as [$a,$b,$lost]){
+            $overlap=$overlap||$a<$end;
+            $minutes+=max(0,$b-max($a,$end));
+            $end=max($end,$b);
+            $downtime+=$lost;
+        }
+        $s['scheduledHours']=$minutes>0?round($minutes/60,4):null;
+        $s['hours']=$s['timesComplete']&&$minutes>0&&(!$overlap||!$downtime)?round(max(0,$minutes/60-$downtime),4):null;
+        $s['downtimeHours']=$s['hours']===null?null:round($downtime,4);
+        $s['downtimeReasons']=array_values(array_unique($s['downtimeReasons']??[]));
+        $s['tonsPerHour']=$s['complete']&&$s['hours']?round($s['inputKg']/1000/$s['hours'],4):null;
+        unset($s['intervals']);
+    }
+    unset($s);
     $out=[];foreach($shifts as $s){if(!$s['visible'])continue;$previousDate=$s['shift']==='Night'?$s['date']:(new DateTimeImmutable($s['date']))->modify('-1 day')->format('Y-m-d');$previousShift=$s['shift']==='Night'?'Day':'Night';$s['previous']=$shifts[json_encode([$s['mill'],$previousDate,$previousShift])]??['date'=>$previousDate,'shift'=>$previousShift,'mill'=>$s['mill'],'inputKg'=>null,'hours'=>null,'tonsPerHour'=>null];$out[]=$s;}
     usort($out,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strcmp($a['shift'],$b['shift'])?:strcmp($a['mill'],$b['mill']));return $out;
 }
