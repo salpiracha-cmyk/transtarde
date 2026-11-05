@@ -4,7 +4,7 @@
   const canonical=v=>JSON.stringify(v&&typeof v==='object'?Array.isArray(v)?v.map(x=>JSON.parse(canonical(x))):Object.fromEntries(Object.keys(v).sort().map(k=>[k,JSON.parse(canonical(v[k]))])):v);
   const clone=v=>JSON.parse(JSON.stringify(v)),same=(a,b)=>canonical(a)===canonical(b);
   const rows=value=>{const result=JSON.parse(value||'[]');if(!Array.isArray(result))throw Error('Saved production records are invalid.');return result;};
-  const facts=record=>{const r=clone(record);for(const k of ['createdAt','updatedAt','serverSequence','bagAllocationActor','bagAllocationScope','shiftEntriesComplete'])delete r[k];for(const a of r.bagAllocations||[])delete a.sourceSnapshot;return r;};
+  const facts=record=>{const r=clone(record);for(const k of ['createdAt','updatedAt','serverSequence','arrivalPackingQty','bagAllocationActor','bagAllocationScope','shiftEntriesComplete'])delete r[k];for(const a of r.bagAllocations||[])delete a.sourceSnapshot;return r;};
   async function commit({endpoint,access,record,before=null}) {
     if(!record?.id||!record.clientSaveRequestId)throw Error('A stable production save identity is required.');
     const response=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin',headers:{Accept:'application/json'}}),snapshot=await response.json();

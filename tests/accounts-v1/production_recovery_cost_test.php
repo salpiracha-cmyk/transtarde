@@ -62,3 +62,28 @@ near(strlen(tt_inv_production_date('2018-01-01','2026-11-04T12:00:00Z')),10,'All
 if(tt_inv_production_date('2026-11-04','2026-11-03T22:00:00Z')!=='2026-11-04')throw new RuntimeException('Production date must use Karachi business day');
 try{tt_inv_production_date('2026-11-05','2026-11-04T12:00:00Z');throw new RuntimeException('Future production accepted');}catch(DomainException $e){}
 echo "PASS unrestricted historical production dates, Karachi date boundary and future-date rejection\n";
+
+
+$packingRun=['id'=>'packing-fixture','entity'=>'TTI','millName'=>'TTI Rice Mills','date'=>'2026-11-05','arrivalPackingVersion'=>1,'rows'=>[
+    ['product'=>'B3','bags'=>10,'bagWeight'=>50],
+    ['product'=>'Powder','bags'=>5,'bagWeight'=>35,'arrivalBagsUsed'=>7],
+    ['product'=>'B2 CSR','bags'=>2,'bagWeight'=>50],
+    ['product'=>'CSR','bags'=>1,'bagWeight'=>50,'arrivalBagsUsed'=>0],
+    ['product'=>'B2 — BRAND','bags'=>200,'bagWeight'=>40],
+    ['product'=>'Sweeping','bags'=>1,'bagWeight'=>50],
+]];
+$packingRun['arrivalPackingQty']=tt_inv_arrival_packing_qty($packingRun);
+near($packingRun['arrivalPackingQty'],32,'Arrival packing uses 2:1 byproduct formula, explicit zero and no branded B2 deduction');
+$packingInput=['tt30slips'=>json_encode([['id'=>'receipt','entity'=>'TTI','millName'=>'TTI Rice Mills','unloadingDate'=>'2026-11-04','bags'=>40]])];
+$packingSaved=$packingInput+['tt30prod'=>json_encode([$packingRun])];
+tt_inv_guard_arrival_bags($packingInput,$packingSaved,[$packingRun]);
+near(array_sum(tt_inv_arrival_bag_timeline($packingSaved,$packingRun)),8,'One committed production movement reduces arrival balance once');
+$tooMany=array_replace($packingRun,['arrivalPackingQty'=>41]);
+$blocked=false;
+try{tt_inv_guard_arrival_bags($packingSaved,array_replace($packingSaved,['tt30prod'=>json_encode([$tooMany])]),[$tooMany]);}catch(DomainException $e){$blocked=str_contains($e->getMessage(),'Short by 1');}
+ok($blocked,'Amendment cannot consume unavailable arrival stock');
+$kgOnly=array_replace($packingRun,['rows'=>[['product'=>'B3','bags'=>1,'bagWeight'=>500,'arrivalPackingKgOnly'=>true]]]);
+$blocked=false;
+try{tt_inv_arrival_packing_qty($kgOnly);}catch(DomainException $e){$blocked=str_contains($e->getMessage(),'entered by weight');}
+ok($blocked,'Synthetic one-bag weight entry is not an actual arrival bag count');
+echo "PASS dated byproduct arrival-bag usage, override, B2 exclusion and insufficient stock guard\n";

@@ -76,7 +76,7 @@ function oeb_choices(array $values,array $inventory,array $books,array $scope): 
         if($lot&&(!is_int($lot['committableQty'])||$lot['committableQty']<=0))$reasons[]=$lot['hold']?:'No available received bags';
         if(!$reasons&&$lot)$choices[]=['brand'=>$lot['brand'],'packingKg'=>$lot['packingKg'],'lotId'=>$lot['id'],'available'=>$lot['committableQty'],'exporterDealId'=>$order['exporterDealId']??'','contractRef'=>$order['contractRef']??'','owner'=>$order['externalOwnerName']??$scope['entity']];
         // Return diagnostics only for the requested company/location; never leak other books.
-        if($lot)$diagnostics[]=['brand'=>$lot['brand'],'sourceId'=>$id,'reference'=>$order['sodaReference']??$order['poNo']??'','owner'=>$order['externalOwnerName']??$scope['entity'],'received'=>$lot['receivedQty'],'used'=>$lot['issuedQty'],'remaining'=>$lot['balanceBeforeUnallocated'],'reason'=>implode('. ',$reasons)?:'Available for production'];
+        if($lot)$diagnostics[]=['brand'=>$lot['brand'],'sourceId'=>$id,'reference'=>($order['sourceKind']??'')==='OTHER_EXPORTER'?($order['externalOwnerName']??'Fellow exporter'):(($order['poNo']??'')?:'Bag receipt'),'owner'=>$order['externalOwnerName']??$scope['entity'],'received'=>$lot['receivedQty'],'used'=>$lot['issuedQty'],'remaining'=>$lot['balanceBeforeUnallocated'],'reason'=>implode('. ',$reasons)?:'Available for production'];
     }
     return ['choices'=>$choices,'diagnostics'=>$diagnostics];
 }
@@ -84,10 +84,9 @@ function oeb_choices(array $values,array $inventory,array $books,array $scope): 
 /** Read-only running order identities; labels never substitute for immutable source IDs. */
 function oeb_production_orders(array $values,array $books,array $scope,string $date,array $inventory=[]): array {
     $root=json_decode($values['transtrade_export_v3_operational']??'{}',true,512,JSON_THROW_ON_ERROR);$rows=[];
-    $historical=$date<(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
-    $closed=static fn($r)=>!empty($r['completed'])||(bool)preg_match('/^(closed|completed)$/i',(string)($r['status']??''));
-    $active=static fn($r)=>empty($r['cancelled'])&&!preg_match('/^(cancelled|deleted)$/i',(string)($r['status']??''))&&($historical||!$closed($r))&&($r['date']??'')<=$date;
-    foreach((array)($books['exporterDeals']??[]) as $d){if(($d['direction']??'')!=='SALE'||($d['entity']??'')!==$scope['entity']||(!$historical&&!oeb_active($d,(array)$root))||!$active($d)||($d['date']??'')>$date||(($d['commodity']??'RICE')!=='RICE'))continue;
+    $closed=static fn($r)=>!empty($r['completed'])||!empty($r['closed'])||(bool)preg_match('/^(closed|completed)$/i',(string)($r['status']??''));
+    $active=static fn($r)=>empty($r['cancelled'])&&!preg_match('/^(cancelled|deleted)$/i',(string)($r['status']??''))&&!$closed($r)&&($r['date']??'')<=$date;
+    foreach((array)($books['exporterDeals']??[]) as $d){if(($d['direction']??'')!=='SALE'||($d['entity']??'')!==$scope['entity']||!oeb_active($d,(array)$root)||!$active($d)||($d['date']??'')>$date||(($d['commodity']??'RICE')!=='RICE'))continue;
         if(!empty($d['productionMillName'])&&bti_norm($d['productionMillName'])!==bti_norm($scope['millName']))continue;
         $rows[]=['orderId'=>'FELLOW|'.$d['id'],'sourceKind'=>'FELLOW','historicalClosed'=>$closed($d),'sourceId'=>$d['id'],'entity'=>$scope['entity'],'party'=>(string)($d['party']??''),'brand'=>(string)($d['brand']??''),'quantityMT'=>$d['quantityMT']??null,'product'=>(string)($d['product']??''),'packing'=>(string)($d['packing']??''),'contractRef'=>'','bagResponsibility'=>ba_physical_responsibility($d),'ready'=>!empty($d['productionReady']),'version'=>(int)($d['version']??0)];
     }
@@ -97,13 +96,16 @@ function oeb_production_orders(array $values,array $books,array $scope,string $d
         foreach($packs as $i=>$pack)$rows[]=['orderId'=>'EXPORT|'.$ref.'|'.$i,'sourceKind'=>'EXPORT','historicalClosed'=>$closed($c),'sourceId'=>$ref,'entity'=>$entity,'party'=>$customers[(string)($c['customerId']??'')]??(string)($c['customer']??''),'brand'=>(string)($pack['brand']??''),'quantityMT'=>$c['qty']??null,'product'=>(string)($c['product']??''),'packing'=>trim((string)($pack['size']??'').' '.(string)($pack['unit']??'')),'contractRef'=>$ref,'ready'=>true,'version'=>hash('sha256',json_encode([$c['packings']??[],$c['qty']??null,$c['status']??'']))];
     }
     foreach(bti_rows($values,'tt35localsales') as $r){if(($r['entity']??'TTI')!==$scope['entity']||!$active($r)||bti_norm($r['millName']??$r['mill']??'TTI Rice Mills')!==bti_norm($scope['millName']))continue;
-        $qty=(float)($r['qty']??0);$loaded=array_sum(array_column((array)($r['loads']??[]),'kg'));if(!$historical&&$qty>0&&$loaded>=$qty)continue;
+        $qty=(float)($r['qty']??0);$loaded=array_sum(array_column((array)($r['loads']??[]),'kg'));if($qty>0&&$loaded>=$qty)continue;
         $id=(string)($r['ref']??$r['id']??'');if($id==='')continue;$rows[]=['orderId'=>'LOCAL|'.$id,'sourceKind'=>'LOCAL','historicalClosed'=>$closed($r)||($qty>0&&$loaded>=$qty),'sourceId'=>$id,'entity'=>$scope['entity'],'party'=>(string)($r['buyer']??$r['party']??'Local sale'),'brand'=>(string)($r['brand']??'Local Bags'),'quantityMT'=>$qty/1000,'product'=>(string)($r['product']??''),'packing'=>'','contractRef'=>'','ready'=>true,'version'=>hash('sha256',json_encode([$r['brand']??'',$r['qty']??0,$r['status']??'']))];
     }
     foreach((array)($inventory['lots']??[]) as $lot){
         $original=null;foreach(bti_rows($values,'tt30bags') as $bag)if((string)($bag['id']??'')===(string)($lot['originBagId']??''))$original=$bag;if(!$original)continue;
+        if(($lot['committableQty']??0)<=0)continue;
         $dealId=(string)($original['exporterDealId']??'');if($dealId!==''&&(!isset($books['exporterDeals'][$dealId])||!oeb_active($books['exporterDeals'][$dealId],(array)$root)))continue;
-        $ref=(string)($original['contractRef']??'');$closed=false;foreach((array)($root['contracts']??[]) as $c)if($ref!==''&&($c['ref']??'')===$ref&&!$active($c))$closed=true;if($closed)continue;
+        $ref=(string)($original['contractRef']??'');
+        if($ref==='')foreach((array)($root['shipments']??[]) as $shipment)foreach((array)($shipment['bagOrders']??[]) as $po)if(!empty($original['poNo'])&&($po['poNo']??'')===$original['poNo'])$ref=(string)($shipment['contractRef']??'');
+        $closed=false;foreach((array)($root['contracts']??[]) as $c)if($ref!==''&&($c['ref']??'')===$ref&&!$active($c))$closed=true;if($closed)continue;
         $represented=false;foreach($rows as $order)if(bti_norm($order['brand'])===bti_norm($lot['brand']??'')&&(($dealId!==''&&$order['sourceKind']==='FELLOW'&&$order['sourceId']===$dealId)||($ref!==''&&$order['contractRef']===$ref)))$represented=true;if($represented)continue;
         $rows[]=['orderId'=>'BAG|'.$lot['id'],'sourceKind'=>'BAG','sourceId'=>$lot['id'],'entity'=>$scope['entity'],'party'=>(string)($lot['externalOwnerName']??$scope['entity']),'brand'=>(string)($lot['brand']??''),'quantityMT'=>null,'product'=>'Received / ordered bag marking — SODA link not verified','packing'=>(string)($lot['packingSize']??''),'contractRef'=>'','bagSourceLotId'=>$lot['id'],'exporterDealId'=>$dealId,'ready'=>($lot['committableQty']??0)>0,'version'=>hash('sha256',json_encode($original))];
     }

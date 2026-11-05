@@ -29,7 +29,7 @@ function bti_po_sources(array $exports): array {
         $owner=$seller==='TG'?strtoupper((string)($s['customs']['exporter']??$c['customsExporter']??'')):$seller;
         foreach((array)($s['bagOrders']??[]) as $po){if(!is_array($po)||empty($po['poNo']))continue;
             $lines=(array)($po['lines']??[]);if(!$lines)$lines=[['brand'=>$po['brand']??'','type'=>$po['type']??'','size'=>$po['packSize']??'','unit'=>$po['unit']??'','masterBag'=>$po['masterBag']??[]]];
-            foreach(array_values($lines) as $i=>$line){if(!is_array($line))continue;$base=['entity'=>$owner,'supplier'=>(string)($po['supplier']??''),'brand'=>(string)($line['brand']??''),'bagType'=>(string)($line['type']??''),'packingSize'=>trim((string)($line['size']??'').' '.(string)($line['unit']??''))];
+            foreach(array_values($lines) as $i=>$line){if(!is_array($line))continue;$base=['entity'=>$owner,'contractRef'=>(string)($s['contractRef']??''),'supplier'=>(string)($po['supplier']??''),'brand'=>(string)($line['brand']??''),'bagType'=>(string)($line['type']??''),'packingSize'=>trim((string)($line['size']??'').' '.(string)($line['unit']??''))];
                 $key=(string)$po['poNo'].'|L'.($i+1);$map[$key][bt_hash($base)]=$base;
                 if(!empty($line['masterBag']['enabled'])){$master=$base;$master['brand'].=' — MASTER';$master['bagType']='PP Master Bag';$master['packingSize']=(string)($line['masterBag']['size']??'');$map[$key.'-MASTER'][bt_hash($master)]=$master;}
             }
@@ -104,7 +104,7 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
         $entity=(string)($order['entity']??$po['entity']??'');
         if(!in_array($entity,['TTI','BRM'],true)){$unassigned[]=['entity'=>'','locationId'=>$location['locationId'],'brand'=>(string)($order['brand']??'')];if($location['locationId']===($scope['locationId']??''))$warnings[]='A bag source has no unambiguous actual stock owner; assign its original PO before moving it.';continue;}
         $id=bti_lot_id($bagId,$location['locationId']);$brand=(string)($order['brand']??'');$packing=(string)($order['size']??$po['packingSize']??'');$type=trim((string)($order['bagType']??''))!==''?(string)$order['bagType']:(string)($po['bagType']??'');$kg=bti_packing_kg($packing);
-        $lot=$blank()+['id'=>$id,'originBagId'=>$bagId,'poNo'=>(string)($order['poNo']??''),'poLineKey'=>bqa_mill_line_key($order),'brand'=>$brand,'packingSize'=>$packing,'packingKg'=>$kg,'bagType'=>$type,'entity'=>$entity,'locationId'=>$location['locationId'],'millName'=>$location['millName'],'isTransferStock'=>false,'skuKey'=>bt_hash(['brand'=>bti_norm($brand),'packing'=>bti_norm($packing),'type'=>bti_norm($type)])];
+        $lot=$blank()+['id'=>$id,'originBagId'=>$bagId,'poNo'=>(string)($order['poNo']??''),'poLineKey'=>bqa_mill_line_key($order),'contractRef'=>(string)($order['contractRef']??$po['contractRef']??''),'brand'=>$brand,'packingSize'=>$packing,'packingKg'=>$kg,'bagType'=>$type,'entity'=>$entity,'locationId'=>$location['locationId'],'millName'=>$location['millName'],'isTransferStock'=>false,'skuKey'=>bt_hash(['brand'=>bti_norm($brand),'packing'=>bti_norm($packing),'type'=>bti_norm($type)])];
         if(($order['sourceKind']??'')==='OTHER_EXPORTER')foreach(['sourceKind','exporterDealId','externalOwnerId','externalOwnerName','stockOwnerType','sodaReference'] as $key)$lot[$key]=$order[$key]??'';
         if($bagId===''||($orderIds[$bagId]??0)!==1)bti_hold($lot,'Original bag order identity is missing or duplicated.');
         if($po&&($po['entity']!==$entity||bti_norm($po['brand'])!==bti_norm($brand)))bti_hold($lot,'Original PO owner or brand disagrees with the saved Mill source.');
@@ -140,9 +140,11 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
         }
         if(isset($lots[$id])){bti_hold($lot,'Repeated original bag lot requires review.');} $lots[$id]=$lot;
     }
+    $originalContracts=array_column($lots,'contractRef','originBagId');
     // Destination lots retain the original PO reference. They are never new purchase orders.
     foreach((array)($state['transfers']??[]) as $transfer){bt_totals($transfer);foreach((array)($transfer['lines']??[]) as $line){$id='BT|'.$transfer['id'].'|'.$line['lineId'];$snap=(array)$line['sourceSnapshot'];
         $lots[$id]=$blank()+$snap+['id'=>$id,'originBagId'=>(string)$line['originBagId'],'entity'=>(string)$transfer['entity'],'locationId'=>(string)$transfer['destination']['id'],'millName'=>(string)$transfer['destination']['name'],'isTransferStock'=>true,'packingKg'=>bti_packing_kg((string)($snap['packingSize']??''))];
+        $lots[$id]['contractRef']=($snap['contractRef']??'')?:($originalContracts[(string)$line['originBagId']]??'');
         // Snapshot scope describes the source; physical destination scope is explicit.
         $lots[$id]['entity']=$transfer['entity'];$lots[$id]['locationId']=$transfer['destination']['id'];$lots[$id]['millName']=$transfer['destination']['name'];
     }}
@@ -249,7 +251,7 @@ function bti_prepare_production(array $values,string $json,array $masters,array 
         if(!preg_match('/^[a-f0-9]{64}$/D',(string)($r['bagStockFingerprint']??''))||!hash_equals($review['fingerprint'],$r['bagStockFingerprint']))throw new DomainException('The reviewed bag stock changed. Retain production entry and review the actual source lots again.');
         bti_validate_allocations($r,$r['bagAllocations'],$review['lots'],$masters);
         $canonical=[];foreach($r['bagAllocations'] as $a){$lot=$review['lots'][(string)$a['lotId']];$qty=bt_qty($a['qty']);if(!is_int($lot['committableQty'])||$lot['committableQty']<$qty)throw new DomainException('The selected source bag lot is held or has insufficient available stock.');
-            $canonical[]=['lotId'=>(string)$a['lotId'],'qty'=>$qty,'sourceSnapshot'=>array_intersect_key($lot,array_flip(['originBagId','poNo','poLineKey','brand','packingSize','bagType','skuKey','entity','locationId','millName','sourceKind','exporterDealId','externalOwnerId','externalOwnerName','stockOwnerType','sodaReference']))];}
+            $canonical[]=['lotId'=>(string)$a['lotId'],'qty'=>$qty,'sourceSnapshot'=>array_intersect_key($lot,array_flip(['originBagId','poNo','poLineKey','contractRef','brand','packingSize','bagType','skuKey','entity','locationId','millName','sourceKind','exporterDealId','externalOwnerId','externalOwnerName','stockOwnerType','sodaReference']))];}
         $r['bagAllocations']=$canonical;$r['bagAllocationScope']=$scope;$r['bagAllocationActor']=['userId'=>(int)$user['id'],'by'=>(string)($user['full_name']??$user['username']??''),'at'=>$now];
     }unset($r);
     return json_encode($rows,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);

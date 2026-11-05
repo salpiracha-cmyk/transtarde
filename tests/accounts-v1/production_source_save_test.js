@@ -7,12 +7,12 @@ context.fetch=async(url,options={})=>{
  const body=JSON.parse(options.body);posts.push(body);
  if(conflict){conflict=false;version++;records.push({id:999,reason:'Another user saved this report'});}
  if(body.baseVersion!==version)return {ok:false,status:409,json:async()=>({ok:false,conflict:true})};
- records=JSON.parse(body.value).map((r,i)=>({...r,createdAt:r.createdAt||'2026-10-17T12:00:00Z',updatedAt:'2026-10-17T12:00:00Z',serverSequence:r.serverSequence||i+1}));version++;
+ records=JSON.parse(body.value).map((r,i)=>({...r,createdAt:r.createdAt||'2026-10-17T12:00:00Z',updatedAt:'2026-10-17T12:00:00Z',serverSequence:r.serverSequence||i+1,...(r.arrivalPackingVersion===1?{arrivalPackingQty:8}:{})}));version++;
  if(loseAck){loseAck=false;throw Error('Connection lost after commit');}
  return {ok:true,json:async()=>({ok:true,value:JSON.stringify(records),keyVersion:version,related:{tt36bagissues:{value:'[]',version:1}}})};
 };
 vm.runInContext(fs.readFileSync(path.join(root,'accounts/production-source-save.js'),'utf8'),context);
-const record={id:100,entity:'TTI',millId:1,millName:'TTI Rice Mills',date:'2026-10-17',shift:'Day',rows:[{product:'Ready Rice — ASAS',bags:10,bagWeight:50}],rawInputs:[{grossKg:500}],clientSaveRequestId:'production-save-original-0001'},input={endpoint:'api/operations.mysql.php',access:w.TT_MODULE_ACCESS,record};
+const record={id:100,entity:'TTI',millId:1,millName:'TTI Rice Mills',date:'2026-10-17',shift:'Day',arrivalPackingVersion:1,rows:[{product:'Ready Rice — ASAS',bags:10,bagWeight:50}],rawInputs:[{grossKg:500}],clientSaveRequestId:'production-save-original-0001'},input={endpoint:'api/operations.mysql.php',access:w.TT_MODULE_ACCESS,record};
 (async()=>{
  assert.equal(reads,0,'Loading source helper refreshed transaction data');
  loseAck=true;await assert.rejects(w.TT_PRODUCTION_SOURCE_SAVE.commit(input),/Connection lost/);assert.equal(records.length,1);

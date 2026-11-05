@@ -47,12 +47,12 @@ function os_key_grants(): array {
     return [
         'tt30arrivaldefaults'=>['queue','arrival'], 'tt30directoralerts'=>['queue','arrival'],
         'tt30mills'=>['stock','queue','arrival','newbags','instructions','production','export','local','petty','labour','reprocessbill','oldbags','reports'],
-        'tt30queue'=>['queue','arrival','reports'], 'tt30slips'=>['arrival','queue','stock','production','labour','reprocessbill','reports'],
+        'tt30queue'=>['queue','arrival','reports'], 'tt30slips'=>['arrival','queue','stock','production','labour','reprocessbill','reports','oldbags'],
         'tt37arrivalaudit'=>['arrival','queue','reports'],
         'tt30bags'=>['newbags','production','stock','export','instructions','reports'],
         'tt33bagreceipts'=>['newbags','production','stock','reports'], 'tt36bagissues'=>['production','newbags','stock','reports'],
         'tt30prodinst'=>['instructions','production','export','stock','reports'],
-        'tt30prod'=>['production','stock','labour','reprocessbill','export','reports'],
+        'tt30prod'=>['production','stock','labour','reprocessbill','export','reports','oldbags'],
         'tt30prodaudit'=>['production','reports'], 'tt35brandmeta'=>['production','stock','export','reports'],
         'tt32stockadj'=>['stock','production','reports'], 'tt32labourfeed'=>['production','labour','reports'],
         'tt30ship'=>['export','stock','production','labour','reports'],
@@ -257,6 +257,13 @@ function os_project(array $u,array $values,array $meta=[]): array {
         if($key==='tt40instructionseen'&&!os_owner($u)){$name=strtolower(trim((string)($u['full_name']??$u['username']??'')));$data=array_intersect_key($data,[$name=>true]);}
         elseif(array_is_list($data)){
             $data=array_values(array_filter($data,static fn($r)=>is_array($r)&&os_scope($u,$r,$root,!os_export_key_visible($u,$key),in_array($key,['tt30ship','tt32exportsync','tt35exmill','tt35exload','tt40exinstructions'],true))));
+            if(!os_owner($u)&&os_any($u,'Mill',['oldbags'])&&in_array($key,['tt30slips','tt30prod'],true)){
+                $otherIcons=array_values(array_diff(os_key_grants()[$key],['oldbags']));
+                if(!os_any($u,'Mill',$otherIcons)&&!os_export_key_visible($u,$key)){
+                    $fields=$key==='tt30prod'?'id entity millId millName date shift arrivalPackingVersion arrivalPackingQty':'id entity millId millName mill locationName arrivalDate unloadingDate bags slip truck broker party';
+                    $data=array_map(static fn($r)=>os_fields($r,$fields),$data);
+                }
+            }
             if(in_array($key,['tt35localsales','tt35exportersale'],true)&&!os_any($u,'Mill',['local','reports'])&&!os_owner($u))$data=array_map(static fn($r)=>os_fields($r,'id entity mill millName locationName commodity product variety brand date bags kg qty quantity loads'),$data);
             if(in_array($key,['tt30petty','tt33pettyexp'],true)&&!os_any($u,'Mill',['petty'])&&!os_owner($u)){
                 $source=$key==='tt30petty'?'tt37usedbags':'tt37processingexpenses';$prefix=$key==='tt30petty'?'UB-':'PE-';$vouchers=[];
