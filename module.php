@@ -391,7 +391,22 @@ $sharedBootstrap = <<<'HTML'
     keys.forEach(k=>inFlight.add(k));saveHolds++;waiting();
     try{return await window.TT_MILL_SETTINGS_SAVE.commit({endpoint,access,entries,onConfirmed:row=>{directSet(row.key,row.value);committedValues.set(row.key,row.value);receipts.set(row.key,row.value);keyVersions.set(row.key,row.version);remoteKeys.add(row.key);}});}finally{keys.forEach(k=>inFlight.delete(k));saveHolds--;waiting();}
   }
-  window.TT_SHARED_SYNC={recoverLegacy,commitMillSettings,readVersion:key=>keyVersions.get(key)??null,commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
+  window.TT_SHARED_SYNC={recoverLegacy,commitMillSettings,readVersion:key=>keyVersions.get(key)??null,commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,confirmExportSave:async(attempted,matches)=>{
+    if(access.moduleId!=='exports'||!allowed(EXPORT_STORE)||typeof matches!=='function')return false;
+    const response=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin',cache:'no-store'}),snapshot=await response.json();
+    const value=snapshot.values?.[EXPORT_STORE],version=snapshot.meta?.[EXPORT_STORE]?.version;
+    if(!response.ok||!snapshot.ok||(snapshot.restrictedKeys||[]).includes(EXPORT_STORE)||typeof value!=='string'||!Number.isInteger(version)||!matches(value))return false;
+    // Reconcile only the exact failed attempt, and leave other queued writes alone.
+    if(!inFlight.has(EXPORT_STORE)&&localStorage.getItem(EXPORT_STORE)===attempted
+       &&(!pending.has(EXPORT_STORE)||pending.get(EXPORT_STORE)===attempted)
+       &&version>=(keyVersions.get(EXPORT_STORE)??0)){
+      pending.delete(EXPORT_STORE);queuedBase.delete(EXPORT_STORE);failedKeys.delete(EXPORT_STORE);
+      revision=Math.max(revision,Number(snapshot.revision||0));keyVersions.set(EXPORT_STORE,version);
+      receipts.set(EXPORT_STORE,attempted);committedValues.set(EXPORT_STORE,value);
+      if(!pending.size&&!inFlight.size)markSaveState('Saved');
+    }
+    return true;
+  },restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and announced through an internal event without persistent interface notices.
   // Exports must reconcile Mill actuals before app.js reads state. Milling must finish its legacy startup first,
