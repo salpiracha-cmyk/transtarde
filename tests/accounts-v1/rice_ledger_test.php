@@ -38,3 +38,12 @@ eq(isset(tt_inv_stock($poolValues,$scope)['B2 — AMT']),true,'Existing company 
 eq(serialize($poolValues),$bytes,'Physical projection does not rewrite sources');
 eq(count(array_filter($physical['rows'],fn($r)=>($r['sourceEntity']??'')==='BRM'))>0,true,'Original company remains traceable');
 echo "PASS physical pooling: same mill/variety/product across companies and brands, distinct varieties/mills, unassigned legacy identity, immutable accounting sources and source-company trace.\n";
+$opening=$scope+['id'=>'OPENSTOCK-TTI-IRRI6-20260701','date'=>'2026-07-01','openingStock'=>true,'baseVariety'=>'IRRI-6','byProducts'=>['B3'=>5000,'CSR'=>2000,'B2 CSR'=>1000,'Sweeping'=>7000]];
+$legacyWhite=$scope+['id'=>'LW','date'=>'2026-09-01','variety'=>'IRRI-6 White Rice','rows'=>[['product'=>'B3','bags'=>2,'bagWeight'=>50]]];
+$legacyParboil=$scope+['id'=>'LP','date'=>'2026-09-01','baseVariety'=>'IRRI-6','variety'=>'IRRI-6 Parboil Rice','rows'=>[['product'=>'B3','bags'=>4,'bagWeight'=>50]]];
+$otherUntyped=array_replace($opening,['id'=>'OTHER','byProducts'=>['B3'=>10]]);
+$r=rl_report(values(['tt32stockadj'=>[$opening,$otherUntyped],'tt30prod'=>[$legacyWhite,$legacyParboil]]),$scope+['physicalPool'=>true],['from'=>'2026-09-01','movement'=>'All']);
+eq(summary($r,'IRRI-6 White Rice — B3')['openingKg'],5000.0,'Confirmed July opening classified as White');
+eq(summary($r,'IRRI-6 White Rice — B3')['closingKg'],5100.0,'Legacy White quantity adds to confirmed opening');
+eq(summary($r,'IRRI-6 Parboiled / Sella Rice — B3')['closingKg'],200.0,'Parboiled history stays separate');
+eq(summary($r,'IRRI-6 — B3')['closingKg'],10.0,'Unrelated untyped opening remains untyped');

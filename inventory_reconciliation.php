@@ -140,8 +140,18 @@ function tt_inv_physical_name(string $name,array $record): string {
     $name=trim($name);
     if(!preg_match('/^(?:B2(?:\s*[—-].*)?|B2 \/ BROKEN|BROKEN(?:\s*[—-].*)?|B3|CSR|B2 CSR|PADDY|POWDER|SWEEPING|STONE \/ SUTLI \/ DUST)$/iu',$name))return $name;
     $product=preg_match('/^(?:B2(?! CSR)|BROKEN)/iu',$name)?'B2':$name;
-    $base=trim((string)($record['baseVariety']??$record['variety']??''));
-    $variety=$base!==''?tt_inv_product($record):'UNASSIGNED VARIETY';
+    $legacyName=trim((string)($record['variety']??''));
+    $base=trim((string)($record['baseVariety']??'')) ?: $legacyName;
+    $riceType=trim((string)($record['riceType']??''));
+    // Owner confirmed the specific July opening batch is White Rice.
+    if ($riceType==='' && ($record['id']??'')==='OPENSTOCK-TTI-IRRI6-20260701'
+        && !empty($record['openingStock']) && ($record['date']??'')==='2026-07-01'
+        && tt_inv_same_scope($record,['entity'=>'TTI','millName'=>'TTI Rice Mills'])
+        && tt_inv_norm($base)==='irri6') {
+        $riceType='White';
+    }
+    $riceType=$riceType ?: (tt_product_type_from_name($legacyName) ?: tt_product_type_from_name($base));
+    $variety=$base!=='' ? tt_product_display((string)($record['commodity']??'RICE'),$base,'FINISHED',$riceType) : 'UNASSIGNED VARIETY';
     return $variety.' — '.$product;
 }
 function tt_inv_physical_stock(array $values,array $scope,?callable $observe=null): array {
