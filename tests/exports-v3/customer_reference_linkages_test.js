@@ -12,6 +12,14 @@ assert.equal(c.currency,'EUR','customer default currency must reach a new contra
 assert.equal(c.paymentSectionOverride,'','instructions must not silently replace contractual payment terms');
 t.setStep(1);t.renderContractStep();
 for(const [id,value] of [['cCustomerContact','0'],['cCustomerDocumentAddress','0']]){const node=d.getElementById(id);assert(node,id+' selector missing');node.value=value;node.dispatchEvent(new w.Event('change'));}
+const notify=d.getElementById('cContractNotifyEnabled');assert(notify&&!notify.checked);notify.click();assert.equal(c.contractNotifyParty.name,'Primary Notify');assert.equal(c.contractNotifyParty.address,'Primary Notify Road');
+const notifySelect=d.getElementById('cContractNotifyChoice');assert.equal(notifySelect.options.length,3);notifySelect.value='1';notifySelect.dispatchEvent(new w.Event('change'));
+assert.equal(c.contractNotifyParty.name,'Additional Notify');
+const printFixture=d.createElement('div');printFixture.innerHTML=t.salesContractPrint(c);
+const printGrid=printFixture.querySelector('.docPartyGrid');assert.equal(printGrid.children[2].querySelector('.docPartyLabel').textContent,'NOTIFY PARTY');assert.match(printGrid.children[2].textContent,/Additional Notify.*Additional Road/s);
+t.setStep(7);t.renderContractStep();assert.equal(d.getElementById('cContractNotifyEnabled'),null);
+t.setStep(1);t.renderContractStep();assert.equal(d.getElementById('cContractNotifyAddress').value,'Additional Road');
+console.log('PASS Notify Party autofill, alternate, review placement, and restored Step 1 selection');
 let buyer=t.buyerOf(c);assert.equal(buyer.address,'Billing Road');assert.equal(buyer.email,'contact@example.test');assert.match(t.ttPartyOutput(buyer).address,/ATTN: Buyer Contact \(Manager\)/i);
 assert.equal(w.localStorage.getItem('transtrade_export_v3_operational'),savedBefore,'selection must not save a draft');
 c.seller='TTI';c.product='White Rice';c.packings=[{brand:'Fixture',size:25,type:'PP',containers:1,weightPer:27,price:400}];c.qty=27;c.containers=1;c.weightPer=27;
