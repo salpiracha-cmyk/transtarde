@@ -8,6 +8,8 @@ on:
       - '.github/workflows/hosting-housekeeping.yml'
       - '.github/workflows/milling-exports-qa.yml'
       - '.github/scripts/private_backup_inventory.php'
+      - '.github/scripts/retire_october_auto_snapshots.php'
+      - '.github/workflows/retire-october-auto-snapshots.yml'
       - '.github/scripts/hosting_housekeeping.sh'
       - '.github/workflows/deploy-production.yml'
       - '.github/scripts/original_source_package.py'
