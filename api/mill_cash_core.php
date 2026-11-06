@@ -15,7 +15,14 @@ function mcl_rows(array $state,string $entity,string $locationId): array {
         if($row['cashId']!==$cashId||$row['date']>$asOf)continue;
         $journal=$state['journals'][$row['journalId']]??[];
         $category=$journal['meta']['expenseLines'][0]['category']??'';$type=(string)($journal['meta']['millPettyType']??(['OFFICE'=>'Office Expense','MILL'=>'Milling Expense','REPAIRS'=>'Plant Expense'][$category]??'Accounts Cash Payment'));
-        $rows[]=['id'=>'ACCOUNTS|'.$row['id'],'postId'=>$row['postId'],'date'=>$row['date'],'ref'=>$row['narration'],'payee'=>$row['payee'],'expenseType'=>(string)($journal['meta']['expenseLines'][0]['purpose']??''),'voucher'=>$row['postId'],'debit'=>$row['received'],'credit'=>$row['paid'],'type'=>$row['received']>0?'PETTY CASH RECEIVED':$type,'source'=>'Accounts'];
+        $purposes=array_values(array_unique(array_filter(array_map(
+            static fn($line)=>trim((string)($line['purpose']??'')),
+            (array)($journal['meta']['expenseLines']??[])
+        ),static fn($purpose)=>$purpose!=='')));
+        $narration=trim((string)($journal['meta']['paymentNarration']??''));
+        if($narration==='')$narration=trim((string)$row['narration']);
+        if($narration==='')$narration=trim((string)($journal['narration']??''));
+        $rows[]=['id'=>'ACCOUNTS|'.$row['id'],'postId'=>$row['postId'],'date'=>$row['date'],'ref'=>$row['narration'],'narration'=>$narration,'expensePurposes'=>$purposes,'payee'=>$row['payee'],'expenseType'=>(string)($journal['meta']['expenseLines'][0]['purpose']??''),'voucher'=>$row['postId'],'debit'=>$row['received'],'credit'=>$row['paid'],'type'=>$row['received']>0?'PETTY CASH RECEIVED':$type,'source'=>'Accounts'];
     }
     return $rows;
 }
