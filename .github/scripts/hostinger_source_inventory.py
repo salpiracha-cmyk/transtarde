@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 
@@ -42,7 +43,7 @@ def inventory(root):
                             checksum.update(block)
                         digest = checksum.hexdigest()
                 files[str(relative / name)] = [size, digest]
-    cron = subprocess.run(['crontab', '-l'], text=True, capture_output=True)
+    cron = subprocess.run(['crontab', '-l'], text=True, capture_output=True) if shutil.which('crontab') else subprocess.CompletedProcess([], 127, '')
     targets = re.findall(r'(?:public_html|staging)/([\w./-]+\.(?:php|sh|py))\b', cron.stdout)
     siblings = sorted(p.name for p in root.parent.iterdir() if p.is_dir() and not p.is_symlink())
     print(json.dumps(dict(release=release, files=files, links=links, cronReadable=cron.returncode == 0,
