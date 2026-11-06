@@ -36,6 +36,17 @@ require_once dirname(__DIR__,2).'/api/directors_trading_links.php';
     $oldInventory=bti_project($historical,$masters,$scope,'2026-11-03','2026-11-03',$state);$explain=oeb_choices($historical,$oldInventory,$books,$scope);
     $check(count($explain['choices'])===1&&$explain['choices'][0]['brand']==='Amros','Four historical received brands polluted current production');
     $check(count($explain['diagnostics'])===5,'Original historical source explanation was lost');
+    $actual=array_replace($body,['recordActual'=>true,'packingKg'=>40,'brand'=>'Amros Actual','actualTareGrams'=>115,'printingMismatch'=>true,'qty'=>25,'requestKey'=>'other-exporter-actual-0003']);
+    $received=oeb_receive($values,$state,$masters,$books,$scope,$actual,$user,'2026-11-03T10:02:00Z',$authorize);
+    $check($received['receipt']['acceptedQty']===25&&$received['receipt']['quarantinedQty']===0,'Actual specifications were quarantined');
+    $check($received['receipt']['actualTareGrams']===115.0&&$received['receipt']['brand']==='Amros Actual','Actual receipt tare or marking was lost');
+    $inventory=bti_project($values,$masters,$scope,'2026-11-03','2026-11-03',$state);
+    $lots=array_column($inventory['lots'],null,'brand');
+    $check($lots['Amros Actual']['availableQty']===25&&$lots['Amros Actual']['packingKg']===40.0,'Actual 40 kg receipt did not enter the correct physical lot');
+    $check($lots['Amros']['availableQty']===90&&$lots['Amros']['quarantinedQty']===20,'Actual receipt changed the earlier receipt history');
+    $after=serialize([$values,$state]);
+    $repeat=oeb_receive($values,$state,$masters,$books,$scope,$actual,$user,'2026-11-03T10:03:00Z',$authorize);
+    $check($repeat['replayed']&&serialize([$values,$state])===$after,'Actual receipt retry duplicated stock');
     $alter=json_decode($values['tt30bags'],true);$alter[0]['externalOwnerId']='TTI';try{br_guard_write($values,'tt30bags',json_encode($alter));throw new RuntimeException('External owner could be changed by generic save');}catch(DomainException){}
     $check(bti_project($values,$masters,['entity'=>'BRM','locationId'=>'M1','millName'=>'Own Mill'],'2026-11-03','2026-11-03',$state)['lots']===[],'External bags leaked into another operating company');
     echo "PASS other exporter bags: instructed source, external ownership, actual multi-receipts, replay, quarantine, source allocation/consumption, closed history, protected identity and company isolation\n";

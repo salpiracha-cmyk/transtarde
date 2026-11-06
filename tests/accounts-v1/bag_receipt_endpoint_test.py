@@ -107,6 +107,25 @@ else{$out=['values'=>[],'meta'=>[]];foreach($p->query('SELECT storage_key,payloa
     projected=inventory_now();assert projected['availableQty']==112 and projected['quarantinedQty']==0,projected;actual=acceptance_now();assert actual['receivedQty']==112 and not actual['acceptance']['material'],actual
     assert stored()['values']['tt33bagreceipts']==immutable_receipts and stored()['values']['tt30bags']==original_counter,'Disposition rewrote original receipt facts or gross counters'
     status_snapshot=snapshot()
+    review=req()[1]['source']
+    stock_return=dict(csrf='fixture',action='return_available',entity='TTI',locationId='mills-1',bagId='123',receiptId=receipt['id'],date='2026-10-17',qty=6,sourceFingerprint=review['fingerprint'],requestKey='actual-stock-return-0007')
+    assert req(dict(stock_return,qty=11))[0]==422 and snapshot()==status_snapshot
+    assert req(stock_return,mode='read')[0]==403 and snapshot()==status_snapshot
+    status,returned=req(stock_return);assert status==200,returned
+    after=snapshot();assert req(stock_return)[1]['replayed'] and snapshot()==after
+    projected=inventory_now();assert projected['receivedQty']==112 and projected['availableQty']==106 and projected['supplierReturnedQty']==6,projected
+    assert acceptance_now()['receivedQty']==106
+    review=req()[1]['source'];partial=dict(stock_return,qty=2,sourceFingerprint=review['fingerprint'],requestKey='actual-stock-return-0008')
+    status,partial_saved=req(partial);assert status==200,partial_saved
+    assert inventory_now()['availableQty']==104
+    review=req()[1]['source'];reversal=dict(stock_return,action='reverse_supplier_return',returnId=returned['disposition']['id'],sourceFingerprint=review['fingerprint'],requestKey='reverse-stock-return-0009')
+    status,reversed_return=req(reversal);assert status==200,reversed_return
+    after=snapshot();assert req(reversal)[1]['replayed'] and snapshot()==after
+    assert inventory_now()['availableQty']==110 and inventory_now()['supplierReturnedQty']==2
+    review=req()[1]['source'];assert req(dict(reversal,requestKey='reverse-stock-return-twice',sourceFingerprint=review['fingerprint']))[0]==422
+    assert snapshot()==after
+    assert stored()['values']['tt33bagreceipts']==immutable_receipts and stored()['values']['tt30bags']==original_counter
+    status_snapshot=snapshot()
     # Generic writers cannot change an acknowledged counter, relabel its physical source or erase receipt evidence.
     guard=root/'guard.php';guard.write_text("<?php require __DIR__.'/auth_store.php';require __DIR__.'/inventory_reconciliation.php';$r=json_decode(stream_get_contents(STDIN),true);try{tt_inv_prepare_write($r['values'],$r['key'],json_encode($r['rows']),['role'=>'Super Admin'],gmdate('c'));echo 'allowed';}catch(DomainException){echo 'denied';}")
     current=stored();orders=json.loads(current['values']['tt30bags']);receipts=json.loads(current['values']['tt33bagreceipts'])

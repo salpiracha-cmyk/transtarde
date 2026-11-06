@@ -116,8 +116,7 @@ def run():
             mill.get_by_role('combobox',name='Ready Rice brand / SODA').first.select_option('EXPORT|QA-CONTRACT|0')
             mill.locator('#prodTable tr').first.locator('input').first.fill('10')
             assert not mill.locator('#productionActualInput').is_visible()
-            mill.locator('#productionSourceBags summary').click()
-            mill.locator('[data-review-source-bags]').click();mill.locator('[data-source-lot]').wait_for();mill.locator('[data-source-lot]').fill('10')
+            assert mill.locator('#productionSourceBags').count()==0
             blocked[0]=True;mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for()
             assert mill.locator('.tt-number-display[aria-label="Ready Rice — QA PRODUCTION quantity"]').input_value()=='10' and books.read_bytes()==financial_before
             with mill.expect_response(lambda r:'/api/operations.mysql.php?asset_refs=1' in r.url and r.request.method=='POST') as production_response:mill.get_by_role('button',name='Save Production',exact=True).click()
@@ -129,8 +128,7 @@ def run():
             inventory=context.request.get(base+'/api/bag_transfers.php?purpose=production&entity=TTI&locationId=mills-1&asOf=2026-10-17').json();assert inventory['inventory']['lots']['PO|100|mills-1']['availableQty']==90
             issues=json.loads(saved_ops['values']['tt36bagissues']);assert len(issues)==1 and issues[0]['usage']['QA PRODUCTION']==10 and issues[0]['userId']==1000
             mill.evaluate('(id)=>loadProductionForEdit(id)',run['id']);assert not mill.locator('#productionActualInput').is_visible();mill.locator('#prodTable tr').first.locator('input').first.fill('12')
-            mill.locator('#productionSourceBags summary').click()
-            mill.locator('[data-review-source-bags]').click();mill.locator('[data-source-lot]').wait_for();mill.locator('[data-source-lot]').fill('12')
+            assert mill.locator('#productionSourceBags').count()==0
             context.unroute('**/api/operations.mysql.php?asset_refs=1',intercept);lost=[True];source_posts=[]
             def lost_ack(route):
                 if route.request.method=='POST':
@@ -280,7 +278,7 @@ def run():
             books.write_text(json.dumps(custody_books));original_journals=custody_books['journals']
             mill.evaluate("openPanel('newbags')");mill.get_by_label('Other Exporter Bags',exact=True).check()
             mill.locator('#otherBagSoda option[value="QA-OTHER-BAGS"]').wait_for(state='attached');mill.locator('#otherBagSoda').select_option('QA-OTHER-BAGS')
-            mill.locator('#otherBagBrand').fill('QA OTHER BRAND');mill.locator('#otherBagDate').fill('2026-10-17');mill.locator('#otherBagMaterial').select_option('PP Woven');mill.locator('#otherBagQty').fill('30');mill.locator('#otherBagInspected').check()
+            mill.locator('#otherBagBrand').fill('QA OTHER BRAND');mill.locator('#otherBagDate').fill('2026-10-17');mill.locator('#otherBagMaterial').select_option('PP Woven');mill.locator('#otherBagQty').fill('30');mill.locator('#otherBagTare').fill('115')
             with mill.expect_response(lambda r:'/api/other_exporter_bags.php' in r.url and r.request.method=='POST' and r.request.post_data_json.get('action')=='receive') as other_receipt:mill.locator('#otherBagReceive').click()
             assert other_receipt.value.status==200,other_receipt.value.text();mill.wait_for_function("document.querySelector('#otherBagMessage').textContent.includes('Actual receipt saved')")
             custody=json.loads(books.read_text());assert custody['journals']==original_journals and custody['exporterDeals']['QA-OTHER-BAGS']['brand']=='QA OTHER BRAND'

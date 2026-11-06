@@ -86,4 +86,11 @@ $kgOnly=array_replace($packingRun,['rows'=>[['product'=>'B3','bags'=>1,'bagWeigh
 $blocked=false;
 try{tt_inv_arrival_packing_qty($kgOnly);}catch(DomainException $e){$blocked=str_contains($e->getMessage(),'entered by weight');}
 ok($blocked,'Synthetic one-bag weight entry is not an actual arrival bag count');
-echo "PASS dated byproduct arrival-bag usage, override, B2 exclusion and insufficient stock guard\n";
+$reported=array_replace($guardRun,['id'=>'shortage-shift','date'=>'2026-11-05','arrivalPackingVersion'=>1,'rows'=>[['id'=>5,'product'=>'B3','bags'=>10,'bagWeight'=>50]],'calculatedInputKg'=>500]);
+$stockBefore=['tt30prod'=>'[]','tt30slips'=>json_encode([['entity'=>'TTI','millName'=>'TTI Rice Mills','unloadingDate'=>'2026-11-04','displayName'=>'IRRI-6 White Raw Rice','payableWeight'=>2000,'bags'=>12]])];
+$posted=tt_inv_prepare_write($stockBefore,'tt30prod',json_encode([$reported]),['id'=>7,'permissions'=>['Mill'=>['production'=>['Create']]]],'2026-11-05T12:00:00Z');
+$records=json_decode($posted,true);
+near($records[0]['arrivalPackingQty'],20,'Production records actual packing despite the Pohanch shortage');
+$stockAfter=array_replace($stockBefore,['tt30prod'=>$posted]);
+near(array_sum(tt_inv_arrival_bag_timeline($stockAfter,$reported)),-8,'The dated shortage remains available for reconciliation');
+echo "PASS actual production saves through Arrival / Pohanch shortages while manual outward stock remains guarded\n";

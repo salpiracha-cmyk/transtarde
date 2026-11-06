@@ -95,7 +95,7 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
     $lots=[];$warnings=[];$unassigned=[];$unallocated=[];$movements=[];$orderIds=[];$receiptIds=[];$index=[];
     foreach($orders as $r)if(is_array($r))$orderIds[(string)($r['id']??'')]=($orderIds[(string)($r['id']??'')]??0)+1;
     foreach($receipts as $r)if(is_array($r))$index[(string)($r['bagId']??'')][]=$r;
-    $blank=static fn()=>['receivedQty'=>0,'issuedQty'=>0,'transferredOutQty'=>0,'returnedQty'=>0,'undatedReceivedQty'=>0,'quarantinedQty'=>0,'holds'=>[],'warnings'=>[]];
+    $blank=static fn()=>['receivedQty'=>0,'issuedQty'=>0,'transferredOutQty'=>0,'returnedQty'=>0,'supplierReturnedQty'=>0,'undatedReceivedQty'=>0,'quarantinedQty'=>0,'holds'=>[],'warnings'=>[]];
     foreach($orders as $order){
         if(!is_array($order))continue;$bagId=(string)($order['id']??'');$name=(string)($order['millName']??$order['mill']??$order['locationName']??'');$location=bti_location($masters,$name,(string)($order['locationId']??''));
         if(!$location){$unassigned[]=['entity'=>(string)($order['entity']??''),'locationId'=>'','brand'=>(string)($order['brand']??'')];if(bti_norm($name)===bti_norm($scope['millName']??''))$warnings[]='A saved order location is missing or ambiguous in Mills & Locations.';continue;}
@@ -122,7 +122,15 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
             if(empty($r['bagReceiptVersion']))foreach(['printingMismatch','materialMismatch','qualityMismatch','tareMismatch'] as $flag)if(!empty($r[$flag]))bti_hold($lot,'A historical receipt has an unresolved specification discrepancy; reconcile its original physical acceptance before using or transferring bags.');
             if(!empty($r['bagReceiptVersion'])){
                 $position=br_position($r,(array)($state['receiptDispositions']??[]),$asOf);$accepted=bti_count($r['acceptedQty']??null);$quarantined=bti_count($r['quarantinedQty']??null);$snapshot=(array)($r['sourceSnapshot']??[]);
-                if($accepted===null||$quarantined===null||$accepted+$quarantined!==$physical||($snapshot['entity']??'')!==$entity||($snapshot['locationId']??'')!==$location['locationId']||bti_norm($snapshot['brand']??'')!==bti_norm($brand)||bti_packing_kg((string)($snapshot['packingSize']??''))!==$kg||bti_norm($snapshot['bagType']??'')!==bti_norm($type)){bti_hold($lot,'The immutable receipt source or accepted/quarantined counts disagree with this physical lot.');$qty=0;}else{$qty=$accepted;if($date!==''&&$date<=$asOf)$lot['quarantinedQty']+=$position['quarantinedQty'];foreach($position['events'] as $event)if($event['action']==='accept_corrected')$movements[]=['date'=>$event['date'],'lotId'=>$id,'entity'=>$entity,'locationId'=>$location['locationId'],'qty'=>$event['qty'],'type'=>'SUPPLIER_QUARANTINE_ACCEPTED_AFTER_CORRECTION','reference'=>$event['id']];if($date!==''&&$date<=$asOf)$datedThrough+=$position['acceptedQty']-$accepted;}
+                if($accepted===null||$quarantined===null||$accepted+$quarantined!==$physical||($snapshot['entity']??'')!==$entity||($snapshot['locationId']??'')!==$location['locationId']||bti_norm($snapshot['brand']??'')!==bti_norm($brand)||bti_packing_kg((string)($snapshot['packingSize']??''))!==$kg||bti_norm($snapshot['bagType']??'')!==bti_norm($type)){bti_hold($lot,'The immutable receipt source or accepted/quarantined counts disagree with this physical lot.');$qty=0;}else{$qty=$accepted;if($date!==''&&$date<=$asOf)$lot['quarantinedQty']+=$position['quarantinedQty'];foreach(br_position($r,(array)($state['receiptDispositions']??[]))['events'] as $event){
+                    $movement=match($event['action']){
+                        'accept_corrected'=>['qty'=>$event['qty'],'type'=>'SUPPLIER_QUARANTINE_ACCEPTED_AFTER_CORRECTION'],
+                        'return_available'=>['qty'=>-$event['qty'],'type'=>'SUPPLIER_RETURN'],
+                        'reverse_supplier_return'=>['qty'=>$event['qty'],'type'=>'SUPPLIER_RETURN_REVERSAL'],
+                        default=>null
+                    };
+                    if($movement)$movements[]=$movement+['date'=>$event['date'],'lotId'=>$id,'entity'=>$entity,'locationId'=>$location['locationId'],'reference'=>$event['id']];
+                }if($date!==''&&$date<=$asOf){$lot['supplierReturnedQty']+=$position['stockReturnedQty'];$datedThrough+=$position['acceptedQty']+$position['stockReturnedQty']-$accepted;}}
             }
             if($date==='')$undated+=$qty;elseif($date<=$asOf)$datedThrough+=$qty;
             $movements[]=['date'=>$date,'lotId'=>$id,'entity'=>$entity,'locationId'=>$location['locationId'],'qty'=>$qty,'type'=>'SUPPLIER_RECEIPT','reference'=>$rid];
@@ -198,7 +206,7 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
         }
     }
     $visible=[];foreach($lots as $id=>$lot){if($lot['entity']!==($scope['entity']??'')||$lot['locationId']!==($scope['locationId']??''))continue;
-        $lot['balanceBeforeUnallocated']=$lot['receivedQty']+$lot['returnedQty']-$lot['issuedQty']-$lot['transferredOutQty'];
+        $lot['balanceBeforeUnallocated']=$lot['receivedQty']+$lot['returnedQty']-$lot['issuedQty']-$lot['transferredOutQty']-$lot['supplierReturnedQty'];
         if($lot['balanceBeforeUnallocated']<0)bti_hold($lot,'Recorded physical movements exceed this source lot; negative balance retained.');
         $lot['hold']=implode(' ',$lot['holds']);$lot['availableQty']=$lot['hold']===''?$lot['balanceBeforeUnallocated']:null;
         // A backdated entry must also leave later committed physical movements funded.

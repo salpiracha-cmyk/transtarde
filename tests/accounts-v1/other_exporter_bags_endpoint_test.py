@@ -79,6 +79,12 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
     assert snapshot()==receipt_snapshot,'Production choices changed stock'
     assert book_path.read_bytes()==after[0],'Receiving bags changed financial books or SODA'
     status,saved=req(dict(receipt,requestKey='actual-other-bag-receipt-0002',qty=25));assert status==200 and saved['order']['received']==125,saved
+    new_receipt=dict(receipt,recordActual=True,brand='Actual Emrooz Marking',packingKg=40,actualTareGrams=115,qty=15,requestKey='actual-40kg-bag-receipt-0003')
+    status,saved=req(new_receipt);assert status==200,saved
+    assert saved['receipt']['acceptedQty']==15 and saved['receipt']['quarantinedQty']==0 and saved['receipt']['actualTareGrams']==115
+    actual=snapshot();assert req(new_receipt)[1]['replayed'] and snapshot()==actual
+    status,data=req();assert status==200 and any(c['brand']=='Actual Emrooz Marking' and c['packingKg']==40 and c['available']==15 for c in data['choices']),data
+    assert book_path.read_bytes()==after[0]
     current=json.loads(book_path.read_text());current['exporterDeals']['HK']['status']='Closed';book_path.write_text(json.dumps(current));closed=snapshot()
     status,data=req();assert status==200 and not data['deals'] and not data['choices'] and data['diagnostics'][0]['remaining']==125,data
     assert req(dict(receipt,requestKey='closed-other-bag-receipt-0003'))[0]==422 and snapshot()==closed

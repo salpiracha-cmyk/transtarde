@@ -376,7 +376,7 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         // A final-entry tick belongs to a complete shift, not to one partial lot.
         $changed=[];foreach($out as$r){$b=$index[(string)$r['id']]??null;$a=$r;unset($a['createdAt'],$a['updatedAt'],$a['serverSequence']);if($b){unset($b['createdAt'],$b['updatedAt'],$b['serverSequence']);}if($a!==$b)$changed[]=$r;}
         $projected=array_replace($values,['tt30prod'=>tt_inv_json($out)]);
-        tt_inv_guard_arrival_bags($values,$projected,$changed);
+        // Record actual by-product packing even when the dated Arrival / Pohanch balance needs reconciliation.
         tt_inv_guard_calculated_stock($values,$projected,$changed);
         foreach($changed as$r)foreach($out as&$other)if((string)$other['id']!==(string)$r['id']&&tt_inv_same_scope($r,$other)&&($r['date']??'')===($other['date']??'')&&tt_inv_shift_name((string)($r['shift']??''))===tt_inv_shift_name((string)($other['shift']??'')))$other['shiftEntriesComplete']=false;unset($other);
     }
