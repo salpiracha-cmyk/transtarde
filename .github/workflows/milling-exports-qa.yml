@@ -6,6 +6,8 @@ on:
     paths-ignore:
       - 'exports-canary/**'
       - '.github/workflows/hosting-housekeeping.yml'
+      - '.github/workflows/milling-exports-qa.yml'
+      - '.github/scripts/private_backup_inventory.php'
       - '.github/scripts/hosting_housekeeping.sh'
       - '.github/workflows/deploy-production.yml'
       - '.github/scripts/original_source_package.py'
