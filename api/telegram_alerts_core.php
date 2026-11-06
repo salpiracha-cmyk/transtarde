@@ -83,7 +83,7 @@ function tt_telegram_send_test(): void {
 function tt_telegram_send_recovery_test(): void {
     require_once dirname(__DIR__).'/inventory_reconciliation.php';
     require_once __DIR__.'/mill_recovery_core.php';
-    require_once dirname(__DIR__).'/backup_lib.php';
+    require_once __DIR__.'/mill_recovery_pdf.php';
 
     $today = new DateTimeImmutable('today', new DateTimeZone('Asia/Karachi'));
     $from = $today->modify('-7 days')->format('Y-m-d');
@@ -93,17 +93,11 @@ function tt_telegram_send_recovery_test(): void {
     $report = mr_report($runs, ['entity' => 'TTI', 'mode' => 'daily', 'from' => $from, 'to' => $to]);
     if (!$report['groups']) throw new DomainException('There are no TTI recovery records in the previous seven days.');
 
-    $format = static fn($value): string => $value === null ? 'Unavailable' : number_format((float)$value, 2);
-    $lines = ['Transtrade | TTI Daily Recovery', $from.' to '.$to.' (Pakistan dates)', ''];
-    foreach ($report['groups'] as $day) {
-        $lines[] = $day['key'].' | '.$day['status'];
-        $lines[] = 'Input '.$format($day['inputKg']).' kg   |   Ready rice '.$format($day['readyKg']).' kg';
-        $lines[] = 'By-products '.$format($day['byProductKg']).' kg   |   Recovery '.$format($day['recoveryPct']).($day['recoveryPct'] === null ? '' : '%');
-    }
-    $lines[] = '';
-    $lines[] = 'Source: Transtrade Daily Recovery, operations revision '.(int)($ops['revision'] ?? 0);
-    $path = tt_backup_make_pdf($lines);
+    $pdf = mr_pdf_render($report);
+    $path = tempnam(sys_get_temp_dir(), 'tt-recovery-');
+    if ($path === false) throw new RuntimeException('Could not create the report PDF.');
     try {
+        if (file_put_contents($path, $pdf) !== strlen($pdf)) throw new RuntimeException('Could not write the report PDF.');
         tt_telegram_deliver('sendDocument', [
             'document' => new CURLFile($path, 'application/pdf', 'TTI-Recovery-'.$from.'-to-'.$to.'.pdf'),
             'caption' => 'Transtrade PDF delivery test | TTI Daily Recovery | '.$from.' to '.$to,
