@@ -54,6 +54,30 @@ async function postJob(manifest,files){
  if(!response.ok||!result.ok)throw new Error(result.error||'Office archive job was not accepted. Please retry LOT COMPLETE.');
  return result.job;
 }
+async function queueBagMarkings({customer,contract,shipmentId,order}){
+ const files=[];
+ for(const [index,line] of order.lines.entries()){
+  const markings=[['Bag Marking',line]];
+  if(line.masterBag?.enabled&&line.masterBag.printed)markings.push(['Master Bag Marking',line.masterBag]);
+  for(const [label,marking] of markings){
+   const doc=marking.artworkDocument;
+   if(!doc)throw new Error('The original marking file is unavailable. Upload it again in Update Same PO.');
+   const extension=({'image/png':'.png','image/jpeg':'.jpg','image/webp':'.webp'})[doc.mime];
+   if(!extension)throw new Error('Upload the marking as PNG, JPEG or WebP.');
+   const stem=component([index+1,label,order.poNo,line.brand].join(' - ')).slice(0,110);
+   const blob=await uploadBlob(doc);
+   const name=stem+extension.toLowerCase();
+   files.push({name,folder:'BAGS',blob,storedName:name});
+  }
+ }
+ if(!files.length)return;
+ const lot='PRE-SHIPMENT';
+ return postJob({
+  type:'shipment_archive',purpose:'bag-markings',layoutVersion:2,customer,contract,lot,shipmentId,
+  folderParts:folderParts(customer,contract,lot),finalize:false,
+  files:files.map(({name,folder,blob})=>({name,folder,size:blob.size,type:blob.type}))
+ },files);
+}
 async function asPdf(blob){
  await libraries();const bytes=new Uint8Array(await blob.arrayBuffer());
  if(String.fromCharCode(...bytes.slice(0,4))==='%PDF'){
@@ -306,5 +330,5 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
  }finally{busy=false}
 }
 
-window.TT_SHIPMENT_FILES={choose,access,save,pdf,word,asPdf,mergedPdf,folderParts,officeLocation};
+window.TT_SHIPMENT_FILES={choose,access,save,queueBagMarkings,pdf,word,asPdf,mergedPdf,folderParts,officeLocation};
 })();

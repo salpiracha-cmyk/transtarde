@@ -2574,8 +2574,30 @@ async function finishBagPo(shipmentId,intent,button){
    await window.TT_SHARED_SYNC.saveNow();
   }
   pendingFinalOrders.delete(shipmentId);bagOrderDrafts.delete(String(shipmentId));
-  await directPrint('PURCHASE ORDER',purchaseOrderPrint(order),'without',true,{party:order.supplier,reference:order.poNo,title:'Purchase Order'});
   renderShipmentWorkspace();
+  const savedShipment=state.shipments.find(row=>row.id===shipmentId);
+  const savedOrder=savedShipment?.bagOrders?.find(row=>row.poNo===order.poNo&&row.issuedAt===order.issuedAt);
+  if(savedOrder){
+   const contract=contractByRef(savedShipment.contractRef);
+   const queue=()=>window.TT_SHIPMENT_FILES.queueBagMarkings({
+    customer:savedShipment.buyer||customer(contract?.customerId)?.name,
+    contract:savedShipment.contractRef,shipmentId,order:savedOrder
+   });
+   const copy=async()=>{
+    try{await queue();document.getElementById('bagMarkingCopyError')?.closest('#exportSaveError')?.remove();}
+    catch(error){
+     showExportSaveError('PO saved. The marking could not be queued for TTI Server. '+error.message,document.getElementById('generatePO'));
+     document.getElementById('bagMarkingCopyError')?.remove();
+     const retry=document.createElement('button');
+     retry.id='bagMarkingCopyError';retry.type='button';retry.className='btn';
+     retry.textContent='Retry TTI Server marking copy';
+     retry.onclick=()=>{retry.disabled=true;void copy();};
+     document.getElementById('exportSaveError')?.append(' ',retry);
+    }
+   };
+   void copy();
+  }
+  await directPrint('PURCHASE ORDER',purchaseOrderPrint(order),'without',true,{party:order.supplier,reference:order.poNo,title:'Purchase Order'});
  }catch(error){button.disabled=false;showExportSaveError(error.message,button);}
 }
 
