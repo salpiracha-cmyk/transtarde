@@ -1608,7 +1608,8 @@ if(window.TT_MODULE_ACCESS){
  defaultExporterSales=()=>[];
  defaultShipments=()=>[];
 }
-renderMillCards();makeActionTilesKeyboardAccessible();setTodayTextDefaults();queueViewDate.value=today();renderQueue();fillMasters();toggleArrivalKats();initProduction();renderBagOrders();renderProductionInstructions();renderSavedExporterSales();renderPetty();refreshInstructionBadges();void loadPurchaseSodas().catch(e=>showNonBlockingMessage(e.message));window.addEventListener('tt:shared-updated',()=>{refreshInstructionBadges();renderQueue();refreshArrivalQueue();if(document.getElementById('production')?.classList.contains('active'))renderRecentProduction();});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!nilConfirmPanel.classList.contains('hidden'))closeNilConfirm()});
+renderMillCards();makeActionTilesKeyboardAccessible();setTodayTextDefaults();queueViewDate.value=today();renderQueue();fillMasters();toggleArrivalKats();initProduction();renderBagOrders();renderProductionInstructions();renderSavedExporterSales();renderPetty();refreshInstructionBadges();void loadPurchaseSodas().catch(e=>showNonBlockingMessage(e.message));window.addEventListener('tt:shared-updated',()=>{refreshInstructionBadges();renderQueue();refreshArrivalQueue();});
+window.addEventListener('tt:shared-updated',()=>{if(document.getElementById('production')?.classList.contains('active'))renderRecentProduction();});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!nilConfirmPanel.classList.contains('hidden'))closeNilConfirm()});
 // TRANSTRADE UI THUMB RULE: Home module icons may navigate; within modules, expandable actions/forms open directly below the clicked item and same-click closes.
 </script>
 </body>
