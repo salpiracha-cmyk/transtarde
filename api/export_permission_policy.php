@@ -53,8 +53,8 @@ function ep_merge_audits(array $old,array $next): array {
             if(!$matched)throw new DomainException('New export audit records require a unique ID; saved history cannot be amended.');
             continue;
         }
-        $id=is_array($row)?trim((string)($row['id']??'')):'';
-        if($id===''||isset($submitted[$id]))throw new DomainException('Export record identities must be unique.');
+        $id=is_array($row)?(string)($row['id']??''):'';
+        if(trim($id)===''||isset($submitted[$id]))throw new DomainException('Export record identities must be unique.');
         $submitted[$id]=true;
         if(isset($before[$id])){
             if(!ep_equal($before[$id],$row))throw new DomainException('Saved export audit records cannot be amended.');
