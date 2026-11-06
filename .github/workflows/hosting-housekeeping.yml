@@ -53,23 +53,18 @@ jobs:
           set -euo pipefail
           [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
           php .github/scripts/deployment_cache_audit_test.php
-          ssh -o ConnectTimeout=20 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "bash -s -- '$HOSTINGER_DEPLOY_PATH'" <<'REMOTE'
-          set -eu
-          target=$1
-          [[ "$(realpath "$target")" == "$target" ]] && echo 'Live root is canonical'
-          root="${target%/public_html}/.transtrade-deploy"
-          for dir in "$root" "$root/incoming" "$root/staging"; do
-            if [[ -d "$dir" && ! -L "$dir" && "$(realpath "$dir")" == "$dir" ]]; then
-              printf 'Canonical directory: %s\n' "${dir##*/}"
-              du -sb "$dir" | cut -f1
-            else
-              printf 'Missing or noncanonical directory: %s\n' "${dir##*/}"
-            fi
-          done
-          if [[ -f "$target/.transtrade-release" ]] && grep -Eq '^[a-f0-9]{40}$' "$target/.transtrade-release"; then
-            echo 'Release marker is present and well formed'
-          else
-            echo 'Release marker is missing or malformed'
-          fi
-          REMOTE
-          ssh -o ConnectTimeout=20 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "php /dev/stdin '$HOSTINGER_DEPLOY_PATH' --cleanup" < .github/scripts/deployment_cache_audit.php
+          ssh_host=(ssh -o ConnectTimeout=20 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST")
+          # This installation has no usable release marker. Prove the actual source
+          # bytes with the existing exact manifest verifier under the same lock.
+          python3 .github/scripts/original_source_package.py --exact > "$RUNNER_TEMP/cache-source-verify.php"
+          "${ssh_host[@]}" "TT_SOURCE_ROOT='$HOSTINGER_DEPLOY_PATH' php" < "$RUNNER_TEMP/cache-source-verify.php"
+          {
+            sed '/^declare(strict_types=1);$/a define("TT_DEPLOY_CACHE_FUNCTIONS_ONLY", true);' .github/scripts/deployment_cache_audit.php
+            cat <<'PHP'
+          $target=(string)getenv('TT_CACHE_TARGET');
+          dc_directory($target);
+          $result=dc_clean(dirname($target).'/.transtrade-deploy');
+          echo json_encode($result, JSON_THROW_ON_ERROR).PHP_EOL;
+          PHP
+          } > "$RUNNER_TEMP/verified-cache-clean.php"
+          "${ssh_host[@]}" "TT_CACHE_TARGET='$HOSTINGER_DEPLOY_PATH' php" < "$RUNNER_TEMP/verified-cache-clean.php"
