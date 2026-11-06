@@ -312,7 +312,7 @@ function exportWorkspaceChanges(before,after){
  const compare=(a,b,path)=>{
   if(a===b)return;
   if(Array.isArray(a)&&Array.isArray(b)){
-   if(path.length===1&&path[0]==='audits'&&b.length>a.length&&a.every((row,index)=>row?.id&&row.id===b[b.length-a.length+index]?.id)){
+   if(path.length===1&&path[0]==='audits'&&b.length>a.length&&a.every((row,index)=>JSON.stringify(row)===JSON.stringify(b[b.length-a.length+index]))){
     changes.push({action:'prepend',path:[...path,null],value:b.slice(0,b.length-a.length)});
     return;
    }

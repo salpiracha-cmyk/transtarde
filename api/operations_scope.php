@@ -289,6 +289,7 @@ function os_rebuild(mixed $old,mixed $visible,mixed &$incoming,string $path=''):
     if(operations_same_value($incoming,$visible))return $old;
     if(!is_array($old)||!is_array($visible)||!is_array($incoming))return $incoming;
     if(array_is_list($old)&&array_is_list($visible)&&array_is_list($incoming)){
+        if($path==='audits')return ep_merge_audits($old,$incoming);
         if(operations_same_value($old,$visible))return $incoming;
         if(count($old)===count($visible)&&count($old)===count($incoming)&&!array_filter($old,static fn($r)=>!str_starts_with(os_identity($r),'value|'))){
             $out=[];foreach($incoming as $i=>&$row)$out[]=os_rebuild($old[$i],$visible[$i],$row,$path);unset($row);return $out;

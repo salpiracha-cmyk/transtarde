@@ -667,7 +667,7 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
     // clear. Concurrent writers are still protected by the version check above,
     // while Accounts and Milling keep their additive alert merge branches.
     $merged['alerts'] = array_values((array)($incoming['alerts'] ?? []));
-    $merged['audits'] = operations_union_rows((array)($current['audits'] ?? []), (array)($incoming['audits'] ?? []), ['id', 'at']);
+    $merged['audits'] = ep_merge_audits((array)($current['audits'] ?? []), (array)($incoming['audits'] ?? []));
     return json_encode($applyTombstones($merged), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 }
 

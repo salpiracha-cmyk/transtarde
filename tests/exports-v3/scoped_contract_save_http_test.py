@@ -20,6 +20,7 @@ with tempfile.TemporaryDirectory(prefix='exports-scoped-save-') as tmp:
     (app / 'auth_store.php').write_text("""<?php
 define('TT_DATA_DIR', __DIR__.'/data');
 function tt_require_login(){
+    if(($_GET['actor']??'')==='operator')return ['role'=>'Exports','id'=>9,'full_name'=>'Fixture Operator','permissions'=>['Exports'=>['View','Create','Edit']]];
     if(($_GET['actor']??'')==='staff')return ['role'=>'Staff','id'=>8,'full_name'=>'Fixture Exports Staff','permissions'=>['Exports'=>['bags'=>['View','Create','Edit']]]];
     return ['role'=>'Super Admin','id'=>7,'full_name'=>'Fixture Owner'];
 }
@@ -27,8 +28,8 @@ function tt_verify_csrf($v){return $v==='fixture';}
 function tt_ensure_data_dir(){}
 function tt_release_read_session(){}
 function tt_list_masters(){return [];}
-function tt_user_business_entity($u,$e,$a){return $u['role']==='Super Admin'||$e==='TTI';}
-function tt_user_can_module_action($u,$m,$i,$a){return $u['role']==='Super Admin'||($m==='Exports'&&$i==='bags');}
+function tt_user_business_entity($u,$e,$a){return $u['role']!=='Staff'||$e==='TTI';}
+function tt_user_can_module_action($u,$m,$i,$a){return $u['role']==='Super Admin'||($m==='Exports'&&($u['role']==='Exports'||$i==='bags'));}
 function tt_user_can_master($u,$i,$a){return false;}
 function tt_user_can_open_module($u,$m){return true;}
 """)
@@ -46,13 +47,13 @@ function tt_user_can_open_module($u,$m){return true;}
     server = subprocess.Popen(['php','-d','memory_limit=256M','-S',f'127.0.0.1:{port}','-t',str(app)],env=env,stdout=log,stderr=log)
     url = f'http://127.0.0.1:{port}/api/operations.mysql.php?asset_refs=1'
 
-    def send(version, changes, identity=None, staff=False):
+    def send(version, changes, identity=None, staff=False, operator=False):
         body = dict(csrf='fixture',key=KEY,sourceModule='Exports',baseVersion=version,contractChanges=json.dumps(changes))
         if identity: body['contractSave']=identity
         data = json.dumps(body).encode()
         assert len(data)<4096
         try:
-            with urlopen(Request(url+('&actor=staff' if staff else ''),data=data,headers={'Content-Type':'application/json'}),timeout=20) as response:
+            with urlopen(Request(url+('&actor=operator' if operator else '&actor=staff' if staff else ''),data=data,headers={'Content-Type':'application/json'}),timeout=20) as response:
                 return response.status, json.load(response)
         except HTTPError as error:
             return error.code, json.load(error)
@@ -156,6 +157,46 @@ function tt_user_can_open_module($u,$m){return true;}
         assert any(row['brand']=='Hidden' for row in persisted['millSync']['newExportBags'])
         assert send(22,[update,{**handoff,'value':[handoff['value'][0]]*2}],staff=True)[0]==422
         assert send(22,[{**handoff,'shipmentId':'S2','contractRef':'B/001','value':[mill_line('B/001',po['poNo'],1)]}],staff=True)[0]==422
+        # Existing freight audit events have no ID. The same legacy event may
+        # occur twice, while renamed-contract history is hidden from staff.
+        legacy={'at':'2026-09-30','type':'FREIGHT AGREEMENT','action':'Updated loading metadata',
+                'before':{'bl':{'finalDocument':{'id':'DOC-OLD'},'gdRefs':[{'number':'GD-1'}]}},
+                'after':{'loadingProgrammeNo':'LP-OLD'}}
+        history=[legacy,dict(legacy),{'id':'AUD-HIDDEN','area':'Sales Contract','contractRef':'RENAMED/OLD','action':'Created'}]
+        staff_root['audits']=history
+        staff_root['shipments'][0]['bagOrders']=[]
+        source.write_text(json.dumps({'revision':30,'values':{KEY:json.dumps(staff_root)},'meta':{KEY:{'version':30}}}))
+        with urlopen(url+'&actor=operator') as response:
+            visible=json.loads(json.load(response)['values'][KEY])
+        assert len(visible['audits'])==2
+        draft={'poNo':'PO-FORM','supplier':'Fixture Supplier','deliverTo':'TTI Rice Mills','requiredDate':'2026-11-15',
+               'lines':[{'brand':'QA','tare':110,'artworkAttached':True,'artworkData':'fixture','totalBags':5656}]}
+        form=subprocess.run(['node',str(ROOT/'tests/exports-v3/bag_po_request_fixture.js')],
+                            input=json.dumps({'state':visible,'shipmentId':'S1','order':draft,'auditId':'AUD-FORM'}),
+                            text=True,capture_output=True,check=True)
+        changes=json.loads(form.stdout)
+        assert len(changes)==3,changes
+        status,result=send(30,changes,operator=True)
+        assert status==200,result
+        persisted=json.loads(json.loads(source.read_text())['values'][KEY])
+        assert persisted['audits'][:3]==history and len(persisted['audits'])==4
+        assert persisted['shipments'][0]['bagOrders'][0]['poNo']=='PO-FORM'
+        assert persisted['shipments'][1]==staff_root['shipments'][1]
+        # History edits and invented legacy events remain rejected.
+        assert send(31,[{'action':'set','path':['audits',0,'action'],'value':'Altered'}],operator=True)[0]==403
+        assert send(31,[{'action':'prepend','path':['audits',None],'value':[legacy]}],operator=True)[0]==403
+        # The same history is present when a contract is amended. A receipt
+        # must survive the scoped projection and preserve every earlier event.
+        amendment_audit={'id':'AUD-LEGACY-AMEND','area':'Sales Contract','action':'Amended','contractRef':'A/001'}
+        status,result=send(31,[
+            {'action':'set','path':['contracts',{'id':'A'},'paymentText'],'value':'Amended terms'},
+            {'action':'prepend','path':['audits',None],'value':[amendment_audit]},
+        ],{'id':'A','auditId':amendment_audit['id'],'guards':{}},operator=True)
+        assert status==200 and result['contractReceipt']['auditId']==amendment_audit['id'],result
+        after_amendment=json.loads(json.loads(source.read_text())['values'][KEY])
+        assert after_amendment['audits'][:4]==persisted['audits']
+        assert after_amendment['shipments']==persisted['shipments']
+        print('PASS actual Bag PO handler with legacy duplicate and hidden audit history, stable retry and immutable saved history')
         print('PASS restricted Exports staff can issue and update one Bag PO, preserve hidden POs and all distinct lines, and reject duplicate lines')
         print('PASS scoped Exports HTTP saves: 17 MiB book, draft and issue receipts, linked amendments, unrelated concurrent writes, retry and real conflicts')
     except Exception:

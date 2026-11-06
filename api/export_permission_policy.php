@@ -39,25 +39,33 @@ function ep_index(array $rows,string $identity='id'): array {
 }
 /** Legacy server freight events have no ID. Accept only unchanged saved copies;
  * new events still need unique IDs and all identified history stays immutable. */
-function ep_validate_audits(array $user,array $old,array $next): void {
+function ep_merge_audits(array $old,array $next): array {
     $identified=[];$legacy=[];
     foreach($old as $row){
         if(is_array($row)&&trim((string)($row['id']??''))==='')$legacy[]=$row;
         else $identified[]=$row;
     }
-    $before=ep_index($identified);$identified=[];
+    $before=ep_index($identified);$submitted=[];$merged=$old;
     foreach($next as $row){
         if(is_array($row)&&trim((string)($row['id']??''))===''){
             $matched=false;
             foreach($legacy as $index=>$saved)if(ep_equal($saved,$row)){unset($legacy[$index]);$matched=true;break;}
             if(!$matched)throw new DomainException('New export audit records require a unique ID; saved history cannot be amended.');
-        }else $identified[]=$row;
+            continue;
+        }
+        $id=is_array($row)?trim((string)($row['id']??'')):'';
+        if($id===''||isset($submitted[$id]))throw new DomainException('Export record identities must be unique.');
+        $submitted[$id]=true;
+        if(isset($before[$id])){
+            if(!ep_equal($before[$id],$row))throw new DomainException('Saved export audit records cannot be amended.');
+        }else $merged[]=$row;
     }
-    foreach(ep_index($identified) as $id=>$row){
-        if(isset($before[$id])){if(!ep_equal($before[$id],$row))throw new DomainException('Saved export audit records cannot be amended.');continue;}
+    return $merged;
+}
+function ep_validate_audits(array $user,array $old,array $next): void {
+    $merged=ep_merge_audits($old,$next);
+    foreach(array_slice($merged,count($old)) as $row)
         if(stripos((string)($row['action']??''),'cancel')!==false&&($row['area']??'')==='Sales Contract')ep_require($user,'contracts','Edit');
-    }
-    // Omitted history is retained by the existing additive server merge.
 }
 function ep_collection(array $user,array $old,array $next,string $icon,string $identity='id'): void {
     $before=ep_index($old,$identity);$after=ep_index($next,$identity);
