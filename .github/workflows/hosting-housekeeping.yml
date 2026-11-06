@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Verify syntax and move obsolete folders out of the web root
+      - name: Restrict direct access to private JSON files
         env:
           HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
           HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
@@ -30,4 +30,16 @@ jobs:
           printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
           printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
           chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
-          ssh -o ConnectTimeout=20 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "bash -s -- '$HOSTINGER_DEPLOY_PATH'" < .github/scripts/hosting_housekeeping.sh
+          ssh -o ConnectTimeout=20 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "bash -s -- '$HOSTINGER_DEPLOY_PATH' protect-json" < .github/scripts/hosting_housekeeping.sh
+      - name: Verify public requests are denied and login still loads
+        run: |
+          set -euo pipefail
+          base=https://app.transtradeinternational.com
+          for file in accounts/accounting_master_v1.json directors/costing-profiles.json; do
+            for suffix in "" "?verification=$GITHUB_SHA"; do
+              code=$(curl --silent --show-error --max-time 20 -o /dev/null -w '%{http_code}' "$base/$file$suffix")
+              printf '%s HTTP %s\n' "$file" "$code"
+              [[ "$code" == 403 ]]
+            done
+          done
+          [[ "$(curl --silent --show-error --max-time 20 -o /dev/null -w '%{http_code}' "$base/login.php")" == 200 ]]

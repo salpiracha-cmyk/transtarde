@@ -4,6 +4,29 @@ target=$1
 case "$target" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
 [[ -d "$target" && ! -L "$target" && "$(realpath "$target")" == "$target" ]]
 cd "$target"
+if [[ "${2:-}" == protect-json ]]; then
+  for file in accounts/accounting_master_v1.json directors/costing-profiles.json; do
+    directory=${file%/*}
+    [[ "$(realpath "$directory")" == "$target/$directory" && -f "$file" && ! -L "$file" ]]
+    [[ ! -L "$directory/.htaccess" ]]
+    [[ ! -e "$directory/.htaccess" || -f "$directory/.htaccess" ]]
+    php -r 'json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);' "$file"
+  done
+  for file in accounts/accounting_master_v1.json directors/costing-profiles.json; do
+    directory=${file%/*}
+    rule="$directory/.htaccess"
+    marker="# Transtrade private JSON: ${file##*/}"
+    if [[ -f "$rule" ]] && grep -Fxq "$marker" "$rule"; then continue; fi
+    tmp=$(mktemp "$directory/.access-XXXXXXXX")
+    if [[ -f "$rule" ]]; then cat "$rule" > "$tmp"; fi
+    name=${file##*/}
+    printf '\n%s\n<Files "%s">\n  Require all denied\n</Files>\n' "$marker" "$name" >> "$tmp"
+    chmod 644 "$tmp"
+    mv -f -- "$tmp" "$rule"
+    printf 'PRIVATE_JSON_RULE_INSTALLED %s\n' "$file"
+  done
+  exit 0
+fi
 folders=(.git .github tests docs exports-canary ops)
 for folder in "${folders[@]}"; do
   [[ ! -L "$folder" ]]
