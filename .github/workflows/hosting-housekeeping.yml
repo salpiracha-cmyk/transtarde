@@ -59,7 +59,7 @@ jobs:
           python3 .github/scripts/original_source_package.py --exact > "$RUNNER_TEMP/cache-source-verify.php"
           "${ssh_host[@]}" "TT_SOURCE_ROOT='$HOSTINGER_DEPLOY_PATH' php" < "$RUNNER_TEMP/cache-source-verify.php"
           {
-            sed '/^declare(strict_types=1);$/a define("TT_DEPLOY_CACHE_FUNCTIONS_ONLY", true);' .github/scripts/deployment_cache_audit.php
+            awk '/^if\(defined\(/ {exit} {print}' .github/scripts/deployment_cache_audit.php
             cat <<'PHP'
           $target=(string)getenv('TT_CACHE_TARGET');
           dc_directory($target);
@@ -67,4 +67,5 @@ jobs:
           echo json_encode($result, JSON_THROW_ON_ERROR).PHP_EOL;
           PHP
           } > "$RUNNER_TEMP/verified-cache-clean.php"
-          "${ssh_host[@]}" "TT_CACHE_TARGET='$HOSTINGER_DEPLOY_PATH' php" < "$RUNNER_TEMP/verified-cache-clean.php"
+          "${ssh_host[@]}" "TT_CACHE_TARGET='$HOSTINGER_DEPLOY_PATH' php" < "$RUNNER_TEMP/verified-cache-clean.php" | tee "$RUNNER_TEMP/cache-result.json"
+          jq -e '.businessFilesTouched == 0 and .backupFilesTouched == 0 and (.bytesRemoved | type == "number")' "$RUNNER_TEMP/cache-result.json" >/dev/null
