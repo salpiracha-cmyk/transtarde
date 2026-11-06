@@ -8,7 +8,7 @@ function tt_telegram_request(string $token, string $method, array $fields = []):
     $curl = curl_init('https://api.telegram.org/bot'.$token.'/'.$method);
     curl_setopt_array($curl, [
         CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => http_build_query($fields),
+        CURLOPT_POSTFIELDS => isset($fields['document']) ? $fields : http_build_query($fields),
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT => 12,
@@ -63,18 +63,52 @@ function tt_telegram_save(string $token, string $chatId): void {
     }
 }
 
-function tt_telegram_send_test(): void {
+function tt_telegram_deliver(string $method, array $fields): void {
     $path = TT_DATA_DIR.'/telegram-alerts.json';
     if (!is_file($path)) throw new DomainException('Save the Telegram connection first.');
     $settings = json_decode((string)file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
     $token = (string)($settings['token'] ?? '');
     $chatId = (string)($settings['chatId'] ?? '');
     tt_telegram_group($token, $chatId);
-    $message = tt_telegram_request($token, 'sendMessage', [
-        'chat_id' => $chatId,
-        'text' => 'Test from the Transtrade app. Telegram delivery is connected.',
-    ]);
+    $message = tt_telegram_request($token, $method, ['chat_id' => $chatId] + $fields);
     if (empty($message['message_id']) || (string)($message['chat']['id'] ?? '') !== $chatId) {
-        throw new RuntimeException('Telegram did not confirm the test message.');
+        throw new RuntimeException('Telegram did not confirm delivery.');
+    }
+}
+
+function tt_telegram_send_test(): void {
+    tt_telegram_deliver('sendMessage', ['text' => 'Test from the Transtrade app. Telegram delivery is connected.']);
+}
+
+function tt_telegram_send_recovery_test(): void {
+    require_once dirname(__DIR__).'/inventory_reconciliation.php';
+    require_once __DIR__.'/mill_recovery_core.php';
+    require_once dirname(__DIR__).'/backup_lib.php';
+
+    $today = new DateTimeImmutable('today', new DateTimeZone('Asia/Karachi'));
+    $from = $today->modify('-7 days')->format('Y-m-d');
+    $to = $today->modify('-1 day')->format('Y-m-d');
+    $ops = mr_read_operations_source(TT_DATA_DIR.'/operations.json');
+    $runs = json_decode($ops['values']['tt30prod'] ?? '[]', true, 512, JSON_THROW_ON_ERROR);
+    $report = mr_report($runs, ['entity' => 'TTI', 'mode' => 'daily', 'from' => $from, 'to' => $to]);
+    if (!$report['groups']) throw new DomainException('There are no TTI recovery records in the previous seven days.');
+
+    $format = static fn($value): string => $value === null ? 'Unavailable' : number_format((float)$value, 2);
+    $lines = ['Transtrade | TTI Daily Recovery', $from.' to '.$to.' (Pakistan dates)', ''];
+    foreach ($report['groups'] as $day) {
+        $lines[] = $day['key'].' | '.$day['status'];
+        $lines[] = 'Input '.$format($day['inputKg']).' kg   |   Ready rice '.$format($day['readyKg']).' kg';
+        $lines[] = 'By-products '.$format($day['byProductKg']).' kg   |   Recovery '.$format($day['recoveryPct']).($day['recoveryPct'] === null ? '' : '%');
+    }
+    $lines[] = '';
+    $lines[] = 'Source: Transtrade Daily Recovery, operations revision '.(int)($ops['revision'] ?? 0);
+    $path = tt_backup_make_pdf($lines);
+    try {
+        tt_telegram_deliver('sendDocument', [
+            'document' => new CURLFile($path, 'application/pdf', 'TTI-Recovery-'.$from.'-to-'.$to.'.pdf'),
+            'caption' => 'Transtrade PDF delivery test | TTI Daily Recovery | '.$from.' to '.$to,
+        ]);
+    } finally {
+        unlink($path);
     }
 }
