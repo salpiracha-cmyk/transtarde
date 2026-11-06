@@ -52,7 +52,7 @@ def inventory(root):
 def compare(report):
     from original_source_package import manifest
     live = report.pop('files')
-    reference = report['release'] or '1b0f46ddb1915c0ab153b6fd4e7dba98d06bf646'
+    reference = report['release'] or '893af00d427aeb90430cd800a159074169fe09ab'
     expected = manifest(reference)
     missing = sorted(expected.keys() - live.keys())
     changes = sorted(name for name in expected.keys() & live.keys() if live[name][1] != expected[name])
