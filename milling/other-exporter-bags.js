@@ -14,9 +14,9 @@ const key=s=>s.entity+'|'+s.locationId,storage=s=>'tt_ui_other_bags_'+access().u
 function message(text,error=false){const el=$('otherBagMessage');if(el){el.textContent=text;el.style.color=error?'#b42318':'';}if(error)window.TT_FORM_VIEWPORT?.open(el);}
 async function request(body){const r=await fetch('/api/other_exporter_bags.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({...body,csrf:access().csrf})}),d=await r.json();if(!r.ok||!d.ok)throw Object.assign(Error(d.error||'Bag action could not be confirmed.'),{definitive:r.status>=400&&r.status<500});return d;}
 function selected(){return data?.deals.find(d=>d.id===$('otherBagSoda').value);}
-function choose(){const d=selected();$('otherBagEntry').hidden=!d;if(!d)return;$('otherBagBrand').value=d.brand||'';$('otherBagBrand').readOnly=!!d.brand;$('otherBagInstruction').textContent=d.party+' · '+(d.reference&&!/^EXP-/i.test(d.reference)?d.reference:(d.quantityMT==null?'':d.quantityMT+' MT'))+' · '+(d.packing||'Packing not specified')+' · '+(d.bagResponsibility?.arrangementName||'Bag arrangement: Pending Confirmation');
- const weights=[...String(d.packing||'').matchAll(/\b([0-9]+(?:\.[0-9]+)?)\s*(?:kgs?|kilograms?)\b/gi)].map(m=>Number(m[1]));$('otherBagPacking').value=weights.length===1?weights[0]:'';$('otherBagQty').value='';$('otherBagInspected').checked=false;history(d.id);window.TT_FORM_VIEWPORT?.open($('otherBagEntry'));}
-function history(id){const lots=Object.values(data?.inventory?.lots||{}).filter(l=>l.exporterDealId===id);$('otherBagHistory').innerHTML='<h4>Received, used and remaining bags</h4><table><thead><tr><th>Owner / marking</th><th>Packing / material</th><th>Accepted received</th><th>Used</th><th>Remaining</th><th>Quarantined</th></tr></thead><tbody>'+lots.map(l=>'<tr><td>'+esc(l.externalOwnerName)+' · '+esc(l.brand)+'</td><td>'+esc(l.packingSize)+' · '+esc(l.bagType)+'</td><td>'+esc(l.receivedQty)+'</td><td>'+esc(l.issuedQty)+'</td><td>'+esc(l.hold||l.availableQty)+'</td><td>'+esc(l.quarantinedQty)+'</td></tr>').join('')+'</tbody></table>'+(lots.length?'':'<p>No bags received against this SODA yet.</p>')+'<table><thead><tr><th>Receipt date</th><th>Marking</th><th>Actually received</th><th>Accepted</th><th>Quarantined</th></tr></thead><tbody>'+(data?.receiptHistory||[]).filter(r=>r.sourceSnapshot?.exporterDealId===id).map(r=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(r.brand)+'</td><td>'+esc(r.qty)+'</td><td>'+esc(r.acceptedQty)+'</td><td>'+esc(r.quarantinedQty)+'</td></tr>').join('')+'</tbody></table>'+lots.filter(l=>l.quarantinedQty>0).map(l=>'<button class="sec" type="button" data-other-bag-review="'+esc(l.originBagId)+'">Review quarantined '+esc(l.brand)+' bags</button>').join('');
+function choose(){const d=selected();$('otherBagEntry').hidden=!d;if(!d)return;$('otherBagBrand').value=d.brand||'';$('otherBagInstruction').textContent=d.party+' · '+(d.reference&&!/^EXP-/i.test(d.reference)?d.reference:(d.quantityMT==null?'':d.quantityMT+' MT'))+' · '+(d.packing||'Packing not specified')+' · '+(d.bagResponsibility?.arrangementName||'Bag arrangement: Pending Confirmation');
+ const weights=[...String(d.packing||'').matchAll(/\b([0-9]+(?:\.[0-9]+)?)\s*(?:kgs?|kilograms?)\b/gi)].map(m=>Number(m[1]));$('otherBagPacking').value=weights.length===1?weights[0]:'';$('otherBagQty').value='';$('otherBagTare').value=Number(d.productionBagTareGrams)>0?d.productionBagTareGrams:'';const packing=String(d.packing||'');$('otherBagMaterial').value=/non[ -]?woven/i.test(packing)?'Non-woven':/bopp/i.test(packing)?'BOPP':/\bpp\b/i.test(packing)?'PP Woven':/jute/i.test(packing)?'Jute':'';history(d.id);window.TT_FORM_VIEWPORT?.open($('otherBagEntry'));}
+function history(id){const lots=Object.values(data?.inventory?.lots||{}).filter(l=>l.exporterDealId===id);$('otherBagHistory').innerHTML='<h4>Received, used and remaining bags</h4><table><thead><tr><th>Owner / marking</th><th>Packing / material</th><th>Accepted received</th><th>Used</th><th>Returned to supplier</th><th>Remaining</th><th>Historical quarantine</th></tr></thead><tbody>'+lots.map(l=>'<tr><td>'+esc(l.externalOwnerName)+' · '+esc(l.brand)+'</td><td>'+esc(l.packingSize)+' · '+esc(l.bagType)+'</td><td>'+esc(l.receivedQty)+'</td><td>'+esc(l.issuedQty)+'</td><td>'+esc(l.supplierReturnedQty??0)+'</td><td>'+esc(l.hold||l.availableQty)+'</td><td>'+esc(l.quarantinedQty)+'</td></tr>').join('')+'</tbody></table>'+(lots.length?'':'<p>No bags received against this SODA yet.</p>')+'<table><thead><tr><th>Receipt date</th><th>Marking</th><th>Tare (g/bag)</th><th>Actually received</th><th>Accepted</th><th>Quarantined</th></tr></thead><tbody>'+(data?.receiptHistory||[]).filter(r=>r.sourceSnapshot?.exporterDealId===id).map(r=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(r.brand)+'</td><td>'+esc(r.actualTareGrams??'')+'</td><td>'+esc(r.qty)+'</td><td>'+esc(r.acceptedQty)+'</td><td>'+esc(r.quarantinedQty)+'</td></tr>').join('')+'</tbody></table>'+lots.filter(l=>l.receivedQty>0||l.quarantinedQty>0).map(l=>'<button class="sec" type="button" data-other-bag-review="'+esc(l.originBagId)+'">Receipt history / return · '+esc(l.brand)+'</button>').join('');
  $('otherBagHistory').querySelectorAll('[data-other-bag-review]').forEach(button=>button.onclick=()=>{currentBagOrder=Number(button.dataset.otherBagReview);void window.TT_BAG_RECEIPTS?.reviewSelected();});}
 
 function recover(){const s=scope();pending=JSON.parse(localStorage.getItem(storage(s))||'null');$('otherBagRetry').hidden=!pending;}
@@ -32,8 +32,8 @@ async function send(body,recovery=false){
  try{
   pending={scope:s,body};localStorage.setItem(storage(s),JSON.stringify(pending));$('otherBagRetry').hidden=false;
   const d=body.action==='receive'?await window.TT_SHARED_SYNC.commitOtherBagReceipt(body):await request(body);localStorage.removeItem(storage(s));pending=null;$('otherBagRetry').hidden=true;
-  if(body.action==='fill_brand'){const original=selected();if(original&&original.id===d.deal.id){Object.assign(original,d.deal);$('otherBagBrand').value=d.deal.brand;$('otherBagBrand').readOnly=true;}message('Brand saved to the original SODA. Record the actual bags received below.');}
-  else{if(!recovery){$('otherBagQty').value='';$('otherBagInspected').checked=false;$('otherBagMismatch').checked=false;}await open();message('Actual receipt saved. Production can select the received marking.');void loadChoices();}return true;
+  if(body.action==='fill_brand'){const original=selected();if(original&&original.id===d.deal.id){Object.assign(original,d.deal);$('otherBagBrand').value=d.deal.brand;}message('Brand saved to the original SODA. Record the actual bags received below.');}
+  else{if(!recovery){$('otherBagQty').value='';}await open();message('Actual receipt saved. Production can select the received marking.');void loadChoices();}return true;
  }catch(e){if(e.definitive){localStorage.removeItem(storage(s));pending=null;$('otherBagRetry').hidden=true;}message(e.message+' Your entry is retained.',true);return false;}
  finally{busy=false;panel.inert=false;}
 }
@@ -44,10 +44,13 @@ async function receive(){try{
  if(!raw||!Number.isSafeInteger(qty)||qty<=0)throw Error('Enter the positive whole number of bags received.');
  if(!Number.isFinite(packing)||packing<=0||!material)throw Error('Enter the actual packing weight and bag material.');
  if(!date||date<d.date||date>today())throw Error('Enter the actual receipt date between the SODA date and today.');
- if(!$('otherBagInspected').checked)throw Error('Confirm the bags were physically counted and inspected.');
- if(!d.brand){const brand=$('otherBagBrand').value.trim();if(!brand)throw Error('Enter the missing brand / bag marking.');if(!await send({...bodyBase('fill_brand'),brand}))return;}
- const saved=await send({...bodyBase('receive'),date,qty,packingKg:String(packing),bagType:material,inspected:true,printingMismatch:$('otherBagMismatch').checked,materialMismatch:false,qualityMismatch:false,tareMismatch:false});
- if(!saved&&selected()?.brand)message(($('otherBagMessage').textContent||'Receipt not confirmed.')+' The SODA brand is saved; the bag receipt still needs confirmation.',true);
+ const brand=$('otherBagBrand').value.trim(),actualTareGrams=Number($('otherBagTare').value);
+ if(!brand)throw Error('Enter the actual brand / bag marking.');
+ if(!Number.isFinite(actualTareGrams)||actualTareGrams<=0)throw Error('Enter the actual positive tare weight in grams per bag.');
+ const filledBrand=!d.brand;
+ if(filledBrand&&!await send({...bodyBase('fill_brand'),brand}))return;
+ const saved=await send({...bodyBase('receive'),date,qty,packingKg:String(packing),bagType:material,brand,actualTareGrams,recordActual:true});
+ if(!saved&&filledBrand&&selected()?.brand)message(($('otherBagMessage').textContent||'Receipt not confirmed.')+' The SODA brand is saved; the bag receipt still needs confirmation.',true);
  }catch(e){message(e.message,true);}}
 function toggle(mode){if(busy)return;$('ourExportBags').hidden=mode!=='our';$('otherExporterBags').hidden=mode!=='other';if(mode==='other')void open();}
 function choiceScope(){const s=scope(true);return {...s,asOf:$('prodDate')?.value||today(),purpose:'production'};}
@@ -71,13 +74,32 @@ function add(){const c=choices().find(r=>r.lotId===$('brandChoice').value),type=
 function orders(){try{return choiceData?.stamp===JSON.stringify(choiceScope())?choiceData.orders||[]:[];}catch{return [];}}
 function orderLabel(d){return [d.brand||'Brand not entered',d.historicalClosed?'Historical closed SODA':'',d.entity,d.party,d.quantityMT==null?'':Number(d.quantityMT).toLocaleString('en-PK')+' MT',d.sourceKind==='EXPORT'?d.contractRef:d.sourceKind==='LOCAL'?'Local SODA':d.sourceKind==='BAG'?'Bag marking · SODA link unverified':'Fellow exporter'].filter(Boolean).join(' · ');}
 function orderOptions(row){return '<option value="">Choose brand / SODA</option><option value="LOCAL"'+(['Ready Rice — Local Bags','B2 — LOCAL'].includes(row.product)?' selected':'')+'>Local / unbranded</option>'+orders().filter(d=>!d.historicalClosed).map(d=>'<option value="'+esc(d.orderId)+'"'+(row.productionOrderId===d.orderId?' selected':'')+'>'+esc(orderLabel(d))+'</option>').join('')+'<option value="ADD_LINE">＋ Bag / brand row</option><option value="ADD_BRAND">＋ Register missing brand</option>'+(!orders().some(d=>!d.historicalClosed&&d.orderId===row.productionOrderId)&&/^(Ready Rice|B2) — (?!Local(?: Bags)?$)/i.test(row.product)?'<option value="SAVED" selected>'+esc(row.product.replace(/^(Ready Rice|B2) — /,''))+' · saved assignment</option>':'');}
-function orderInfo(d){return d?[d.party,d.product,d.packing,d.bagResponsibility?.arrangementName?'Bag arrangement: '+d.bagResponsibility.arrangementName:'',d.quantityMT==null?'':'Order total: '+d.quantityMT+' MT',d.bagSourceKnown?'Bags: '+Number(d.bagsAvailable||0).toLocaleString('en-PK')+' available · '+Number(d.bagsQuarantined||0).toLocaleString('en-PK')+' quarantined':'No linked received bag source'].filter(Boolean).join(' · '):'';}
-function orderSelect(row){const kind=String(row.product).startsWith('B2 — ')?'B2':'Ready Rice';const d=orders().find(d=>d.orderId===row.productionOrderId);return '<label>'+kind+'<select aria-label="'+kind+' brand / SODA" data-production-order="'+esc(row.id)+'" onchange="window.TT_BAG_CHOICES.assign('+Number(row.id)+',this.value)">'+orderOptions(row)+'</select></label><details><summary>Bag / SODA details</summary><small data-order-info="'+esc(row.id)+'">'+esc(orderInfo(d))+'</small></details>';}
-function refreshOrders(){for(const row of productionRows){if(!String(row.product).startsWith('Ready Rice')&&!String(row.product).startsWith('B2 — '))continue;const cell=document.getElementById('pkg'+row.id)?.closest('tr')?.querySelector('td');if(cell&&!cell.querySelector('[data-production-order]'))cell.innerHTML=orderSelect(row);}document.querySelectorAll('[data-production-order]').forEach(select=>{const row=productionRows.find(r=>String(r.id)===select.dataset.productionOrder);if(!row)return;select.innerHTML=orderOptions(row);const d=orders().find(d=>d.orderId===row.productionOrderId),info=document.querySelector('[data-order-info="'+row.id+'"]');if(info)info.textContent=orderInfo(d);});}
+function orderSelect(row){
+ const kind=String(row.product).startsWith('B2 — ')?'B2':'Ready Rice';
+ return '<label>'+kind+'<select aria-label="'+kind+' brand / SODA" data-production-order="'+esc(row.id)+'" onchange="window.TT_BAG_CHOICES.assign('+Number(row.id)+',this.value)">'+orderOptions(row)+'</select></label>';
+}
+function refreshOrders(){
+ for(const row of productionRows){
+  if(!String(row.product).startsWith('Ready Rice')&&!String(row.product).startsWith('B2 — '))continue;
+  const cell=document.getElementById('pkg'+row.id)?.closest('tr')?.querySelector('td');
+  if(cell&&!cell.querySelector('[data-production-order]'))cell.innerHTML=orderSelect(row);
+ }
+ document.querySelectorAll('[data-production-order]').forEach(select=>{
+  const row=productionRows.find(r=>String(r.id)===select.dataset.productionOrder);
+  if(row)select.innerHTML=orderOptions(row);
+ });
+}
 function assign(id,value){const row=productionRows.find(r=>r.id===id);if(!row||value==='SAVED')return;if(value==='ADD_LINE'){String(row.product).startsWith('B2 — ')?addBroken():addReady();return;}if(value==='ADD_BRAND'){refreshOrders();openBrand();return;}const d=orders().find(d=>d.orderId===value);if(value!=='LOCAL'&&!d){refreshOrders();return;}if(d&&!d.brand){alert('Register the missing brand against this SODA first.');refreshOrders();return;}
  const kind=String(row.product).startsWith('B2 — ')?'B2':'Ready Rice',brand=d?.brand||(kind==='B2'?'LOCAL':'Local Bags');row.product=kind+' — '+brand;row.brand=brand;row.productionOrderId=d?.orderId||'';row.productionOrderSource=d?.sourceKind||'LOCAL';row.productionSodaId=d?.sourceKind==='FELLOW'?d.sourceId:'';row.exporterDealId=d?.sourceKind==='FELLOW'?(d.bagResponsibility?.owner==='OUR'?'':d.sourceId):d?.exporterDealId||'';row.contractRef=d?.contractRef||'';row.productionOrderVersion=d?.version??null;delete row.bagSourceLotId;if(d?.bagSourceLotId)row.bagSourceLotId=d.bagSourceLotId;
  const lots=choices().filter(c=>norm(c.brand)===norm(brand)&&(row.exporterDealId?c.exporterDealId===row.exporterDealId:!c.exporterDealId)&&(!row.contractRef||!c.contractRef||c.contractRef===row.contractRef));
- if(lots.length===1){row.bagSourceLotId=lots[0].lotId;if(!Number(row.bags))row.bagWeight=lots[0].packingKg;}else if(d&&!Number(row.bags)){const m=String(d.packing||'').match(/\b([0-9]+(?:\.[0-9]+)?)\s*kgs?\b/i);if(m)row.bagWeight=Number(m[1]);}
+ const weights=[...new Set([...String(d?.packing||'').matchAll(/\b([0-9]+(?:\.[0-9]+)?)\s*(?:kgs?|kilograms?)\b/gi)].map(match=>Number(match[1])))];
+ if(d&&!Number(row.bags)){
+  if(weights.length===1)row.bagWeight=weights[0];
+  else if(lots.length===1)row.bagWeight=lots[0].packingKg;
+ }
+ const matching=lots.filter(lot=>Number(lot.packingKg)===Number(row.bagWeight));
+ if(!row.bagSourceLotId&&matching.length===1)row.bagSourceLotId=matching[0].lotId;
+
  renderProductionTable();calcProduction();
 }
 function addReady(){let id=Date.now();while(productionRows.some(r=>r.id===id))id++;productionRows.push({id,product:'Ready Rice',bags:0,bagWeight:window.productionWeightDefault?.('Ready Rice')||50});productionGroupDelete.ready=true;renderProductionTable();calcProduction();}

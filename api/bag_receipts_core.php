@@ -26,7 +26,7 @@ function br_flags(array $body): array {
     $flags=[];foreach(['printingMismatch','materialMismatch','qualityMismatch','tareMismatch'] as $key){if(!isset($body[$key])||!is_bool($body[$key]))throw new DomainException('Confirm each actual receipt specification check.');$flags[$key]=$body[$key];}return $flags;
 }
 function br_commit(array &$values,array &$state,array $masters,array $body,array $user,string $now,callable $authorize,bool $allowOtherExporter=false): array {
-    $action=(string)($body['action']??'');if(!in_array($action,['receive_supplier','receipt_status','accept_corrected','return_supplier'],true))throw new DomainException('Choose an explicit supplier receipt action.');
+    $action=(string)($body['action']??'');if(!in_array($action,['receive_supplier','receipt_status','accept_corrected','return_supplier','return_available','reverse_supplier_return'],true))throw new DomainException('Choose an explicit supplier receipt action.');
     $request=bt_request($state,$body,$user,'SUPPLIER_'.$action);
     if($request['prior']){
         $prior=$request['prior'];if(($prior['kind']??'')!=='supplierReceipt')throw new DomainException('This request identity belongs to another movement.');$scope=$prior['scope'];
@@ -39,7 +39,8 @@ function br_commit(array &$values,array &$state,array $masters,array $body,array
     if(($body['entity']??'')!==$scope['entity']||($body['locationId']??'')!==$scope['locationId'])throw new DomainException('The original receipt belongs to another company or physical location.');
     $authorize($scope['entity'],$scope['millName'],$action==='receive_supplier'?'Create':'Edit',$scope['locationId']);
     if(!hash_equals($source['fingerprint'],(string)($body['sourceFingerprint']??'')))throw new DomainException('The order or receipts changed. Review the original order again; your entry is retained.');
-    $dispositionAction=in_array($action,['accept_corrected','return_supplier'],true);if($dispositionAction)$body['keepReceiptOpen']=!empty($source['order']['keepReceiptOpen']);
+    $stockReturn=in_array($action,['return_available','reverse_supplier_return'],true);
+    $dispositionAction=$stockReturn||in_array($action,['accept_corrected','return_supplier'],true);if($dispositionAction)$body['keepReceiptOpen']=!empty($source['order']['keepReceiptOpen']);
     if(!isset($body['keepReceiptOpen'])||!is_bool($body['keepReceiptOpen']))throw new DomainException('Confirm whether to keep the PO receipt open.');
     $orders=bti_rows($values,'tt30bags');$receipts=bti_rows($values,'tt33bagreceipts');$receipt=null;$disposition=null;
     if($action==='receive_supplier'){
@@ -51,15 +52,41 @@ function br_commit(array &$values,array &$state,array $masters,array $body,array
         $receipts[]=$receipt;
     }
     if($dispositionAction){
-        $found=array_values(array_filter($source['receipts'],static fn($r)=>(string)($r['id']??'')===(string)($body['receiptId']??'')));if(count($found)!==1||empty($found[0]['bagReceiptVersion']))throw new DomainException('Select one acknowledged quarantined supplier receipt.');$receipt=$found[0];
-        $position=br_position($receipt,(array)($state['receiptDispositions']??[]));$qty=bt_qty($body['qty']??null);if($qty>$position['quarantinedQty'])throw new DomainException('The disposition exceeds this receipt quantity still in quarantine.');
-        $date=bt_date((string)($body['date']??''),$now);if($date<$receipt['date'])throw new DomainException('Physical correction or return cannot precede the original receipt.');$reason=trim((string)($body['reason']??''));if(strlen($reason)<10||strlen($reason)>1000)throw new DomainException('Record the actual physical correction or supplier return evidence (10–1000 characters).');
+        $found=array_values(array_filter($source['receipts'],static fn($r)=>(string)($r['id']??'')===(string)($body['receiptId']??'')));
+        if(count($found)!==1||empty($found[0]['bagReceiptVersion']))throw new DomainException('Select one acknowledged supplier receipt.');
+        $receipt=$found[0];$events=(array)($state['receiptDispositions']??[]);$position=br_position($receipt,$events);
+        $date=bt_date((string)($body['date']??''),$now);
+        if($date<$receipt['date'])throw new DomainException('A physical movement cannot precede the original receipt.');
+        $reason=trim((string)($body['reason']??''));
+        if(strlen($reason)>1000||(!$stockReturn&&strlen($reason)<10))throw new DomainException('Enter valid return or correction remarks (up to 1000 characters).');
+        $reverses='';
+        if($action==='reverse_supplier_return'){
+            $reverses=(string)($body['returnId']??'');
+            $original=array_column($position['outstandingStockReturns'],null,'id')[$reverses]??null;
+            if(!$original||$date<$original['date'])throw new DomainException('Select an outstanding supplier return and a valid reversal date.');
+            $qty=$original['qty'];
+        }else{
+            $qty=bt_qty($body['qty']??null);
+            if($action==='return_available'){
+                $today=(new DateTimeImmutable($now))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('Y-m-d');
+                $inventory=bti_project($values,$masters,$scope,$date,$today,$state);
+                $lot=$inventory['lots'][bti_lot_id((string)$receipt['bagId'],$scope['locationId'])]??[];
+                if($qty>min($position['acceptedQty'],br_position($receipt,$events,$date)['acceptedQty'],$lot['committableQty']??0))throw new DomainException('The return exceeds the available bags from this receipt at this mill.');
+            }elseif($qty>$position['quarantinedQty'])throw new DomainException('The disposition exceeds this receipt quantity still in quarantine.');
+        }
         $measured=null;
         if($action==='accept_corrected'){
             if(($body['inspected']??null)!==true||($body['matchesOriginalSpecification']??null)!==true)throw new DomainException('Only physically corrected, reinspected bags matching the original specification may become available. Unchanged discrepancies remain quarantined.');
             if(!empty($receipt['tareMismatch'])){$agreed=preg_match('/^\s*([0-9]+(?:\.[0-9]+)?)\s*(?:g|grams?)\s*$/i',(string)($receipt['sourceSnapshot']['tare']??''),$m)?(float)$m[1]:0;$actual=$body['actualTareGrams']??null;if(!is_numeric($actual)||is_bool($actual)||$agreed<=0||!is_finite((float)$actual)||abs((float)$actual-$agreed)>.000001)throw new DomainException('Record the corrected measured tare matching the original agreed tare; an unchanged tare discrepancy cannot be released.');$measured=(float)$actual;}
-        }elseif(($body['physicallyReturned']??null)!==true)throw new DomainException('Confirm these bags were physically returned to the supplier.');
-        $disposition=['id'=>'BRD-'.substr(hash('sha256',$request['id']),0,24),'receiptId'=>$receipt['id'],'bagId'=>$source['order']['id'],'entity'=>$scope['entity'],'locationId'=>$scope['locationId'],'date'=>$date,'action'=>$action,'qty'=>$qty,'reason'=>$reason,'actualTareGrams'=>$measured,'at'=>$now]+$request['actor'];$state['receiptDispositions'][]=$disposition;
+        }elseif(!$stockReturn&&($body['physicallyReturned']??null)!==true)throw new DomainException('Confirm these bags were physically returned to the supplier.');
+        $disposition=['id'=>'BRD-'.substr(hash('sha256',$request['id']),0,24),'receiptId'=>$receipt['id'],'bagId'=>$source['order']['id'],'entity'=>$scope['entity'],'locationId'=>$scope['locationId'],'date'=>$date,'action'=>$action,'qty'=>$qty,'reason'=>$reason,'actualTareGrams'=>$measured,'at'=>$now]+$request['actor'];if($reverses!=='')$disposition['reverses']=$reverses;
+        if($stockReturn){
+            $updated=[...$events,$disposition];
+            $dates=[$date=>true];
+            foreach($events as $event)if($event['receiptId']===$receipt['id']&&$event['date']>$date)$dates[$event['date']]=true;
+            foreach(array_keys($dates) as $cutoff)br_position($receipt,$updated,$cutoff);
+        }
+        $state['receiptDispositions'][]=$disposition;
     }
     foreach($orders as &$order){if((string)($order['id']??'')===(string)$source['order']['id']){
         $counter=bti_count($order['received']??0);if($counter===null)throw new DomainException('Reconcile the actual received counter before recording another receipt.');
