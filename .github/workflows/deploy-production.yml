@@ -96,6 +96,8 @@ jobs:
             --exclude='./.git' \
             --exclude='./.github' \
             --exclude='./tests' \
+            --exclude='./docs' \
+            --exclude='./ops' \
             --exclude='./node_modules' \
             --exclude='./data/*' \
             --exclude='./uploads' \
