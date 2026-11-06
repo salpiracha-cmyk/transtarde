@@ -404,7 +404,7 @@ function operations_history_subset(array $saved,mixed $incoming): bool {
     return true;
 }
 
-function operations_merge_export(string $currentJson, string $incomingJson, string $sourceModule, array $actor = []): string {
+function operations_merge_export(string $currentJson, string $incomingJson, string $sourceModule, array $actor = [],array $replacedBagPos=[]): string {
     $current = json_decode($currentJson, true);
     $incoming = json_decode($incomingJson, true);
     if (in_array($sourceModule, ['Accounts','Mill','Milling'], true) && (!is_array($current) || !isset($current['contracts'], $current['shipments']) || !is_array($current['contracts']) || !is_array($current['shipments']))) throw new DomainException('Exports must initialize its records before another module can add updates.');
@@ -640,11 +640,15 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
     $merged['shipments'] = operations_union_rows((array)($current['shipments'] ?? []), (array)($incoming['shipments'] ?? []), ['id', 'lotId']);
     $merged['millSync'] = (array)($incoming['millSync'] ?? []);
     foreach (['newExportBags', 'productionInstructions', 'exportLoading'] as $key) {
-        $merged['millSync'][$key] = operations_union_rows(
-            (array)($current['millSync'][$key] ?? []),
-            (array)($incoming['millSync'][$key] ?? []),
-            ['id', 'shipmentId', 'lotId', 'contractRef']
-        );
+        if($key!=='newExportBags'){
+            $merged['millSync'][$key]=operations_union_rows((array)($current['millSync'][$key]??[]),(array)($incoming['millSync'][$key]??[]),['id','shipmentId','lotId','contractRef']);
+            continue;
+        }
+        $rows=[];
+        $prior=(array)($current['millSync'][$key]??[]);
+        if($replacedBagPos)$prior=array_filter($prior,static fn($row)=>!isset($replacedBagPos[$row['contractRef']??''][$row['poNo']??'']));
+        foreach(array_merge($prior,(array)($incoming['millSync'][$key]??[])) as $row)if(is_array($row))$rows[os_identity($row)]=$row;
+        $merged['millSync'][$key]=array_values($rows);
     }
     $currentShipments = operations_list_by_identity((array)($current['shipments'] ?? []), 'id');
     foreach ((array)($merged['shipments'] ?? []) as &$shipment) {
@@ -730,7 +734,7 @@ function operations_file_fallback(array $user): never {
             operations_validate_row_actions($user,$sourceModule,$key,$old,$value);
             operations_validate_quarantine($user,$key,$old,$value,(array)($store['values']??[]));
             operations_validate_pohanch_identity($key,$old,$value);
-            if ($key==='transtrade_export_v3_operational') { operations_validate_export_permissions($user,$sourceModule,$old,$value); operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule,$user); }
+            if ($key==='transtrade_export_v3_operational') { operations_validate_export_permissions($user,$sourceModule,$old,$value); operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule,$user,operations_replaced_bag_pos($contractChanges)); }
             if($contractRequest!==null){
                 $receipt=operations_contract_receipt(json_decode($value,true,512,JSON_THROW_ON_ERROR),$contractRequest);
                 if($receipt===null)throw new DomainException('This contract could not be committed. Review the saved contract and its linked records.');
@@ -886,7 +890,7 @@ try {
     if ($key === 'transtrade_export_v3_operational') {
         operations_validate_export_permissions($user,$sourceModule,$oldPayload,$value);
         operations_validate_lot_reopening($oldPayload, $value, $user, $sourceModule);
-        $value = operations_merge_export($oldPayload, $value, $sourceModule,$user);
+        $value = operations_merge_export($oldPayload, $value, $sourceModule,$user,operations_replaced_bag_pos($contractChanges));
     }
     if($contractRequest!==null){
         $receipt=operations_contract_receipt(json_decode($value,true,512,JSON_THROW_ON_ERROR),$contractRequest);

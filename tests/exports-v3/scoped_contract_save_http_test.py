@@ -19,13 +19,17 @@ with tempfile.TemporaryDirectory(prefix='exports-scoped-save-') as tmp:
         shutil.copy(ROOT / filename, app / filename)
     (app / 'auth_store.php').write_text("""<?php
 define('TT_DATA_DIR', __DIR__.'/data');
-function tt_require_login(){return ['role'=>'Super Admin','id'=>7,'full_name'=>'Fixture Owner'];}
+function tt_require_login(){
+    if(($_GET['actor']??'')==='staff')return ['role'=>'Staff','id'=>8,'full_name'=>'Fixture Exports Staff','permissions'=>['Exports'=>['bags'=>['View','Create','Edit']]]];
+    return ['role'=>'Super Admin','id'=>7,'full_name'=>'Fixture Owner'];
+}
 function tt_verify_csrf($v){return $v==='fixture';}
 function tt_ensure_data_dir(){}
 function tt_release_read_session(){}
 function tt_list_masters(){return [];}
-function tt_user_business_entity($u,$e,$a){return true;}
-function tt_user_can_module_action($u,$m,$i,$a){return true;}
+function tt_user_business_entity($u,$e,$a){return $u['role']==='Super Admin'||$e==='TTI';}
+function tt_user_can_module_action($u,$m,$i,$a){return $u['role']==='Super Admin'||($m==='Exports'&&$i==='bags');}
+function tt_user_can_master($u,$i,$a){return false;}
 function tt_user_can_open_module($u,$m){return true;}
 """)
     (app / 'data').mkdir()
@@ -42,13 +46,13 @@ function tt_user_can_open_module($u,$m){return true;}
     server = subprocess.Popen(['php','-d','memory_limit=256M','-S',f'127.0.0.1:{port}','-t',str(app)],env=env,stdout=log,stderr=log)
     url = f'http://127.0.0.1:{port}/api/operations.mysql.php?asset_refs=1'
 
-    def send(version, changes, identity=None):
+    def send(version, changes, identity=None, staff=False):
         body = dict(csrf='fixture',key=KEY,sourceModule='Exports',baseVersion=version,contractChanges=json.dumps(changes))
         if identity: body['contractSave']=identity
         data = json.dumps(body).encode()
         assert len(data)<4096
         try:
-            with urlopen(Request(url,data=data,headers={'Content-Type':'application/json'}),timeout=20) as response:
+            with urlopen(Request(url+('&actor=staff' if staff else ''),data=data,headers={'Content-Type':'application/json'}),timeout=20) as response:
                 return response.status, json.load(response)
         except HTTPError as error:
             return error.code, json.load(error)
@@ -123,6 +127,36 @@ function tt_user_can_open_module($u,$m){return true;}
         assert send(10,changes,identity)[0]==403
         persisted=json.loads(json.loads(source.read_text())['values'][KEY])
         assert persisted==committed
+        # The real restricted Exports path sees one company, with hidden PO rows from another.
+        def mill_line(ref, po, index, **extra):
+            return {'contractRef':ref,'poNo':po,'line':index,'supplier':'Test Supplier',**extra}
+        owner_po={'poNo':'PO-260006','lines':[{'brand':'Hidden'}]}
+        staff_root={'contracts':[{'id':'A','ref':'A/001','seller':'TTI'},{'id':'B','ref':'B/001','seller':'BRM'}],
+                    'shipments':[{'id':'S1','kind':'process','contractRef':'A/001','seller':'TTI','bagOrders':[]},
+                                 {'id':'S2','kind':'process','contractRef':'B/001','seller':'BRM','bagOrders':[owner_po]}],
+                    'millSync':{'newExportBags':[{'contractRef':'B/001','poNo':'PO-260006','lineId':i,'brand':'Hidden'} for i in (1,2)]}}
+        source.write_text(json.dumps({'revision':20,'values':{KEY:json.dumps(staff_root)},'meta':{KEY:{'version':20}}}))
+        po={'poNo':'PO-260007','issuedAt':'2026-11-06T09:00:00Z','lines':[{'brand':'First'},{'brand':'Second'}]}
+        handoff={'action':'replaceBagPoLines','path':['millSync','newExportBags'],'shipmentId':'S1','contractRef':'A/001','poNo':po['poNo'],
+                 'value':[mill_line('A/001',po['poNo'],i,brand=line['brand']) for i,line in enumerate(po['lines'],1)]}
+        po_change={'action':'append','path':['shipments',{'id':'S1'},'bagOrders',None],'value':[po]}
+        status,result=send(20,[po_change,handoff],staff=True)
+        assert status==200 and result['keyVersion']==21,result
+        public=json.loads(result['value'])
+        assert [row['id'] for row in public['shipments']]==['S1']
+        assert [row['line'] for row in public['millSync']['newExportBags']]==[1,2]
+        original=json.loads(json.loads(source.read_text())['values'][KEY])
+        assert original['shipments'][1]['bagOrders']==[owner_po] and len(original['millSync']['newExportBags'])==4
+        shortened={**po,'lines':po['lines'][:1],'issuedAt':'2026-11-06T09:10:00Z'}
+        update={'action':'set','path':['shipments',{'id':'S1'},'bagOrders',0],'value':shortened}
+        status,result=send(21,[update,{**handoff,'value':handoff['value'][:1]}],staff=True)
+        assert status==200 and result['keyVersion']==22,result
+        persisted=json.loads(json.loads(source.read_text())['values'][KEY])
+        assert len(persisted['millSync']['newExportBags'])==3
+        assert any(row['brand']=='Hidden' for row in persisted['millSync']['newExportBags'])
+        assert send(22,[update,{**handoff,'value':[handoff['value'][0]]*2}],staff=True)[0]==422
+        assert send(22,[{**handoff,'shipmentId':'S2','contractRef':'B/001','value':[mill_line('B/001',po['poNo'],1)]}],staff=True)[0]==422
+        print('PASS restricted Exports staff can issue and update one Bag PO, preserve hidden POs and all distinct lines, and reject duplicate lines')
         print('PASS scoped Exports HTTP saves: 17 MiB book, draft and issue receipts, linked amendments, unrelated concurrent writes, retry and real conflicts')
     except Exception:
         log.seek(0)

@@ -15,8 +15,22 @@ function operations_expand_contract_changes(string $patch,array $values,array $u
     $document=json_decode(tt_inv_json((object)$visible),false,512,JSON_THROW_ON_ERROR);
     $changes=json_decode(tt_inv_restore_artwork($patch,tt_inv_public_values($values)['values'],16*1024*1024),false,512,JSON_THROW_ON_ERROR);
     if(!is_array($changes)||count($changes)>10000)throw new InvalidArgumentException('Invalid sales contract changes.');
+    $bagOrders=[];
     foreach($changes as $change){
         $path=$change->path??null;$action=$change->action??null;
+        if($action==='replaceBagPoLines'){
+            if($path!==['millSync','newExportBags']||!is_string($change->contractRef??null)||$change->contractRef===''||!is_string($change->poNo??null)||$change->poNo===''||!is_string($change->shipmentId??null)||$change->shipmentId===''||!is_array($change->value??null)||!$change->value)throw new InvalidArgumentException('Invalid Bag Order handoff.');
+            $lines=[];
+            foreach($change->value as $row){
+                if(!is_object($row)||($row->contractRef??null)!==$change->contractRef||($row->poNo??null)!==$change->poNo||!is_int($row->line??null)||$row->line<1||$row->line>count($change->value)||isset($lines[$row->line]))throw new InvalidArgumentException('Bag Order lines must have unique line numbers.');
+                $lines[$row->line]=$row;
+            }
+            if(!isset($document->millSync)||$document->millSync===[])$document->millSync=(object)[];
+            $document->millSync->newExportBags=array_values(array_filter((array)($document->millSync->newExportBags??[]),static fn($row)=>($row->contractRef??null)!==$change->contractRef||($row->poNo??null)!==$change->poNo));
+            array_push($document->millSync->newExportBags,...array_values($lines));
+            $bagOrders[]=$change;
+            continue;
+        }
         if(!is_array($path)||count($path)<1||count($path)>24||!is_string($path[0])||!in_array($action,['set','remove','append','prepend','order'],true))throw new InvalidArgumentException('Invalid sales contract change path.');
         $cursor=&$document;$last=array_pop($path);
         foreach($path as $depth=>$segment){
@@ -64,6 +78,16 @@ function operations_expand_contract_changes(string $patch,array $values,array $u
             $cursor[$last]=$change->value??null;
         }else throw new InvalidArgumentException('Invalid sales contract field change.');
         unset($cursor);
+    }
+    foreach($bagOrders as $change){
+        $matched=false;
+        foreach((array)($document->shipments??[]) as $shipment){
+            if(($shipment->id??null)!==$change->shipmentId||($shipment->contractRef??null)!==$change->contractRef)continue;
+            foreach((array)($shipment->bagOrders??[]) as $order){
+                if(($order->poNo??null)===$change->poNo&&empty($order->cancelled)&&count((array)($order->lines??[]))===count($change->value))$matched=true;
+            }
+        }
+        if(!$matched)throw new InvalidArgumentException('The Bag Order and its Mill handoff do not match.');
     }
     return tt_inv_json($document);
 }
@@ -134,4 +158,12 @@ function operations_contract_candidate(string $patch,array $request,array $value
         return tt_inv_json($root);
     }
     throw new InvalidArgumentException('The sales contract save audit is missing.');
+}
+
+function operations_replaced_bag_pos(?string $patch): array {
+    if($patch===null)return [];
+    $keys=[];
+    foreach(json_decode($patch,true,512,JSON_THROW_ON_ERROR) as $change)
+        if(($change['action']??null)==='replaceBagPoLines')$keys[$change['contractRef']][$change['poNo']]=true;
+    return $keys;
 }
