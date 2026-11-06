@@ -133,6 +133,26 @@ function tt_inv_resolve_stock(array $map,array $shipment): string {
     if(empty($shipment['baseVariety'])&&empty($shipment['riceType'])&&count($matches)===1)return $matches[0];
     return $finished;
 }
+const TT_INV_POHANCH_ESTIMATE = '(Estimate as Pohanch not issued)';
+
+/** Arrival Report quantities for operational display only. */
+function tt_inv_pending_arrivals(array $values): array {
+    $issued=[];
+    foreach(tt_inv_rows($values,'tt30slips') as $row){
+        $id=trim((string)($row['queueId']??''));
+        if($id!=='')$issued[$id]=true;
+    }
+    $pending=[];
+    foreach(tt_inv_rows($values,'tt30queue') as $row){
+        $id=trim((string)($row['id']??''));
+        $kg=(float)($row['weight']??0);
+        if($id===''||isset($issued[$id])||!empty($row['rejected'])||!is_finite($kg)||$kg<=0)continue;
+        if(!mr_valid_date((string)($row['date']??''))||trim((string)($row['entity']??''))===''||trim((string)($row['millName']??$row['locationName']??''))==='')continue;
+        $pending[$id]=$row;
+    }
+    return $pending;
+}
+
 /** Physical by-products belong to a mill and variety, independent of the accounting owner.
  * Unknown historical variety remains unassigned. Never infer it from another lot.
  */
@@ -157,6 +177,7 @@ function tt_inv_physical_name(string $name,array $record): string {
 function tt_inv_physical_stock(array $values,array $scope,?callable $observe=null): array {
     $total=[];$records=[];
     foreach(array_slice(TT_INV_SOURCE_KEYS,0,6)as$key)foreach(tt_inv_rows($values,$key)as$i=>$r)$records[$key][(string)($r['id']??$r['ref']??$r['slip']??'#'.($i+1))]=$r;
+    if(!empty($scope['arrivalEstimates']))$records['tt30queue']=tt_inv_pending_arrivals($values);
     foreach(['TTI','BRM']as$entity){
         $company=$scope;unset($company['physicalPool']);$company['entity']=$entity;
         tt_inv_stock($values,$company,static function(array $event)use(&$total,$records,$observe,$entity):void{
@@ -180,7 +201,28 @@ function tt_inv_stock(array $values,array $scope, ?callable $observe=null): arra
         $date=(string)($r['unloadingDate']??$r['arrivalDate']??$r['date']??'');
         $context=['source'=>$key,'sourceId'=>(string)($r['id']??$r['ref']??$r['slip']??'#'.($index+1)),'date'=>mr_valid_date($date)?$date:'','kind'=>$kind,'basis'=>'Recorded quantity','scopeVerified'=>trim((string)($r['entity']??''))!==''&&trim((string)($r['millName']??$r['locationName']??$r['mill']??$r['stockLocation']??''))!==''];
     };
-    foreach(tt_inv_rows($values,'tt30slips')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt30slips',$r,$i,'Arrival');$add((string)($r['displayName']??tt_inv_product($r,(string)($r['productStage']??'RAW'))),(float)($r['payableWeight']??0));}
+    $receiptDetails=static function(array $row):array{
+        $details=[];
+        foreach(['bags','loadingWeight','karachiWeight','brokenKat','moistureKat','damageKat','chalkyKat','paddyKat'] as $field){
+            if(isset($row[$field])&&is_numeric($row[$field]))$details[$field]=(float)$row[$field];
+        }
+        return $details;
+    };
+    foreach(tt_inv_rows($values,'tt30slips') as $i=>$r){
+        if(!tt_inv_same_scope($scope,$r))continue;
+        $source('tt30slips',$r,$i,'Arrival');
+        if(!empty($scope['arrivalEstimates']))$context['receiptDetails']=$receiptDetails($r);
+        $add((string)($r['displayName']??tt_inv_product($r,(string)($r['productStage']??'RAW'))),(float)($r['payableWeight']??0));
+    }
+    if(!empty($scope['arrivalEstimates']))foreach(tt_inv_pending_arrivals($values) as $r){
+        if(!tt_inv_same_scope($scope,$r))continue;
+        $source('tt30queue',$r,0,'Arrival');
+        $context['date']=$r['date'];
+        $context['arrivalEstimate']=true;
+        $context['basis']=TT_INV_POHANCH_ESTIMATE;
+        $context['receiptDetails']=$receiptDetails(['loadingWeight'=>$r['weight']]+$r);
+        $add(trim((string)($r['displayName']??''))?:tt_inv_product($r,(string)($r['productStage']??'RAW')),(float)$r['weight']);
+    }
     foreach(tt_inv_rows($values,'tt30prod')as$i=>$p){if(!tt_inv_same_scope($scope,$p))continue;$source('tt30prod',$p,$i,'Production output');$input=0.;
         foreach((array)($p['rows']??[])as$r){if(!is_array($r)||tt_inv_is_private_row($r)||!empty($r['noStockPost']))continue;$kg=(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);if(!empty($p['recoveryVersion']))$kg=mr_output_kg($r);$add(tt_inv_output_name($p,$r),$kg);$input+=$kg;}
         if(!empty($p['recoveryVersion']))$input=mr_consumption_kg($p)??$input;
@@ -380,9 +422,9 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         }
         // A final-entry tick belongs to a complete shift, not to one partial lot.
         $changed=[];foreach($out as$r){$b=$index[(string)$r['id']]??null;$a=$r;unset($a['createdAt'],$a['updatedAt'],$a['serverSequence']);if($b){unset($b['createdAt'],$b['updatedAt'],$b['serverSequence']);}if($a!==$b)$changed[]=$r;}
-        $projected=array_replace($values,['tt30prod'=>tt_inv_json($out)]);
-        // Record actual by-product packing even when the dated Arrival / Pohanch balance needs reconciliation.
-        tt_inv_guard_calculated_stock($values,$projected,$changed);
+        // Raw rice can be physically processed before the receipt paperwork is posted.
+        $reprocessing=array_filter($changed,static fn($run)=>strtoupper((string)($run['inputStage']??'RAW'))!=='RAW');
+        if($reprocessing)tt_inv_guard_calculated_stock($values,array_replace($values,['tt30prod'=>tt_inv_json($out)]),$reprocessing);
         foreach($changed as$r)foreach($out as&$other)if((string)$other['id']!==(string)$r['id']&&tt_inv_same_scope($r,$other)&&($r['date']??'')===($other['date']??'')&&tt_inv_shift_name((string)($r['shift']??''))===tt_inv_shift_name((string)($other['shift']??'')))$other['shiftEntriesComplete']=false;unset($other);
     }
     if($key==='tt32stockadj')foreach($old as$r)if(($r['type']??'')==='Paltai Transfer'&&!isset($seen[(string)$r['id']]))throw new DomainException('Saved Paltai transfers cannot be removed.');
