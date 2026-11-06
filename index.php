@@ -22,7 +22,7 @@ if (($user['role'] ?? '') === 'Super Admin') {
         $status=$readerStatus[$provider];
         $readerBadges.='<span style="display:block;color:'.($status['linked']?'#087548':'#5c6670').';font-size:12px">'.($status['linked']?'✓ ':'').$name.' · '.htmlspecialchars($status['label'],ENT_QUOTES,'UTF-8').'</span>';
     }
-    $html=str_replace('<p class="nav-label">ADMINISTRATION</p>', '<p class="nav-label">ADMINISTRATION</p><a class="nav-item" href="document-reader-settings.php"><span class="nav-icon">AI</span><span>Document Reader Settings'.$readerBadges.'</span></a>', (string)$html);
+    $html=str_replace('<p class="nav-label">ADMINISTRATION</p>', '<p class="nav-label">ADMINISTRATION</p><a class="nav-item" href="document-reader-settings.php"><span class="nav-icon">AI</span><span>Document Reader Settings'.$readerBadges.'</span></a><a class="nav-item" href="telegram-alerts-settings.php"><span class="nav-icon">TG</span><span>Telegram Alerts</span></a>', (string)$html);
 }
 $moduleHomes = [
     'accounts' => ['permission' => 'Accounts', 'url' => '/accounts/index.php', 'label' => 'Accounts'],
