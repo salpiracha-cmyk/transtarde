@@ -32,7 +32,7 @@ function zipmeta(string $path):array{
    $e=unpack('vmade/vneed/vflags/vmethod/vtime/vdate/Vcrc/Vcsize/Vusize/vnlen/velen/vclen/vdisk/vinternal/Vexternal/Voffset',substr($h,4));
    $name=exact($f,$e['nlen']);if($e['elen']+$e['clen'])exact($f,$e['elen']+$e['clen']);
    if(str_starts_with($name,'/')||preg_match('~(^|/)\.\.(/|$)~',$name)||isset($entries[$name]))throw new RuntimeException('Unsafe ZIP path');
-   $entries[$name]=true;$key=bucket($name);add($groups,$key,$e['usize']);$packed+=$e['csize'];$unpacked+=$e['usize'];
+   $entries[$name]=['packed'=>$e['csize'],'size'=>$e['usize']];$key=bucket($name);add($groups,$key,$e['usize']);$packed+=$e['csize'];$unpacked+=$e['usize'];
    $largest[]=['category'=>$key,'pathId'=>substr(hash('sha256',$name),0,12),'bytes'=>$e['usize'],'compressedBytes'=>$e['csize']];
    if($name==='backup-manifest.json')$manifestEntry=$e;
   }
@@ -46,17 +46,28 @@ function zipmeta(string $path):array{
    $m=json_decode($raw,true,512,JSON_THROW_ON_ERROR);$result['manifestValid']=($m['application']??'')==='Transtrade'&&($m['type']??'')==='server_snapshot';
    $result['snapshotKind']=in_array($m['snapshotKind']??'', ['auto','manual','pre-restore'],true)?$m['snapshotKind']:'other';
    $result['createdAt']=preg_match('/^\d{4}-\d{2}-\d{2}T[0-9:+Z-]+$/D',(string)($m['createdAt']??''))?$m['createdAt']:null;
-   $inv=[];foreach(($m['recoveryFiles']??[])as$x){$p=$x['path']??'';if(!is_string($p)||!isset($entries['System_Recovery/private/'.$p]))throw new RuntimeException('Manifest path missing');$inv[$p]=['size'=>$x['size']??null,'sha256'=>$x['sha256']??null];}
+   $inv=[];$fingerprints=[];foreach(($m['recoveryFiles']??[])as$x){$p=$x['path']??'';if(!is_string($p)||!isset($entries['System_Recovery/private/'.$p]))throw new RuntimeException('Manifest path missing');$inv[$p]=['size'=>$x['size']??null,'sha256'=>$x['sha256']??null];$entry=$entries['System_Recovery/private/'.$p];$sha=$x['sha256']??null;if(is_string($sha)&&preg_match('/^[a-f0-9]{64}$/D',$sha)&&($x['size']??null)===$entry['size'])$fingerprints[]=['key'=>$sha.':'.$entry['size'],'bytes'=>$entry['packed'],'category'=>bucket($p)];}
+   if($result['manifestValid'])$result['fingerprints']=$fingerprints;
    ksort($inv);$result['declaredInventoryDigest']=hash('sha256',json_encode($inv));$result['declaredRecoveryFiles']=count($inv);
   }
   return $result;
  }finally{fclose($f);}
 }
-$out=['mode'=>'read_only_metadata','backupFiles'=>0,'backupBytes'=>0,'symlinksSkipped'=>0,'types'=>[],'byDate'=>[],'zipDirectoryReadable'=>0,'zipDirectoryFailed'=>0,'zipContentCategories'=>[],'manifestInventoryGroups'=>[],'largestBackups'=>[],'livePrivateExcludingBackupsAndSessions'=>[]];$rows=[];$inventories=[];
+$out=['mode'=>'read_only_metadata','backupFiles'=>0,'backupBytes'=>0,'symlinksSkipped'=>0,'types'=>[],'byDate'=>[],'zipDirectoryReadable'=>0,'zipDirectoryFailed'=>0,'zipContentCategories'=>[],'manifestInventoryGroups'=>[],'largestBackups'=>[],'livePrivateExcludingBackupsAndSessions'=>[]];$rows=[];$inventories=[];$content=[];$covered=0;
 $it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root,FilesystemIterator::SKIP_DOTS));
 foreach($it as$file){if($file->isLink()){$out['symlinksSkipped']++;continue;}if(!$file->isFile())continue;$path=$file->getPathname();$name=$file->getFilename();$bytes=$file->getSize();$date=gmdate('Y-m-d',$file->getMTime());$kind=preg_match('/^(auto|manual|pre-restore)-/',$name,$m)?$m[1]:(str_ends_with($name,'.tmp')?'unfinished_temp':(str_ends_with($name,'.zip')?'other_zip':'other_file'));$out['backupFiles']++;$out['backupBytes']+=$bytes;add($out['types'],$kind,$bytes);add($out['byDate'],$date,$bytes);
  $row=['fileId'=>substr(hash('sha256',substr($path,strlen($root))),0,12),'kind'=>$kind,'bytes'=>$bytes,'modifiedUtc'=>gmdate('c',$file->getMTime())];
- if(str_ends_with(strtolower($name),'.zip')){try{$meta=zipmeta($path);$out['zipDirectoryReadable']++;foreach($meta['categories']as$key=>$v){if(!isset($out['zipContentCategories'][$key]))$out['zipContentCategories'][$key]=['files'=>0,'bytes'=>0];$out['zipContentCategories'][$key]['files']+=$v['files'];$out['zipContentCategories'][$key]['bytes']+=$v['bytes'];}if(isset($meta['declaredInventoryDigest'])){$d=$meta['declaredInventoryDigest'];if(!isset($inventories[$d]))$inventories[$d]=['copies'=>0,'bytes'=>0];$inventories[$d]['copies']++;$inventories[$d]['bytes']+=$bytes;} $row['zip']=$meta;}catch(Throwable $e){$out['zipDirectoryFailed']++;$row['zipStatus']='unreadable_or_unsupported';}}
+ if(str_ends_with(strtolower($name),'.zip')){try{$meta=zipmeta($path);$out['zipDirectoryReadable']++;foreach($meta['categories']as$key=>$v){if(!isset($out['zipContentCategories'][$key]))$out['zipContentCategories'][$key]=['files'=>0,'bytes'=>0];$out['zipContentCategories'][$key]['files']+=$v['files'];$out['zipContentCategories'][$key]['bytes']+=$v['bytes'];}if(isset($meta['declaredInventoryDigest'])){$d=$meta['declaredInventoryDigest'];if(!isset($inventories[$d]))$inventories[$d]=['copies'=>0,'bytes'=>0];$inventories[$d]['copies']++;$inventories[$d]['bytes']+=$bytes;} if(isset($meta['fingerprints'])){
+    $covered++;
+    foreach($meta['fingerprints'] as $fingerprint){
+     $key=$fingerprint['key'];$bytes=$fingerprint['bytes'];
+     $content[$key]??=['copies'=>0,'packedBytes'=>0,'smallestCopy'=>$bytes,'category'=>$fingerprint['category']];
+     $content[$key]['copies']++;$content[$key]['packedBytes']+=$bytes;
+     $content[$key]['smallestCopy']=min($content[$key]['smallestCopy'],$bytes);
+    }
+    unset($meta['fingerprints']);
+   }
+   $row['zip']=$meta;}catch(Throwable $e){$out['zipDirectoryFailed']++;$row['zipStatus']='unreadable_or_unsupported';}}
  $rows[]=$row;
 }
 usort($rows,fn($a,$b)=>$b['bytes']<=>$a['bytes']);$out['largestBackups']=array_slice($rows,0,8);usort($inventories,fn($a,$b)=>$b['copies']<=>$a['copies']);$out['manifestInventoryGroups']=['distinctInventories'=>count($inventories),'groupsWithMultipleCopies'=>count(array_filter($inventories,fn($g)=>$g['copies']>1)),'largestGroups'=>array_slice($inventories,0,8),'note'=>'Declared manifest content identity only; not full archive integrity verification'];ksort($out['byDate']);
@@ -85,6 +96,22 @@ foreach(['application'=>$target,'private'=>$private,'deployment'=>$deploy] as $a
  }
  uasort($folders,static fn($a,$b)=>$b['bytes']<=>$a['bytes']);
  $out['folderBreakdown'][$area]=array_slice($folders,0,40,true);
+}
+$repeat=['snapshotManifests'=>$covered,'matchedEntries'=>0,'distinctContent'=>count($content),'compressedBytesMatched'=>0,'compressedBytesBeyondOneCopy'=>0,'byCategory'=>[]];
+foreach($content as $group){
+ $repeat['matchedEntries']+=$group['copies'];$repeat['compressedBytesMatched']+=$group['packedBytes'];
+ $bytes=$group['packedBytes']-$group['smallestCopy'];
+ $repeat['compressedBytesBeyondOneCopy']+=$bytes;
+ if($group['copies']>1)$repeat['byCategory'][$group['category']]=($repeat['byCategory'][$group['category']]??0)+$bytes;
+}
+$out['repeatedSnapshotContent']=$repeat;
+$officeState=$root.'/.office-transfer/state.json';
+if(is_file($officeState)&&!is_link($officeState)&&realpath($officeState)===$officeState&&filesize($officeState)<=65536){
+ $state=json_decode(file_get_contents($officeState),true);
+ if(is_array($state)){
+  $out['lastOfficeTransfer']=['state'=>in_array($state['state']??'', ['acknowledged','ready','building','failed','verifying'],true)?$state['state']:'other'];
+  foreach(['createdAt','readyAt','length'] as $field)if(is_int($state[$field]??null))$out['lastOfficeTransfer'][$field]=$state[$field];
+ }
 }
 $out['backupAndTemporaryBytes']=$out['backupBytes']+$out['ownedTemporaryArchives']['bytes'];
 $out['scopeNote']='Transtrade app, private recovery storage, owned generated temporary archives and deployment directory; excludes provider-managed backups, mail and other websites. Filesystem bytes are not the hosting account quota.';
