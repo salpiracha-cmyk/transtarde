@@ -243,9 +243,10 @@ function tt_inv_arrival_packing_qty(array $run): int {
         }else{
             $qty=$row['bags']??0;
         }
-        if(!is_numeric($qty)||!is_finite((float)$qty)||(float)$qty<0||(float)$qty>100000000||(float)$qty!==floor((float)$qty))
-            throw new DomainException('Enter a whole arrival bag count for '.$row['product'].'.');
-        $total+=(int)$qty*($override!==null&&$override!==''?1:$ratios[$product]);
+        $hasOverride=$override!==null&&$override!=='';
+        if(!is_numeric($qty)||!is_finite((float)$qty)||(float)$qty<0||(float)$qty>100000000||($hasOverride&&(float)$qty!==floor((float)$qty)))
+            throw new DomainException('The saved packing quantity for '.$row['product'].' is invalid.');
+        $total+=(int)ceil(round((float)$qty,8))*($hasOverride?1:$ratios[$product]);
     }
     return $total;
 }
