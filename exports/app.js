@@ -312,7 +312,7 @@ function exportWorkspaceChanges(before,after){
  const compare=(a,b,path)=>{
   if(a===b)return;
   if(Array.isArray(a)&&Array.isArray(b)){
-   if(path.length===1&&path[0]==='audits'&&b.length>a.length&&a.every((row,index)=>row?.id&&row.id===b[b.length-a.length+index]?.id)){
+   if(path.length===1&&path[0]==='audits'&&b.length>a.length&&a.every((row,index)=>JSON.stringify(row)===JSON.stringify(b[b.length-a.length+index]))){
     changes.push({action:'prepend',path:[...path,null],value:b.slice(0,b.length-a.length)});
     return;
    }
@@ -2552,21 +2552,22 @@ async function issuePO(){
  audit('BAG ORDER',editing?'Updated same white-paper PO and sent to Mill':'Generated one white-paper PO and sent to Mill',s.contractRef+' · '+out.poNo,!scoped);
  const changes=scoped?exportWorkspaceChanges(before,{shipments:[s],audits:state.audits}):null;
  if(changes)changes.push({action:'replaceBagPoLines',path:['millSync','newExportBags'],shipmentId:s.id,contractRef:s.contractRef,poNo:out.poNo,value:lines});
- const intent={order:out,changes};
+ const identity=scoped?{kind:'bagOrder',id:contractByRef(s.contractRef).id,processId:s.id,poNo:out.poNo,auditId:state.audits[0].id}:null;
+ const intent={order:out,changes,identity};
  pendingFinalOrders.set(s.id,intent);
  return finishBagPo(s.id,intent,button);
 }
 async function finishBagPo(shipmentId,intent,button){
- const {order,changes}=intent;
+ const {order,changes,identity}=intent;
  button.disabled=true;
  try{
   if(changes){
    const matches=raw=>{
     const root=JSON.parse(raw);
     const saved=root.shipments?.find(row=>row.id===shipmentId)?.bagOrders?.find(row=>row.poNo===order.poNo);
-    return saved?.issuedAt===order.issuedAt;
+    return saved?.issuedAt===order.issuedAt&&!saved.cancelled&&root.audits?.some(row=>row.id===identity.auditId&&row.savePoNo===order.poNo&&row.saveFingerprint);
    };
-   await window.TT_SHARED_SYNC.commitContractChanges(changes,matches);
+   await window.TT_SHARED_SYNC.commitContractChanges(changes,matches,identity);
    state=normalize(JSON.parse(window.TT_SHARED_SYNC.readCommitted(STORE)));
   }else{
    if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');

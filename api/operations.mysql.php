@@ -667,7 +667,7 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
     // clear. Concurrent writers are still protected by the version check above,
     // while Accounts and Milling keep their additive alert merge branches.
     $merged['alerts'] = array_values((array)($incoming['alerts'] ?? []));
-    $merged['audits'] = operations_union_rows((array)($current['audits'] ?? []), (array)($incoming['audits'] ?? []), ['id', 'at']);
+    $merged['audits'] = ep_merge_audits((array)($current['audits'] ?? []), (array)($incoming['audits'] ?? []));
     return json_encode($applyTombstones($merged), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 }
 
@@ -763,7 +763,7 @@ function operations_file_fallback(array $user): never {
         }
         $revision=(int)($store['revision']??0);
     } finally { flock($handle,LOCK_UN); fclose($handle); }
-    if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>$contractRequest!==null?'This contract or a linked record changed. Reopen it to review the latest saved version before applying your edits.':'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
+    if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>$contractRequest!==null?(($contractRequest['kind']??'')==='bagOrder'?'This Bag Order or its packing requirements changed. Reopen it before applying your edits.':'This contract or a linked record changed. Reopen it to review the latest saved version before applying your edits.'):'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
     if($key==='transtrade_export_v3_operational'&&tt_receipt_invoice_source_changed($old,(string)($store['values'][$key]??$value)))try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>operations_public_value($key,(string)($store['values'][$key]??$value),$user,(array)$store['values']), 'related'=>in_array($key,['tt30prod','tt32stockadj'],true)?operations_production_related($store['values'],$store['meta'],$user):[]]+(empty($receipt)?[]:['contractReceipt'=>$receipt]));
 }
@@ -849,7 +849,7 @@ try {
         operations_respond([
             'ok' => false,
             'conflict' => true,
-            'error' => $contractRequest!==null?'This contract or a linked record changed. Reopen it to review the latest saved version before applying your edits.':'A newer shared update is available. Refresh before saving again.',
+            'error' => $contractRequest!==null?(($contractRequest['kind']??'')==='bagOrder'?'This Bag Order or its packing requirements changed. Reopen it before applying your edits.':'This contract or a linked record changed. Reopen it to review the latest saved version before applying your edits.'):'A newer shared update is available. Refresh before saving again.',
             'keyVersion' => $version,
         ], 409);
     }
