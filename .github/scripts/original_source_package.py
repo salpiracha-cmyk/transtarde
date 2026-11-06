@@ -6,7 +6,7 @@ import json
 import pathlib
 import subprocess
 
-EXCLUDED = {'.github', 'tests', 'docs', 'data', 'uploads', 'storage', 'cache', 'logs'}
+EXCLUDED = {'.github', 'tests', 'docs', 'ops', 'data', 'uploads', 'storage', 'cache', 'logs'}
 BASELINE = '39e505c3152572feae96350124b00b372ff07138'
 
 

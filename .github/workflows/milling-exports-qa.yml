@@ -3,6 +3,12 @@ name: Milling and Exports QA
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'exports-canary/**'
+      - '.github/workflows/hosting-housekeeping.yml'
+      - '.github/scripts/hosting_housekeeping.sh'
+      - '.github/workflows/deploy-production.yml'
+      - '.github/scripts/original_source_package.py'
   pull_request:
     paths:
       - 'document-filenames.js'
