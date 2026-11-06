@@ -15,7 +15,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) {
             throw new DomainException('Your session expired. Refresh and try again.');
         }
-        if (($_POST['action'] ?? '') === 'test') {
+        if (($_POST['action'] ?? '') === 'recovery') {
+            tt_telegram_send_recovery_test();
+            header('Location: telegram-alerts-settings.php?pdf=1', true, 303);
+        } elseif (($_POST['action'] ?? '') === 'test') {
             tt_telegram_send_test();
             header('Location: telegram-alerts-settings.php?sent=1', true, 303);
         } else {
@@ -48,6 +51,7 @@ $csrf = htmlspecialchars(tt_csrf(), ENT_QUOTES, 'UTF-8');
 <p>Connect the private Transtrade Operations Alerts group and verify delivery from the server.</p>
 <?php if ($error !== ''): ?><p role="alert" class="error"><?=htmlspecialchars($error, ENT_QUOTES, 'UTF-8')?></p><?php endif; ?>
 <?php if (isset($_GET['saved']) && $connected): ?><p role="status">Telegram connection saved.</p><?php endif; ?>
+<?php if (isset($_GET['pdf']) && $connected): ?><p role="status">Telegram confirmed delivery of the TTI Recovery PDF.</p><?php endif; ?>
 <?php if (isset($_GET['sent']) && $connected): ?><p role="status">Telegram confirmed delivery of the test message.</p><?php endif; ?>
 <section>
 <h2><?= $connected ? 'Replace connection' : 'Connect private group' ?></h2>
@@ -63,6 +67,7 @@ $csrf = htmlspecialchars(tt_csrf(), ENT_QUOTES, 'UTF-8');
 <form method="post">
 <input type="hidden" name="csrf" value="<?=$csrf?>">
 <button type="submit" name="action" value="test">Send test message</button>
+<button type="submit" name="action" value="recovery">Send TTI Recovery PDF · previous 7 days</button>
 </form></section>
 <?php endif; ?>
 </main>
