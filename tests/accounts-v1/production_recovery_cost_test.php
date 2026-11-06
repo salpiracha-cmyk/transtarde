@@ -83,9 +83,13 @@ $blocked=false;
 try{tt_inv_guard_arrival_bags($packingSaved,array_replace($packingSaved,['tt30prod'=>json_encode([$tooMany])]),[$tooMany]);}catch(DomainException $e){$blocked=str_contains($e->getMessage(),'Short by 1');}
 ok($blocked,'Amendment cannot consume unavailable arrival stock');
 $kgOnly=array_replace($packingRun,['rows'=>[['product'=>'B3','bags'=>1,'bagWeight'=>500,'arrivalPackingKgOnly'=>true]]]);
-$blocked=false;
-try{tt_inv_arrival_packing_qty($kgOnly);}catch(DomainException $e){$blocked=str_contains($e->getMessage(),'entered by weight');}
-ok($blocked,'Synthetic one-bag weight entry is not an actual arrival bag count');
+near(tt_inv_arrival_packing_qty($kgOnly),20,'500 kg B3 automatically uses two arrival bags per 50 kg pack');
+$kgOnly['rows'][0]['bagWeight']=501;
+near(tt_inv_arrival_packing_qty($kgOnly),22,'A partially filled pack still uses whole bags');
+$kgOnly['rows'][0]['arrivalPackingUnitKg']=40;
+near(tt_inv_arrival_packing_qty($kgOnly),26,'Automatic packing uses the weight set in the production row');
+$partial=array_replace($packingRun,['rows'=>[['product'=>'B3','bags'=>1.5,'bagWeight'=>50]]]);
+near(tt_inv_arrival_packing_qty($partial),4,'Fractional by-product output needs no separate Arrival bag input');
 $reported=array_replace($guardRun,['id'=>'shortage-shift','date'=>'2026-11-05','arrivalPackingVersion'=>1,'rows'=>[['id'=>5,'product'=>'B3','bags'=>10,'bagWeight'=>50]],'calculatedInputKg'=>500]);
 $stockBefore=['tt30prod'=>'[]','tt30slips'=>json_encode([['entity'=>'TTI','millName'=>'TTI Rice Mills','unloadingDate'=>'2026-11-04','displayName'=>'IRRI-6 White Raw Rice','payableWeight'=>2000,'bags'=>12]])];
 $posted=tt_inv_prepare_write($stockBefore,'tt30prod',json_encode([$reported]),['id'=>7,'permissions'=>['Mill'=>['production'=>['Create']]]],'2026-11-05T12:00:00Z');

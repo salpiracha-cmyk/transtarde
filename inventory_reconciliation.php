@@ -235,13 +235,18 @@ function tt_inv_arrival_packing_qty(array $run): int {
         $override=$row['arrivalBagsUsed']??null;
         if($override!==null&&$override!==''){
             $qty=$override;
+        }elseif(!empty($row['arrivalPackingKgOnly'])||($row['outputUnit']??'')==='KG'){
+            $unitKg=$row['arrivalPackingUnitKg']??($product==='powder'?35:50);
+            if(!is_numeric($unitKg)||!is_finite((float)$unitKg)||(float)$unitKg<=0)throw new DomainException('The packing weight for '.$row['product'].' must be positive.');
+            $kg=mr_output_kg($row)+(float)($row['lessKg']??0)-(float)($row['loadingAdjustmentKg']??0);
+            $qty=ceil(round($kg/(float)$unitKg,8));
         }else{
-            if(!empty($row['arrivalPackingKgOnly'])||($row['outputUnit']??'')==='KG')throw new DomainException('Enter actual arrival bags used for '.$row['product'].' because the output was entered by weight.');
             $qty=$row['bags']??0;
         }
-        if(!is_numeric($qty)||!is_finite((float)$qty)||(float)$qty<0||(float)$qty>100000000||(float)$qty!==floor((float)$qty))
-            throw new DomainException('Enter a whole arrival bag count for '.$row['product'].'.');
-        $total+=(int)$qty*($override!==null&&$override!==''?1:$ratios[$product]);
+        $hasOverride=$override!==null&&$override!=='';
+        if(!is_numeric($qty)||!is_finite((float)$qty)||(float)$qty<0||(float)$qty>100000000||($hasOverride&&(float)$qty!==floor((float)$qty)))
+            throw new DomainException('The saved packing quantity for '.$row['product'].' is invalid.');
+        $total+=(int)ceil(round((float)$qty,8))*($hasOverride?1:$ratios[$product]);
     }
     return $total;
 }
