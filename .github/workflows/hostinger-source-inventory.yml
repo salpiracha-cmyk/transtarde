@@ -2,7 +2,7 @@ name: Read-only Hostinger source inventory
 on:
   push:
     branches: [codex/hostinger-source-inventory]
-    paths: ['.github/workflows/hostinger-source-inventory.yml']
+    paths: ['.github/workflows/hostinger-source-inventory.yml', '.github/scripts/hostinger_source_inventory.py']
 permissions:
   contents: read
 concurrency:
