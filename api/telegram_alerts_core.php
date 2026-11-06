@@ -88,7 +88,7 @@ function tt_telegram_send_recovery_test(): void {
     $today = new DateTimeImmutable('today', new DateTimeZone('Asia/Karachi'));
     $from = $today->modify('-7 days')->format('Y-m-d');
     $to = $today->modify('-1 day')->format('Y-m-d');
-    $ops = mr_read_operations_source(TT_DATA_DIR.'/operations.json');
+    $ops = mr_read_operations_source(TT_DATA_DIR.'/operations.json', ['tt30prod']);
     $runs = json_decode($ops['values']['tt30prod'] ?? '[]', true, 512, JSON_THROW_ON_ERROR);
     $report = mr_report($runs, ['entity' => 'TTI', 'mode' => 'daily', 'from' => $from, 'to' => $to]);
     if (!$report['groups']) throw new DomainException('There are no TTI recovery records in the previous seven days.');
