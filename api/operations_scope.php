@@ -285,18 +285,19 @@ function os_identity(mixed $row): string {
     return 'value|'.hash('sha256',tt_inv_json($row));
 }
 /** Rebuild only omitted protected facts; visible omissions retain existing deletion semantics. */
-function os_rebuild(mixed $old,mixed $visible,mixed &$incoming): mixed {
+function os_rebuild(mixed $old,mixed $visible,mixed &$incoming,string $path=''): mixed {
+    if(operations_same_value($incoming,$visible))return $old;
     if(!is_array($old)||!is_array($visible)||!is_array($incoming))return $incoming;
     if(array_is_list($old)&&array_is_list($visible)&&array_is_list($incoming)){
         if(operations_same_value($old,$visible))return $incoming;
         if(count($old)===count($visible)&&count($old)===count($incoming)&&!array_filter($old,static fn($r)=>!str_starts_with(os_identity($r),'value|'))){
-            $out=[];foreach($incoming as $i=>&$row)$out[]=os_rebuild($old[$i],$visible[$i],$row);unset($row);return $out;
+            $out=[];foreach($incoming as $i=>&$row)$out[]=os_rebuild($old[$i],$visible[$i],$row,$path);unset($row);return $out;
         }
         $before=$seen=$submitted=$identities=[];
-        foreach($old as $row){$id=os_identity($row);if(isset($before[$id]))throw new DomainException('Shared record identities need review.');$before[$id]=$row;}
+        foreach($old as $row){$id=os_identity($row);if(isset($before[$id]))throw new DomainException('Shared record identities need review in '.($path?:'the shared list').'.');$before[$id]=$row;}
         foreach($visible as $row)$seen[os_identity($row)]=$row;
         foreach($incoming as $index=>$row){
-            $id=os_identity($row);if(isset($identities[$id]))throw new DomainException('Shared record identities must be unique.');$identities[$id]=true;
+            $id=os_identity($row);if(isset($identities[$id]))throw new DomainException('Shared record identities must be unique in '.($path?:'the shared list').'.');$identities[$id]=true;
             if(isset($before[$id])&&!isset($seen[$id])){
                 // An older tab can echo unchanged records after its access narrows.
                 // Keep the server original, discard the echo from the write intent,
@@ -308,7 +309,7 @@ function os_rebuild(mixed $old,mixed $visible,mixed &$incoming): mixed {
         }
         $incoming=array_values($incoming);
         if(count($old)===count($visible)&&operations_same_value($old,$visible))return $incoming;
-        $out=[];$accepted=[];foreach($old as $row){$id=os_identity($row);if(!isset($seen[$id]))$out[]=$row;elseif(isset($submitted[$id])){$out[]=os_rebuild($row,$seen[$id],$submitted[$id]);$accepted[$id]=$submitted[$id];unset($submitted[$id]);}}
+        $out=[];$accepted=[];foreach($old as $row){$id=os_identity($row);if(!isset($seen[$id]))$out[]=$row;elseif(isset($submitted[$id])){$out[]=os_rebuild($row,$seen[$id],$submitted[$id],$path);$accepted[$id]=$submitted[$id];unset($submitted[$id]);}}
         foreach($submitted as $id=>$row){$out[]=$row;$accepted[$id]=$row;}
         foreach($incoming as &$row)$row=$accepted[os_identity($row)];unset($row);return $out;
     }
@@ -316,7 +317,7 @@ function os_rebuild(mixed $old,mixed $visible,mixed &$incoming): mixed {
     $out=$incoming;
     foreach($old as $key=>$value){
         if(!array_key_exists($key,$visible)){if(array_key_exists($key,$incoming)&&!ep_empty($incoming[$key])&&!operations_same_value($value,$incoming[$key]))throw new DomainException('A cached field is outside your current access and cannot be changed. Reopen this module and retry your entry. No changes were saved.');unset($incoming[$key]);$out[$key]=$value;}
-        elseif(array_key_exists($key,$incoming))$out[$key]=os_rebuild($value,$visible[$key],$incoming[$key]);
+        elseif(array_key_exists($key,$incoming))$out[$key]=os_rebuild($value,$visible[$key],$incoming[$key],$path===''?(string)$key:$path.'.'.$key);
     }
     return $out;
 }
@@ -344,6 +345,7 @@ function os_prepare_write(array $u,string $key,string $incomingJson,array $value
     if($projected===null)throw new DomainException('The submitted shared records are outside your company or location.');
     // Every nonempty submitted fact must survive its authorization projection.
     $check=static function($input,$allowed)use(&$check):bool{
+        if(operations_same_value($input,$allowed))return true;
         if(!is_array($input))return operations_same_value($input,$allowed);
         if(!is_array($allowed))return ep_empty($input);
         if(array_is_list($input)){

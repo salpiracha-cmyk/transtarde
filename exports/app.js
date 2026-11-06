@@ -2535,19 +2535,48 @@ function contractPriceHTML(c,packings){
 async function issuePO(){
  const s=shipment(),po=ensureBagDraft(),editing=Number.isInteger(po?._updateIndex),existing=(s.bagOrders||[]).filter(order=>!order.cancelled);
  const button=document.getElementById('generatePO'),pending=pendingFinalOrders.get(s.id);
- if(pending){button.disabled=true;try{if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow();pendingFinalOrders.delete(s.id);bagOrderDrafts.delete(String(s.id));await directPrint('PURCHASE ORDER',purchaseOrderPrint(pending),'without',false,{party:pending.supplier,reference:pending.poNo,title:'Purchase Order'});renderShipmentWorkspace()}catch(error){button.disabled=false;showExportSaveError(error.message,button)}return}
+ if(pending)return finishBagPo(s.id,pending,button);
  if(!editing&&existing.length)return alert(`A Bag Purchase Order already exists for this contract (${existing.map(order=>order.poNo).join(', ')}). Open it with "Update Same PO" instead of generating the same order again.`);
  if(!po.supplier)return alert('Select Supplier.');if(!bagSupplierMasterNames().some(row=>row.name===po.supplier))return alert('Select a party marked Bag Supplier in M → Business Parties.');
  if(po.lines.some(line=>num(line.tare)<=0))return alert('Enter a tare weight greater than zero for every main bag line before issuing the Bag Order.');
  if(po.lines.some(line=>line.masterBag?.enabled&&num(line.masterBag.tare)<=0))return alert('Enter a tare weight greater than zero for every required master bag before issuing the Bag Order.');
  if(po.lines.some(line=>!line.artworkAttached))return alert('Upload the bag marking for every main bag size.');
  if(po.lines.some(line=>line.masterBag?.enabled&&line.masterBag.printed&&!line.masterBag.artworkAttached))return alert('Upload the marking for every printed Master Bag.');
+ const scoped=typeof window.TT_SHARED_SYNC?.commitContractChanges==='function';
+ const before=scoped?{shipments:[structuredClone(s)],audits:state.audits.slice()}:null;
  const out=structuredClone(po);out.issuedAt=new Date().toISOString();out.status='Synced to Mill';
  if(editing){const previous=s.bagOrders[po._updateIndex];out.poNo=previous.poNo;out.versions=[...(previous.versions||[]),{at:out.issuedAt,snapshot:structuredClone({...previous,versions:[]})}];s.bagOrders[po._updateIndex]=out}else s.bagOrders.push(out);
  state.millSync.newExportBags=state.millSync.newExportBags.filter(row=>!(row.contractRef===s.contractRef&&row.poNo===out.poNo));
- out.lines.forEach((line,index)=>state.millSync.newExportBags.push({contractRef:s.contractRef,poNo:out.poNo,supplier:out.supplier,deliverTo:out.deliverTo,requiredDate:out.requiredDate,line:index+1,brand:line.brand,type:line.type,size:line.size,unit:line.unit,orderedTare:line.tare,requiredBags:line.requiredBags,emptyBags:line.emptyBags,totalOrdered:line.totalBags,artworkName:line.artworkName,artworkData:line.artworkData,artworkDocument:line.artworkDocument||null,approved:true,handle:line.handle,masterBag:line.masterBag,status:'Order from Export — Awaiting Receipt'}));
- audit('BAG ORDER',editing?'Updated same white-paper PO and sent to Mill':'Generated one white-paper PO and sent to Mill',s.contractRef+' · '+out.poNo);pendingFinalOrders.set(s.id,out);button.disabled=true;try{if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow();pendingFinalOrders.delete(s.id);bagOrderDrafts.delete(String(s.id));await directPrint('PURCHASE ORDER',purchaseOrderPrint(out),'without',false,{party:out.supplier,reference:out.poNo,title:'Purchase Order'});renderShipmentWorkspace()}catch(error){button.disabled=false;showExportSaveError(error.message,button)}
-};
+ const lines=out.lines.map((line,index)=>({contractRef:s.contractRef,poNo:out.poNo,supplier:out.supplier,deliverTo:out.deliverTo,requiredDate:out.requiredDate,line:index+1,brand:line.brand,type:line.type,size:line.size,unit:line.unit,orderedTare:line.tare,requiredBags:line.requiredBags,emptyBags:line.emptyBags,totalOrdered:line.totalBags,artworkName:line.artworkName,artworkData:line.artworkData,artworkDocument:line.artworkDocument||null,approved:true,handle:line.handle,masterBag:line.masterBag,status:'Order from Export — Awaiting Receipt'}));
+ state.millSync.newExportBags.push(...lines);
+ audit('BAG ORDER',editing?'Updated same white-paper PO and sent to Mill':'Generated one white-paper PO and sent to Mill',s.contractRef+' · '+out.poNo,!scoped);
+ const changes=scoped?exportWorkspaceChanges(before,{shipments:[s],audits:state.audits}):null;
+ if(changes)changes.push({action:'replaceBagPoLines',path:['millSync','newExportBags'],shipmentId:s.id,contractRef:s.contractRef,poNo:out.poNo,value:lines});
+ const intent={order:out,changes};
+ pendingFinalOrders.set(s.id,intent);
+ return finishBagPo(s.id,intent,button);
+}
+async function finishBagPo(shipmentId,intent,button){
+ const {order,changes}=intent;
+ button.disabled=true;
+ try{
+  if(changes){
+   const matches=raw=>{
+    const root=JSON.parse(raw);
+    const saved=root.shipments?.find(row=>row.id===shipmentId)?.bagOrders?.find(row=>row.poNo===order.poNo);
+    return saved?.issuedAt===order.issuedAt;
+   };
+   await window.TT_SHARED_SYNC.commitContractChanges(changes,matches);
+   state=normalize(JSON.parse(window.TT_SHARED_SYNC.readCommitted(STORE)));
+  }else{
+   if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');
+   await window.TT_SHARED_SYNC.saveNow();
+  }
+  pendingFinalOrders.delete(shipmentId);bagOrderDrafts.delete(String(shipmentId));
+  await directPrint('PURCHASE ORDER',purchaseOrderPrint(order),'without',true,{party:order.supplier,reference:order.poNo,title:'Purchase Order'});
+  renderShipmentWorkspace();
+ }catch(error){button.disabled=false;showExportSaveError(error.message,button);}
+}
 
 function purchaseOrderPrint__morning_base(po){
  const lines=po.lines||[],normalRows=[],masterRows=[];let serial=1;

@@ -17,7 +17,8 @@ assert.match(modulePhp, /settleCommits\(message\)/, 'failed saves reject the awa
 assert.match(exportsJs, /document\.getElementById\('nextStep'\)\.onclick=async/, 'Sales Contract Next waits for confirmation');
 assert.match(exportsJs, /await shared\.saveNow\(\)/, 'Start Shipment waits for confirmation');
 assert.match(exportsJs, /async function directPrint\([\s\S]*?await window\.TT_SHARED_SYNC\.saveNow\(\)/, 'printing waits for the server');
-assert.match(exportsJs, /async function issuePO\([\s\S]*?pendingFinalOrders\.set\(s\.id,out\)[\s\S]*?await window\.TT_SHARED_SYNC\.saveNow\(\)/, 'PO printing waits and retries the same order');
+assert.match(exportsJs, /async function issuePO\([\s\S]*?if\(pending\)return finishBagPo\(s\.id,pending,button\);[\s\S]*?pendingFinalOrders\.set\(s\.id,intent\)/, 'PO retry reuses the original save intent');
+assert.match(exportsJs, /async function finishBagPo\([\s\S]*?await window\.TT_SHARED_SYNC\.commitContractChanges\(changes,matches\);[\s\S]*?await directPrint\('PURCHASE ORDER',purchaseOrderPrint\(order\),'without',true,/, 'PO printing waits for the scoped commit and prints without saving again');
 assert.match(exportsJs, /const sendPI=d\.querySelector\('#sendPI'\)[\s\S]*?await window\.TT_SHARED_SYNC\.saveNow\(\)/, 'Production Instructions wait for server confirmation');
 assert.match(modulePhp, /document\.addEventListener\('click',blockWhileSaving,true\)/, 'actions stay blocked during the save');
 assert.doesNotMatch(sourceBridge, /setInterval|mergeServerOutbox\(\)\.then\(flush\)/, 'Accounts handoffs do not post on timers');

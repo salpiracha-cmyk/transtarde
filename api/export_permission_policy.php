@@ -78,7 +78,7 @@ function ep_document_field(array $user,string $field,string $icon,mixed $old,mix
     ep_require($user,$icon,ep_workspace_action($user,$icon,ep_document_saved($field,$old)));
 }
 function ep_sync_rows(array $user,string $field,string $icon,array $old,array $next): void {
-    $identify=static function(array $rows)use($field):array{foreach($rows as &$row){$row['_permissionId']=implode('|',$field==='newExportBags'?[$row['contractRef']??'',$row['poNo']??'',$row['line']??''] : ($field==='exportLoading'?[$row['contractRef']??'',$row['shipmentId']??$row['lotId']??'']:[$row['contractRef']??'']));}unset($row);return $rows;};
+    $identify=static function(array $rows)use($field):array{foreach($rows as &$row){$row['_permissionId']=implode('|',$field==='newExportBags'?[$row['contractRef']??'',$row['poNo']??'',$row['line']??$row['lineId']??''] : ($field==='exportLoading'?[$row['contractRef']??'',$row['shipmentId']??$row['lotId']??'']:[$row['contractRef']??'']));}unset($row);return $rows;};
     ep_child_documents($user,$identify($old),$identify($next),$icon,'_permissionId');
 }
 
