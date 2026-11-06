@@ -42,8 +42,10 @@ function tt_user_can_open_module($u,$m){return true;}
     server = subprocess.Popen(['php','-d','memory_limit=256M','-S',f'127.0.0.1:{port}','-t',str(app)],env=env,stdout=log,stderr=log)
     url = f'http://127.0.0.1:{port}/api/operations.mysql.php?asset_refs=1'
 
-    def send(version, changes):
-        data = json.dumps(dict(csrf='fixture',key=KEY,sourceModule='Exports',baseVersion=version,contractChanges=json.dumps(changes))).encode()
+    def send(version, changes, identity=None):
+        body = dict(csrf='fixture',key=KEY,sourceModule='Exports',baseVersion=version,contractChanges=json.dumps(changes))
+        if identity: body['contractSave']=identity
+        data = json.dumps(body).encode()
         assert len(data)<4096
         try:
             with urlopen(Request(url,data=data,headers={'Content-Type':'application/json'}),timeout=20) as response:
@@ -66,16 +68,22 @@ function tt_user_can_open_module($u,$m){return true;}
         assert state['contracts'][0]['paymentText']=='New wording' and state['shipments'][0]['bagOrders']==shipment['bagOrders']
         assert send(4, wording)[0]==409
         draft={'id':'NEW','ref':'NEW/001','seller':'TTI','issued':False,'status':'Draft','customerId':'CU'}
-        status, saved=send(5,[{'action':'append','path':['contracts',None],'value':[draft]}])
-        assert status==200 and saved['keyVersion']==6, saved
+        draft_audit={'id':'AUD-QA-DRAFT','area':'Sales Contract','action':'Draft created after Buyer & Reference','detail':'NEW/001','contractRef':'NEW/001'}
+        status, saved=send(5,[
+            {'action':'append','path':['contracts',None],'value':[draft]},
+            {'action':'prepend','path':['audits',None],'value':[draft_audit]},
+        ],{'id':'NEW','auditId':draft_audit['id'],'guards':{}})
+        assert status==200 and saved['keyVersion']==6 and saved['contractReceipt']['auditId']==draft_audit['id'], saved
+        issue_audit={**draft_audit,'id':'AUD-QA-ISSUE','action':'Created'}
         status,saved=send(6,[
             {'action':'set','path':['contracts',{'id':'NEW'},'issued'],'value':True},
             {'action':'set','path':['contracts',{'id':'NEW'},'status'],'value':'Awaiting Customer Confirmation'},
             {'action':'set','path':['contracts',{'id':'NEW'},'qty'],'value':50},
             {'action':'append','path':['shipments',None],'value':[{'id':'NEW-P','kind':'process','contractRef':'NEW/001','plannedQty':50}]},
             {'action':'set','path':['customers',{'id':'CU'},'nextSeq'],'value':2},
-        ])
-        assert status==200 and saved['keyVersion']==7, saved
+            {'action':'prepend','path':['audits',None],'value':[issue_audit]},
+        ],{'id':'NEW','auditId':issue_audit['id'],'processId':'NEW-P','guards':{'contracts':{'NEW':draft}}})
+        assert status==200 and saved['keyVersion']==7 and saved['contractReceipt']['auditId']==issue_audit['id'], saved
         state=json.loads(saved['value'])
         assert state['contracts'][1]['issued'] and state['contracts'][1]['qty']==50
         assert len(state['shipments'])==2 and state['shipments'][0]['bagOrders']==shipment['bagOrders']
@@ -90,7 +98,32 @@ function tt_user_can_open_module($u,$m){return true;}
         assert state['shipments'][1]['plannedQty']==60 and state['contracts'][1]['qty']==60
         assert state['contracts'][1]['versions'][0]['snapshot']['qty']==50
         assert state['shipments'][0]['bagOrders']==shipment['bagOrders']
-        print('PASS scoped Exports HTTP saves: wording, new draft, issue and linked quantity amendment on a 17 MiB book')
+        original=state['contracts'][1]
+        audit={'id':'AUD-QA-AMEND','area':'Sales Contract','action':'Amended','detail':'NEW/001','contractRef':'NEW/001'}
+        identity={'id':'NEW','auditId':audit['id'],'processId':'NEW-P','guards':{'contracts':{'NEW':original}}}
+        changes=[
+            {'action':'set','path':['contracts',{'id':'NEW'},'paymentText'],'value':'Scoped payment'},
+            {'action':'prepend','path':['audits',None],'value':[audit]},
+        ]
+        # An unrelated writer updates the same workspace after the editor opened.
+        status,saved=send(8,[{'action':'set','path':['contracts',{'id':'OLD'},'paymentText'],'value':'Concurrent'}])
+        assert status==200 and saved['keyVersion']==9, saved
+        status,saved=send(8,changes,identity)
+        assert status==200 and saved['keyVersion']==10 and saved['contractReceipt']=={'auditId':audit['id'],'id':'NEW'}, saved
+        committed=json.loads(saved['value'])
+        assert committed['contracts'][0]['paymentText']=='Concurrent' and committed['contracts'][1]['paymentText']=='Scoped payment'
+        status,replay=send(8,changes,identity)
+        assert status==200 and replay['keyVersion']==10 and replay['contractReceipt']==saved['contractReceipt'], replay
+        assert len([a for a in json.loads(replay['value'])['audits'] if a['id']==audit['id']])==1
+        changes[-1]['value'][0]['id']='AUD-QA-CONFLICT'
+        identity['auditId']='AUD-QA-CONFLICT'
+        assert send(8,changes,identity)[0]==409
+        # Linked records must exist before the server returns a receipt.
+        identity['processId']='MISSING'
+        assert send(10,changes,identity)[0]==403
+        persisted=json.loads(json.loads(source.read_text())['values'][KEY])
+        assert persisted==committed
+        print('PASS scoped Exports HTTP saves: 17 MiB book, draft and issue receipts, linked amendments, unrelated concurrent writes, retry and real conflicts')
     except Exception:
         log.seek(0)
         print(log.read()[-6000:])

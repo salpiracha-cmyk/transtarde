@@ -692,6 +692,7 @@ function operations_file_fallback(array $user): never {
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf']??''))) operations_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $key=(string)($body['key']??''); $value=$body['value']??null; $baseVersion=max(0,(int)($body['baseVersion']??0)); $sourceModule=trim((string)($body['sourceModule']??''));
     $contractChanges=operations_contract_input($body,$key,$sourceModule);
+    $contractRequest=operations_contract_request($body,$contractChanges);
     if($contractChanges!==null)$value='{}';
     if (!operations_key_allowed($key) || !is_string($value)) operations_respond(['ok'=>false,'error'=>'Invalid operational update.'],422);
     json_decode($value,true); if (json_last_error()!==JSON_ERROR_NONE) operations_respond(['ok'=>false,'error'=>'Operational data must be valid JSON.'],422);
@@ -708,9 +709,16 @@ function operations_file_fallback(array $user): never {
         rewind($handle); $store=json_decode(stream_get_contents($handle)?:'null',true);
         if (!is_array($store)) $store=['revision'=>0,'values'=>[],'meta'=>[]];
         $old=(string)($store['values'][$key]??''); $keyVersion=(int)($store['meta'][$key]['version']??0);
-        if ($baseVersion!==$keyVersion) $conflict=true;
-        else {
-            $value=$contractChanges===null?operations_restore_write_artwork($key,$value,(array)($store['values']??[])):operations_expand_contract_changes($contractChanges,(array)($store['values']??[]),$user);
+        $sourceValues=(array)($store['values']??[]);
+        $visible=$contractRequest===null?null:os_root_projection($user,os_root($sourceValues));
+        $receipt=$visible===null?null:operations_contract_receipt($visible,$contractRequest);
+        if($receipt!==null){
+            $value=$old;
+        }elseif($baseVersion!==$keyVersion&&($baseVersion>$keyVersion||$visible===null||!operations_contract_can_rebase($contractChanges,$contractRequest,$visible))){
+            $conflict=true;
+        }else{
+            $value=$contractRequest!==null?operations_contract_candidate($contractChanges,$contractRequest,$sourceValues,$user):
+                ($contractChanges===null?operations_restore_write_artwork($key,$value,$sourceValues):operations_expand_contract_changes($contractChanges,$sourceValues,$user));
             $value=os_prepare_write($user,$key,$value,(array)($store['values']??[]));
             $value=operations_instruction_ack($user,$key,$old,$value,(array)($store['values']??[]));
             $value=operations_duplicate_prepare($user,$key,$old,$value,(array)($store['values']??[]));
@@ -723,6 +731,10 @@ function operations_file_fallback(array $user): never {
             operations_validate_quarantine($user,$key,$old,$value,(array)($store['values']??[]));
             operations_validate_pohanch_identity($key,$old,$value);
             if ($key==='transtrade_export_v3_operational') { operations_validate_export_permissions($user,$sourceModule,$old,$value); operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule,$user); }
+            if($contractRequest!==null){
+                $receipt=operations_contract_receipt(json_decode($value,true,512,JSON_THROW_ON_ERROR),$contractRequest);
+                if($receipt===null)throw new DomainException('This contract could not be committed. Review the saved contract and its linked records.');
+            }
             if ($key==='tt30ship') tt_validate_corn_loading($value,$old);
             if ($key==='tt40exinstructions') operations_validate_exmill_completion($value,(string)($store['values']['tt35exload']??'[]'));
             if ($key==='tt35exload' && $sourceModule!=='Exports')tt_exmill_corn_loads($value,(string)($store['values']['tt40exinstructions']??'[]'),$old);
@@ -747,9 +759,9 @@ function operations_file_fallback(array $user): never {
         }
         $revision=(int)($store['revision']??0);
     } finally { flock($handle,LOCK_UN); fclose($handle); }
-    if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
+    if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>$contractRequest!==null?'This contract or a linked record changed. Reopen it to review the latest saved version before applying your edits.':'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
     if($key==='transtrade_export_v3_operational'&&tt_receipt_invoice_source_changed($old,(string)($store['values'][$key]??$value)))try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
-    operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>operations_public_value($key,(string)($store['values'][$key]??$value),$user,(array)$store['values']), 'related'=>in_array($key,['tt30prod','tt32stockadj'],true)?operations_production_related($store['values'],$store['meta'],$user):[]]);
+    operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>operations_public_value($key,(string)($store['values'][$key]??$value),$user,(array)$store['values']), 'related'=>in_array($key,['tt30prod','tt32stockadj'],true)?operations_production_related($store['values'],$store['meta'],$user):[]]+(empty($receipt)?[]:['contractReceipt'=>$receipt]));
 }
 
 try {
@@ -793,6 +805,7 @@ try {
     $baseVersion = max(0, (int)($body['baseVersion'] ?? 0));
     $sourceModule = trim((string)($body['sourceModule'] ?? ''));
     $contractChanges=operations_contract_input($body,$key,$sourceModule);
+    $contractRequest=operations_contract_request($body,$contractChanges);
     if($contractChanges!==null)$value='{}';
     if (!operations_key_allowed($key) || !is_string($value)) operations_respond(['ok' => false, 'error' => 'Invalid operational update.'], 422);
     json_decode($value, true);
@@ -821,12 +834,18 @@ try {
     $existing = $select->fetch();
     $oldPayload = $existing ? (string)$existing['payload'] : '';
     $version = $existing ? (int)$existing['version'] : 0;
-    if ($baseVersion !== $version) {
+    $visible=$contractRequest===null?null:os_root_projection($user,os_root([$key=>$oldPayload]));
+    $receipt=$visible===null?null:operations_contract_receipt($visible,$contractRequest);
+    if($receipt!==null){
+        $db->rollBack();
+        operations_respond(['ok'=>true,'keyVersion'=>$version,'value'=>operations_public_value($key,$oldPayload,$user),'contractReceipt'=>$receipt]);
+    }
+    if ($baseVersion !== $version&&($baseVersion>$version||$visible===null||!operations_contract_can_rebase($contractChanges,$contractRequest,$visible))) {
         $db->rollBack();
         operations_respond([
             'ok' => false,
             'conflict' => true,
-            'error' => 'A newer shared update is available. Refresh before saving again.',
+            'error' => $contractRequest!==null?'This contract or a linked record changed. Reopen it to review the latest saved version before applying your edits.':'A newer shared update is available. Refresh before saving again.',
             'keyVersion' => $version,
         ], 409);
     }
@@ -845,7 +864,8 @@ try {
         return $json=(string)($rootRead->fetchColumn()?:'');
     };
     $scopeValues=[];foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll() as $r)$scopeValues[(string)$r['storage_key']]=(string)$r['payload'];
-    if($contractChanges!==null)$value=operations_expand_contract_changes($contractChanges,$scopeValues,$user);
+    if($contractRequest!==null)$value=operations_contract_candidate($contractChanges,$contractRequest,$scopeValues,$user);
+    elseif($contractChanges!==null)$value=operations_expand_contract_changes($contractChanges,$scopeValues,$user);
     $value=os_prepare_write($user,$key,$value,$scopeValues);
     $value=operations_instruction_ack($user,$key,$oldPayload,$value,$scopeValues);
     $value=operations_duplicate_prepare($user,$key,$oldPayload,$value,$scopeValues);
@@ -867,6 +887,10 @@ try {
         operations_validate_export_permissions($user,$sourceModule,$oldPayload,$value);
         operations_validate_lot_reopening($oldPayload, $value, $user, $sourceModule);
         $value = operations_merge_export($oldPayload, $value, $sourceModule,$user);
+    }
+    if($contractRequest!==null){
+        $receipt=operations_contract_receipt(json_decode($value,true,512,JSON_THROW_ON_ERROR),$contractRequest);
+        if($receipt===null)throw new DomainException('This contract could not be committed. Review the saved contract and its linked records.');
     }
     if ($key === 'tt30ship') tt_validate_corn_loading($value,$oldPayload);
     if ($key === 'tt40exinstructions') {
@@ -909,7 +933,7 @@ try {
     $db->commit();
     if($key==='transtrade_export_v3_operational'&&tt_receipt_invoice_source_changed($oldPayload,(string)($nextValues[$key]??$value)))try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     if($inventoryLock){$release=$db->prepare('SELECT RELEASE_LOCK(?)');$release->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);$inventoryLock=false;}
-    operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c'), 'value' => operations_public_value($key,(string)($nextValues[$key]??$value),$user,array_replace($scopeValues,$nextValues)), 'related'=>in_array($key,['tt30prod','tt32stockadj'],true)?operations_production_related(array_replace($scopeValues,$nextValues),$productionMeta,$user):[]]);
+    operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c'), 'value' => operations_public_value($key,(string)($nextValues[$key]??$value),$user,array_replace($scopeValues,$nextValues)), 'related'=>in_array($key,['tt30prod','tt32stockadj'],true)?operations_production_related(array_replace($scopeValues,$nextValues),$productionMeta,$user):[]]+(empty($receipt)?[]:['contractReceipt'=>$receipt]));
 } catch (DomainException|InvalidArgumentException $e) {
     if(isset($db)&&$db instanceof PDO&&$db->inTransaction())$db->rollBack();
     operations_respond(['ok'=>false,'error'=>$e->getMessage()],$e instanceof DomainException?403:422);

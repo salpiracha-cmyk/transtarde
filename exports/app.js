@@ -351,21 +351,17 @@ function contractSaveChanges(before,after){
  return exportWorkspaceChanges(before,after);
 }
 window.TT_EXPORT_WORKSPACE_CHANGES=exportWorkspaceChanges;
-async function commitScopedContractSave(changes,contract,processId){
+async function commitScopedContractSave(changes,contract,processId,identity){
+ const {auditId}=identity;
  const matches=raw=>{
   const snapshot=JSON.parse(raw);
-  if(!snapshot.contracts?.some(row=>row.id===contract.id&&row.ref===contract.ref))return false;
-  if(processId&&!snapshot.shipments?.some(row=>row.id===processId&&row.contractRef===contract.ref))return false;
-  const equivalent=(a,b)=>a===b||(!!a&&!!b&&typeof a==='object'&&typeof b==='object'&&Object.keys(a).length===Object.keys(b).length&&Object.keys(a).every(key=>Object.hasOwn(b,key)&&equivalent(a[key],b[key])));
-  return changes.every(({path,action,value})=>{
-   const target=path.reduce((node,segment)=>segment===null?node:typeof segment==='object'?node?.find?.(row=>row.id===segment.id):node?.[segment],snapshot);
-   if(action==='remove')return target===undefined;
-   if(action==='append'||action==='prepend')return Array.isArray(target)&&value.every(entry=>target.some(saved=>equivalent(saved,entry)));
-   if(action==='order')return equivalent(target?.map(row=>row.id),value);
-   return equivalent(target,value);
-  });
+  return snapshot.audits?.some(row=>row.id===auditId&&row.saveContractId===contract.id&&row.saveFingerprint)&&
+    snapshot.contracts?.some(row=>row.id===contract.id&&row.ref===contract.ref)&&
+    (!processId||snapshot.shipments?.some(row=>row.id===processId&&row.contractRef===contract.ref));
  };
- return window.TT_SHARED_SYNC.commitContractChanges(changes,matches);
+ const value=await window.TT_SHARED_SYNC.commitContractChanges(changes,matches,identity);
+ state=normalize(JSON.parse(value));
+ return state.contracts.find(row=>row.id===contract.id);
 }
 function contractSaveBaseline(customerId){
  const before=captureContractSave(),committed=window.TT_SHARED_SYNC.readCommitted?.(STORE);
@@ -393,21 +389,22 @@ function saveContract(print){
  contractDraft=structuredClone(c);
  const processId=state.shipments.find(row=>row.kind!=='lot'&&row.contractRef===c.ref)?.id;
  const button=document.getElementById('issueContract'),feedback=document.getElementById('contractSaveError');
- const changes=before?contractSaveChanges(before,captureContractSave()):null;
- let payload,confirmed=false;
+ if(before)state.audits[0].contractRef=c.ref;
+ const changes=before?contractSaveChanges(before,captureContractSave()):null,saveIdentity=before?{id:c.id,auditId:state.audits[0]?.id,processId:processId??null}:null;
+ let payload,confirmed=false,printContract=c;
  async function finish(){
   if(button?.disabled)return false;
   if(button){button.disabled=true;button.textContent=confirmed?'OPENING PRINT…':'SAVING…'}
   if(feedback)feedback.hidden=true;
   try{
    if(!confirmed){
-    if(changes)await commitScopedContractSave(changes,c,processId);
+    if(changes){printContract=await commitScopedContractSave(changes,c,processId,saveIdentity);contractDraft=structuredClone(printContract);}
     else{payload??=save();if(window.TT_SHARED_SYNC)await confirmSalesContract(payload,c,processId);}
     confirmed=true;
     clearContractCheckpoint();
    }
    if(print){
-    if(!await directPrint('SALES CONTRACT',salesContractPrint(c),'with',true))throw new Error('Print did not open.');
+    if(!await directPrint('SALES CONTRACT',salesContractPrint(printContract),'with',true))throw new Error('Print did not open.');
     contractDraft=null;view='home';activeWorkspace='';render();
    }else renderContractEditor();
    return true;
@@ -2577,11 +2574,12 @@ function persistContractStepDraft(){
  const before=window.TT_SHARED_SYNC?.commitContractChanges?captureContractSave():null;
  const draft=structuredClone(contractDraft);draft.status='Draft';draft.issued=false;draft.draftStep=contractStep;draft.draftBy=currentUser();draft.lastDraftSavedAt=new Date().toISOString();restoreReleasedContractReference(draft.ref);
  const index=state.contracts.findIndex(x=>x.id===draft.id),created=index<0;if(created)state.contracts.push(draft);else state.contracts[index]=draft;
- contractDraft=structuredClone(draft);checkpointContractDraft();if(created)audit('Sales Contract','Draft created after Buyer & Reference',draft.ref,!before);
+ contractDraft=structuredClone(draft);checkpointContractDraft();if(created||before)audit('Sales Contract',created?'Draft created after Buyer & Reference':'Draft updated',draft.ref,!before);
  if(before){
+  state.audits[0].contractRef=draft.ref;
   const baseline=contractSaveBaseline(draft.customerId);
   baseline.contracts=before.contracts;baseline.audits=before.audits;baseline.deletedShipments=before.deletedShipments;
-  return commitScopedContractSave(contractSaveChanges(baseline,captureContractSave()),draft,null).then(()=>true,error=>{
+  return commitScopedContractSave(contractSaveChanges(baseline,captureContractSave()),draft,null,{id:draft.id,auditId:state.audits[0]?.id,processId:null}).then(saved=>{contractDraft=structuredClone(saved);checkpointContractDraft();return true;},error=>{
   for(const key of Object.keys(before))state[key]=before[key];
   throw error;
  });

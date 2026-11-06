@@ -397,19 +397,30 @@ $sharedBootstrap = <<<'HTML'
     keys.forEach(k=>inFlight.add(k));saveHolds++;waiting();
     try{return await window.TT_MILL_SETTINGS_SAVE.commit({endpoint,access,entries,onConfirmed:row=>{directSet(row.key,row.value);committedValues.set(row.key,row.value);receipts.set(row.key,row.value);keyVersions.set(row.key,row.version);remoteKeys.add(row.key);}});}finally{keys.forEach(k=>inFlight.delete(k));saveHolds--;waiting();}
   }
-  async function commitContractChanges(changes,matches){
+  async function commitContractChanges(changes,matches,identity){
     const key=EXPORT_STORE,baseVersion=keyVersions.get(key)??0;
     if(access.moduleId!=='exports'||!allowed(key)||inFlight.has(key))throw new Error('Finish the existing Exports save before saving this contract.');
     const queued=pending.get(key);
     if(queued!==undefined&&queuedBase.get(key)!==baseVersion)throw new Error('Reload Exports before saving this contract.');
+    if(identity&&identity.baseVersion===undefined){
+      const baseline=JSON.parse(committedValues.get(key)||'{}'),guards={};
+      for(const {path} of changes){
+        const [collection,selector]=path;
+        if(typeof selector?.id!=='string'||!Array.isArray(baseline[collection]))continue;
+        const row=baseline[collection].find(row=>row.id===selector.id);
+        if(row)(guards[collection]??=Object.create(null))[selector.id]=row;
+      }
+      identity.baseVersion=baseVersion;
+      identity.guards=guards;
+    }
     inFlight.add(key);saveHolds++;waiting();
     try{
       let value,version;
       try{
-        const response=await fetch(endpoint+'?asset_refs=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({key,sourceModule:'Exports',csrf:access.csrf,baseVersion,contractChanges:JSON.stringify(changes)})});
+        const response=await fetch(endpoint+'?asset_refs=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({key,sourceModule:'Exports',csrf:access.csrf,baseVersion:identity?.baseVersion??baseVersion,contractChanges:JSON.stringify(changes),...(identity?{contractSave:identity}:{})})});
         const saved=await response.json();
         if(!response.ok||!saved.ok)throw Error(saved.error||'The contract could not be saved.');
-        if(typeof saved.value!=='string'||!Number.isInteger(saved.keyVersion)||saved.keyVersion<baseVersion||!matches(saved.value))throw Error('The server did not confirm this sales contract.');
+        if(typeof saved.value!=='string'||!Number.isInteger(saved.keyVersion)||saved.keyVersion<baseVersion||!matches(saved.value)||(identity&&(saved.contractReceipt?.id!==identity.id||saved.contractReceipt?.auditId!==identity.auditId)))throw Error('The server did not confirm this sales contract.');
         value=saved.value;version=saved.keyVersion;
       }catch(error){
         // A lost acknowledgement is a read-only check of the exact intended record.
@@ -420,7 +431,7 @@ $sharedBootstrap = <<<'HTML'
       if(pending.get(key)!==queued)throw new Error('The contract was saved. Reload Exports to see the confirmed version.');
       pending.delete(key);queuedBase.delete(key);failedKeys.delete(key);
       directSet(key,value);committedValues.set(key,value);receipts.set(key,value);keyVersions.set(key,version);remoteKeys.add(key);
-      return true;
+      return identity?value:true;
     }finally{inFlight.delete(key);saveHolds--;waiting();}
   }
   window.TT_SHARED_SYNC={recoverLegacy,commitContractChanges,commitMillSettings,readVersion:key=>keyVersions.get(key)??null,commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,confirmExportSave:async(attempted,matches)=>{
