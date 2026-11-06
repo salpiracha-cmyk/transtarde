@@ -26,6 +26,10 @@ function mr_pdf_render(array $report): string {
         $write(755, 531, 'Page '.(count($pages) + 1));
         $stream .= "0.17 0.35 0.29 RG 36 522 m 806 522 l S\n";
         $y = 505;
+        if (!empty($report['reference'])) {
+            $write(36, $y, (string)$report['reference'], 10, 'F2');
+            $y -= 20;
+        }
     };
     $wrap = static function (array $cells, array $widths): array {
         $wrapped = [];
