@@ -98,3 +98,10 @@ near($records[0]['arrivalPackingQty'],20,'Production records actual packing desp
 $stockAfter=array_replace($stockBefore,['tt30prod'=>$posted]);
 near(array_sum(tt_inv_arrival_bag_timeline($stockAfter,$reported)),-8,'The dated shortage remains available for reconciliation');
 echo "PASS actual production saves through Arrival / Pohanch shortages while manual outward stock remains guarded\n";
+
+$withoutPohanch=['tt30prod'=>'[]','tt30slips'=>'[]'];
+$posted=tt_inv_prepare_write($withoutPohanch,'tt30prod',json_encode([$reported]),['id'=>7,'permissions'=>['Mill'=>['production'=>['Create']]]],'2026-11-05T12:00:00Z');
+$recorded=array_replace($withoutPohanch,['tt30prod'=>$posted]);
+near(tt_inv_stock($recorded,$reported)['IRRI-6 White Raw Rice'],-500,'Actual shift consumption is saved while the receipt is pending');
+near(tt_inv_stock($recorded,$reported)['B3'],500,'Production output is recorded immediately');
+echo "PASS raw-rice production saves independently of Pohanch\n";

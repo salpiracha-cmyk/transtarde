@@ -16,5 +16,5 @@ try{
     foreach(['from','to'] as $k)if($f[$k]!==''&&!mr_valid_date($f[$k]))rl_out(['ok'=>false,'error'=>'Valid report dates are required.'],422);
     if($f['from']!==''&&$f['to']!==''&&$f['from']>$f['to'])rl_out(['ok'=>false,'error'=>'From date cannot follow To date.'],422);
     if(!in_array($f['movement'],['All','Inward','Outward'],true))rl_out(['ok'=>false,'error'=>'Invalid movement filter.'],422);
-    tt_release_read_session();$values=tt_inv_read_values();rl_out(rl_report($values,['entity'=>$e,'millName'=>$f['mill'],'physicalPool'=>$f['pool']==='mill'],$f)+['generatedAt'=>gmdate('c')]);
+    tt_release_read_session();$values=tt_inv_read_values();rl_out(rl_report($values,['entity'=>$e,'millName'=>$f['mill'],'physicalPool'=>$f['pool']==='mill','arrivalEstimates'=>true],$f)+['generatedAt'=>gmdate('c')]);
 }catch(Throwable $ex){error_log('Rice Ledger: '.$ex->getMessage());rl_out(['ok'=>false,'error'=>'Stock source could not be read. No balance has been estimated.'],500);}

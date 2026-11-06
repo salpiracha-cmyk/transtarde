@@ -47,3 +47,25 @@ eq(summary($r,'IRRI-6 White Rice — B3')['openingKg'],5000.0,'Confirmed July op
 eq(summary($r,'IRRI-6 White Rice — B3')['closingKg'],5100.0,'Legacy White quantity adds to confirmed opening');
 eq(summary($r,'IRRI-6 Parboiled / Sella Rice — B3')['closingKg'],200.0,'Parboiled history stays separate');
 eq(summary($r,'IRRI-6 — B3')['closingKg'],10.0,'Unrelated untyped opening remains untyped');
+
+$pending=$scope+['id'=>'TRUCK-1','date'=>'2026-09-01','displayName'=>$raw,'weight'=>1000,'bags'=>20,'brokenKat'=>1];
+$estimates=['tt30queue'=>[
+    $pending,
+    array_replace($pending,['id'=>'REJECTED','rejected'=>true]),
+    array_replace($pending,['id'=>'ELSEWHERE','millName'=>'Other Mill']),
+]];
+$estimateScope=$scope+['arrivalEstimates'=>true,'physicalPool'=>true];
+$estimated=rl_report(values($estimates),$estimateScope,[]);
+eq(count($estimated['rows']),1,'Only the accepted arrival at this mill contributes');
+eq(summary($estimated,$raw)['closingKg'],1000.0,'Estimate uses Arrival Report loading weight');
+eq($estimated['rows'][0]['basis'],TT_INV_POHANCH_ESTIMATE,'Estimate is labelled');
+eq($estimated['rows'][0]['receiptDetails']['brokenKat'],1.0,'Estimate shows Arrival Report KAT');
+eq(tt_inv_stock(values($estimates),$scope),[],'Estimates do not enter confirmed stock');
+$estimates['tt30slips']=[array_replace($slip('PH-1','2026-09-01',960),['entity'=>'BRM','queueId'=>'TRUCK-1','unloadingDate'=>'2026-09-02','brokenKat'=>2])];
+$actual=rl_report(values($estimates),$estimateScope,[]);
+eq(count($actual['rows']),1,'One linked Pohanch replaces the estimate even if it assigns a different owner');
+eq(summary($actual,$raw)['closingKg'],960.0,'Closing quantity uses actual payable weight once');
+eq(summary($actual,$raw)['arrivalEstimate'],false,'Actual stock clears the estimate status');
+eq($actual['rows'][0]['date'],'2026-09-02','Actual unloading date replaces Arrival Report date');
+eq($actual['rows'][0]['receiptDetails']['brokenKat'],2.0,'Actual Pohanch KAT replaces the estimate');
+echo "PASS accepted arrivals are provisional until linked Pohanch replaces their details\n";
