@@ -7,6 +7,7 @@ const state=input.state,shipment=state.shipments.find(row=>row.id===input.shipme
 const requests=[],button={disabled:false};
 const context=vm.createContext({
  state,structuredClone,console,Date,Map,Set,JSON,
+ contractByRef:ref=>state.contracts.find(row=>row.ref===ref),
  shipment:()=>shipment,ensureBagDraft:()=>input.order,num:value=>Number(value)||0,
  bagSupplierMasterNames:()=>[{name:input.order.supplier}],
  document:{getElementById:()=>button},pendingFinalOrders:new Map(),bagOrderDrafts:new Map(),
@@ -15,7 +16,7 @@ const context=vm.createContext({
  alert:message=>{throw Error(message)},save:()=>{throw Error('PO must use its scoped save')},
  showExportSaveError:()=>{},
  window:{TT_MODULE_ACCESS:{user:'Exports test operator'},TT_SHARED_SYNC:{
-  commitContractChanges:async(changes)=>{requests.push(changes);throw Error('Captured request');}
+  commitContractChanges:async(changes,matches,identity)=>{requests.push({changes,identity});throw Error('Captured request');}
  }},
 });
 const auditLine=app.split('\n').find(line=>line.startsWith('function audit__legacy_v0('));
@@ -25,7 +26,7 @@ vm.runInContext(app.slice(app.indexOf('async function issuePO()'),app.indexOf('f
 (async()=>{
  await vm.runInContext('issuePO()',context);
  assert.equal(requests.length,1);
- const history=requests[0].filter(change=>change.path[0]==='audits');
+ const history=requests[0].changes.filter(change=>change.path[0]==='audits');
  assert.equal(history.length,1,'Adding an audit must not rewrite historical rows');
  assert.equal(history[0].action,'prepend');
  assert.equal(history[0].value.length,1);

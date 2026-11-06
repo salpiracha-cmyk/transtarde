@@ -174,21 +174,34 @@ function tt_user_can_open_module($u,$m){return true;}
         form=subprocess.run(['node',str(ROOT/'tests/exports-v3/bag_po_request_fixture.js')],
                             input=json.dumps({'state':visible,'shipmentId':'S1','order':draft,'auditId':'AUD-FORM'}),
                             text=True,capture_output=True,check=True)
-        changes=json.loads(form.stdout)
+        request=json.loads(form.stdout)
+        changes=request['changes']
+        identity=request['identity']
+        contract=visible['contracts'][0]
+        identity['guards']={'bagOrders':visible['shipments'][0]['bagOrders'],
+                            'contract':{field:contract.get(field) for field in ['ref','seller','qty','containers','packingUnit','packings']}}
         assert len(changes)==3,changes
-        status,result=send(30,changes,operator=True)
+        status,unrelated=send(30,[{'action':'set','path':['contracts',{'id':'B'},'paymentText'],'value':'Concurrent unrelated change'}],operator=True)
+        assert status==200,unrelated
+        status,result=send(30,changes,identity,operator=True)
         assert status==200,result
         persisted=json.loads(json.loads(source.read_text())['values'][KEY])
         assert persisted['audits'][:3]==history and len(persisted['audits'])==4
         assert persisted['shipments'][0]['bagOrders'][0]['poNo']=='PO-FORM'
         assert persisted['shipments'][1]==staff_root['shipments'][1]
+        assert result['keyVersion']==32 and result['contractReceipt']['auditId']=='AUD-FORM'
+        status,replay=send(30,changes,identity,operator=True)
+        assert status==200 and replay['keyVersion']==32,replay
+        conflicting=json.loads(json.dumps(changes).replace('AUD-FORM','AUD-CONFLICT'))
+        assert send(30,conflicting,{**identity,'auditId':'AUD-CONFLICT'},operator=True)[0]==409
+        assert len(json.loads(json.loads(source.read_text())['values'][KEY])['audits'])==4
         # History edits and invented legacy events remain rejected.
-        assert send(31,[{'action':'set','path':['audits',0,'action'],'value':'Altered'}],operator=True)[0]==403
-        assert send(31,[{'action':'prepend','path':['audits',None],'value':[legacy]}],operator=True)[0]==403
+        assert send(32,[{'action':'set','path':['audits',0,'action'],'value':'Altered'}],operator=True)[0]==403
+        assert send(32,[{'action':'prepend','path':['audits',None],'value':[legacy]}],operator=True)[0]==403
         # The same history is present when a contract is amended. A receipt
         # must survive the scoped projection and preserve every earlier event.
         amendment_audit={'id':'AUD-LEGACY-AMEND','area':'Sales Contract','action':'Amended','contractRef':'A/001'}
-        status,result=send(31,[
+        status,result=send(32,[
             {'action':'set','path':['contracts',{'id':'A'},'paymentText'],'value':'Amended terms'},
             {'action':'prepend','path':['audits',None],'value':[amendment_audit]},
         ],{'id':'A','auditId':amendment_audit['id'],'guards':{}},operator=True)
@@ -196,6 +209,7 @@ function tt_user_can_open_module($u,$m){return true;}
         after_amendment=json.loads(json.loads(source.read_text())['values'][KEY])
         assert after_amendment['audits'][:4]==persisted['audits']
         assert after_amendment['shipments']==persisted['shipments']
+        assert after_amendment['contracts'][1]['paymentText']=='Concurrent unrelated change'
         print('PASS actual Bag PO handler with legacy duplicate and hidden audit history, stable retry and immutable saved history')
         print('PASS restricted Exports staff can issue and update one Bag PO, preserve hidden POs and all distinct lines, and reject duplicate lines')
         print('PASS scoped Exports HTTP saves: 17 MiB book, draft and issue receipts, linked amendments, unrelated concurrent writes, retry and real conflicts')
