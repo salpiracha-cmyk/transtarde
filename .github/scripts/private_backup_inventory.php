@@ -69,6 +69,23 @@ foreach(glob(sys_get_temp_dir().'/tt-backup-*')?:[]as$p)if($uid!==null&&is_file(
 $out['deploymentStorage']=['files'=>0,'bytes'=>0];$deploy=dirname($target).'/.transtrade-deploy';
 if(is_dir($deploy)&&!is_link($deploy)&&realpath($deploy)===$deploy){$it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($deploy,FilesystemIterator::SKIP_DOTS));foreach($it as$f)if($f->isFile()&&!$f->isLink()){$out['deploymentStorage']['files']++;$out['deploymentStorage']['bytes']+=$f->getSize();}}
 $out['applicationStorage']=['files'=>0,'bytes'=>0];$it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($target,FilesystemIterator::SKIP_DOTS));foreach($it as$f)if($f->isFile()&&!$f->isLink()){$out['applicationStorage']['files']++;$out['applicationStorage']['bytes']+=$f->getSize();}
+// Report directory totals without publishing document or account filenames.
+$out['folderBreakdown']=[];
+foreach(['application'=>$target,'private'=>$private,'deployment'=>$deploy] as $area=>$base){
+ if(!is_dir($base)||is_link($base)||realpath($base)!==$base)continue;
+ $folders=[];
+ foreach(new DirectoryIterator($base) as $entry){
+  if($entry->isDot()||$entry->isLink()||!$entry->isDir())continue;
+  $name=$entry->getFilename();
+  if(!preg_match('/^[a-zA-Z0-9._-]{1,100}$/D',$name)||$name==='sessions')continue;
+  $path=$entry->getPathname();
+  $folders[$name]=['files'=>0,'bytes'=>0];
+  $files=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path,FilesystemIterator::SKIP_DOTS));
+  foreach($files as $file)if($file->isFile()&&!$file->isLink())add($folders,$name,$file->getSize());
+ }
+ uasort($folders,static fn($a,$b)=>$b['bytes']<=>$a['bytes']);
+ $out['folderBreakdown'][$area]=array_slice($folders,0,40,true);
+}
 $out['backupAndTemporaryBytes']=$out['backupBytes']+$out['ownedTemporaryArchives']['bytes'];
 $out['scopeNote']='Transtrade app, private recovery storage, owned generated temporary archives and deployment directory; excludes provider-managed backups, mail and other websites. Filesystem bytes are not the hosting account quota.';
 echo json_encode($out,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR)."\n";

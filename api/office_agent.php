@@ -103,7 +103,9 @@ function office_agent_enqueue_shipment(): never {
     $manifestRaw=(string)($_POST['manifest']??'');if(strlen($manifestRaw)>262144)office_agent_error(422,'Office archive metadata is too large.');
     $manifest = json_decode($manifestRaw, true);
     if (!is_array($manifest) || ($manifest['type'] ?? '') !== 'shipment_archive') office_agent_error(422, 'Invalid shipment archive package.');
-    ep_require_document_target($user,(string)($manifest['contract']??''),(string)($manifest['lot']??''),'custom-output','View');
+    $markingsOnly=($manifest['purpose']??'')==='bag-markings';
+    if($markingsOnly&&(($manifest['lot']??'')!=='PRE-SHIPMENT'||empty($manifest['shipmentId'])))office_agent_error(422,'Select the saved shipment for these bag markings.');
+    ep_require_document_target($user,(string)($manifest['contract']??''),(string)($markingsOnly?$manifest['shipmentId']:($manifest['lot']??'')),$markingsOnly?'bag-marking':'custom-output','View');
     $files = $_FILES['files'] ?? null;
     if (!is_array($files) || !is_array($files['name'] ?? null)) office_agent_error(422, 'Shipment archive package has no files.');
     $count = count($files['name']);
@@ -129,6 +131,7 @@ function office_agent_enqueue_shipment(): never {
             $stored='file-'.bin2hex(random_bytes(12)).'.'.strtolower(pathinfo($name,PATHINFO_EXTENSION));
             $folder = trim((string)($row['folder'] ?? ''));
             if ($folder !== '') office_document_name($folder);
+            if($markingsOnly&&($folder!=='BAGS'||!preg_match('/\.(png|jpe?g|webp)$/iD',$name)))throw new InvalidArgumentException('The Bag Order archive accepts only marking images in BAGS.');
             $destination=($folder!==''?office_document_name($folder).'/':'').office_document_name($name);if(isset($destinations[$destination]))throw new InvalidArgumentException('Archive repeats a Windows document destination.');$destinations[$destination]=true;
             $tmp = (string)$files['tmp_name'][$index];
             $size = (int)($files['size'][$index] ?? 0);
@@ -158,9 +161,10 @@ function office_agent_enqueue_shipment(): never {
             'layoutVersion' => (int)($manifest['layoutVersion'] ?? 1) === 2 ? 2 : 1,
             'refreshExisting' => !empty($manifest['refreshExisting']),
         ];
+        if($markingsOnly)$job['purpose']='bag-markings';
         office_agent_write_job($job);
         // A refreshed lot replaces pending generated packages; preserve their audit metadata.
-        foreach(array_slice(glob(office_agent_root().'/*/job.json')?:[],0,1000) as $oldPath){if($oldPath===office_agent_manifest_path($id)||is_link($oldPath)||is_link(dirname($oldPath))||filesize($oldPath)>524288)continue;$older=json_decode((string)file_get_contents($oldPath),true);if(is_array($older)&&($older['id']??'')===basename(dirname($oldPath))&&($older['contract']??'')===$job['contract']&&($older['lot']??'')===$job['lot']&&in_array($older['status']??'',['PENDING','ERROR','COPIED_LAYOUT_PENDING'],true)){$older['status']='SUPERSEDED';$older['supersededBy']=$id;$older['updatedAt']=$now;try{office_agent_write_job($older);}catch(Throwable $e){error_log('Office queue supersession requires retry: '.$e->getMessage());}}}
+        foreach(array_slice(glob(office_agent_root().'/*/job.json')?:[],0,1000) as $oldPath){if($oldPath===office_agent_manifest_path($id)||is_link($oldPath)||is_link(dirname($oldPath))||filesize($oldPath)>524288)continue;$older=json_decode((string)file_get_contents($oldPath),true);if(is_array($older)&&($older['id']??'')===basename(dirname($oldPath))&&($older['contract']??'')===$job['contract']&&($older['lot']??'')===$job['lot']&&($older['purpose']??'')===($job['purpose']??'')&&(!$markingsOnly||array_column($older['files']??[],'name')===array_column($jobFiles,'name'))&&in_array($older['status']??'',['PENDING','ERROR','COPIED_LAYOUT_PENDING'],true)){$older['status']='SUPERSEDED';$older['supersededBy']=$id;$older['updatedAt']=$now;try{office_agent_write_job($older);}catch(Throwable $e){error_log('Office queue supersession requires retry: '.$e->getMessage());}}}
         flock($admission,LOCK_UN);fclose($admission);
         office_agent_respond(['ok' => true, 'job' => ['id' => $id, 'status' => 'PENDING']]);
     } catch (Throwable $error) {
