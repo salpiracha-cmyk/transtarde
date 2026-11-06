@@ -14,8 +14,9 @@ CODE = re.compile(r'\.(php[0-9]?|phtml|phar|js|mjs|css|html?|py|sh)(\.|$)|^\.(ht
 def inventory(root):
     if not re.fullmatch(r'/home/[\w-]+/domains/app\.transtradeinternational\.com/public_html', str(root)) or root.resolve() != root:
         raise SystemExit('Unexpected host path')
-    release = (root / '.transtrade-release').read_text().strip()
-    if not re.fullmatch(r'[a-f0-9]{40}', release):
+    marker = root / '.transtrade-release'
+    release = marker.read_text().strip() if marker.is_file() else None
+    if release is not None and not re.fullmatch(r'[a-f0-9]{40}', release):
         raise SystemExit('Unexpected release marker')
     files = {}
     links = []
@@ -50,7 +51,8 @@ def inventory(root):
 def compare(report):
     from original_source_package import manifest
     live = report.pop('files')
-    expected = manifest(report['release'])
+    reference = report['release'] or '1b0f46ddb1915c0ab153b6fd4e7dba98d06bf646'
+    expected = manifest(reference)
     missing = sorted(expected.keys() - live.keys())
     changes = sorted(name for name in expected.keys() & live.keys() if live[name][1] != expected[name])
     extra = live.keys() - expected.keys()
@@ -64,7 +66,7 @@ def compare(report):
         key = name.split('/')[0] if '/' in name else '(root)'
         count, size = by_folder.get(key, (0, 0))
         by_folder[key] = (count + 1, size + live[name][0])
-    print(json.dumps(dict(**report, expected=len(expected), matched=len(expected)-len(missing)-len(changes),
+    print(json.dumps(dict(**report, reference=reference, expected=len(expected), matched=len(expected)-len(missing)-len(changes),
                           missing=missing, changed=changes, extraCode=extra_code, exactCopies=duplicates,
                           extraByFolder=by_folder), indent=2, sort_keys=True))
 
