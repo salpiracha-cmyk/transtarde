@@ -11,7 +11,7 @@ const {JSDOM}=require('jsdom');
  w.eval(fs.readFileSync('accounts/mill-record-delete-ui.js','utf8'));
  d.querySelector('#production').innerHTML=w.TT_MILL_DELETE.button('tt30prod',123,'production report');
  const trigger=d.querySelector('[data-mill-delete]');
- assert.equal(trigger.textContent,'−');assert(trigger.classList.contains('tt-row-remove'));assert.equal(trigger.getAttribute('aria-label'),'Delete production report');
+ assert(trigger.querySelector('svg path'));assert(trigger.classList.contains('tt-row-remove'));assert.equal(trigger.getAttribute('aria-label'),'Delete production report');
  trigger.click();
  const panel=d.querySelector('[data-mill-delete-dialog]');
  const save=panel.querySelector('[data-delete]'),reason=panel.querySelector('textarea');

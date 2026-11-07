@@ -2,7 +2,7 @@
  'use strict';
  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  function button(collection,id,label='saved entry'){
-  return '<button type="button" class="tt-row-remove" data-mill-delete="'+esc(collection)+'" data-source-id="'+esc(id)+'" title="Delete '+esc(label)+'" aria-label="Delete '+esc(label)+'">−</button>';
+  return '<button type="button" class="tt-row-remove" data-mill-delete="'+esc(collection)+'" data-source-id="'+esc(id)+'" title="Delete '+esc(label)+'" aria-label="Delete '+esc(label)+'"><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M5 12h14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></button>';
  }
  function dialog(label,submit,onDeleted){
   if(document.querySelector('[data-mill-delete-dialog]'))return;

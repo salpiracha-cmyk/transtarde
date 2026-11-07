@@ -95,7 +95,6 @@ jobs:
           python3 tests/accounts-v1/petty_cash_http_test.py
           python3 tests/accounts-v1/mill_petty_cash_http_test.py
           python3 tests/accounts-v1/mill_record_delete_endpoint_test.py
-          node tests/accounts-v1/mill_record_delete_ui_test.js
           python3 tests/accounts-v1/mill_cash_entry_http_test.py
           python3 tests/accounts-v1/petty_cash_balance_projection_test.py
           python3 tests/security/office_delivery_http_test.py
@@ -338,6 +337,7 @@ jobs:
           node tests/accounts-v1/bag_receipts_ui_test.js
           node tests/accounts-v1/production_bag_allocation_ui_test.js
           node tests/accounts-v1/production_source_save_ui_test.js
+          node tests/accounts-v1/mill_record_delete_ui_test.js
           node tests/accounts-v1/mill_action_save_test.js
           node tests/accounts-v1/arrival_recovery_ui_test.js
           node tests/accounts-v1/arrival_queue_validation_test.js
