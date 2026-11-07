@@ -35,7 +35,9 @@ const packingNext=app.indexOf('if(contractStep===4&&packingDraft&&!persistPackin
 assert.ok(activeEditor>=0&&packingNext>activeEditor,'packing save belongs to the final active contract editor, not an obsolete override');
 
 
-assert.match(sourceBridge,/function showOutboxAttention\(\)\{document\.getElementById\('ttAccountsOutboxBadge'\)\?\.remove\(\)\}/,'Accounts retry processing stays active without exposing the pending badge');
+assert.match(sourceBridge,/Accounts handoff/,'Pending handoffs must expose their status');
+assert.match(sourceBridge,/box\.setAttribute\('role','alert'\)/,'Pending handoff failures must be visible and accessible');
+assert.match(sourceBridge,/accounts-integrity-review\.php/,'Owner can open the read-only reconciliation');
 assert.doesNotMatch(sourceBridge,/badge\.textContent=.*Accounts handoffs pending/,'Accounts pending retry badge is not recreated');
 assert.match(app,/const TT_PORTS=\['Port Qasim, Pakistan','Karachi Port, Pakistan','Port Qasim, Pakistan or Karachi Port, Pakistan'\]/,'Port of Loading contains the three approved choices');
 assert.match(app,/pol:'Port Qasim, Pakistan or Karachi Port, Pakistan'/,'combined Port of Loading choice is the new-contract default');
