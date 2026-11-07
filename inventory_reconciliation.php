@@ -7,7 +7,7 @@ require_once __DIR__.'/api/paltai_core.php';
 
 /** Server-owned reconciliation. Operational staff submit facts, never a Ghati balance. */
 const TT_MILL_DELETIONS='tt40milldeletions';
-const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit',TT_MILL_DELETIONS];
+const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'];
 const TT_BAG_SERVER_KEYS = ['tt41bagtransfers'];
 const TT_INV_CONFIRMATIONS = 'tt39physicalconfirmations';
 const TT_INV_SOURCE_KEYS = ['tt30prod','tt30ship','tt30slips','tt32stockadj','tt35localsales','tt35exportersale',TT_INV_CONFIRMATIONS];
@@ -60,7 +60,7 @@ function tt_inv_public_adjustment(array $row): array {
 }
 /** Never return management stores through the operational shared-state route. */
 function tt_inv_public_values(array $values,array $meta=[]): array {
-    foreach(array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS) as $key){unset($values[$key],$meta[$key]);}
+    foreach(array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS,[TT_MILL_DELETIONS]) as $key){unset($values[$key],$meta[$key]);}
     if(isset($values['tt30prod'])){
         $rows=tt_inv_rows($values,'tt30prod');
         foreach($rows as &$r){$r['rows']=array_values(array_filter((array)($r['rows']??[]),static fn($x)=>!is_array($x)||!tt_inv_is_private_row($x)));}
@@ -81,7 +81,7 @@ function tt_inv_public_values(array $values,array $meta=[]): array {
             ['id','entity','millId','millName','locationId','stockName','physicalKg','date','shift','shiftDate','status','createdAt','sourceShipmentId']
         )),tt_inv_rows($values,TT_INV_CONFIRMATIONS)));
     }
-    return ['values'=>$values,'meta'=>$meta,'restrictedKeys'=>array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS)];
+    return ['values'=>$values,'meta'=>$meta,'restrictedKeys'=>array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS,[TT_MILL_DELETIONS])];
 }
 function tt_inv_date(string $value): string {
     $d=DateTimeImmutable::createFromFormat('!Y-m-d',$value);$e=DateTimeImmutable::getLastErrors();
