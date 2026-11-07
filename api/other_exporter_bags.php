@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/other_exporter_bags_core.php';
+require_once __DIR__.'/mill_specifications_core.php';
 require_once __DIR__.'/bag_transfers_store.php';
 require_once __DIR__.'/accounts_shipment_source.php';
 require_once dirname(__DIR__).'/inventory_reconciliation.php';
@@ -9,8 +10,8 @@ require_once __DIR__.'/operations_scope.php';
 header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');
 class OebDenied extends RuntimeException {}
 function oeb_out(array $data,int $status=200): never {http_response_code($status);echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);exit;}
-function oeb_access(array $u,array $scope,string $right,bool $production=false): void {
-    if(!in_array($scope['entity'],['TTI','BRM'],true)||!tt_user_can_open_module($u,'Mill')||!tt_user_can_module_action($u,'Mill',$production?'production':'newbags',$right))throw new OebDenied('Export Bags '.$right.' permission is required.');
+function oeb_access(array $u,array $scope,string $right,bool $production=false,bool $specifications=false): void {
+    if(!in_array($scope['entity'],['TTI','BRM'],true)||!tt_user_can_open_module($u,'Mill')||!tt_user_can_module_action($u,'Mill',$specifications?'instructions':($production?'production':'newbags'),$right))throw new OebDenied('Mill '.$right.' permission is required.');
     $assigned=bti_norm($u['location']??'');if(($u['role']??'')!=='Super Admin'&&!in_array($assigned,['','all locations','all authorized locations'],true)&&$assigned!==bti_norm($scope['millName']))throw new OebDenied('Select your assigned physical mill.');
     foreach(['entity-tti','entity-brm','entity-tg'] as $key)if(array_key_exists($key,(array)($u['permissions']['Accounts']??[]))){if(!tt_user_can_access_entity($u,$scope['entity'],$right))throw new OebDenied('Company permission is required.');break;}
 }
@@ -19,7 +20,7 @@ try {
     $write=$method==='POST';$raw=$write?((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:''):'';if(strlen($raw)>16000)throw new DomainException('Receipt request too large.');$b=$write?json_decode($raw,true,64,JSON_THROW_ON_ERROR):$_GET;if(!is_array($b))throw new DomainException('Invalid receipt request.');
     if($write&&!tt_verify_csrf((string)($b['csrf']??'')))oeb_out(['ok'=>false,'error'=>'Refresh the session before saving.'],419);
     $masters=tt_list_masters();$location=bti_location($masters,'',(string)($b['locationId']??''));if(!$location||$location['status']!=='Active')throw new DomainException('Select an active physical mill.');
-    $scope=['entity'=>(string)($b['entity']??''),'locationId'=>$location['locationId'],'millName'=>$location['millName']];$production=($b['purpose']??'')==='production';oeb_access($u,$scope,$write?'Create':'View',$production);if(!$write&&function_exists('tt_release_read_session'))tt_release_read_session();
+    $scope=['entity'=>(string)($b['entity']??''),'locationId'=>$location['locationId'],'millName'=>$location['millName']];$production=($b['purpose']??'')==='production';$specifications=($b['purpose']??'')==='specifications';if($write&&$specifications)oeb_out(['ok'=>false,'error'=>'Specifications are read-only.'],405);oeb_access($u,$scope,$write?'Create':'View',$production,$specifications);if(!$write&&function_exists('tt_release_read_session'))tt_release_read_session();
     $path=TT_DATA_DIR.'/accounts.json';$h=fopen($path,$write?'r+':'rb');if(!$h||!flock($h,$write?LOCK_EX:LOCK_SH))throw new RuntimeException('SODA source unavailable.');
     try {
         $books=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);if(!is_array($books))throw new RuntimeException('Invalid SODA source.');
@@ -27,6 +28,9 @@ try {
         $authorize=static function($entity,$name,$right,$id)use($u,$scope){if($entity!==$scope['entity']||$id!==$scope['locationId'])throw new OebDenied('Receipt source changed.');oeb_access($u,$scope,$right);};
         if(!$write){
             $date=bt_date((string)($b['asOf']??$today),$now);
+            if($specifications){
+                $result=bts_with_sources(false,$u,static fn($values,$state,$at)=>['specifications'=>msp_rows($values,$books,$scope,$today)]);
+            }else{
             $result=bts_with_sources(false,$u,static function($values,$state,$now)use($masters,$books,$scope,$date,$today){
                 $inventory=bti_project($values,$masters,$scope,$date,$today,$state);$exports=json_decode($values['transtrade_export_v3_operational']??'{}',true,512,JSON_THROW_ON_ERROR);$deals=[];
                 foreach((array)($books['exporterDeals']??[]) as $d)if(($d['date']??'')<=$date&&oeb_active($d,(array)$exports)){try{oeb_deal($books,$scope,(string)$d['id']);}catch(DomainException){continue;}$deals[]=oeb_instruction_projection($d);}
@@ -34,6 +38,7 @@ try {
                 $history=[];foreach(bti_rows($values,'tt33bagreceipts') as $r)if(isset($ids[(string)($r['bagId']??'')])&&($r['date']??'')<=$date)$history[]=array_intersect_key($r,array_flip(['id','bagId','date','qty','brand','inspectionStatus','actualTareGrams','sourceSnapshot']))+br_position($r,(array)($state['receiptDispositions']??[]),$date);
                 return ['productionOrders'=>oeb_production_orders($values,$books,$scope,$date,$inventory),'deals'=>$deals,'inventory'=>$inventory,'receiptHistory'=>$history]+oeb_choices($values,$inventory,$books,$scope);
             });
+            }
         }elseif(($b['action']??'')==='register_production_brand'){
             oeb_access($u,$scope,'Create',true);
             $result=bts_with_sources(true,$u,static function(array &$values,array &$state,$now)use($books,$scope,$b,$u){return oeb_register_production_brand($values,$state,$books,$scope,$b,$u,$now);});

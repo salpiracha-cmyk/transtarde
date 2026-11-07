@@ -27,6 +27,10 @@ function tt_inv_location(array $row): string {
 function tt_inv_same_scope(array $a,array $b): bool {
     return tt_inv_entity($a)===tt_inv_entity($b)&&tt_inv_location($a)===tt_inv_location($b);
 }
+function tt_inv_same_production_shift(array $a,array $b): bool {
+    return tt_inv_same_scope($a,$b)&&($a['date']??'')===($b['date']??'')&&
+        tt_inv_shift_name((string)($a['shift']??''))===tt_inv_shift_name((string)($b['shift']??''));
+}
 function tt_inv_scope(array $row): array {
     return ['entity'=>tt_inv_entity($row),'millId'=>$row['millId']??'','locationId'=>$row['locationId']??'',
         'millName'=>(string)($row['millName']??$row['locationName']??$row['mill']??'TTI Rice Mills')];
@@ -403,6 +407,11 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
             }
         }elseif($key==='tt30prod'){
             if(!$before||($before['date']??'')!==($r['date']??''))$r['date']=tt_inv_production_date((string)($r['date']??''),$now);
+            // This runs inside the source lock, including stale-browser and direct API saves.
+            // Existing legacy duplicates can be reviewed/amended without creating another report.
+            if(!$before||!tt_inv_same_production_shift($before,$r))foreach(array_merge($old,$out) as $other){
+                if((string)($other['id']??'')!==(string)$r['id']&&tt_inv_same_production_shift($other,$r))throw new InvalidArgumentException('A production report already exists for this mill, company, date and shift. Amend the existing report instead of adding another.');
+            }
             if(!empty($before['clientSaveRequestId'])&&empty($r['clientSaveRequestId']))throw new DomainException('Reload the saved production report before amending its acknowledged source.');
             if(!empty($before['recoveryVersion'])&&empty($r['recoveryVersion']))throw new DomainException('Actual-input production cannot be downgraded to a legacy entry.');
             if($before&&!mr_is_calculated($before)&&mr_is_calculated($r)&&mr_actual_input($before)!==null)throw new DomainException('Historical measured input must retain its original calculation basis.');
@@ -438,7 +447,6 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         // Raw rice can be physically processed before the receipt paperwork is posted.
         $reprocessing=array_filter($changed,static fn($run)=>strtoupper((string)($run['inputStage']??'RAW'))!=='RAW');
         if($reprocessing)tt_inv_guard_calculated_stock($values,array_replace($values,['tt30prod'=>tt_inv_json($out)]),$reprocessing);
-        foreach($changed as$r)foreach($out as&$other)if((string)$other['id']!==(string)$r['id']&&tt_inv_same_scope($r,$other)&&($r['date']??'')===($other['date']??'')&&tt_inv_shift_name((string)($r['shift']??''))===tt_inv_shift_name((string)($other['shift']??'')))$other['shiftEntriesComplete']=false;unset($other);
     }
     if($key==='tt32stockadj')foreach($old as$r)if(($r['type']??'')==='Paltai Transfer'&&!isset($seen[(string)$r['id']]))throw new DomainException('Saved Paltai transfers cannot be removed.');
     return tt_inv_json($out);

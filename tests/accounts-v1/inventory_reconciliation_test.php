@@ -44,9 +44,17 @@ equal($c['snapshotKg'],-25000.0,'Confirmation snapshot is computed server-side, 
 equal($c['status'],'Awaiting current-shift production','Physical NIL waits for shift entries');
 equal(tt_inv_rows($v,'tt34ghati'),[],'No immediate gain from an unentered current shift');
 $v=writeSource($v,'tt30prod',[production($scope,10,10000,false)],'2026-09-21T08:10:00Z');
+rejects(static fn()=>writeSource($v,'tt30prod',[...tt_inv_rows($v,'tt30prod'),production($scope,999,1000,false)],'2026-09-21T08:11:00Z'),'Another ID cannot duplicate the same company, mill, date and shift');
+rejects(static fn()=>writeSource($v,'tt30prod',[...tt_inv_rows($v,'tt30prod'),array_replace(production($scope,999,1000,false),['shift'=>' morning ','variety'=>'Different variety'])],'2026-09-21T08:11:00Z'),'Shift alias and different variety cannot bypass the unique shift report');
+foreach([['shift'=>'Night'],['date'=>'2026-09-20'],['entity'=>'BRM'],['millName'=>'Another physical mill']] as $difference){
+    $allowed=writeSource($v,'tt30prod',[...tt_inv_rows($v,'tt30prod'),array_replace(production($scope,999,0,false),$difference)],'2026-09-21T08:11:00Z');
+    equal(count(tt_inv_rows($allowed,'tt30prod')),2,'A distinct shift/date/company/mill remains allowed');
+}
+$night=writeSource($v,'tt30prod',[...tt_inv_rows($v,'tt30prod'),array_replace(production($scope,999,0,false),['shift'=>'Night'])],'2026-09-21T08:11:00Z');
+$moved=tt_inv_rows($night,'tt30prod');$moved[1]['shift']='Day';rejects(static fn()=>writeSource($night,'tt30prod',$moved,'2026-09-21T08:12:00Z'),'Moving an existing report onto an occupied shift is rejected');
 equal(tt_inv_rows($v,TT_INV_CONFIRMATIONS)[0]['status'],'Awaiting current-shift production','First partial lot does not finalize the shift');
 equal(tt_inv_rows($v,'tt34ghati'),[],'Partial lot has no premature financial variance');
-$reports=tt_inv_rows($v,'tt30prod');$reports[]=production($scope,11,15000,true);
+$reports=[production($scope,10,25000,true)];
 $v=writeSource($v,'tt30prod',$reports,'2026-09-21T12:00:00Z');
 equal(tt_inv_rows($v,TT_INV_CONFIRMATIONS)[0]['status'],'Resolved','Completed current shift reconciles');
 equal(tt_inv_rows($v,'tt34ghati'),[],'Fully explained loading creates neither loss nor gain');
@@ -68,7 +76,7 @@ $prior=tt_inv_rows($carry,'tt34ghati');$prior[]=$scope+['id'=>'next','ref'=>'nex
 equal($statement['ghatiKg'],3000.0,'Carry-forward gain offsets a later shortage');equal($statement['carryForwardGainKg'],0.0,'Carry-forward gain consumed only once');
 
 $partial=writeSource($pending,'tt30prod',[production($scope,30,10000,false)],'2026-09-21T08:30:00Z');
-$r=tt_inv_rows($partial,'tt30prod');$r[]=production($scope,31,1000,true,'DIFFERENT');$partial=writeSource($partial,'tt30prod',$r,'2026-09-21T12:00:00Z');
+$r=tt_inv_rows($partial,'tt30prod');$r[0]['rows'][]=['product'=>'Ready Rice — DIFFERENT','bags'=>20,'bagWeight'=>50];$r[0]['rawInputs']=[['grossKg'=>11000]];$r[0]['shiftEntriesComplete']=true;$partial=writeSource($partial,'tt30prod',$r,'2026-09-21T12:00:00Z');
 equal(tt_inv_rows($partial,'tt34ghati')[0]['kg'],15000.0,'Only the unexplained remainder is gain');
 $wrong=writeSource($pending,'tt30prod',[production($scope,40,25000,true,'ASAS2')],'2026-09-21T12:00:00Z');
 equal(tt_inv_rows($wrong,'tt34ghati')[0]['kg'],25000.0,'Substring brand cannot explain another brand');
@@ -138,8 +146,8 @@ equal(tt_inv_shift_at('2026-09-21T14:00:00Z')['shift'],'','Between shifts does n
 equal(tt_inv_rate(loadFixture($scope,$stock),'TTI','2026-09-22'),100.0,'Management rate uses ten-day Raw receipt quantity');
 check(tt_inv_rate($ready,'TTI','2026-09-22')===null,'Ready receipt cannot supply a guessed Raw Rice rate');
 
-// A subsequent save in the same second is still a distinct subsequent production report.
-$rows=tt_inv_rows($absent,'tt30prod');$rows[]=production($scope,90,0,true,'ASAS','2026-09-21');
+// A different shift saved in the same second is still a subsequent production report.
+$rows=tt_inv_rows($absent,'tt30prod');$rows[]=array_replace(production($scope,90,0,true,'ASAS','2026-09-21'),['shift'=>'Night']);
 $sameSecond=writeSource($absent,'tt30prod',$rows,'2026-09-21T12:00:00Z');
 equal(tt_inv_rows($sameSecond,'tt34nilqueue')[0]['productionId'],90,'Same-second later report receives the fixed row once');
 rejects(static fn()=>tt_inv_prepare_write($sameSecond,'tt30prod',tt_inv_json(tt_inv_rows($absent,'tt30prod')),$mill,'2026-09-22T09:00:00Z'),'Deleting a production report cannot erase its fixed reference');
@@ -162,11 +170,11 @@ $duplicate=tt_inv_rows($pending,TT_INV_CONFIRMATIONS);$duplicate[]=$scope+['id'=
 rejects(static fn()=>tt_inv_prepare_write($pending,TT_INV_CONFIRMATIONS,tt_inv_json($duplicate),$mill,'2026-09-21T09:00:00Z'),'Same pending physical confirmation cannot be duplicated under another ID');
 
 // A later zero-output or other-brand lot must not falsely reopen a reconciled product.
-$r=tt_inv_rows($absent,'tt30prod');$r[]=production($scope,110,0,false);
+$r=tt_inv_rows($absent,'tt30prod');$r[]=array_replace(production($scope,110,0,false),['shift'=>'Night']);
 $zero=writeSource($absent,'tt30prod',$r,'2026-09-21T12:01:00Z');
 check(empty(tt_inv_rows($zero,TT_INV_CONFIRMATIONS)[0]['reviewRequired']),'Zero-output next report creates no false management warning');
-$r=tt_inv_rows($zero,'tt30prod');$r[]=production($scope,111,500,false,'UNRELATED');
-$unrelated=writeSource($zero,'tt30prod',$r,'2026-09-21T12:02:00Z');
+$r=tt_inv_rows($zero,'tt30prod');$r[]=production($scope,111,500,false,'UNRELATED','2026-09-22');
+$unrelated=writeSource($zero,'tt30prod',$r,'2026-09-22T12:02:00Z');
 check(empty(tt_inv_rows($unrelated,TT_INV_CONFIRMATIONS)[0]['reviewRequired']),'Other-brand production does not reopen this product reconciliation');
 equal(count(tt_inv_rows($unrelated,'tt34ghati')),1,'Unrelated later reports cannot duplicate the gain');
 equal(tt_inv_rows($unrelated,'tt34nilqueue')[0]['productionId'],110,'Fixed row remains attached to the first subsequent report');

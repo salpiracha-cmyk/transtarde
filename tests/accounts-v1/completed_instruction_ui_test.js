@@ -1,12 +1,23 @@
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const source=fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html','utf8'),start=source.indexOf('function renderProductionInstructions()'),end=source.indexOf('\nfunction ',start+20);
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const {JSDOM}=require('jsdom');
+const source=fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html','utf8'),start=source.indexOf('const productionInstructionState='),end=source.indexOf('\nfunction ',source.indexOf('function openProductionInstruction(',start)+20);
 assert(start>=0&&end>start);
-const rows=[{id:1,contractRef:'OLD',requiredMT:80.4,producedMT:0,brand:'STAR',variety:'Rice',quality:'Export',requiredBy:''}];
-for(const status of ['Completed','Closed','Cancelled','Open']){
- let writes=0;const context={STORE_PRODINST:'pi',defaultProductionInstructions:()=>[],get:key=>key==='pi'?rows:{contracts:[{ref:'OLD',status}]},instructionList:{innerHTML:''},escHtml:v=>String(v??'').replaceAll('<','&lt;'),localStorage:{setItem(){writes++}}};
- vm.runInNewContext(source.slice(start,end),context);context.renderProductionInstructions();
- assert.equal(context.instructionList.innerHTML.includes('No new production due'),status!=='Open');
- assert.equal(context.instructionList.innerHTML.includes('80.4 MT'),true,'Original specification quantities remain');
- assert.equal(rows[0].producedMT,0,'No fake production is recorded');assert.equal(writes,0,'Rendering never changes stock or instructions');
-}
-console.log('PASS completed production instructions: reference specifications retained, no new requirement or fake production, active requirements unchanged');
+(async()=>{
+ const dom=new JSDOM('<section id="instructionList"></section>',{url:'https://fixture.test/module.php?id=milling',runScripts:'outside-only'}),w=dom.window;
+ let requests=[],seen=0,badgeUpdates=0;
+ w.currentMill={name:'TTI Rice Mills',entity:'TTI'};w.stockEntityForView=()=>w.currentMill.entity;
+ w.TT_MODULE_ACCESS={masters:{mills:[{id:'M1',values:['TTI Rice Mills']},{id:'M2',values:['Other Mill']}]}};
+ w.escHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ w.markInstructionsSeen=()=>seen++;w.refreshInstructionBadges=()=>badgeUpdates++;
+ const active={id:'FELLOW|HKM',sourceKind:'FELLOW',brand:'emrooz',party:'HKM',ref:'SODA 1',quantityMT:1875,variety:'IRRI-6',quality:'Full saved quality',packing:'40 kg bags',notes:'Keep this brand separate',specifications:[]};
+ w.localStorage.setItem('tt30prodinst','[{"brand":"STALE CLOSED GHAZAL"}]');
+ w.fetch=async(url,options)=>{requests.push({url,options});return {ok:true,json:async()=>({ok:true,specifications:[active]})};};
+ w.eval(source.slice(start,end));await w.renderProductionInstructions();
+ assert.equal(requests.length,1);assert(requests[0].url.includes('purpose=specifications'));assert(requests[0].url.includes('locationId=M1'));assert(!requests[0].options.body,'Reading specifications submitted a write');
+ assert(w.document.getElementById('instructionList').textContent.includes('emrooz'));assert(!w.document.body.textContent.includes('STALE CLOSED'));assert.equal(seen,1);
+ w.openProductionInstruction(active.id);assert(w.document.body.textContent.includes('Keep this brand separate'));
+ assert.equal(w.localStorage.getItem('tt30prodinst'),'[{"brand":"STALE CLOSED GHAZAL"}]','Historical source was deleted');
+ w.fetch=async()=>({ok:false,json:async()=>({ok:false,error:'Source unavailable'})});await w.renderProductionInstructions();assert.equal(w.document.querySelector('[role=alert]').textContent,'Source unavailable');assert(!w.document.body.textContent.includes('emrooz'),'Failed read left stale work visible');assert.equal(badgeUpdates,1);
+ let finish;w.fetch=()=>new Promise(resolve=>{finish=resolve;});const loading=w.renderProductionInstructions();w.currentMill={name:'Other Mill',entity:'TTI'};finish({ok:true,json:async()=>({ok:true,specifications:[active]})});await loading;assert(!w.document.body.textContent.includes('emrooz'),'Late response crossed the selected mill boundary');
+ dom.window.close();console.log('PASS current server specifications, active fellow-exporter details, historical-source preservation, GET-only reads, failure visibility and late-response mill guard');
+})().catch(error=>{console.error(error);process.exitCode=1;});
