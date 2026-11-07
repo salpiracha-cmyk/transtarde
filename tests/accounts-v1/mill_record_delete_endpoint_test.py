@@ -144,7 +144,7 @@ if($argv[1]==='seed'){
     assert status == 200 and json.loads(result['values']['tt35localsales']) == [], (status, result)
     assert books.read_bytes() == financial
     # A deleted identity cannot be reintroduced by a stale collection save.
-    (root / 'guard.php').write_text("<?php require __DIR__.'/inventory_reconciliation.php';$s=json_decode(file_get_contents(__DIR__.'/data/operations.json'),true);try{mrd_guard_write($s['values'],'tt30queue',"+json.dumps(json.dumps([arrival]))+");exit(1);}catch(DomainException $e){echo 'BLOCKED';}")
+    (root / 'guard.php').write_text("<?php require __DIR__.'/inventory_reconciliation.php';$s=json_decode(file_get_contents(__DIR__.'/data/operations.json'),true);try{tt_inv_guard_deleted_source($s['values'],'tt30queue',"+json.dumps(json.dumps([arrival]))+");exit(1);}catch(DomainException $e){echo 'BLOCKED';}")
     if MYSQL:
         source.write_text(json.dumps(stored()))
     guard = subprocess.run(['php', str(root / 'guard.php')], env=env, text=True, capture_output=True, check=True)

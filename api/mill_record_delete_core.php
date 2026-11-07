@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-const MRD_ARCHIVE='tt40milldeletions';
+const MRD_ARCHIVE=TT_MILL_DELETIONS;
 const MRD_KINDS=['tt30queue'=>'queue','tt30prod'=>'production','tt33bagreceipts'=>'newbags','tt35localsales'=>'local','tt35exportersale'=>'local'];
 
 function mrd_id(string $key,array $row): string {
@@ -15,14 +15,6 @@ function mrd_authorize(array $user,string $key,array $row,array $values): void {
         if(!tt_user_can_access_entity($user,(string)($row['entity']??'TTI'),'Edit'))throw new DomainException('Company Edit permission is required.');
         break;
     }
-}
-/** Collection saves cannot restore a source that was explicitly deleted. */
-function mrd_guard_write(array $values,string $key,string $json): void {
-    if($key===MRD_ARCHIVE)throw new DomainException('Deletion history is maintained by the server.');
-    if(!isset(MRD_KINDS[$key]))return;
-    $deleted=[];
-    foreach(tt_inv_rows($values,MRD_ARCHIVE) as $receipt)if(($receipt['collection']??'')===$key)$deleted[(string)$receipt['sourceId']]=true;
-    foreach(tt_inv_rows([$key=>$json],$key) as $row)if(isset($deleted[mrd_id($key,$row)]))throw new DomainException('This entry was deleted. Reload the saved entries before saving again.');
 }
 function mrd_dependencies(array $values,array $books,string $key,array $row): void {
     $id=mrd_id($key,$row);

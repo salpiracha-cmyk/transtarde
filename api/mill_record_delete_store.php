@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/mill_source_amend_store.php';
+require_once __DIR__.'/mill_record_delete_core.php';
 
 /** Deletion holds the same stock lock as packing and loading, then the Accounts read lock. */
 function mrd_write(array $user,array $body): array {

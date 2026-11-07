@@ -4,10 +4,10 @@ require_once __DIR__ . '/product_stage.php';
 require_once __DIR__.'/api/mill_recovery_core.php';
 require_once __DIR__.'/api/arrival_withdrawal_core.php';
 require_once __DIR__.'/api/paltai_core.php';
-require_once __DIR__.'/api/mill_record_delete_core.php';
 
 /** Server-owned reconciliation. Operational staff submit facts, never a Ghati balance. */
-const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit',MRD_ARCHIVE];
+const TT_MILL_DELETIONS='tt40milldeletions';
+const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit',TT_MILL_DELETIONS];
 const TT_BAG_SERVER_KEYS = ['tt41bagtransfers'];
 const TT_INV_CONFIRMATIONS = 'tt39physicalconfirmations';
 const TT_INV_SOURCE_KEYS = ['tt30prod','tt30ship','tt30slips','tt32stockadj','tt35localsales','tt35exportersale',TT_INV_CONFIRMATIONS];
@@ -325,8 +325,19 @@ function tt_inv_guard_arrival_bags(array $before,array $after,array $affected): 
         }
     }
 }
+/** Explicitly deleted source identities stay retired when an older tab saves. */
+function tt_inv_guard_deleted_source(array $values,string $key,string $json): void {
+    if($key===TT_MILL_DELETIONS)throw new DomainException('Deletion history is maintained by the server.');
+    if(!in_array($key,['tt30queue','tt30prod','tt33bagreceipts','tt35localsales','tt35exportersale'],true))return;
+    $deleted=[];
+    foreach(tt_inv_rows($values,TT_MILL_DELETIONS) as $receipt)if(($receipt['collection']??'')===$key)$deleted[(string)$receipt['sourceId']]=true;
+    foreach(tt_inv_rows([$key=>$json],$key) as $row){
+        $id=(string)($row['id']??$row['soda']??$row['ref']??'');
+        if(isset($deleted[$id]))throw new DomainException('This entry was deleted. Reload the saved entries before saving again.');
+    }
+}
 function tt_inv_prepare_write(array $values,string $key,string $json,array $user,string $now): string {
-    mrd_guard_write($values,$key,$json);
+    tt_inv_guard_deleted_source($values,$key,$json);
     tt_guard_arrival_collection($key,(string)($values[$key]??'[]'),$json);
     if(in_array($key,['tt30bags','tt33bagreceipts'],true)){require_once __DIR__.'/api/bag_receipts_core.php';$json=br_guard_write($values,$key,$json);}
     if(in_array($key,['tt36bagissues','tt30prodaudit'],true)){
