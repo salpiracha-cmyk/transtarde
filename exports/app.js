@@ -2831,7 +2831,7 @@ function printSavedSalesContract(id,inspection=false){
 }
 function salesContractNotifyChoices(cu){
  const saved=customerPartyChoices(cu).filter(row=>row.choice.startsWith('RELATED:notifies:')||row.choice.startsWith('RELATED:additionalNotifies:'));
- return saved.length?saved:[{choice:'BUYER',label:'Buyer',party:{name:cu.name||'',address:cu.address||''}}];
+ return saved.length?saved:(cu?.name&&cu?.address?[{choice:'BUYER',label:'Buyer',party:{name:cu.name,address:cu.address}}]:[]);
 }
 function salesContractNotifyFields(c,cu){
  const party=c.contractNotifyParty||{},choices=salesContractNotifyChoices(cu);
