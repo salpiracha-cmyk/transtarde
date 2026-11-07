@@ -17,8 +17,11 @@ try{
     $body=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
     if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))mrd_out(['ok'=>false,'error'=>'Session expired. Reload before deleting.'],419);
     tt_release_read_session();
-    $result=mrd_write($user,$body);$keys=array_fill_keys([(string)$body['collection'],'tt30bags','tt33bagreceipts','tt36bagissues','tt30prodaudit','tt32labourfeed'],true);
+    $result=mrd_write($user,$body);$key=(string)$body['collection'];
+    $related=match($key){'tt30prod'=>['tt36bagissues','tt30prodaudit','tt32labourfeed'],'tt33bagreceipts'=>['tt30bags'],default=>[]};
+    $keys=array_fill_keys([$key,...$related],true);
     $visible=os_project($user,array_intersect_key($result['values'],$keys),array_intersect_key($result['meta'],$keys));
+    foreach($visible['values'] as &$value)$value=tt_inv_artwork_json($value);unset($value);
     $receipt=$result['receipt'];unset($receipt['before'],$receipt['authorization']);
     mrd_out(['ok'=>true,'receipt'=>$receipt]+$visible);
 }catch(DomainException|InvalidArgumentException $e){mrd_out(['ok'=>false,'error'=>$e->getMessage()],422);}
