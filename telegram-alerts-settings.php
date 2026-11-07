@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require __DIR__.'/auth_store.php';
 require_once __DIR__.'/api/telegram_alerts_core.php';
+require_once __DIR__.'/api/telegram_dispatch_core.php';
 
 $user = tt_require_login();
 if (($user['role'] ?? '') !== 'Super Admin' || tt_managed_qa_write_blocked($user)) {
@@ -15,7 +16,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) {
             throw new DomainException('Your session expired. Refresh and try again.');
         }
-        if (($_POST['action'] ?? '') === 'recovery') {
+        if (($_POST['action'] ?? '') === 'run') {
+            $result=tg_dispatch(true);
+            if(!empty($result['errors']))throw new DomainException('Some alerts need retry. Check the delivery status.');
+            header('Location: telegram-alerts-settings.php?ran=1', true, 303);
+        } elseif (($_POST['action'] ?? '') === 'recovery') {
             tt_telegram_send_recovery_test();
             header('Location: telegram-alerts-settings.php?pdf=1', true, 303);
         } elseif (($_POST['action'] ?? '') === 'test') {
@@ -33,6 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 $connected = is_file(TT_DATA_DIR.'/telegram-alerts.json');
+$dispatchPath=TT_DATA_DIR.'/telegram-dispatch.json';
+$delivery=is_file($dispatchPath)?json_decode((string)file_get_contents($dispatchPath),true):[];
+$h=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
 $csrf = htmlspecialchars(tt_csrf(), ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
@@ -63,6 +71,14 @@ $csrf = htmlspecialchars(tt_csrf(), ENT_QUOTES, 'UTF-8');
 </form>
 </section>
 <?php if ($connected): ?>
+<section><h2>Automatic updates</h2>
+<p><?=$delivery?'Activated':'Awaiting activation'?></p>
+<p>Arrivals summary at 10 a.m. and Directors PDF at 11 a.m. Pakistan time. New saved entries trigger alerts, with the server checking every minute for anything still due.</p>
+<p>Last server check <?= $h($delivery['lastRun']??'Pending') ?></p>
+<?php if(!empty($delivery['lastRunErrors'])): ?><p role="alert" class="error">Some deliveries could not be confirmed.</p><?php endif; ?>
+<?php if(!empty($delivery['pending'])): ?><p role="alert" class="error">A delivery result needs verification before it can be sent again.</p><?php endif; ?>
+<form method="post"><input type="hidden" name="csrf" value="<?=$csrf?>"><button type="submit" name="action" value="run">Send due updates now</button></form>
+</section>
 <section><h2>Delivery test</h2>
 <form method="post">
 <input type="hidden" name="csrf" value="<?=$csrf?>">

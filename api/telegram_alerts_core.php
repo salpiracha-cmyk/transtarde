@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+class TelegramDeliveryUncertain extends RuntimeException {}
+
 function tt_telegram_request(string $token, string $method, array $fields = []): array {
     if (!preg_match('/^[0-9]{5,20}:[A-Za-z0-9_-]{20,100}$/D', $token)) {
         throw new DomainException('Enter the bot token from BotFather.');
@@ -11,12 +13,15 @@ function tt_telegram_request(string $token, string $method, array $fields = []):
         CURLOPT_POSTFIELDS => isset($fields['document']) ? $fields : http_build_query($fields),
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_TIMEOUT => 12,
+        CURLOPT_TIMEOUT => isset($fields['document']) ? 60 : 15,
     ]);
     $body = curl_exec($curl);
     $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
     curl_close($curl);
     $response = is_string($body) ? json_decode($body, true) : null;
+    if ($body === false || $status >= 500 || ($status === 200 && (!is_array($response) || !isset($response['ok'])))) {
+        throw new TelegramDeliveryUncertain('Telegram delivery could not be confirmed.');
+    }
     if ($status !== 200 || empty($response['ok']) || !is_array($response['result'] ?? null)) {
         throw new DomainException(match ($status) {
             400, 404 => 'Telegram could not find the bot or group. Check the token and group ID.',
@@ -93,16 +98,6 @@ function tt_telegram_send_recovery_test(): void {
     $report = mr_report($runs, ['entity' => 'TTI', 'mode' => 'daily', 'from' => $from, 'to' => $to]);
     if (!$report['groups']) throw new DomainException('There are no TTI recovery records in the previous seven days.');
 
-    $pdf = mr_pdf_render($report);
-    $path = tempnam(sys_get_temp_dir(), 'tt-recovery-');
-    if ($path === false) throw new RuntimeException('Could not create the report PDF.');
-    try {
-        if (file_put_contents($path, $pdf) !== strlen($pdf)) throw new RuntimeException('Could not write the report PDF.');
-        tt_telegram_deliver('sendDocument', [
-            'document' => new CURLFile($path, 'application/pdf', 'TTI-Recovery-'.$from.'-to-'.$to.'.pdf'),
-            'caption' => 'Transtrade PDF delivery test | TTI Daily Recovery | '.$from.' to '.$to,
-        ]);
-    } finally {
-        unlink($path);
-    }
+    require_once __DIR__.'/telegram_report_files.php';
+    tt_telegram_send_pdf($report, 'TTI-Recovery-'.$from.'-to-'.$to.'.pdf', 'TTI Daily Recovery | '.$from.' to '.$to);
 }
