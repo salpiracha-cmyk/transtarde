@@ -134,7 +134,8 @@ if($argv[1]==='seed'){
     auth_data=json.loads(auth.read_text());auth_data['masters']={'mills':[{'id':'mills-1','values':['TTI Rice Mills','','Own Mill','','','Active','','TTI']}]}
     auth.write_text(json.dumps(auth_data))
     original_public={**production,'rows':[]}
-    actual={'id':701,'entity':'TTI','millId':1,'millName':'TTI Rice Mills','date':'2026-10-17','shift':'Day','variety':'IRRI-6','baseVariety':'IRRI-6','riceType':'White','recoveryVersion':1,'rawInputs':[{'grossKg':500}],'rows':[{'product':'Ready Rice — ASAS','bags':10,'bagWeight':50}],'clientSaveRequestId':'production-original-0001'}
+    actual={'id':701,'entity':'TTI','millId':1,'millName':'TTI Rice Mills','date':'2026-10-17','shift':'Night','variety':'IRRI-6','baseVariety':'IRRI-6','riceType':'White','recoveryVersion':1,'rawInputs':[{'grossKg':500}],'rows':[{'product':'Ready Rice — ASAS','bags':10,'bagWeight':50}],'clientSaveRequestId':'production-original-0001'}
+    duplicate_before=stored();status,duplicate=write('tt30prod',[original_public,{**actual,'shift':'Day'}]);assert status==422 and 'Amend the existing report' in duplicate['error'] and stored()==duplicate_before,'New source identity duplicated an occupied shift or changed its protected history'
     status,created=write('tt30prod',[original_public,actual]);assert status==200,created
     confirmed=json.loads(created['value']);source=next(r for r in confirmed if r['id']==701)
     mirror=json.loads(created['related']['tt36bagissues']['value']);assert len(mirror)==1 and mirror[0]['usage']['ASAS']==10 and mirror[0]['userId']==1 and mirror[0]['serverManaged']
