@@ -136,6 +136,14 @@ if($argv[1]==='seed'){
     status,result=req('tt33bagreceipts',receipt,requestKey='posted-bag-bill-delete')
     assert status==422 and 'supplier bill' in result['error'] and snapshot()==before,result
     books.write_bytes(financial)
+    unprinted=copy.deepcopy(json.loads(initial['tt35localsales'])[0])
+    unprinted['product']='B3';unprinted['loads']=[{'kg':100,'bridgeId':'LSL-UNPRINTED-12345','gatePassRef':'LGP-LS-00001-1'}]
+    seed({**initial,'tt35localsales':json.dumps([unprinted])})
+    status,result=req('tt35localsales',unprinted,requestKey='unprinted-local-sale-delete')
+    assert status==200,(status,result)
+    seed({**initial,'tt35localsales':json.dumps([unprinted]),'tt39accountsoutbox':json.dumps([{'entity':'TTI','sourceKey':'LOCAL|LS-00001|LSL-UNPRINTED-12345','status':'Pending'}])});before=snapshot()
+    status,result=req('tt35localsales',unprinted,requestKey='queued-local-sale-delete')
+    assert status==422 and 'handoff' in result['error'] and snapshot()==before,result
     # Return to the earlier successful source deletion state.
     seed(deleted_state)
     # A local sale without downstream handoffs can be removed.

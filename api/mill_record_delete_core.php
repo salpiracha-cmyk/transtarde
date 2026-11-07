@@ -31,16 +31,31 @@ function mrd_dependencies(array $values,array $books,string $key,array $row): vo
         }
     }
     if(in_array($key,['tt35localsales','tt35exportersale'],true)){
+        if(!empty($row['closed'])||!empty($row['approved'])||!empty($row['gate']))throw new DomainException('This sale has been closed or dispatched. Reopen and review its original workflow before deletion.');
         if(!empty($row['_ttBridge'])||!empty($row['exporterDealId']))throw new DomainException('This sale is linked to its originating SODA. Reverse it from that workflow first.');
-        foreach((array)($row['loads']??$row['containers']??[]) as $load)if(!empty($load['printed'])||!empty($load['gatePassRef'])||!empty($load['gate']))throw new DomainException('A gate pass was issued for this sale. Review its dispatch before deletion.');
+        foreach((array)($row['loads']??$row['containers']??[]) as $load)if(!empty($load['printed'])||!empty($load['gatePassSerial'])||!empty($load['gate']))throw new DomainException('A gate pass was issued for this sale. Review its dispatch before deletion.');
         if(!empty($row['pay'])||!empty($row['payments'])||!empty($row['approvedPayment']))throw new DomainException('This sale has payment entries. Review the linked payments before deletion.');
     }
+    // Minting a loading ID reserves its identity without sending an Accounts handoff.
+    $loadingRefs=[];
+    if(in_array($key,['tt35localsales','tt35exportersale'],true))foreach((array)($row['loads']??$row['containers']??[]) as $load)if(!empty($load['bridgeId']))$loadingRefs[]=(string)$load['bridgeId'];
     // Posted accounting links must be reversed at their owning workflow.
-    $tokens=array_filter([$id,(string)($row['bridgeId']??''),(string)($row['soda']??''),(string)($row['ref']??'')],static fn($v)=>strlen($v)>=5);
+    $tokens=array_filter([$id,(string)($row['bridgeId']??''),(string)($row['soda']??''),(string)($row['ref']??''),...$loadingRefs],static fn($v)=>strlen($v)>=5);
     foreach((array)($books['journals']??[]) as $journal){
         if(($journal['entity']??'')!==($row['entity']??'TTI')||($journal['status']??'')!=='Posted')continue;
         $facts=json_encode([$journal['reference']??'', $journal['meta']??[], $journal['lines']??[]],JSON_THROW_ON_ERROR);
         foreach($tokens as $token)if(preg_match('/(?<![A-Za-z0-9])'.preg_quote($token,'/').'(?![A-Za-z0-9])/',$facts))throw new DomainException('This entry has an Accounts posting. Reverse the linked posting before deleting its Mill source.');
+    }
+    if(in_array($key,['tt35localsales','tt35exportersale'],true)){
+        $handoffs=tt_inv_rows($values,'tt39accountsoutbox');
+        foreach(['localSalesCandidates','localPaymentCandidates','exportCandidates'] as $collection)$handoffs=array_merge($handoffs,(array)($books[$collection]??[]));
+        foreach($handoffs as $handoff){
+            if(in_array($handoff['status']??'',['Deleted','Cancelled','Rejected','Reversed'],true))continue;
+            $entity=(string)($handoff['entity']??$handoff['body']['entity']??'');
+            if($entity!==''&&$entity!==($row['entity']??'TTI'))continue;
+            $facts=json_encode($handoff,JSON_THROW_ON_ERROR);
+            foreach($tokens as $token)if(preg_match('/(?<![A-Za-z0-9])'.preg_quote($token,'/').'(?![A-Za-z0-9])/',$facts))throw new DomainException('This sale has an Accounts handoff. Review that handoff before deletion.');
+        }
     }
 }
 function mrd_apply(array $values,array $books,array $user,array $body,string $now): array {
@@ -88,12 +103,6 @@ function mrd_apply(array $values,array $books,array $user,array $body,string $no
         $next['tt36bagissues']=tt_inv_json(array_values(array_filter(tt_inv_rows($values,'tt36bagissues'),static fn($r)=>(string)($r['productionId']??'')!==$id)));
         $scope=tt_inv_scope($row);$beforeStock=tt_inv_stock($values,$scope);$afterStock=tt_inv_stock($next,$scope);
         foreach($afterStock as $stock=>$qty)if($qty<-.001&&$qty<(float)($beforeStock[$stock]??0)-.001)throw new DomainException('Deleting production would leave insufficient '.$stock.' stock. Review the later loading or sales first.');
-    }
-    // Unposted handoff events for a deleted local sale must stop reaching Accounts.
-    if(in_array($key,['tt35localsales','tt35exportersale'],true)){
-        $bridges=[];foreach((array)($row['loads']??$row['containers']??[]) as $load)if(!empty($load['bridgeId']))$bridges[]=(string)$load['bridgeId'];
-        if(!empty($row['bridgeId']))$bridges[]=(string)$row['bridgeId'];
-        if($bridges)throw new DomainException('This sale has an Accounts handoff. Review that handoff before deletion.');
     }
     if(in_array($key,TT_INV_SOURCE_KEYS,true))$next=tt_inv_reconcile($next,$now);
     $receipt=['collection'=>$key,'sourceId'=>$id,'requestKey'=>$request,'reason'=>$reason,'at'=>$now,'userId'=>(int)$user['id'],'user'=>(string)($user['full_name']??$user['username']??''),'before'=>$row,'authorization'=>tt_inv_scope($authority)];
