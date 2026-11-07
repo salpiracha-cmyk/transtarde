@@ -105,6 +105,7 @@ if($argv[1]==='seed'){
     status, result = req('tt30queue', arrival)
     assert status == 200, (status, result)
     assert json.loads(result['values']['tt30queue']) == [other]
+    assert set(result['values'])=={'tt30queue'},'Arrival deletion returned unrelated source collections'
     assert 'tt40milldeletions' not in result['values']
     assert json.loads(stored()['values']['tt99keep']) == {'untouched': True}
     before = snapshot()
@@ -116,6 +117,7 @@ if($argv[1]==='seed'){
     status, result = req('tt30prod', production, requestKey='production-delete-123456')
     assert status == 200, (status, result)
     assert json.loads(result['values']['tt30prod']) == [] and json.loads(result['values']['tt36bagissues']) == []
+    assert 'tt30bags' not in result['values'] and 'tt33bagreceipts' not in result['values']
     assert books.read_bytes() == financial
     deleted_state=stored()['values']
     # Removing unconsumed receipts adjusts the actual received counter.
