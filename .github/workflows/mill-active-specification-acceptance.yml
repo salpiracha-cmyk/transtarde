@@ -1,0 +1,49 @@
+name: Read-only acceptance of current Mill specifications
+on:
+  push:
+    branches: [codex/mill-active-specification-acceptance]
+permissions:
+  contents: read
+concurrency:
+  group: transtrade-production-deployment
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: c4bdde1e01dbfba1609f3e270213a595e5d8920f
+      - name: Verify exact live source and moved folders without writing business data
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
+          python3 - <<'PY'
+          import os,pathlib
+          core=pathlib.Path('api/mill_specifications_core.php').read_text().replace("require_once __DIR__.'/other_exporter_bags_core.php';","")
+          prefix="""$root=getenv('TT_REVIEW_TARGET');require_once $root.'/api/other_exporter_bags_core.php';\n"""
+          core=core.replace("declare(strict_types=1);","declare(strict_types=1);\n"+prefix,1)
+          suffix="""
+          $read=static function($p){$h=fopen($p,'rb');if(!$h||!flock($h,LOCK_SH))throw new RuntimeException('Source unavailable');try{return json_decode(stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);}finally{flock($h,LOCK_UN);fclose($h);}};
+          $private=dirname($root).'/transtrade_private';$ops=$read($private.'/operations.json');$books=$read($private.'/accounts.json');
+          $rows=msp_rows($ops['values'],$books,['entity'=>'TTI','locationId'=>'mills-1','millName'=>'TTI Rice Mills'],(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d'));
+          $only=count($rows)===1&&strtolower(trim((string)$rows[0]['brand']))==='emrooz';
+          echo json_encode(['activeSpecificationCount'=>count($rows),'onlyExpectedActiveBrand'=>$only,'fullSpecificationPresent'=>count($rows)===1&&trim($rows[0]['quality'])!=='','businessFilesWritten'=>0],JSON_THROW_ON_ERROR).PHP_EOL;
+          if(!$only)throw new RuntimeException('Live active instructions require review before release');
+          """
+          pathlib.Path(os.environ['RUNNER_TEMP'],'specification-read.php').write_text(core+'\n'+suffix)
+          PY
+          ssh -o ConnectTimeout=20 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_REVIEW_TARGET=$target_q php" < "$RUNNER_TEMP/specification-read.php"
