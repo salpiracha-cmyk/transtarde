@@ -23,21 +23,6 @@ function operations_restore_write_artwork(string $key,string $value,array $value
     return $value;
 }
 
-function operations_telegram_after_save(array $data, int $status): void {
-    if($status>=300||empty($data['ok'])||($_SERVER['REQUEST_METHOD']??'GET')!=='POST'||!isset($data['revision']))return;
-    if(!is_file(TT_DATA_DIR.'/telegram-dispatch.json'))return;
-    if(!function_exists('fastcgi_finish_request')&&!function_exists('litespeed_finish_request'))return;
-    register_shutdown_function(static function(): void {
-        if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
-        if(function_exists('fastcgi_finish_request'))fastcgi_finish_request();
-        elseif(function_exists('litespeed_finish_request'))litespeed_finish_request();
-        try {
-            require_once __DIR__.'/telegram_dispatch_core.php';
-            tg_dispatch();
-        } catch(Throwable) { error_log('Telegram background delivery requires retry.'); }
-    });
-}
-
 function operations_respond(array $data, int $status = 200): never {
     operations_telegram_after_save($data,$status);
     if(($_GET['asset_refs']??'')==='1'){
@@ -71,6 +56,22 @@ function operations_public_value(string $key,string $value,array $actor=[],array
     if(!array_key_exists($key,$visible['values']))throw new DomainException('This source has no public operational representation.');
     return (string)$visible['values'][$key];
 }
+
+function operations_telegram_after_save(array $data, int $status): void {
+    if($status>=300||empty($data['ok'])||($_SERVER['REQUEST_METHOD']??'GET')!=='POST'||!isset($data['revision']))return;
+    if(!is_file(TT_DATA_DIR.'/telegram-dispatch.json'))return;
+    if(!function_exists('fastcgi_finish_request')&&!function_exists('litespeed_finish_request'))return;
+    register_shutdown_function(static function(): void {
+        if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
+        if(function_exists('fastcgi_finish_request'))fastcgi_finish_request();
+        elseif(function_exists('litespeed_finish_request'))litespeed_finish_request();
+        try {
+            require_once __DIR__.'/telegram_dispatch_core.php';
+            tg_dispatch();
+        } catch(Throwable) { error_log('Telegram background delivery requires retry.'); }
+    });
+}
+
 
 function operations_key_allowed(string $key): bool {
     return $key === 'transtrade_export_v3_operational'

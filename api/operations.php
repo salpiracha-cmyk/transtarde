@@ -10,6 +10,13 @@ header('Cache-Control: no-store, no-cache, must-revalidate');
 
 const TT_OPERATIONS_FILE = TT_DATA_DIR . '/operations.json';
 
+function operations_respond(array $data, int $status = 200): never {
+    operations_telegram_after_save($data,$status);
+    http_response_code($status);
+    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 function operations_telegram_after_save(array $data, int $status): void {
     if($status>=300||empty($data['ok'])||($_SERVER['REQUEST_METHOD']??'GET')!=='POST'||!isset($data['revision']))return;
     if(!is_file(TT_DATA_DIR.'/telegram-dispatch.json'))return;
@@ -25,12 +32,6 @@ function operations_telegram_after_save(array $data, int $status): void {
     });
 }
 
-function operations_respond(array $data, int $status = 200): never {
-    operations_telegram_after_save($data,$status);
-    http_response_code($status);
-    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    exit;
-}
 
 function operations_key_allowed(string $key): bool {
     return $key === 'transtrade_export_v2_operational'

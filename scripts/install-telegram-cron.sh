@@ -7,15 +7,20 @@ case "$target" in
 esac
 private="$(dirname "$target")/transtrade_private"
 test -f "$private/telegram-alerts.json" || { echo "Telegram connection is not configured."; exit 1; }
-command -v crontab >/dev/null || { echo "Hostinger crontab access is unavailable."; exit 1; }
 php_path=$(command -v php)
 # The report source must load successfully before the periodic task is enabled.
 "$php_path" "$target/scripts/telegram-dispatch.php" --initialize
+if ! command -v crontab >/dev/null; then
+  echo "Hostinger requires its Cron Jobs panel for the one-minute schedule."
+  echo "TELEGRAM_CRON_PHP_SCRIPT=$target/scripts/telegram-dispatch.php"
+  echo "GitHub's scheduled delivery check provides the automatic fallback."
+  exit 0
+fi
 before=$(mktemp)
 after=$(mktemp)
 trap 'rm -f "$before" "$after"' EXIT
 if ! crontab -l >"$before" 2>"$before.err"; then
-  if ! grep -qi 'no crontab' "$before.err"; then cat "$before.err" >&2; rm -f "$before.err"; exit 1; fi
+  if ! grep -qi 'no crontab' "$before.err"; then echo "Hostinger Cron Jobs panel is required. GitHub scheduled checks remain active."; rm -f "$before.err"; exit 0; fi
 fi
 rm -f "$before.err"
 awk '!/ # transtrade-telegram-dispatch$/' "$before" >"$after"
