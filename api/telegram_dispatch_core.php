@@ -20,6 +20,30 @@ function tg_arrival_text(array $r): string {
     $parts[]='Status '.(!empty($r['rejected'])?'Rejected':'Accepted arrival');
     return implode("\n",$parts);
 }
+function tg_loading_sources(array $ops): array {
+    $shipments=tg_rows($ops,'tt30ship');
+    $instructions=array_column(tg_rows($ops,'tt40exinstructions'),null,'id');
+    $outside=[];
+    foreach(tg_rows($ops,'tt35exload') as $load) {
+        $id=(string)($load['instructionId']??'');
+        if($id===''||!isset($instructions[$id]))continue;
+        $instruction=$instructions[$id];
+        if(!isset($outside[$id]))$outside[$id]=['id'=>'EXMILL|'.$id,'contractRef'=>$instruction['contractRef']??'',
+            'lotRef'=>$instruction['lotRef']??'','brand'=>$instruction['brand']??'',
+            'totalContainers'=>$instruction['totalContainers']??null,'containers'=>[]];
+        $outside[$id]['containers'][]=array_replace($load,['weight'=>$load['kg']??0,
+            'loadingComplete'=>!empty($load['serverPosted'])&&($load['issue']??'')==='OK'&&($load['kg']??0)>0]);
+    }
+    foreach(tg_rows($ops,'tt35exportersale') as $sale) {
+        $containers=[];
+        foreach($sale['containers']??[] as $c)$containers[]=array_replace($c,[
+            'container'=>$c['c']??'','truck'=>$c['t']??'','bags'=>$c['b']??0,'weight'=>$c['net']??0,
+            'loadingComplete'=>($c['net']??0)>0&&($c['b']??0)>0&&!empty($c['c'])&&$c['c']!=='BREAK BULK']);
+        $shipments[]=array_replace($sale,['id'=>'FELLOW|'.($sale['id']??$sale['ref']??''),
+            'totalContainers'=>$sale['totalContainers']??$sale['plannedContainers']??null,'containers'=>$containers]);
+    }
+    return array_merge($shipments,array_values($outside));
+}
 function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now): iterable {
     $today=$now->format('Y-m-d');$clock=$now->format('H:i');
     $arrivals=array_values(array_filter(tg_rows($ops,'tt30queue'),static fn($r)=>($r['date']??'')===$today&&empty($r['deleted'])));
@@ -75,7 +99,7 @@ function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now):
         $report['reference']=($run['date']??'').' | '.($run['shift']??'').' | '.($run['millName']??'');
         yield ['key'=>$key,'hash'=>$hash,'report'=>$report,'caption'=>$report['title'].' | '.$report['reference']];
     }
-    foreach(tg_rows($ops,'tt30ship') as $shipment) {
+    foreach(tg_loading_sources($ops) as $shipment) {
         $containers=(array)($shipment['containers']??[]);
         $sid=(string)($shipment['_ttShipmentId']??$shipment['id']??'');
         if($sid===''||!$containers)continue;
@@ -159,7 +183,7 @@ function tg_dispatch(bool $initialize=false): array {
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);return ['busy'=>true];}
     try {
         $now=new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi'));
-        $ops=mr_read_operations_source(TT_DATA_DIR.'/operations.json',array_merge(['tt30queue','tt30prod','tt30ship','transtrade_export_v3_operational'],array_keys(tg_mill_event_sources())));
+        $ops=mr_read_operations_source(TT_DATA_DIR.'/operations.json',array_merge(['tt30queue','tt30prod','tt30ship','tt35exload','tt40exinstructions','tt35exportersale','transtrade_export_v3_operational'],array_keys(tg_mill_event_sources())));
         if(!isset($ops['values']['transtrade_export_v3_operational']))throw new RuntimeException('Committed Exports source unavailable.');
         $state=is_file($path)?json_decode((string)file_get_contents($path),true,512,JSON_THROW_ON_ERROR):null;
         if(!$state) {
@@ -168,7 +192,7 @@ function tg_dispatch(bool $initialize=false): array {
             foreach(tg_rows($ops,'tt30prod') as $run)$state['observed']['production|'.($run['entity']??'TTI').'|'.$run['id']]=tg_hash($run);
             foreach(tg_mill_event_sources() as $source=>$label)foreach(tg_rows($ops,$source) as $record)if(!empty($record['id']))$state['observed']['mill-entry|'.$source.'|'.$record['id']]=tg_hash($record);
             // Loading history becomes the baseline. Upcoming saved containers still produce alerts.
-            foreach(tg_rows($ops,'tt30ship') as $shipment) {
+            foreach(tg_loading_sources($ops) as $shipment) {
                 $sid=(string)($shipment['_ttShipmentId']??$shipment['id']??'');
                 if(!empty($shipment['containers']))$state['sent']['loading-start|'.$sid]=['hash'=>'1','at'=>$now->format(DATE_ATOM)];
                 foreach($shipment['containers']??[] as $c)if(!empty($c['container'])&&(($c['loadingComplete']??false)===true||(!array_key_exists('loadingComplete',$c)&&!empty($c['seal'])&&!empty($c['truck'])&&($c['weight']??0)>0)))
