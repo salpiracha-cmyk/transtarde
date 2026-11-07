@@ -18,7 +18,10 @@ try {
     tt_release_read_session();
     $limit=0;if(isset($_GET['limit'])){if(!is_string($_GET['limit'])||!ctype_digit($_GET['limit'])||(int)$_GET['limit']<1||(int)$_GET['limit']>5000)admin_audit_out(['ok'=>false,'error'=>'Choose a valid audit limit.'],400);$limit=(int)$_GET['limit'];}
     $store=tt_read_store();$rows=[];
-    foreach((array)($store['audit']??[]) as $entry){
+    $auditRows=(array)($store['audit']??[]);
+    if(($_GET['includeQa']??'')==='1')$auditRows=array_merge($auditRows,(array)($store['qaAudit']??[]));
+    foreach($auditRows as $entry){
+        if(($_GET['includeQa']??'')!=='1'&&strcasecmp((string)($entry['username']??''),'qa.assistant')===0)continue;
         if(!is_array($entry))continue;
         // Deliberately expose only audit display fields, never the auth store,
         // addresses, password hashes, recovery credentials or master payloads.

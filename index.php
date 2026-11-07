@@ -22,7 +22,7 @@ if (($user['role'] ?? '') === 'Super Admin') {
         $status=$readerStatus[$provider];
         $readerBadges.='<span style="display:block;color:'.($status['linked']?'#087548':'#5c6670').';font-size:12px">'.($status['linked']?'✓ ':'').$name.' · '.htmlspecialchars($status['label'],ENT_QUOTES,'UTF-8').'</span>';
     }
-    $html=str_replace('<p class="nav-label">ADMINISTRATION</p>', '<p class="nav-label">ADMINISTRATION</p><a class="nav-item" href="document-reader-settings.php"><span class="nav-icon">AI</span><span>Document Reader Settings'.$readerBadges.'</span></a><a class="nav-item" href="telegram-alerts-settings.php"><span class="nav-icon">TG</span><span>Telegram Alerts</span></a>', (string)$html);
+    $html=str_replace('<p class="nav-label">ADMINISTRATION</p>', '<p class="nav-label">ADMINISTRATION</p><a class="nav-item" href="accounts-integrity-review.php"><span class="nav-icon">!</span><span>Accounts Integrity Review</span></a><a class="nav-item" href="document-reader-settings.php"><span class="nav-icon">AI</span><span>Document Reader Settings'.$readerBadges.'</span></a><a class="nav-item" href="telegram-alerts-settings.php"><span class="nav-icon">TG</span><span>Telegram Alerts</span></a>', (string)$html);
 }
 $moduleHomes = [
     'accounts' => ['permission' => 'Accounts', 'url' => '/accounts/index.php', 'label' => 'Accounts'],
@@ -57,7 +57,7 @@ $bootstrap = '<script>window.TT_SESSION=' . json_encode($session, JSON_HEX_TAG|J
 tt_release_read_session();
 require_once __DIR__.'/jv_notice_ui.php';
 $noticeUi=tt_jv_notice_ui($user,'#view-dashboard');
-$customerMaster = '<script src="/customer-master.js?v=20260909-1"></script>';
+$customerMaster = '<script src="/customer-master.js?v=20261107-separate-notify-fields-1"></script>';
 $release = '<script src="/session-activity.js?v=20260929-1"></script><script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script><script src="/global-validation.js?v=20260909-1"></script>';
 $html = str_replace('</head>', $bootstrap . '</head>', (string)$html);
 echo tt_version_local_assets(str_replace('</body>', $customerMaster . $release . $noticeUi . '</body>', $html));

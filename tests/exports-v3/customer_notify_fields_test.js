@@ -1,0 +1,10 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+const dom=new JSDOM('<body></body>',{url:'https://fixture.test/',runScripts:'outside-only'}),w=dom.window;w.TT_SESSION={role:'Super Admin',csrf:'fixture'};
+let posts=[];w.fetch=async(url,opt={})=>{if(opt.method==='POST')posts.push(JSON.parse(opt.body));return {ok:true,json:async()=>({ok:true,customers:[]})}};
+const source=fs.readFileSync('customer-master.js','utf8').replace("  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();","  window.openNotifyFixture=openEditor;");w.eval(source);
+w.openNotifyFixture({masterId:'M',name:'Moumin fixture',address:'Buyer Road',notifies:[{name:'Existing Notify',address:'First line\nSecond line'}]});
+const d=w.document;assert.equal(d.querySelector('[data-notify-name]').value,'Existing Notify');assert.equal(d.querySelector('[data-notify-address]').value,'First line\nSecond line');assert.equal(d.getElementById('ttCNotify'),null);assert.equal(posts.length,0);
+d.getElementById('ttCNotifyAdd').click();const rows=d.querySelectorAll('[data-notify-row]');assert.equal(rows.length,2);rows[1].querySelector('[data-notify-name]').value='Second notify';rows[1].querySelector('[data-notify-address]').value='Second road';
+(async()=>{await d.getElementById('ttCSave').onclick();assert.deepEqual(posts[0].customer.notifies,[{name:'Existing Notify',address:'First line\nSecond line'},{name:'Second notify',address:'Second road'}]);
+w.openNotifyFixture({masterId:'M',name:'Buyer',address:'Buyer Road',notifies:[{name:'Incomplete',address:''}]});posts=[];await d.getElementById('ttCSave').onclick();assert.equal(posts.length,0);assert.match(d.getElementById('ttCmMessage').textContent,/name and full address/);dom.window.close();console.log('PASS separate notify fields, multiline address preservation, explicit save, multiple parties and incomplete-row rejection');})().catch(e=>{console.error(e);process.exitCode=1});
