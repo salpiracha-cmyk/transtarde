@@ -99,7 +99,8 @@ stock=stockContext.computedStockRows();
 assert.equal(stock.find(x=>x.name==='IRRI-6 White Rice — SAME').kg,60000,'Same-brand loading must not reduce another product');
 assert.equal(stock.find(x=>x.name==='1121 White Rice — SAME').kg,35000,'Loading must reduce the matching structured product identity');
 
-assert.match(sourceBridge,/kind:'exMillLifting'/,'Ex-Mill loading must create an explicit Accounts fulfillment handoff');
+assert.match(milling,/action:'sync_lifting'/,'Native complete Ex-Mill loading owns the explicit Accounts handoff');
+assert.doesNotMatch(sourceBridge,/function bridgeExMillLifting/,'A number-only draft must not create a second financial handoff');
 assert.match(sodaFeedPhp,/purchaseSodaLiftings/,'Ex-Mill lifting handoffs must persist idempotently');
 assert.match(sodaPhp,/\$store\['purchaseSodaLiftings'\]/,'Accounts Soda quantities must include Ex-Mill liftings');
 

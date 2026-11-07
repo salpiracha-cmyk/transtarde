@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/arrival_withdrawal_core.php';
+require_once __DIR__.'/exmill_queue_core.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -146,6 +147,7 @@ try {
         tt_guard_withdrawn_arrival($input['body']??[]);
         $kind = bo_kind((string)($input['kind'] ?? ''));
         $body = is_array($input['body'] ?? null) ? $input['body'] : [];
+        if (eq_draft(['kind'=>$kind,'body'=>$body])) bo_out(['ok'=>false,'error'=>'Container-number-only saves are loading drafts. Complete the saved container in Mill; its native save posts Accounts once.'],422);
         $module = bo_module($kind);
         $entity = bo_entity($kind, $body);
         bo_authorize($user, $module, $entity, true);

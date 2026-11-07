@@ -61,4 +61,7 @@ with tempfile.TemporaryDirectory(prefix='tti-lifting-correction-') as directory:
  status,billed=request('commodity_bills.php',bill);assert status==200,(status,billed)
  assert_books(9000,0,-9000)
  before=books.read_bytes();status,data=post({**corrected,'kg':90,'truck':'KHI-999','expectedJournalId':current['id']});assert status==409 and books.read_bytes()==before,('billed metadata correction was not held',status,data)
+ before=books.read_bytes()
+ status,draft=request('bridge_outbox.php',{'action':'enqueue','key':'TTI|EXMILL_LIFTING|S1|DRAFT','kind':'exMillLifting','body':{**lifting,'kg':0}})
+ assert status==422 and books.read_bytes()==before,('Draft reached persistent accounting queue',status,draft)
  print('PASS actual Ex-Mill preview/immutable correction, Edit scope, accepted rate, original/reversal/replacement, stale/retry protection, legacy pending GL visibility, current Post ID lookup, source-owned amendment guard and final supplier/GRNI reconciliation')
