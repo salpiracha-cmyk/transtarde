@@ -321,8 +321,18 @@ $sharedBootstrap = <<<'HTML'
   function checkInbound(){if(exportWorkspaceBusy()){deferInbound();return}const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);if(access.moduleId!=='milling')inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
   // A bill Save appends only its reviewed record. It never flushes another form.
   async function deleteMillRecord(intent){
-    if(access.moduleId!=='milling'||pending.size||inFlight.size)throw new Error('Finish the current save before deleting a Mill entry.');
-    const keys=[intent.collection,'tt30bags','tt33bagreceipts','tt36bagissues','tt30prodaudit','tt32labourfeed'];
+    if(access.moduleId!=='milling')throw new Error('Open Milling before deleting a Mill entry.');
+    // A saved-row action must not flush or wait for another form's staged data.
+    // Lock only collections this deletion can replace in its acknowledgement.
+    const related={tt30prod:['tt36bagissues','tt30prodaudit','tt32labourfeed'],tt33bagreceipts:['tt30bags']};
+    const keys=[intent.collection,...(related[intent.collection]||[])];
+    for(const key of keys){
+      const confirmed=committedValues.get(key);
+      if(pending.has(key)&&!inFlight.has(key)&&typeof confirmed==='string'&&legacySame(pending.get(key),confirmed,key)&&legacySame(localStorage.getItem(key),confirmed,key)){
+        pending.delete(key);queuedBase.delete(key);failedKeys.delete(key);
+      }
+    }
+    if(keys.some(key=>pending.has(key)||inFlight.has(key)))throw new Error('This entry has an unfinished change. Finish its save before deleting it.');
     const originals=new Map(keys.map(key=>[key,localStorage.getItem(key)]));
     keys.forEach(key=>inFlight.add(key));saveHolds++;waiting();
     try{
