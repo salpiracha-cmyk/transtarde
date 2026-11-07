@@ -1,0 +1,48 @@
+name: Verify Mill release and reversible hosting cleanup
+on:
+  push:
+    branches: [codex/hosting-cleanup-final-verify]
+permissions:
+  contents: read
+concurrency:
+  group: transtrade-production-deployment
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 92350958b0a51bcf3a8cdd0387c09fedb39cd3dd
+      - name: Verify exact live source and moved folders without writing business data
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          python3 .github/scripts/original_source_package.py --exact > "$RUNNER_TEMP/source-match.php"
+          target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
+          ssh -o ConnectTimeout=20 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "env TT_SOURCE_ROOT=$target_q php" < "$RUNNER_TEMP/source-match.php"
+          ssh -o ConnectTimeout=20 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_REVIEW_TARGET=$target_q php" <<'PHP'
+          <?php
+          $root=getenv('TT_REVIEW_TARGET');$hold=dirname($root).'/source-folder-review-2026-11-07';
+          $moved=[];foreach(['.github','docs','ops','tests'] as $name){
+              if(file_exists($root.'/'.$name)||!is_dir($hold.'/'.$name))throw new RuntimeException('Cleanup boundary mismatch');
+              $moved[]=$name;
+          }
+          if(!is_dir($root.'/.git'))throw new RuntimeException('Active deployment checkout was not preserved');
+          echo json_encode(['movedOutsideWebRoot'=>$moved,'recoverable'=>true,'activeGitCheckoutPreserved'=>true,'releaseMarker'=>trim((string)@file_get_contents($root.'/.transtrade-release')),'businessFilesWritten'=>0],JSON_THROW_ON_ERROR).PHP_EOL;
+          PHP
+          curl -fsS --max-time 30 https://app.transtradeinternational.com/login.php > "$RUNNER_TEMP/login.html"
+          grep -q 'name="username"' "$RUNNER_TEMP/login.html"
+          echo LIVE_LOGIN_OK
