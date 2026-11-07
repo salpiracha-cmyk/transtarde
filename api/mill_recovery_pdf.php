@@ -26,6 +26,10 @@ function mr_pdf_render(array $report): string {
         $write(755, 531, 'Page '.(count($pages) + 1));
         $stream .= "0.17 0.35 0.29 RG 36 522 m 806 522 l S\n";
         $y = 505;
+        if (!empty($report['reference'])) {
+            $write(36, $y, (string)$report['reference'], 10, 'F2');
+            $y -= 20;
+        }
     };
     $wrap = static function (array $cells, array $widths): array {
         $wrapped = [];
@@ -64,6 +68,11 @@ function mr_pdf_render(array $report): string {
         $y -= 20;
     };
     $page();
+    if (isset($report['tables'])) {
+        foreach ($report['tables'] as $section) {
+            $table($section['title'], $section['headers'], $section['widths'], $section['rows']);
+        }
+    } else {
     $totals = static fn(array $g): array => array_map('mr_pdf_number', [$g['inputKg'], $g['readyKg'], $g['byProductKg'], $g['outputKg'], $g['recoveryPct'], $g['differenceKg']]);
     $summaryHeaders = ['Date', 'Input kg', 'Ready kg', 'By-products kg', 'Output kg', 'Recovery %', 'Difference kg'];
     $summaryWidths = [110,110,110,110,110,100,120];
@@ -85,6 +94,7 @@ function mr_pdf_render(array $report): string {
                     ...array_map('mr_pdf_number', [$r['bags'], $r['bagWeight'] ?? null, $r['grossKg'], $r['lessKg'], $r['kg'], $r['recoveryPct']]),
                 ], $group[$section]));
         }
+    }
     }
     $pages[] = $stream;
     $objects = ['', '', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>'];

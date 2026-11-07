@@ -13,6 +13,32 @@ function ps_access(array $user,string $entity,array $location,string $action): v
 }
 
 
+/** Link only a saved shipment under the contract of every finished output. */
+function ps_validate_shipment_lot(array $run, ?array $previous, array $values, array $user): void {
+    $id = (string)($run['shipmentLotId'] ?? '');
+    if ($id === '') return;
+    $root = json_decode((string)($values['transtrade_export_v3_operational'] ?? '{}'), true, 512, JSON_THROW_ON_ERROR);
+    $visible = os_root_projection($user, $root);
+    $lot = null;
+    foreach ($visible['shipments'] ?? [] as $shipment) {
+        if (($shipment['kind'] ?? '') === 'lot' && (string)($shipment['id'] ?? '') === $id) {
+            $lot = $shipment;
+            break;
+        }
+    }
+    if (!$lot || !empty($lot['cancelled']) || empty($lot['contractRef'])) {
+        throw new DomainException('Select a valid shipment lot for the production.');
+    }
+    if (!empty($lot['completed']) && ($previous['shipmentLotId'] ?? '') !== $id) {
+        throw new DomainException('This shipment lot is already complete.');
+    }
+    require_once __DIR__.'/mill_recovery_core.php';
+    $ready = array_filter(mr_output_rows($run), static fn($row) => $row['kind'] === 'finished');
+    if (!$ready || array_filter($ready, static fn($row) => $row['contractRef'] !== $lot['contractRef'])) {
+        throw new DomainException('The shipment lot must match the contract of every Ready Rice row.');
+    }
+}
+
 /** Derived packing history and amendment evidence share the production transaction. */
 function ps_effects(array $before,array $after,array $user,string $now): array {
     $old=[];foreach(tt_inv_rows($before,'tt30prod') as $r)$old[(string)$r['id']]=$r;
@@ -25,6 +51,7 @@ function ps_effects(array $before,array $after,array $user,string $now): array {
         $masters=tt_list_masters();$location=ps_location($masters,$r);if(!$location)throw new DomainException('Resolve the production location in Mills & Locations.');
         ps_access($user,(string)($r['entity']??''),$location,$prior?'Edit':'Create');
         if($prior){$previousLocation=ps_location($masters,$prior);if(!$previousLocation)throw new DomainException('Resolve the original production location before amending.');ps_access($user,(string)($prior['entity']??''),$previousLocation,'Edit');}
+        ps_validate_shipment_lot($r,$prior,$after,$user);
         $usage=[];foreach((array)($r['rows']??[]) as $row){if(!is_array($row)||tt_inv_is_private_row($row)||!empty($row['noStockPost']))continue;
             if(!preg_match('/^(?:Ready Rice|B2)\s*—\s*(.+)$/u',(string)($row['product']??''),$m))continue;$brand=trim($m[1]);if(in_array(strtoupper($brand),['LOCAL','LOCAL BAGS'],true))continue;
             $qty=(float)($row['actualBagCount']??$row['bags']??0);if(!is_finite($qty)||$qty<0)throw new DomainException('Production bag usage must be a valid actual quantity.');if($qty>0)$usage[$brand]=($usage[$brand]??0)+$qty;
