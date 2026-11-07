@@ -44,6 +44,15 @@ function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now):
         if(!isset($state['sent'][$summaryKey]))foreach($state['summaryRows'][$today]??$arrivals as $r)yield ['key'=>'arrival|'.$today.'|'.$r['id'],'hash'=>tg_hash($r),'markOnly'=>true];
     }
     if($clock>='11:00')yield ['key'=>'directors|'.$today,'hash'=>'1','morning'=>$today];
+    if(!empty($state['repairRecoveryDownload'])) {
+        $from=$now->modify('-7 days')->format('Y-m-d');
+        $to=$now->modify('-1 day')->format('Y-m-d');
+        $report=mr_report(tg_rows($ops,'tt30prod'),['entity'=>'TTI','mode'=>'daily','from'=>$from,'to'=>$to]);
+        if($report['groups']) {
+            $report['title']='Daily Recovery';
+            yield ['key'=>'recovery-download-repair','hash'=>'1','report'=>$report,'caption'=>'Daily Recovery | '.$from.' to '.$to.' | new copy with direct download'];
+        }
+    }
     $root=json_decode($ops['values']['transtrade_export_v3_operational']??'{}',true,512,JSON_THROW_ON_ERROR);
     $audits=array_reverse((array)($root['audits']??[]));
     foreach($audits as $audit) {
@@ -155,7 +164,7 @@ function tg_dispatch(bool $initialize=false): array {
         $state=is_file($path)?json_decode((string)file_get_contents($path),true,512,JSON_THROW_ON_ERROR):null;
         if(!$state) {
             if(!$initialize)throw new RuntimeException('Activate the automatic alerts first.');
-            $state=['since'=>$now->setTime(0,0)->getTimestamp(),'sent'=>[],'observed'=>[],'enabled'=>true];
+            $state=['since'=>$now->setTime(0,0)->getTimestamp(),'sent'=>[],'observed'=>[],'enabled'=>true,'repairRecoveryDownload'=>true];
             foreach(tg_rows($ops,'tt30prod') as $run)$state['observed']['production|'.($run['entity']??'TTI').'|'.$run['id']]=tg_hash($run);
             foreach(tg_mill_event_sources() as $source=>$label)foreach(tg_rows($ops,$source) as $record)if(!empty($record['id']))$state['observed']['mill-entry|'.$source.'|'.$record['id']]=tg_hash($record);
             // Loading history becomes the baseline. Upcoming saved containers still produce alerts.
@@ -199,6 +208,7 @@ function tg_dispatch(bool $initialize=false): array {
                 }
                 unset($state['pending'][$job['key']]);
                 $state['sent'][$job['key']]=['hash'=>$job['hash'],'at'=>$now->format(DATE_ATOM)];
+                if($job['key']==='recovery-download-repair')unset($state['repairRecoveryDownload']);
                 if(str_starts_with($job['key'],'production|')||str_starts_with($job['key'],'mill-entry|'))$state['observed'][$job['key']]=$job['hash'];
                 $state['lastSuccess']=$now->format(DATE_ATOM);
                 tg_state_save($path,$state);
