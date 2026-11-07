@@ -9,7 +9,7 @@
   const prior=document.activeElement,host=document.createElement('div');
   host.dataset.millDeleteDialog='';host.setAttribute('role','dialog');host.setAttribute('aria-modal','true');host.setAttribute('aria-label','Delete '+label);
   host.style.cssText='position:fixed;inset:0;z-index:100180;background:#102a4688;display:grid;place-items:center;padding:20px';
-  host.innerHTML='<section class="card" style="background:white;width:min(540px,100%);max-height:90vh;overflow:auto"><h2>Delete '+esc(label)+'</h2><label>Reason for deletion<textarea maxlength="300" data-reason></textarea></label><p role="alert" data-error></p><div class="actions"><button type="button" data-delete>Delete entry</button><button type="button" class="sec" data-close>Close</button></div></section>';
+  host.innerHTML='<section class="card" style="background:white;width:min(540px,100%);max-height:90vh;overflow:auto"><h2>Delete '+esc(label)+'</h2><p role="alert" data-error style="color:#b42318;font-weight:700"></p><label>Reason for deletion<textarea maxlength="300" data-reason></textarea></label><div class="actions"><button type="button" data-delete>Delete entry</button><button type="button" class="sec" data-close>Close</button></div></section>';
   document.body.appendChild(host);let busy=false,intent=null;
   const close=()=>{if(!busy){host.remove();if(prior?.isConnected)prior.focus({preventScroll:true});}};
   host.querySelector('[data-close]').onclick=close;
