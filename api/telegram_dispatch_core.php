@@ -136,35 +136,63 @@ function tg_mill_event_sources(): array {
         'tt37processingexpenses'=>'Mill processing expense','tt38labourbills'=>'Mill labour bill',
         'tt35localsales'=>'Mill local sale','tt33bagreceipts'=>'Mill bag receipt'];
 }
-function tg_pdf_detail_rows(array $record, string $prefix=''): array {
-    $rows=[];
-    foreach($record as $key=>$value) {
-        $label=trim($prefix.' '.preg_replace('/(?<=[a-z])(?=[A-Z])/', ' ', (string)$key));
-        if(is_array($value)) {
-            $rows=array_merge($rows,tg_pdf_detail_rows($value,$label));
-        } else {
-            $text=$value===null?'Unavailable':(is_bool($value)?($value?'Yes':'No'):(string)$value);
-            $rows[]=[ucfirst($label),$text];
-        }
-    }
-    return $rows;
+function tg_arp_tables(array $data): array {
+    $tables=[];
+    $add=static function(string $title,array $headers,array $rows)use(&$tables):void {
+        $widths=array_fill(0,count($headers),intdiv(770,count($headers)));
+        $widths[count($headers)-1]+=770-array_sum($widths);
+        $tables[]=['title'=>$title,'headers'=>$headers,'widths'=>$widths,'rows'=>$rows?:[['No matching records',...array_fill(1,count($headers)-1,'')]]];
+    };
+    $num=static fn($v,int $decimals=2)=>$v===null?'Review required':number_format((float)$v,$decimals);
+    $mt=static fn($v)=>$num($v,3);
+    $currencies=static fn($v)=>implode(' / ',array_map(static fn($currency,$amount)=>$currency.' '.$num($amount),array_keys($v??[]),array_values($v??[])))?:'0.00';
+    $t=$data['totals'];
+    $add('Group totals',['Measure','Total'],[
+        ['Bank balances','PKR '.$num($t['bankPKR']).' / '.$currencies($t['banks'])],
+        ['Importer receivables','PKR '.$num($t['receivablePKR']).' / '.$currencies($t['receivables'])],
+        ['Purchased - all recorded SODAs',$mt($t['purchasedMinMT']).' - '.$mt($t['purchasedMaxMT']).' MT'],
+        ['Received against recorded SODAs',$mt($t['receivedMT']).' MT'],
+        ['Remaining purchases',$mt($t['purchaseBalanceMinMT']).' - '.$mt($t['purchaseBalanceMaxMT']).' MT'],
+        ['Contracted export sales',$mt($t['exportContractedMT']).' MT'],
+        ['Loaded against export sales',$mt($t['exportLoadedMT']).' MT'],
+        ['Pending export sales',$mt($t['exportPendingMT']).' MT'],
+        ['Additional fellow-exporter sales',$mt($t['fellowContractedMT']).' MT'],
+        ['Loaded against additional fellow-exporter sales',$mt($t['fellowLoadedMT']).' MT'],
+        ['Pending fellow-exporter sales',$mt($t['fellowPendingMT']).' MT'],
+        ['Total sales - counted once',$mt($t['contractedMT']).' MT'],
+        ['Total pending sales',$mt($t['pendingMT']).' MT'],
+    ]);
+    $add('Company breakdown',['Company','Bank balances','Bank PKR','Importer receivables','Receivable PKR','Purchase SODAs','Sales'],array_map(static fn($r)=>[$r['entity'],$currencies($r['banks']),$num($r['bankPKR']),$currencies($r['receivables']),$num($r['receivablePKR']),$r['purchaseCount'],$r['salesCount']],$data['companies']));
+    $add('Bank balances',['Company','Bank / account','Currency','Balance','PKR rate','PKR equivalent'],array_map(static function($r)use($data,$num){
+        $rate=$r['currency']==='PKR'?1:($data['rates'][$r['currency']]??null);
+        return [$r['entity'],$r['label'],$r['currency'],$num($r['amount']),$rate?$num($rate,6):'Required',$rate&&$r['amount']!==null?$num($r['amount']*$rate):'Required'];
+    },$data['banks']));
+    $purchaseRows=static fn($rows)=>array_map(static fn($r)=>[$r['entity'],$r['number'],$r['product'],$mt($r['contractedMinMT']).' - '.$mt($r['contractedMaxMT']),$r['receivedKnown']?$mt($r['receivedMT']):'Review required',$mt($r['undeliveredMinMT']).' - '.$mt($r['undeliveredMaxMT']),$r['status']],$rows);
+    $purchaseHeaders=['Company','SODA','Product','Purchased MT','Received MT','Remaining MT','Status'];
+    $add('Remaining purchase SODAs',$purchaseHeaders,$purchaseRows(array_filter($data['purchases'],static fn($r)=>!$r['closed']&&($r['undeliveredMaxMT']===null||$r['undeliveredMaxMT']>0))));
+    $add('Closed purchase deliveries',$purchaseHeaders,$purchaseRows(array_filter($data['purchases'],static fn($r)=>$r['closed'])));
+    $add('Original purchase receipts',['Company','SODA','Date','Truck / container','Product','Source','Received MT'],array_map(static fn($r)=>[$r['entity'],$r['soda'],$r['date'],$r['reference'],$r['product'],$r['source'],$mt($r['quantityMT'])],$data['purchaseReceipts']??[]));
+    $salesRows=static fn($rows)=>array_map(static fn($r)=>[$r['entity'],isset($r['exporterDealId'])?'Fellow exporter':'Export',$r['party']??'',$r['ref'],$r['product'],$mt($r['contractedMT']),$r['loadedKnown']?$mt($r['loadedMT']):'Review required',$mt($r['outstandingMT'])],$rows);
+    $salesHeaders=['Company','Sale type','Party','Contract / SODA','Product','Agreed MT','Loaded MT','Pending MT'];
+    $add('Pending sales - export and fellow exporter',$salesHeaders,$salesRows(array_filter($data['sales'],static fn($r)=>!$r['closed']&&($r['outstandingMT']===null||$r['outstandingMT']>0))));
+    $add('Completed export and fellow-exporter sales',$salesHeaders,$salesRows(array_filter($data['sales'],static fn($r)=>$r['closed'])));
+    $fellow=array_values(array_filter($data['fellowSales']??[],static fn($r)=>!$r['closed']));
+    $add('Fellow-exporter sales and purchase coverage',['Company','Exporter / SODA','Product / brand','Agreed MT','Loaded MT','Pending MT','Sales calculation'],array_map(static fn($r)=>[$r['entity'],$r['party'].' / '.$r['reference'],trim($r['product'].' / '.$r['brand']),$mt($r['quantityMT']),$mt($r['loadedMT']),$mt($r['remainingMT']),$r['salesBasis']],$fellow));
+    $add('Fellow-exporter requirement calculations',['Exporter / SODA','Pending final goods MT','Saved recovery %','Raw required MT','Allocated purchases MT','Received purchases MT','Remaining purchases MT'],array_map(static fn($r)=>[$r['party'].' / '.$r['reference'],$mt($r['remainingMT']),$r['recoveryPct']??'-',$r['rawRequiredMT']===null?'Recovery not set':$mt($r['rawRequiredMT']),$r['purchases']?$mt($r['allocatedPurchaseMT']):'No specific allocation',$r['purchases']?$mt($r['receivedPurchaseMT']):'-',$r['purchases']?$mt($r['remainingPurchaseMT']):'-'],$fellow));
+    $purchases=[];
+    foreach($fellow as $sale)foreach($sale['purchases'] as $r)$purchases[]=[$sale['entity'],$sale['party'].' / '.$sale['reference'],$r['soda'],$r['product'],$r['stage'],$r['allocationBasis'],$mt($r['allocatedMT']),$mt($r['receivedMT']),$mt($r['remainingMT'])];
+    $add('Purchases against fellow-exporter sales',['Company','Exporter / SODA','Purchase SODA','Product','Raw / ready','Allocation','Allocated MT','Received MT','Remaining MT'],$purchases);
+    $add('Shipments being loaded',['Company','Contract / lot','Location','Planned containers','Loaded containers','Loaded MT','Status'],array_map(static fn($r)=>[$r['entity'],trim($r['contractRef'].' / '.$r['lot']),$r['location'],$r['plannedContainers']??'Review required',$r['loadedContainers']??'Review required',$mt($r['loadedMT']),$r['status']],$data['loading']));
+    $add('Importer receivables - issued final documents',['Company','Importer','Contract / invoice','Invoice date','Currency','Invoice value','Allocated receipts / advances','Receivable','Status'],array_map(static fn($r)=>[$r['entity'],$r['label'],$r['contractRef'].' / '.$r['reference'],$r['date'],$r['currency'],$num($r['invoiceAmount']),$num($r['received']),$num($r['amount']),$r['status']],$data['receivables']));
+    $add('Items requiring review',['Detail'],array_map(static fn($r)=>[is_array($r)?($r['message']??'Review required'):(string)$r],$data['holds']));
+    return $tables;
 }
 function tg_morning_pdf(string $date): array {
     require_once __DIR__.'/business_reports_core.php';
     require_once __DIR__.'/shipment_profitability_core.php';
     $books=sp_read_books(TT_DATA_DIR.'/accounts.json');$ops=br_operations();$root=br_root($ops);
     $data=br_arp($books,$ops,$root,$date,dcd_group_rates($books,$date));
-    $tables=[];
-    $tables[]=['title'=>'Group totals','headers'=>['Measure','Value'],'widths'=>[350,420],
-        'rows'=>tg_pdf_detail_rows($data['totals'])];
-    foreach(['companies'=>'Company breakdown','banks'=>'Bank positions','purchases'=>'Purchases','purchaseReceipts'=>'Purchase receipts','sales'=>'Sales and shipments','fellowSales'=>'Fellow exporter sales','loading'=>'Loading position','receivables'=>'Receivables','holds'=>'Items requiring attention'] as $key=>$title) {
-        foreach((array)($data[$key]??[]) as $i=>$record) {
-            if(!is_array($record))continue;
-            $tables[]=['title'=>$title.' | '.($i+1),'headers'=>['Detail','Saved report value'],'widths'=>[250,520],
-                'rows'=>tg_pdf_detail_rows($record)];
-        }
-    }
-    return ['entity'=>'TTI + BRM + TG','title'=>'Directors Morning Update','reference'=>'As of '.$date.' | Pakistan time','filters'=>['from'=>$date,'to'=>$date],'tables'=>$tables];
+    return ['entity'=>'TTI + BRM + TG','title'=>'Directors Morning Update','reference'=>'As of '.$date.' | Pakistan time','filters'=>['from'=>$date,'to'=>$date],'tables'=>tg_arp_tables($data)];
 }
 
 function tg_state_save(string $path,array $state): void {
