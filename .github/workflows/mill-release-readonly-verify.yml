@@ -1,0 +1,46 @@
+name: Verify restored release and maintenance receipt
+on:
+  push:
+    branches: [codex/mill-release-readonly-verify]
+    paths: ['.github/workflows/mill-release-readonly-verify.yml']
+permissions:
+  contents: read
+concurrency:
+  group: transtrade-production-deployment
+  cancel-in-progress: false
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Read existing release and completed maintenance receipt
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_REVIEW_TARGET='$HOSTINGER_DEPLOY_PATH' php" <<'PHP'
+          <?php
+          if(PHP_SAPI!=='cli')exit(1);
+          $root=(string)getenv('TT_REVIEW_TARGET');
+          if(!preg_match('~^/home/[A-Za-z0-9_-]+/domains/app\\.transtradeinternational\\.com/public_html$~D',$root)||realpath($root)!==$root)throw new RuntimeException('Unexpected review root.');
+          $path=dirname($root).'/transtrade_private/accounts.json';
+          if(!is_file($path)||is_link($path))throw new RuntimeException('Canonical books are unavailable for read-only review.');
+          $h=fopen($path,'r');if(!$h||!flock($h,LOCK_SH))throw new RuntimeException('Books are busy.');
+          try{$s=json_decode(stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);}finally{flock($h,LOCK_UN);fclose($h);}
+          $receipt=$s['expenseLedgerMaintenance']['d91fc3d668944be98039c57348e1be9d48ab582e4bd7b357a880d318f9b9d277']??null;
+          if(!is_array($receipt))throw new RuntimeException('The expected completed correction receipt is unavailable.');
+          echo json_encode(['release'=>is_file($root.'/.transtrade-release')?trim(file_get_contents($root.'/.transtrade-release')):null,'maintenanceCompletedAt'=>$receipt['completedAt']??null,'completionBeforeWorkflowReplay'=>strtotime((string)($receipt['completedAt']??''))<strtotime('2026-11-07T07:52:53Z'),'bankCashCardBalancesPreserved'=>$receipt['bankCashCardBalancesUnchanged']??null,'historicalDailyBalancesPreserved'=>$receipt['historicalDailyBalancesPreserved']??null,'remunerationRecoveryPreserved'=>$receipt['remunerationRecoveryBalancesUnchanged']??null,'businessFilesWritten'=>0],JSON_THROW_ON_ERROR).PHP_EOL;
+          PHP
