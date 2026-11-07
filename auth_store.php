@@ -1347,8 +1347,18 @@ function tt_append_audit(array &$data, ?int $userId, string $username, string $a
     $username=trim((string)preg_replace('/[\x00-\x1F\x7F]+/u',' ',$shorten($username,80)));
     $action=trim((string)preg_replace('/[\x00-\x1F\x7F]+/u',' ',$shorten($action,500)));
     if($username==='')$username='unknown';
-    array_unshift($data['audit'], ['user_id'=>$userId, 'username'=>$username, 'action'=>$action, 'ip_address'=>$_SERVER['REMOTE_ADDR'] ?? '', 'created_at'=>gmdate('c')]);
-    if (count($data['audit']) > 5000) $data['audit'] = array_slice($data['audit'], 0, 5000);
+    // Keep automated QA logins from evicting staff and business history.
+    $business=[];$qa=is_array($data['qaAudit']??null)?$data['qaAudit']:[];
+    foreach((array)($data['audit']??[]) as $entry){
+        if(strcasecmp((string)($entry['username']??''),'qa.assistant')===0)$qa[]=$entry;
+        else $business[]=$entry;
+    }
+    $entry=['user_id'=>$userId, 'username'=>$username, 'action'=>$action, 'ip_address'=>$_SERVER['REMOTE_ADDR'] ?? '', 'created_at'=>gmdate('c')];
+    if(strcasecmp($username,'qa.assistant')===0)array_unshift($qa,$entry);
+    else array_unshift($business,$entry);
+    usort($qa,static fn($a,$b)=>strcmp((string)($b['created_at']??''),(string)($a['created_at']??'')));
+    $data['qaAudit']=array_slice($qa,0,5000);
+    $data['audit']=array_slice($business,0,5000);
 }
 
 function tt_audit(?int $userId, string $username, string $action, bool $automaticBackup=true): void {

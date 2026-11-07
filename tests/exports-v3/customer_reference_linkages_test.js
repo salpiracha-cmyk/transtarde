@@ -37,4 +37,13 @@ w.localStorage.setItem('transtrade_export_v3_operational',JSON.stringify(t.state
 const revised={...master,defaultCurrency:'GBP',customerInstructions:'Different future instructions',documentAddresses:[{...master.documentAddresses[0],address:'New Billing Road'}],consignees:[{...master.consignees[0],address:'New Consignee Road'}],contacts:[{...master.contacts[0],email:'new@example.test'}]};
 t.applyExportCustomerMasters([revised]);assert.equal(c.currency,oldCurrency);assert.equal(c.paymentSectionOverride,oldWording);assert.equal(t.buyerOf(c).address,'New Billing Road');assert.equal(t.buyerOf(c).email,'new@example.test');assert.match(lot.bl.consignee,/New Consignee Road/);assert.equal(JSON.stringify(closed.documentParties),closedBefore);
 assert.equal(lot.bl.vessel,'Unfinished vessel entry');assert.notEqual(JSON.parse(w.localStorage.getItem('transtrade_export_v3_operational')).shipments[0].bl.vessel,'Unfinished vessel entry','master refresh cannot save unfinished fields');
-console.log('PASS all six customer reference fields: native selectors/defaults/instruction choice, shipment outputs, deduplication, closed snapshots and no draft autosave');dom.window.close();
+console.log('PASS all six customer reference fields: native selectors/defaults/instruction choice, shipment outputs, deduplication, closed snapshots and no draft autosave');
+
+// With no separate notify, the saved buyer is the explicit available choice.
+const fallbackBuyer={...structuredClone(master),notifies:[],additionalNotifies:[]};
+t.state.customers=[fallbackBuyer];t.setDraft(t.newContractShape());t.applyBuyerTemplate(fallbackBuyer.id);t.setStep(1);t.renderContractStep();
+d.getElementById('cContractNotifyEnabled').click();
+assert.equal(t.getDraft().contractNotifyParty.name,fallbackBuyer.name);assert.equal(t.getDraft().contractNotifyParty.address,fallbackBuyer.address);
+console.log('PASS buyer name and address fill only after include-notify tick when no separate notify exists');
+
+dom.window.close();

@@ -2830,7 +2830,8 @@ function printSavedSalesContract(id,inspection=false){
  document.getElementById('confirmInspectionPrint').onclick=()=>{const selected=document.getElementById('inspectionExporter').value;closeModal();print(selected)}
 }
 function salesContractNotifyChoices(cu){
- return customerPartyChoices(cu).filter(row=>row.choice.startsWith('RELATED:notifies:')||row.choice.startsWith('RELATED:additionalNotifies:'));
+ const saved=customerPartyChoices(cu).filter(row=>row.choice.startsWith('RELATED:notifies:')||row.choice.startsWith('RELATED:additionalNotifies:'));
+ return saved.length?saved:(cu?.name&&cu?.address?[{choice:'BUYER',label:'Buyer',party:{name:cu.name,address:cu.address}}]:[]);
 }
 function salesContractNotifyFields(c,cu){
  const party=c.contractNotifyParty||{},choices=salesContractNotifyChoices(cu);

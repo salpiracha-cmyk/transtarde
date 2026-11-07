@@ -533,7 +533,7 @@ if($id==='milling')$brandHead.='<style id="milling-production-layout">'.$product
 if($localSalesView)$brandHead.='<style>.panel{display:none!important}#local.active,#millLanding.active{display:block!important}</style>';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
-$accountsSourceBridge = '<script src="mill-duplicate-approvals.js"></script><script src="accounts/source-bridge.js?v=20260924-explicit-actions-1"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';
+$accountsSourceBridge = '<script src="mill-duplicate-approvals.js"></script><script src="accounts/source-bridge.js?v=20261107-visible-failures-1"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';
 $brandBody = '<script src="/session-activity.js?v=20261105-mill-idle"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
