@@ -1,0 +1,22 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const bridge=fs.readFileSync('accounts/source-bridge.js','utf8'),mill=fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html','utf8');
+const data=[{key:'D',kind:'exMillLifting',body:{kg:0}},{key:'P',kind:'exMillLifting',body:{kg:27000}},{key:'X',kind:'accountEvent',body:{kg:0}}];
+const c={parse:()=>data,OUTBOX:'queue',Number};vm.createContext(c);vm.runInContext(bridge.slice(bridge.indexOf('  function exMillDraft('),bridge.indexOf('  function saveOutbox(')),c);
+assert.deepEqual(Array.from(c.outbox(),x=>x.key),['P','X']);assert.equal(data.length,3,'Loading filter does not alter other saved records');
+assert.doesNotMatch(bridge,/function bridgeExMillLifting|window\.saveExMillLoad\s*=/,'No second owner of native Ex-Mill saving');
+const fn=mill.slice(mill.indexOf('async function saveExMillLoad('),mill.indexOf('async function completeExMillLoading('));
+assert.match(fn,/if\(complete\)\{/);assert.match(fn,/liftingId:'CN-'\+container/);assert.match(fn,/const reviewed=await send\(true\)/);assert.match(fn,/result=await send\(false\)/);assert.match(fn,/id:existing\?\.id\|\|Date\.now\(\)/);assert.match(fn,/serverPosted:complete/);
+assert.match(fn,/expectedJournalId:existing\?\.liabilityJournalId/);assert.match(fn,/await window\.TT_SHARED_SYNC\.saveNow\(\)/);
+console.log('PASS legacy zero drafts excluded; native number-only/save/amend/retry retains one stable container posting and correction review');
+(async()=>{
+ const values={exDate:'2026-11-07',exCont:'ABCD1234567',exTruck:'',exSeal:'',exBags:'0',exWeight:'0',exGate:'',exIssue:'OK'};
+ const loads=[],instruction={id:1,localSodaId:'LOCAL',allocationStatus:'LINKED',totalContainers:2,shipmentId:'SHIP',contractRef:'C1',lotRef:'L1',instructionQtyKg:1000},soda={id:'LOCAL',_ttPurchaseSodaId:'S1',entity:'TTI',qtyKg:1000};
+ let financialWrites=0,committed=0;
+ const ctx={window:{TT_MODULE_ACCESS:{csrf:'fixture'},TT_SHARED_SYNC:{saveNow:async()=>committed++},TT_LIFTING_REVIEW:{confirm:async()=>true}},editingExLoadId:null,STORE_EXLOAD:'loads',exMillInstructions:()=>[instruction],exMillSodas:()=>[soda],get:()=>loads,set:()=>{},document:{getElementById:id=>id.startsWith('exinline_')?null:{value:values[id.slice(0,id.lastIndexOf('_'))]??''}},today:()=>values.exDate,containerFormat:x=>x,formatTruckNo:x=>x,validContainer:()=>true,validTruckNo:x=>!!x,containerIdentity:x=>x,containerExists:()=>false,TT_COMMODITY_FLOW:{isLooseBulk:()=>false,isCorn:()=>false},exInstructionLoads:()=>loads,showContainerFeedback:m=>{throw Error(m)},nowText:()=>'',renderExMill:()=>{},exLoadingPanel:{classList:{remove(){}}},showNonBlockingMessage:()=>{},fetch:async(url,opt)=>{const body=JSON.parse(opt.body);assert.equal(body.liftingId,'CN-ABCD1234567');if(!body.preview)financialWrites++;return{ok:true,json:async()=>({ok:true,replayed:financialWrites>0&&body.preview,reviewFingerprint:'fixture',previews:[{}],journal:{id:'J1'}})}},Number,String,Date,Set,JSON};
+ vm.createContext(ctx);vm.runInContext(fn,ctx);
+ await ctx.saveExMillLoad(1);assert.equal(loads.length,1);assert.equal(loads[0].kg,0);assert.equal(loads[0].serverPosted,false);assert.equal(financialWrites,0);
+ const id=loads[0].id;ctx.editingExLoadId=id;Object.assign(values,{exTruck:'ABC-123',exSeal:'SEAL',exBags:'2',exWeight:'100'});
+ await ctx.saveExMillLoad(1);assert.equal(loads.length,1);assert.equal(loads[0].id,id);assert.equal(loads[0].kg,100);assert.equal(loads[0].liabilityJournalId,'J1');assert.equal(financialWrites,1);
+ ctx.editingExLoadId=id;values.exCorrection='Retry same save';await ctx.saveExMillLoad(1);assert.equal(financialWrites,1);assert.equal(loads.length,1);assert.equal(committed,3);
+ console.log('PASS executed native draft → same-row weighted amendment → retry; exactly one financial commit');
+})().catch(e=>{console.error(e);process.exitCode=1});

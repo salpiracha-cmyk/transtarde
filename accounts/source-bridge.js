@@ -6,13 +6,14 @@
   const parse=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
   const put=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 
-  function outbox(){const a=parse(OUTBOX,[]);return Array.isArray(a)?a:[]}
+  function exMillDraft(x){return x?.kind==='exMillLifting'&&x.body&&x.body.kg!==null&&x.body.kg!==''&&Number.isFinite(Number(x.body.kg))&&Number(x.body.kg)===0&&!x.body.reversed}
+  function outbox(){const a=parse(OUTBOX,[]);return Array.isArray(a)?a.filter(x=>!exMillDraft(x)):[]}
   function saveOutbox(a){put(OUTBOX,a)}
   async function outboxReq(body){const opt={method:body?'POST':'GET',credentials:'same-origin',headers:{Accept:'application/json'}};if(body){opt.headers['Content-Type']='application/json';opt.body=JSON.stringify({csrf:access.csrf,...body})}const r=await fetch(outboxApi,opt);let d={};try{d=await r.json()}catch{}if(!r.ok||!d.ok)throw new Error(d.error||'Accounts handoff outbox is unavailable.');return d}
   async function persistItem(item){return outboxReq({action:'enqueue',key:item.key,kind:item.kind,body:item.body})}
   async function markSent(item,result){return outboxReq({action:'mark_sent',key:item.key,result})}
   async function recordFailure(item,error){try{await outboxReq({action:'record_failure',key:item.key,error:String(error?.message||error)})}catch{}}
-  async function mergeServerOutbox(){try{const d=await outboxReq(),a=outbox();for(const server of (d.items||[])){if(!server?.key||!server?.kind||!server?.body)continue;const old=a.find(x=>x.key===server.key);if(old){old.kind=server.kind;old.body=server.body;old.status='Pending';old.tries=Math.max(Number(old.tries||0),Number(server.tries||0));old.lastError=server.lastError||old.lastError||''}else a.push({key:server.key,kind:server.kind,body:server.body,status:'Pending',createdAt:server.createdAt||new Date().toISOString(),tries:Number(server.tries||0),lastError:server.lastError||''})}saveOutbox(a)}catch(e){console.error('Accounts server outbox sync',e)}}
+  async function mergeServerOutbox(){try{const d=await outboxReq(),a=outbox();for(const server of (d.items||[])){if(!server?.key||!server?.kind||!server?.body||exMillDraft(server))continue;const old=a.find(x=>x.key===server.key);if(old){old.kind=server.kind;old.body=server.body;old.status='Pending';old.tries=Math.max(Number(old.tries||0),Number(server.tries||0));old.lastError=server.lastError||old.lastError||''}else a.push({key:server.key,kind:server.kind,body:server.body,status:'Pending',createdAt:server.createdAt||new Date().toISOString(),tries:Number(server.tries||0),lastError:server.lastError||''})}saveOutbox(a)}catch(e){console.error('Accounts server outbox sync',e)}}
   function addItem(event){const a=outbox(),old=a.find(x=>x.key===event.key);if(old){const changed=JSON.stringify(old.body)!==JSON.stringify(event.body);if(old.status!=='Posted'||changed){old.body=event.body;old.kind=event.kind;old.status='Pending';old.updatedAt=new Date().toISOString();old.lastError='';saveOutbox(a);persistItem(old).catch(()=>{});flush()}return}const item={...event,status:'Pending',createdAt:new Date().toISOString(),tries:0,lastError:''};a.push(item);saveOutbox(a);persistItem(item).catch(()=>{});flush()}
   async function postItem(item){
     await persistItem(item);
@@ -43,12 +44,8 @@
     wrappedSaveSlip._ttAccountsWrapped=true;wrappedSaveSlip._ttOriginal=original;window.saveSlip=wrappedSaveSlip;
   }
 
-  function bridgeExMillLifting(){
-    if(access.moduleId!=='milling'||typeof window.saveExMillLoad!=='function'||window.saveExMillLoad._ttAccountsWrapped)return;
-    const original=window.saveExMillLoad;
-    async function wrappedSaveExMillLoad(){const before=parse('tt35exload',[]),ids=new Set((Array.isArray(before)?before:[]).map(x=>String(x.id))),result=await original.apply(this,arguments),after=parse('tt35exload',[]),saved=(Array.isArray(after)?after:[]).find(x=>!ids.has(String(x.id)));if(saved&&!saved.serverPosted){const sodas=parse('tt35exmill',[]),soda=(Array.isArray(sodas)?sodas:[]).find(x=>String(x.id)===String(saved.sodaId)),sourceSodaId=String(soda?._ttPurchaseSodaId||'');if(sourceSodaId){const entity=String(soda.entity||'TTI').toUpperCase(),liftingId=String(saved.id||saved.container);addItem({key:entity+'|EXMILL_LIFTING|'+sourceSodaId+'|'+liftingId,kind:'exMillLifting',body:{entity,sourceSodaId,liftingId,date:String(saved.date||new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())),container:String(saved.container||''),truck:String(saved.truck||''),kg:Number(saved.kg||0),bags:Number(saved.bags||0),shipmentId:String(saved.shipmentId||soda.shipmentId||''),contractRef:String(saved.contractRef||soda.contractRef||''),lotRef:String(saved.lotRef||soda.shipment||''),reversed:false}});signal('Ex-Mill lifting saved · Accounts Soda queued')}}return result}
-    wrappedSaveExMillLoad._ttAccountsWrapped=true;wrappedSaveExMillLoad._ttOriginal=original;window.saveExMillLoad=wrappedSaveExMillLoad;
-  }
+  // Ex-Mill saves own their Accounts transaction in saveExMillLoad. A draft
+  // container is not a financial event; never queue a second posting here.
 
   function exportState(){try{return typeof state!=='undefined'?state:null}catch(e){return null}}
   function exportRefs(s){let fi=[],st=exportState();try{fi=(s.customs?.fiAllocations||[]).map(a=>st?.fi?.find(f=>f.id===a.fiId)?.number).filter(Boolean)}catch(e){}let gd=[...(s.commercial?.gd||[]),...(s.bl?.gd||[])].map(g=>g?.no).filter(Boolean);gd=[...new Set(gd)];return {fi,gd}}
@@ -93,7 +90,7 @@
     if(access.role==='Super Admin'){const link=document.createElement('a');link.href='/accounts-integrity-review.php';link.textContent='Review pending handoffs and TG/AMT/13';box.append(link);}
     document.body.prepend(box);
   }
-  async function boot(){bridgePohanch();bridgeExMillLifting();bridgeExportCompletion();bridgeExporterSales();await loadMillBanks();bridgeLocalSales();const frame=document.querySelector('#partySaleWrap iframe');if(frame&&!frame._ttAccountsLoadBound){frame._ttAccountsLoadBound=true;frame.addEventListener('load',bridgeLocalSales)}await mergeServerOutbox();await syncLocalStatuses();showOutboxAttention()}
+  async function boot(){bridgePohanch();bridgeExportCompletion();bridgeExporterSales();await loadMillBanks();bridgeLocalSales();const frame=document.querySelector('#partySaleWrap iframe');if(frame&&!frame._ttAccountsLoadBound){frame._ttAccountsLoadBound=true;frame.addEventListener('load',bridgeLocalSales)}await mergeServerOutbox();await syncLocalStatuses();showOutboxAttention()}
   addEventListener('DOMContentLoaded',boot,{once:true});window.TT_ACCOUNTS_SOURCE_BRIDGE={flush,outbox,syncLocalStatuses,mergeServerOutbox,queueExportInvoice};
   if(access.moduleId==='milling'){const s=document.createElement('script');s.src='accounts/local-sales-entity-rule.js?v=20260908-1';document.head.appendChild(s)}
 })();
