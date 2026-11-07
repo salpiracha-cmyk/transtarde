@@ -1,0 +1,108 @@
+'use strict';
+
+const fs = require('fs');
+const assert = require('assert');
+
+const desk = fs.readFileSync('accounts/accounts-accounting-desk.js', 'utf8');
+const bundle = fs.readFileSync('accounts/app-bundle.php', 'utf8');
+const sodaApi = fs.readFileSync('api/purchase_sodas.php', 'utf8');
+const billUi = fs.readFileSync('accounts/bill-smart-ui-v2.js', 'utf8');
+const bridge = fs.readFileSync('accounts/source-bridge.js', 'utf8');
+const milling = fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html', 'utf8');
+const searchApi = fs.readFileSync('api/accounts_search.php', 'utf8');
+const auth = fs.readFileSync('auth_store.php', 'utf8');
+const dashboardApi = fs.readFileSync('api/accounts_dashboard.php', 'utf8');
+const salesTaxApi = fs.readFileSync('api/accounts_sales_tax.php', 'utf8') + fs.readFileSync('api/accounts_sales_tax_core.php', 'utf8');
+const exportDocumentsApi = fs.readFileSync('api/export_documents.php', 'utf8');
+const receiptUi = fs.readFileSync('accounts/export-receipts-ui.js', 'utf8');
+const receiptApi = fs.readFileSync('api/export_receipts.php', 'utf8');
+const receiptFileApi = fs.readFileSync('api/accounts_receipt_file.php', 'utf8');
+const enhancements = fs.readFileSync('accounts/accounts-enhancements.js', 'utf8');
+const billTerms = fs.readFileSync('accounts/bill-payment-terms.js', 'utf8');
+
+assert(bundle.includes("'accounts-accounting-desk.js'"), 'professional Accounts desk must be loaded last');
+assert(desk.includes("master.id = 'ttMasterTop'"), 'Masters must be available through top-bar M');
+assert(desk.includes('New SODA') && desk.includes('Recent SODAs') && desk.includes('Search all SODAs') && !desk.includes('Search / Amend Soda'), 'Soda Centre must have one searchable recent register');
+assert(desk.includes('A SODA records the purchase commitment. The bill is posted separately.'), 'Soda form must explain that no GL entry is made');
+assert(desk.includes('Reason for Amendment'), 'Soda amendment reason must be visible and compulsory');
+assert(desk.includes("title:'Bill Posting'") && !desk.includes("title:'Arrival / Rice Bill'"), 'purchase entry must use the approved Bill Posting label');
+assert(!desk.includes('class="btn tt-prev-direct"'), 'duplicate Search Previous button must not appear in the Purchases workspace');
+assert(desk.includes('data-delete-soda') && sodaApi.includes("$action === 'delete'"), 'Super Admin must be able to delete an unused Soda from its detail view');
+assert(billUi.includes('data-open-receipt') && !billUi.includes('type="checkbox" class="ttsb-select"'), 'Arrival Bills must open from a receipt row without tick boxes');
+assert(bridge.includes("'POHANCH|' + String(saved.millId") || bridge.includes("'POHANCH|'+String(saved.millId"), 'Pohanch handoff identity must not rely on the reusable printed number');
+assert(milling.includes('function editSlip') && milling.includes('Save Amendment'), 'saved unprinted Pohanch must provide an edit workflow');
+assert(desk.includes('Search Previous Accounts Entry'), 'every workspace must expose previous-entry search');
+assert(desk.includes('Print Voucher'), 'third-party accounting search results must expose voucher print');
+assert(desk.includes('Export Receipts & Payments') && desk.includes('Bank Receipt / Credit Advice') && desk.includes('Local Sales & Receipts'), 'receipt work must be grouped under the approved broad areas');
+assert(desk.includes("title:'Sales Tax & Refund'") && !desk.includes("title:'Sales Tax Export File'"), 'report must use the consolidated Sales Tax & Refund name');
+assert(desk.includes('const tgAreas') && !desk.includes("key:'tg-purchases'"), 'TG must have the simplified receipt, payment, bank, ledger and report menu without Pakistan purchase workflows');
+assert(desk.includes('accounts_dashboard.php') && desk.includes('accounts_sales_tax.php'), 'dashboard summaries and Sales Tax search must use linked read-only endpoints');
+assert(dashboardApi.includes("['1110','1120']") || (dashboardApi.includes("$a==='1110'") && dashboardApi.includes("$a==='1120'")), 'dashboard bank summary must come from posted bank and cash ledger lines');
+assert(dashboardApi.includes("$a==='1220'") && dashboardApi.includes("$a==='1210'"), 'local and export receivable summaries must come from their posted ledgers');
+assert(salesTaxApi.includes('tt_export_documents') && salesTaxApi.includes("$accounts['exportReceipts']"), 'Sales Tax search must link Export documents with Accounts receipts');
+assert(exportDocumentsApi.includes("tt_user_can_open_module($user,'Accounts')"), 'Accounts users must be able to read linked Export documents without gaining Export write access');
+assert(receiptUi.includes('id="erAdviceFile"') && receiptUi.includes('uploadAdvice'), 'export receipts must accept a bank credit advice upload');
+assert(desk.includes("special:'export-receipt'") && receiptUi.includes('window.TT_EXPORT_RECEIPTS_UI={openForm,'), 'the Accounts icon must open the complete export receipt form directly');
+assert(receiptUi.includes('ttExportReceiptDialog') && !receiptUi.includes("?.click()"), 'the credit advice must open its own form without flashing the old Bank workspace');
+assert(!receiptUi.includes('<details class="tter-section"') && receiptUi.includes('id="erAccountingRows"'), 'all credit-advice information and its Debit/Credit preview must remain visible in one full form');
+assert(receiptUi.includes('accounts_receipt_file.php') && receiptFileApi.includes('tt_pending_save') && fs.readFileSync('pending_uploads.php','utf8').includes('move_uploaded_file'), 'credit advice uploads must use the protected Accounts document endpoint');
+assert(receiptUi.includes('bankAdvicePaperRef') && fs.readFileSync('api/export_receipts.php', 'utf8').includes('bankAdvicePaperRef'), 'optional paper advice references must be retained separately from uploaded files');
+assert(receiptUi.includes('Default Receipt') || fs.readFileSync('accounts/bank-accounts-ui.js','utf8').includes('Default Receipt Account'), 'receipt workflow must support a company default receipt account');
+assert(!receiptUi.includes('function fiAllocations') && !fs.readFileSync('api/export_receipts.php','utf8').includes('function er_prepare_fi'), 'FI allocation must remain outside Accounts');
+assert(!bundle.includes("'retention-receipt-filter.js'") && !bundle.includes("'export-receipts-tax-ui-patch.js'") && !bundle.includes("'export-bank-shortfall-ui.js'"), 'retired export-receipt override layers must not load over the unified form');
+assert(receiptUi.includes('Amount') || receiptUi.includes('itemLabel'), 'outstanding receipt items must use the linked amount/narration/reference sequence');
+assert(receiptUi.includes('outstandingAdvance') && receiptApi.includes('receivedAdvance') && receiptApi.includes('Combined receipt allocations exceed the outstanding advance'), 'customer advances must show and enforce only their remaining contract amount');
+assert(receiptUi.includes('retentionBankOptions') && receiptUi.includes('retentionAccount'), 'foreign retention must offer only approved retention accounts');
+const tgPaymentUi=fs.readFileSync('accounts/tg-bank-transactions-ui.js','utf8');
+const tgPaymentApi=fs.readFileSync('api/tg_bank_transactions.php','utf8');
+const tgUnallocatedApi=fs.readFileSync('api/export_tg_unallocated.php','utf8');
+const exportsUi=fs.readFileSync('exports/app.js','utf8');
+assert(tgPaymentUi.includes('value="UNALLOCATED"') && tgPaymentUi.includes('value="FI"') && tgPaymentUi.includes('value="GD"') && tgPaymentUi.includes('value="OTHER"'), 'TG outgoing payment must offer FI, GD, Other and Unallocated references');
+assert(tgPaymentApi.includes("$row['referenceType']=$referenceType") && tgPaymentApi.includes("$row['pakistanCandidateId']") && tgPaymentApi.includes('An unallocated payment cannot have an FI'), 'TG payment must save its reference status and reject inconsistent allocations');
+assert(tgUnallocatedApi.includes("($tx['referenceType'] ?? '') !== 'UNALLOCATED'") && exportsUi.includes('showTgUnallocatedPayments()'), 'Exports FI register must show TG payments awaiting reference allocation');
+assert(receiptUi.includes('pendingTg') && receiptApi.includes('function er_pending_tg(') && receiptApi.includes('tgPaymentId'), 'TG outgoing payments must prefill a single linked Pakistan receipt');
+const bankUi=fs.readFileSync('accounts/bank-accounts-ui.js','utf8');
+const companyUi=fs.readFileSync('admin/app.js','utf8');
+const bankApi=fs.readFileSync('api/bank_accounts.php','utf8');
+const retentionApi=fs.readFileSync('api/retention_remittances.php','utf8');
+assert(receiptUi.includes('tter-overlay') && receiptUi.includes('function closeForm()'), 'Pakistan credit advice must be a direct, closable receipt dialog');
+assert(receiptUi.includes('erUseRetention') && receiptUi.includes('erRetentionDetails') && receiptUi.includes('erRetentionBank'), 'receipt must offer a designated retention account with visible bank details');
+assert(companyUi.includes('document.getElementById("bankRetention").checked') && companyUi.includes('retentionEnabled:currency==="PKR"') && companyUi.includes('retentionAccount:currency!=="PKR"') && fs.readFileSync('master_store.php', 'utf8').includes('function tt_bank_is_retention('), 'Company Master must own the retention designation');
+assert(bankApi.includes('masterRetentionAccount') && receiptApi.includes('tt_bank_is_retention($id,$store)') && retentionApi.includes('tt_bank_is_retention($bankId,$store)'), 'the Company Master designation must govern receipt and remittance posting');
+assert(receiptApi.includes("['PARTIAL','CORRESPONDENT','OTHER']") && receiptApi.includes('Explain the other shortfall reason'), 'shortfall classification must be validated by the server');
+assert(billUi.includes('relationshipType') && billUi.includes('postingNumber') && billUi.includes('POST BILL'), 'Bill Posting must follow Broker/Supplier to Soda to Pohanch and return a posting number');
+assert(billUi.includes('ttsb-bill') && billUi.includes('refreshTotals') && fs.readFileSync('api/commodity_bills.php','utf8').includes('$billBaseValue'), 'the redesigned bill must remain linked to the existing Corn/Sesame KAT and brokery engine');
+assert(!enhancements.includes('openCommodityBill') && !enhancements.includes("[data-purchase=\"commodity\"]"), 'the retired commodity bill renderer must not race the active Bill Posting workflow');
+assert(!billTerms.includes('stopImmediatePropagation') && !billTerms.includes('commodity_bills.php') && billUi.includes('sync_late_holds'), 'payment terms may display Soda due dates but must not override the single active bill posting path');
+assert(desk.includes('Freight') && desk.includes('Clearing') && desk.includes('Fumigation') && desk.includes('Inspection') && desk.includes('Transport'), 'shipment bill categories must remain available');
+assert(desk.includes(".workspace.tt-clean-modal .accountPreview{display:block!important"), 'live accounting preview must not be hidden');
+assert(desk.includes("box.id = 'ttUtilityTreatment'") && desk.includes('Accounting treatment before posting'), 'utility entry must render a live Debit/Credit preview');
+assert(desk.includes('Generated automatically'), 'Soda/internal number must be system-generated');
+assert(sodaApi.includes("$action === 'amend'"), 'Soda API must support amendments');
+assert(sodaApi.includes("'reason'=>$reason") && sodaApi.includes("'changes'=>$changes"), 'Soda audit must retain reason and old/new changes');
+assert(sodaApi.includes("$party=$supplier?(string)$supplier['name']:''") && desk.includes("supplier.value?(supplier.selectedOptions"), 'an optional Supplier must remain empty instead of saving its placeholder text');
+assert(sodaApi.includes('tt_purchase_product_profiles()'), 'Soda must use the approved Purchase Product master instead of free-text commodity choices');
+assert(searchApi.includes("'voucherNo','journalId','billNo','invoiceNo','sodaNo','pohanch','chequeNo','reference'"), 'universal search must cover accounting and operational references');
+assert(searchApi.includes("as_text($row)"), 'universal search must include linked shipment fields such as container, B/L, vessel, line and port');
+assert(searchApi.includes("$collection === 'journals'") && searchApi.includes("supplierBillId"), 'posted source records must collapse into their linked Post ID result');
+assert(auth.includes("if (($user['role'] ?? '') === 'Super Admin') return 'index.php'"), 'Super Admin must land in the Control Centre');
+assert(auth.includes("if (tt_user_can_open_module($user, 'Accounts')) return 'accounts/index.php'"), 'Accounts staff must still land directly in Accounts');
+
+console.log('Accounts professional desk: passed');
+
+// Exercise the same rendered icons and action menus for both Pakistan books.
+(async()=>{
+  const {JSDOM}=require('jsdom');
+  const dom=new JSDOM('<div id="ttAccountingDesk"><div id="ttDeskWork"></div></div>',{url:'https://fixture.test/accounts/',runScripts:'outside-only'}),w=dom.window;
+  w.TT_ACCOUNT_ACCESS={permissions:'all',canInventoryReconciliation:true,canGroupDaily:true,canGroupZakat:true};
+  w.fetch=async()=>({ok:true,json:async()=>({ok:true,canCreate:true,accounts:[{settings:{retentionAccount:true}}],pendingTg:[{}]})});
+  w.eval(desk.replace("  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();","  window.parityHome=showAreasHome;"));
+  const render=async book=>{
+    w.localStorage.setItem('tt_accounts_entity',book);w.parityHome();
+    const home=w.document.getElementById('ttDeskWork').innerHTML,keys=[...w.document.querySelectorAll('[data-tt-area]')].map(el=>el.dataset.ttArea),menus={};
+    for(const key of keys){await w.TT_ACCOUNTING_DESK.showArea(key);menus[key]=[...w.document.querySelectorAll('[data-tt-action]')].map(el=>el.outerHTML);}
+    return {home,menus};
+  };
+  assert.deepStrictEqual(await render('TTI'),await render('BRM'),'TTI and BRM must use identical icons, layout and action details for equivalent access and bank facilities');
+  dom.window.close();console.log('PASS rendered TTI/BRM home icons and every Accounts action menu match');
+})().catch(error=>{console.error(error);process.exitCode=1;});

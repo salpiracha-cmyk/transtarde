@@ -1,0 +1,8 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const context={window:{},document:{},localStorage:{getItem:()=> 'TG'}};vm.createContext(context);vm.runInContext(fs.readFileSync('accounts/bank-payment-details.js','utf8'),context);
+const j={id:'TG-INTERNAL',publicPostId:'POST-2026-00123',entity:'TG',date:'2026-10-01',meta:{currency:'USD',exchangeRate:3.67},lines:[{account:'1250',accountName:'TTI receivable',currency:'USD',nativeDebit:100,nativeCredit:0,debit:367,credit:0},{account:'1110',accountName:'USD Bank',currency:'USD',bankDebit:0,bankCredit:100,debit:0,credit:367},{account:'6800',accountName:'Charges',currency:'AED',nativeDebit:10,nativeCredit:0,debit:10,credit:0},{account:'1110',accountName:'AED Bank',currency:'AED',bankDebit:0,bankCredit:10,debit:0,credit:10}]};
+const before=JSON.stringify(j),html=context.window.TT_VOUCHER_HTML(j);
+assert(html.includes('POST-2026-00123'));assert(html.includes('USD 100.00'));assert(html.includes('AED 10.00'));assert(html.includes('Total USD'));assert(html.includes('Total AED'));assert(!html.includes('367.00'));assert(!html.includes('377.00'));assert.equal(JSON.stringify(j),before);
+assert.equal(context.window.TT_VOUCHER_NATIVE_LINE({meta:{currency:'USD'}},{account:'6900',debit:100,credit:0}).unavailable,true);
+const pk=context.window.TT_VOUCHER_HTML({...j,entity:'TTI',lines:[{account:'1110',debit:0,credit:100},{account:'6900',debit:100,credit:0}]});assert(pk.includes('Book currency <b>PKR</b>'));assert(!pk.includes('Total USD'));
+console.log('PASS TG native voucher amounts, separate currency totals, public ID and unchanged Pakistan voucher');

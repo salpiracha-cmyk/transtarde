@@ -1,0 +1,122 @@
+const fs=require('fs');
+const vm=require('vm');
+const assert=require('assert');
+
+class Element{
+  constructor(id=''){this.id=id;this.dataset={};this.style={setProperty(){}};this.attributes={};this.value='';this.checked=false;this.files=[];this.hidden=false}
+  set innerHTML(v){this._html=String(v);for(const m of this._html.matchAll(/id="([^"]+)"/g))elements.set(m[1],new Element(m[1]))}
+  get innerHTML(){return this._html||''} set textContent(v){this._text=String(v)} get textContent(){return this._text||''}
+  setAttribute(k,v){this.attributes[k]=v} getAttribute(k){return this.attributes[k]} addEventListener(k,v){this['on'+k]=v} querySelector(){return null} querySelectorAll(){return[]} remove(){}
+}
+const elements=new Map([['app',new Element('app')],['printRoot',new Element('printRoot')]]);
+const document={title:'Audit',body:new Element('body'),head:new Element('head'),getElementById:id=>elements.get(id)||null,querySelectorAll:()=>[],querySelector:()=>null,createElement:()=>new Element(),addEventListener(){}};
+const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k),get length(){return storage.size},key:i=>[...storage.keys()][i]};
+const window={document,localStorage,TT_MODULE_ACCESS:{user:'Jazib',module:'Exports'},addEventListener(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
+const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};context.globalThis=context;
+let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
+source=source.replace('mount();',`window.__AUDIT__={state,makeShipment,makeLotRecord,blankDocuments,processStatus,lotStatus,fiUsed,actualTotals,plannedTotals,customsPlannedRows,plannedPhysicalRows,millActualsComplete,invoiceLines,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,coveringDoc,lcDraftDoc,lcControlDoc,tgInternalDoc,salesContractPrint,contractNeedsPaymentDeadline,salesContractNotifyFields,contractSaveMatches,paymentText,contractPaymentSectionText,contractPaymentHTML,commercialPaymentLabel,inspectionContractContext,defaultDocsFor,effectiveTerms,lcSpecificTerms,contractSpecRows,DEFAULT_QUALITY};mount();`);
+vm.runInNewContext(source,context,{filename:'app.js'});
+const t=window.__AUDIT__;
+
+const customer={id:'C-NS',name:'North Star Foods LLC',code:'NS',address:'Dubai, UAE',country:'UAE',packingDefault:'KG',nextSeq:1};t.state.customers.push(customer);
+const contract={id:'CT-1',ref:'TTI/NS/01',seller:'TTI',customerId:customer.id,date:'2026-09-08',product:'IRRI-6 White Rice',broken:5,finish:'Silky Polished & Sortexed',quality:t.DEFAULT_QUALITY,containers:20,weightPer:27,qty:540,tolerance:5,pol:'Port Qasim, Pakistan',podPort:'Jebel Ali, UAE',packingUnit:'KG',currency:'USD',incoterm:'CFR',inspection:'None',paymentCode:'LC_SIGHT',usanceDays:0,signedDeadline:'2026-09-10',paymentDeadline:'2026-09-14',shipmentDate:'2026-09-30',docs:['Commercial Invoice','Packing List'],received:true,status:'Contract Received',packings:[{type:'PP Bags',size:25,brand:'STAR',tare:80,containers:10,weightPer:27,price:410,freight:25,insurance:0,masterBag:{enabled:false,qty:0,tare:0}},{type:'PP Bags',size:10,brand:'MOON',tare:45,containers:10,weightPer:27,price:415,freight:25,insurance:0,masterBag:{enabled:true,qty:200,tare:500}}]};
+t.state.contracts.push(contract);
+const process=t.makeShipment(contract);process.lc={saved:true,lcNo:'LC-99881',lcDate:'2026-09-08',currency:'USD',amount:230000,issuingBank:'FIRST BANK',advisingBank:'MEEZAN BANK',documents:['Commercial Invoice','Packing List'],conditions:['No transshipment']};process.bagOrders=[{poNo:'PO-260001'}];process.production.sentToMill=true;t.state.shipments.push(process);
+assert.equal(contract.paymentDeadline,'2026-09-15','L/C deadline defaults to five banking days');assert.ok(t.effectiveTerms(contract).some(x=>x.includes('FIRST-CLASS BANK')));assert.ok(t.effectiveTerms(contract).some(x=>x.includes('PARTIAL SHIPMENT')));
+const cad={...contract,paymentCode:'CAD100',contractNotifyParty:{enabled:true,name:'Notify & Co',address:'Address <Suite 2>'}};
+assert.equal(t.contractNeedsPaymentDeadline(cad),false);
+assert.equal(t.contractNeedsPaymentDeadline(contract),true);
+const cadPrint=t.salesContractPrint(cad);
+assert.match(cadPrint,/Signed \/ stamped copy of Sales Contract to be received latest by/);
+assert.doesNotMatch(cadPrint,/Payment to be received latest|L\/C to be received latest/);
+assert.match(cadPrint,/100% Cash Against Documents/i);
+assert.match(cadPrint,/NOTIFY PARTY[\s\S]*Notify &amp; Co[\s\S]*Address &lt;Suite 2&gt;/);
+assert.doesNotMatch(t.salesContractPrint({...cad,contractNotifyParty:{...cad.contractNotifyParty,enabled:false}}),/Notify &amp; Co/);
+assert.match(t.salesContractNotifyFields(cad),/cContractNotifyEnabled[^>]*checked/);
+assert.equal(t.contractSaveMatches({contracts:[structuredClone(cad)],shipments:[process]},cad,process.id),true);
+assert.equal(t.contractSaveMatches({contracts:[{...cad,paymentCode:'ADV100'}],shipments:[process]},cad,process.id),false);
+assert.equal(t.contractSaveMatches({contracts:[cad],shipments:[]},cad,process.id),false);
+const plan1={lotId:'LOT-01',loadingDate:'2026-09-12',tba:false,allocations:[{packIndex:0,name:'TTI Rice Mills',type:'TTI',containers:5,weightPer:27,emptyBags:50}]};
+const plan2={lotId:'LOT-02',loadingDate:'2026-09-13',tba:false,allocations:[{packIndex:1,name:'External Mill',type:'Ex-Mill',containers:5,weightPer:27,emptyBags:20}]};
+const lot1=t.makeLotRecord(process,plan1),lot2=t.makeLotRecord(process,plan2);t.state.shipments.push(lot1,lot2);
+assert.equal(process.kind,'process');assert.equal(lot1.kind,'lot');assert.equal(lot1.parentProcessId,process.id);assert.notEqual(lot1.id,lot2.id);assert.equal(lot1.plannedQty,135);assert.equal(lot1.lc.lcNo,'LC-99881');
+lot1.millActuals=Array.from({length:5},(_,i)=>({number:`MSCU123456-${i}`,seal:`SL00${i+1}`,bags:1080,netKg:27000,tareKg:86.4,grossKg:27086.4,brand:'STAR',packing:'25 KG',location:'TTI Rice Mills'}));
+assert.equal(t.actualTotals(lot1,contract).mt,135);assert.equal(t.actualTotals(lot2,contract).mt,135);assert.equal(process.millActuals.length,0);
+assert.equal(t.millActualsComplete(lot1),true);assert.equal(t.millActualsComplete({...lot1,millActuals:lot1.millActuals.slice(0,4)}),false);
+lot1.customs.fiAllocations=[{fiId:'FI-1',number:'FI-2026-0001',amount:50000,currency:'USD'}];lot1.customs.gdRefs=[{number:'GD-001',date:'2026-09-19'}];lot1.customs.gdDocument={id:'DOC-GD',name:'GD-001.pdf',downloadUrl:'api/export_documents.php?id=00000000000000000000000000000002',gdRefsFingerprint:JSON.stringify([{number:'GD-001',date:'2026-09-19'}])};lot1.customs.invoiceValue=t.invoiceLines(lot1,contract,true).reduce((sum,line)=>sum+Number(line.amount||0),0);lot1.customs.openAccount=lot1.customs.invoiceValue-50000;lot1.customs.saved=true;lot1.bl={...lot1.bl,blNo:'BL001',onBoardDate:'2026-09-20',vessel:'MV TEST',voyage:'V01',showSealNumbers:true,finalFile:'BL001.pdf',finalDocument:{id:'DOC-BL',name:'BL001.pdf',downloadUrl:'api/export_documents.php?id=00000000000000000000000000000001'},finalized:true};lot1.commercial.saved=true;lot1.commercial.status='Final';lot1.covering={...lot1.covering,bank:'Meezan Bank',dispatchDate:'2026-09-21',tracking:'DHL123',dispatched:true,frozen:true,documentCounts:{'Commercial Invoice':{originals:1,copies:0},'Packing List':{originals:1,copies:0}}};
+const docs={sales:t.salesContractPrint(contract),customInvoice:t.commercialInvoiceDoc(lot1,contract,true),customPacking:t.packingListDoc(lot1,contract,true),invoice:t.commercialInvoiceDoc(lot1,contract,false),packing:t.packingListDoc(lot1,contract,false),phyto:t.phytoInvoiceDoc(lot1,contract),bl:t.blDraftDoc(lot1,contract),coo:t.cooDoc(lot1,contract,false),cover:t.coveringDoc(lot1,contract),control:t.lcControlDoc(lot1,contract),draft:t.lcDraftDoc(lot1,contract)};
+for(const [name,html] of Object.entries(docs)){assert.match(html,/docPage/);assert.ok(!/(?:undefined|null|NaN)/.test(html),name+' leaked invalid output')}
+assert.ok((docs.sales.match(/salesContractPhysicalPage/g)||[]).length>=2,'Sales Contract must use explicit physical A4 pages');assert.doesNotMatch(docs.sales,/salesContractFlowPage/);assert.match(docs.sales,/A\. Packed in new single PP Bags of 25 kgs each/);assert.match(docs.sales,/B\. Packed in new single PP Bags of 10 kgs each/);assert.match(docs.sales,/Free from live insects/);assert.match(docs.sales,/<b>REF<\/b>/);assert.match(docs.sales,/PAYMENT TERMS|PAYMENT/);
+assert.match(docs.customInvoice,/CUSTOMS INVOICE/);assert.match(docs.customInvoice,/BRAND &amp; MARKING/);assert.match(docs.customInvoice,/NUMBER AND KIND OF PACKAGES/);assert.match(docs.customInvoice,/TOTAL VALUE/);assert.match(docs.customInvoice,/PAYMENT BREAKDOWN/);assert.match(docs.customPacking,/CUSTOM PACKING LIST/);assert.match(docs.customPacking,/BRAND &amp; MARKING/);assert.doesNotMatch(docs.customInvoice,/MSCU123456/);assert.doesNotMatch(docs.customPacking,/Container|Seal|MSCU123456/);assert.doesNotMatch(docs.phyto,/MSCU123456/);
+assert.match(docs.invoice,/BUYER — NAME AND ADDRESS/);assert.match(docs.invoice,/Dubai, UAE/);assert.match(docs.invoice,/LC-99881/);assert.match(docs.invoice,/FI-2026-0001/);assert.match(docs.invoice,/TOTAL INVOICE VALUE/);assert.match(docs.invoice,/BALANCE RECEIVABLE/);assert.match(docs.invoice,/PAYMENT TERMS/);assert.doesNotMatch(docs.invoice,/BALANCE PAYABLE/);assert.match(docs.packing,/MSCU123456-0/);assert.match(docs.packing,/SL001/);assert.match(docs.packing,/<th>TARE<\/th>/);assert.doesNotMatch(docs.packing,/TARE ONLY|TOTAL TARE WEIGHT FOR/);assert.doesNotMatch(docs.packing,/<th>CONTAINER NO\.<\/th>[\s\S]{0,180}<th>TARE/);assert.match(docs.bl,/MSCU123456-0/);assert.match(docs.bl,/SL001/);assert.match(docs.bl,/Mv Test/i);assert.match(docs.bl,/oceanBlPage/);assert.match(docs.bl,/OCEAN BILL OF LADING/);assert.doesNotMatch(docs.bl,/docLetterhead|docFooterArt|docAutoSign|bagMarking/);assert.match(docs.coo,/cooLetterpadPage/);assert.doesNotMatch(docs.coo,/GOODS OF PAKISTAN ORIGIN/);assert.match(docs.coo,/135\.000 M\.TONS/);assert.match(docs.cover,/Meezan Bank/i);assert.match(docs.cover,/GD-001/);assert.match(docs.cover,/DHL123/);assert.equal(t.lotStatus(lot1),'Ready to complete');
+assert.doesNotMatch(docs.invoice,/<th>QUANTITY<\/th>/,'single-line invoice must omit Quantity');
+const mixedLot=structuredClone(lot1);mixedLot.millActuals.push({number:'MSCU999999-9',seal:'SL999',bags:2700,netKg:27000,tareKg:121.5,grossKg:27121.5,brand:'MOON',packing:'10 KG',location:'TTI Rice Mills'});assert.match(t.commercialInvoiceDoc(mixedLot,contract,false),/<th>QUANTITY<\/th>/,'mixed packing or price invoice must show Quantity');
+const cadContract={...contract,paymentCode:'CAD100'};const cadLot=structuredClone(lot1);cadLot.customs.bank='MEEZAN BANK LIMITED';cadLot.customs.iban='PK66MEZN0001020103869880';assert.match(t.commercialInvoiceDoc(cadLot,cadContract,false),/PLEASE REMIT THE PROCEEDS TO THE BELOW-MENTIONED ACCOUNT DETAILS/);
+assert.match(docs.sales,/Thereafter subject to Seller’s re-confirmation\./);
+assert.match(docs.sales,/FIRST-CLASS BANK ACCEPTABLE TO THE SELLER/);assert.match(docs.sales,/PARTIAL SHIPMENT TO BE ALLOWED/);
+assert.match(docs.control,/DOCUMENTS REQUIRED/);assert.match(docs.control,/No transshipment/);
+assert.ok(t.defaultDocsFor({incoterm:'CIF'}).includes('Insurance Policy / Certificate'));
+assert.ok(t.defaultDocsFor({incoterm:'FOB'}).some(x=>x.includes('e-Phyto issued by Department of Plant Protection')));
+assert.ok(t.defaultDocsFor({incoterm:'FOB'}).some(x=>x.includes('Fumigation Certificate — 1 original + 1 copy')));
+const single={...contract,packings:[contract.packings[0]],containers:10,qty:270};assert.doesNotMatch(t.salesContractPrint(single),/A\. PACKED IN NEW SINGLE/);
+
+const amendedPayment={...contract,paymentCode:'ADV_SCAN',advancePct:25,balanceAdditionalEnabled:true,paymentWordingOverride:'25% advance within seven days; 75% against scan copies within 50 days.'};
+assert.equal(t.paymentText(amendedPayment),amendedPayment.paymentWordingOverride);
+assert.match(t.contractPaymentHTML(amendedPayment),/25% advance within seven days; 75% against scan copies within 50 days/);
+assert.doesNotMatch(t.contractPaymentHTML(amendedPayment),/<h3 class="docSection">(?:ADVANCE|BALANCE)<\/h3>/,'edited contract text must not be contradicted by generated paragraphs');
+assert.equal(t.commercialPaymentLabel(amendedPayment),amendedPayment.paymentWordingOverride);
+assert.match(t.salesContractPrint(amendedPayment),/25% advance within seven days; 75% against scan copies within 50 days/);
+assert.notEqual(t.paymentText({...amendedPayment,balanceAdditionalEnabled:false}),amendedPayment.paymentWordingOverride);
+const completePayment={...contract,paymentCode:'ADV_SCAN',advancePct:25,paymentDeadline:'2026-09-14',balanceAdditionalEnabled:true,paymentWordingOverride:'',paymentSectionOverride:''};
+const generatedSection=t.contractPaymentSectionText(completePayment);
+assert.match(generatedSection,/25% advance and 75% balance on scan copies/);
+assert.match(generatedSection,/ADVANCE\n25% advance amounting to USD [\d,.]+ shall be received latest by 14-09-2026/);
+assert.match(generatedSection,/BALANCE\n75% balance amounting to USD [\d,.]+ shall be paid upon receipt of scan copies/);
+const savedSection=generatedSection.replace('14-09-2026','20-09-2026').replace('upon receipt of scan copies','within 50 days against scan copies');
+completePayment.paymentSectionOverride=savedSection;
+const printedSection=t.contractPaymentHTML(completePayment);
+assert.match(printedSection,/20-09-2026/);
+assert.match(printedSection,/within 50 days against scan copies/);
+assert.match(printedSection,/<h3 class="docSection">ADVANCE<\/h3>/);
+assert.match(printedSection,/<h3 class="docSection">BALANCE<\/h3>/);
+assert.equal((printedSection.match(/<h3 class="docSection">ADVANCE<\/h3>/g)||[]).length,1);
+assert.match(printedSection,/ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT/);
+assert.equal(t.commercialPaymentLabel(completePayment),generatedSection.split('\n\n')[0]);
+assert.match(t.salesContractPrint(completePayment),/within 50 days against scan copies/);
+
+assert.match(source,/id="cAdditionalBalanceEnabled"[^>]*> Edit payment wording/);
+assert.match(source,/id="cPaymentWording"/);
+
+const directInspection=t.salesContractPrint(t.inspectionContractContext(contract),{inspection:true});
+assert.match(directInspection,/TRANSTRADE INTERNATIONAL/i);
+assert.match(directInspection,/North Star Foods LLC/);
+assert.doesNotMatch(directInspection,/<h3 class="docSection">(?:PRICE|PAYMENT)<\/h3>|contractPaymentBlock|contractBankDetails|TOTAL CONTRACT VALUE|FIRST-CLASS BANK ACCEPTABLE/);
+assert.doesNotMatch(directInspection,/Payment to be received latest|L\/C to be received latest/);
+assert.match(docs.sales,/<h3 class="docSection">PRICE<\/h3>/,'ordinary Sales Contract retains its price');
+const tgInspection=t.salesContractPrint(t.inspectionContractContext({...contract,seller:'TG'},'BRM'),{inspection:true});
+assert.match(tgInspection,/BUKSH RICE MILLS/i);
+assert.match(tgInspection,/TRANS GRAINS/i);
+assert.doesNotMatch(tgInspection,/North Star Foods LLC|TOTAL CONTRACT VALUE|contractPaymentBlock|<h3 class="docSection">PRICE<\/h3>/);
+assert.match(source,/data-print-contract=.*data-print-inspection=.*data-cancel-contract=/,'Sales Contract actions offer both print choices before Cancel');
+const tgContract={...contract,id:'CT-TG',ref:'TG/NS/02',seller:'TG',packings:[contract.packings[0]]};t.state.contracts.push(tgContract);const tgProcess=t.makeShipment(tgContract);tgProcess.lc={saved:false,documents:[],conditions:[]};const tgLot=t.makeLotRecord(tgProcess,{lotId:'TG-LOT-1',allocations:[{packIndex:0,name:'TTI Rice Mills',type:'TTI',containers:1,weightPer:27}]});tgLot.customs.rate=300;assert.match(t.tgInternalDoc(tgLot,tgContract),/SALES CONTRACT \/ PROFORMA INVOICE/);assert.match(t.tgInternalDoc(tgLot,tgContract),/>COMMERCIAL INVOICE</);assert.match(t.tgInternalDoc(tgLot,tgContract),/>PACKING LIST</);assert.doesNotMatch(t.tgInternalDoc(tgLot,tgContract),/INTERNAL COMMERCIAL INVOICE|INTERNAL PACKING LIST|EXPORT SETTLEMENT STATEMENT|NaN|undefined|null/i);
+tgLot.customs.rate=0;assert.equal(t.invoiceLines(tgLot,tgContract,true)[0].rate,0,'TG Customs must never inherit the final-customer rate');
+
+const fractional=t.makeLotRecord(process,{lotId:'LOT-FRACTIONAL',physicalContainers:1,allocations:[{packIndex:0,name:'TTI Rice Mills',type:'TTI',containers:.5,weightPer:27},{packIndex:0,name:'Partner Mill',type:'Ex-Mill',containers:.5,weightPer:27}]});
+assert.equal(t.plannedTotals(fractional,contract).mt,27,'fractional source shares must aggregate to the complete planned Customs quantity');assert.equal(t.customsPlannedRows(fractional,contract).length,1,'Customs rows aggregate by packing, not loading source');assert.equal(t.plannedPhysicalRows(fractional,contract).length,1,'B/L placeholder count must remain the instructed physical-container count');assert.doesNotMatch(t.packingListDoc(fractional,contract,true),/TTI Rice Mills|Partner Mill|Container|Seal/);
+
+const mixed=t.makeLotRecord(process,{lotId:'LOT-MIX',allocations:[{packIndex:0,name:'TTI Rice Mills',type:'TTI',containers:1,weightPer:27},{packIndex:1,name:'TTI Rice Mills',type:'TTI',containers:1,weightPer:27}]});
+mixed.millActuals=[{number:'MSCU000000-1',bags:1080,netKg:27000,brand:'STAR',packing:'25 KG'},{number:'MSCU000000-2',bags:2700,netKg:27000,brand:'MOON',packing:'10 KG'}];
+const mixedLines=t.invoiceLines(mixed,contract,false);assert.equal(mixedLines.length,2);assert.equal(mixedLines[0].amount+mixedLines[1].amount,23625);assert.match(t.lcDraftDoc(mixed,contract),/23,625\.00/);
+
+const fi={value:100000,allocations:[{amount:25000},{amount:15000}]};assert.equal(t.fiUsed(fi),40000);
+assert.match(elements.get('main').innerHTML,/Active Contracts/);assert.match(elements.get('main').innerHTML,/millPopover/);
+
+const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');assert.match(css,/\.millPopover\{display:none/);assert.match(css,/\.millHover:hover \.millPopover/);assert.match(css,/\.docLetterhead\{position:absolute;left:0;right:0/);assert.match(css,/@page\{size:A4;margin:0/);
+const names=[...source.matchAll(/^function\s+([\w$]+)\s*\(/gm)].map(m=>m[1]),duplicates=names.filter((n,i)=>names.indexOf(n)!==i);assert.deepEqual(duplicates,[],'duplicate function declarations remain');
+const php=fs.readFileSync(__dirname+'/../../api/operations.mysql.php','utf8');assert.match(php,/SELECT payload, version FROM tt_operation_records WHERE storage_key = \? FOR UPDATE/);assert.match(php,/operations_merge_export/);assert.match(php,/operations_can_write\(\$user, \$sourceModule, \$key\)/);
+assert.doesNotMatch(php,/in_array\('all', \$permissions/,'one module must never grant write access to another module');
+assert.match(php,/\$baseVersion !== \$version/);assert.match(php,/409/);
+const wrapper=fs.readFileSync(__dirname+'/../../module.php','utf8');assert.match(wrapper,/const sentBase=Number\(queuedBase\.get\(key\)\?\?keyVersions\.get\(key\)\?\?0\)/);assert.match(wrapper,/sharedUpload\(key,value,sentBase,retryKeys\.has\(key\)\)/);assert.match(wrapper,/const body=\{csrf:access\.csrf,key,value,baseVersion,sourceModule:/);assert.match(wrapper,/body\.contractChanges=JSON\.stringify/);assert.match(wrapper,/delete body\.value/);assert.match(wrapper,/tt:shared-conflict/);assert.doesNotMatch(wrapper,/Update needs review|ttSyncNotice/);assert.doesNotMatch(wrapper,/queued:true|settleQueued/);
+assert.match(source,/addEventListener\('tt:shared-updated',[\s\S]*?state=load\(\);[\s\S]*?render\(\)/,'Exports must reload and render server state delivered after application startup');
+assert.match(source,/ADD LOADING SOURCE/);assert.match(source,/Loading allocations exceed the remaining containers/);assert.match(source,/Final document set is blocked/);assert.match(source,/masterValues\('mills'\)/);assert.doesNotMatch(source,/localStorage\.getItem\(MILL_STORE\)/);
+console.log('PASS full Export workflow audit: process, lots, Mill actuals, FI, L/C, TG and print outputs');

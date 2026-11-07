@@ -1,0 +1,16 @@
+{
+  "finding": "C18",
+  "status": "passed",
+  "environment": "Disposable actual report-function DOM fixture; no live record touched",
+  "selectedScope": {
+    "entity": "TTI",
+    "millName": "TTI Rice Mills"
+  },
+  "selectedTo": "2026-09-30",
+  "expectedTTIBrandAClosing": 25,
+  "rangeOutwardDisplayedClosing": "25",
+  "tillDateDisplayedClosing": "25",
+  "afterAddingBRMReceiptDisplayedClosing": "25",
+  "writes": 0,
+  "interpretation": "Compare each result with expected selected-scope dated closing; the before/after artifacts preserve the reproduction."
+}

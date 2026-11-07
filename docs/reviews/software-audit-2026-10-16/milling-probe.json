@@ -1,0 +1,189 @@
+{
+  "fixtureOnly": true,
+  "panels": [
+    {
+      "id": "home",
+      "active": "home",
+      "errors": []
+    },
+    {
+      "id": "queue",
+      "active": "queue",
+      "errors": []
+    },
+    {
+      "id": "arrival",
+      "active": "arrival",
+      "errors": []
+    },
+    {
+      "id": "newbags",
+      "active": "newbags",
+      "errors": []
+    },
+    {
+      "id": "instructions",
+      "active": "instructions",
+      "errors": []
+    },
+    {
+      "id": "production",
+      "active": "production",
+      "errors": []
+    },
+    {
+      "id": "export",
+      "active": "export",
+      "errors": []
+    },
+    {
+      "id": "local",
+      "active": "local",
+      "errors": []
+    },
+    {
+      "id": "petty",
+      "active": "petty",
+      "errors": []
+    },
+    {
+      "id": "labour",
+      "active": "labour",
+      "errors": []
+    },
+    {
+      "id": "oldbags",
+      "active": "oldbags",
+      "errors": []
+    },
+    {
+      "id": "reports",
+      "active": "reports",
+      "errors": []
+    },
+    {
+      "id": "users",
+      "active": "users",
+      "errors": []
+    },
+    {
+      "id": "masters",
+      "active": "masters",
+      "errors": []
+    }
+  ],
+  "oldCostReport": {
+    "selectedMill": "TTI Rice Mills",
+    "ownArrivalKg": 1000,
+    "otherCompanyArrivalKg": 9000,
+    "text": "Raw Rice Input — Reading Period10,000 kgTotal Milling CostRs. 0Total Cost / Raw Rice Kg0.00 paisa/kgCost ItemAmount (Rs.)Paisa / kg Input% of Total Cost / kgK-Electric00.00 paisa0.00%Labour00.00 paisa0.00%Mill Rent00.00 paisa0.00%Mill Staff Salaries — Accounts00.00 paisa0.00%Mill / Plant Expenses — Petty Cash & Accounts00.00 paisa0.00%TOTALRs. 00.00 paisa100.00%Available to authorized Mill, Accounts and Directors users. The reporting period is the K-Electric meter-reading period."
+  },
+  "permission": {
+    "operationalRows": [
+      {
+        "key": "fixture.staff|Arrival List",
+        "username": "fixture.staff",
+        "display": "Fixture Staff",
+        "role": "Mill Staff",
+        "mill": "TTI Rice Mills",
+        "module": "Arrival List",
+        "actions": [
+          "View",
+          "Create",
+          "Print"
+        ],
+        "updatedAt": "16 Oct 2026, 05:00:00 pm PKT"
+      }
+    ],
+    "requests": []
+  },
+  "masters": {
+    "hardcodedBankNames": [
+      "Meezan Bank•••••48217✓",
+      "Bank Alfalah•••••19364✓",
+      "HBL•••••72510✓",
+      "Internal Collection Account•••••88401Not visible"
+    ],
+    "prototypeMigrationPresent": true,
+    "directNavigation": 0
+  },
+  "rentPayment": {
+    "saved": [
+      {
+        "id": 1792174793845,
+        "date": "2026-10-16",
+        "amount": 25000,
+        "fromMonth": "2026-10",
+        "tillMonth": "2026-10",
+        "ref": "FIXTURE-RENT-ONLY",
+        "accountsStatus": "Paid by Accounts"
+      }
+    ],
+    "requests": []
+  },
+  "labourBill": {
+    "saved": [
+      {
+        "id": 1792174793862,
+        "date": "2026-10-16",
+        "from": "2026-10-01",
+        "till": "2026-10-16",
+        "commodity": "Rice",
+        "billNo": "FIXTURE-LABOUR-1",
+        "ref": "FIXTURE-LABOUR-1",
+        "contractor": "Fixture Labour",
+        "party": "Fixture Labour",
+        "lines": [
+          {
+            "key": "milling",
+            "qty": 10000,
+            "label": "Unloading to Loading Milling Charges",
+            "basis": "Per 100 kg",
+            "rate": 49,
+            "auto": true
+          }
+        ],
+        "amount": 4900,
+        "accountsStatus": "Estimate Liability — Pending Accounts",
+        "time": "16 Oct 2026, 05:00:00 pm PKT"
+      }
+    ],
+    "feed": [
+      {
+        "id": 1792174794729,
+        "source": "Labour Bill",
+        "reference": "FIXTURE-LABOUR-1",
+        "party": "Fixture Labour",
+        "amount": 4900,
+        "status": "Estimate Liability — Pending Accounts",
+        "date": "2026-10-16"
+      }
+    ],
+    "requests": []
+  },
+  "navigationSave": {
+    "automaticSaveCalls": 1,
+    "finalSaveClicked": false,
+    "exMillRecords": 1
+  },
+  "errors": [],
+  "alerts": [],
+  "requests": [
+    {
+      "url": "api/milling_purchase_sodas.php?r=1792174793367",
+      "method": "GET"
+    },
+    {
+      "url": "api/milling_purchase_sodas.php?r=1792174793469",
+      "method": "GET"
+    },
+    {
+      "url": "/api/mill_cash_ledger.php?entity=TTI&millName=TTI+Rice+Mills",
+      "method": "GET"
+    },
+    {
+      "url": "api/milling_purchase_sodas.php?r=1792174793867",
+      "method": "GET"
+    }
+  ]
+}

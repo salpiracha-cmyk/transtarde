@@ -1,0 +1,234 @@
+:root{
+  --tt-brand-deep:#2e4527;
+  --tt-brand-deep-2:#3b5d3d;
+  --tt-brand-main:#4f7650;
+  --tt-brand-soft:#e8f0e5;
+  --tt-brand-ivory:#f4f0e6;
+  --tt-brand-line:#cbd8c7;
+  --tt-brand-ink:#2b2217;
+  --tt-brand-muted:#6c7167;
+  --tt-brand-gold:#bf892b;
+}
+
+/* Interface palette only. Existing layout, sizing and workflow stay untouched. */
+html,body{background:var(--tt-brand-ivory)!important;color:var(--tt-brand-ink)}
+.topbar,body>header:not(.tt-staff-header){background:var(--tt-brand-deep)!important;color:#fff!important}
+.topbar{background:linear-gradient(90deg,var(--tt-brand-deep),var(--tt-brand-deep-2))!important}
+.nav button.active,.btn.navy,.btn.primary,.tab.active,.step.active,
+button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
+  background:var(--tt-brand-deep)!important;
+  border-color:var(--tt-brand-deep)!important;
+  color:#fff!important;
+}
+.btn.green,.ok,.workspaceIcon.active .workspaceGlyph,#ttMasterTop,.masterTopButton{
+  background:var(--tt-brand-main)!important;
+  border-color:var(--tt-brand-main)!important;
+  color:#fff!important;
+}
+.workspaceIcon.active,.card.clickable:hover,.entityBtn.active,.subCard:hover,
+.appCard:hover,input:focus,select:focus,textarea:focus{border-color:var(--tt-brand-main)!important}
+.workspaceIcon.active{box-shadow:inset 0 0 0 2px rgba(79,118,80,.16)!important}
+.appIcon,.workspaceGlyph,.status.green,.pill.green,.notice:not(.warn):not(.red):not(.error):not(.bad):not(.danger){
+  background:var(--tt-brand-soft)!important;
+  color:var(--tt-brand-main)!important;
+}
+.notice.bad,.notice.error,.notice.red,.notice.danger{
+  background:#fff0f0!important;
+  border-color:#edc9c9!important;
+  color:#a51d24!important;
+}
+.notice.bad *,.notice.error *,.notice.red *,.notice.danger *{color:inherit!important}
+.panel,.card,.appCard,.subCard,.section,.metric,.formCard,.infoCard{border-color:var(--tt-brand-line)!important}
+.eyebrow,.good,.balanceOk{color:var(--tt-brand-main)!important}
+
+/* Text-only application and login branding. Original module headings remain in place. */
+.auth-card{border-color:var(--tt-brand-line)!important;box-shadow:0 22px 55px rgba(46,69,39,.16)!important}
+.authBrandName{text-align:center;margin:0 0 18px;color:var(--tt-brand-deep);font:900 23px/1.2 Arial,sans-serif;letter-spacing:.055em}
+.auth-card .eyebrow{color:var(--tt-brand-main)!important}
+.auth-card input:focus{border-color:var(--tt-brand-main)!important;box-shadow:0 0 0 3px rgba(79,118,80,.15)!important;outline:none}
+.auth-card button{background:var(--tt-brand-deep)!important}
+.auth-card button:hover{background:var(--tt-brand-deep-2)!important}
+
+/* Printed business documents retain their existing independent palette. */
+#printRoot,.printDoc{--navy:#0d2b38;--nav2:#153f50;--nav:#102a46;--blue:#1c6c9e;--green:#16825d;--bg:#fff;--line:#d9e2e7;--ink:#182630}
+.printDoc,.printDoc .docPage{background:#fff!important;color:#111!important}
+
+
+/* Super Admin Control Centre — approved Transtrade green palette */
+:root{--navy:#2e4527;--navy-2:#3b5d3d;--blue:#4f7650;--blue-soft:#e8f0e5;--canvas:#f4f0e6;--line:#cbd8c7;--ink:#2b2217;--muted:#6c7167;--green:#4f7650;--green-soft:#e8f0e5}
+.sidebar{background:linear-gradient(180deg,#2e4527 0%,#23371f 100%)!important}.nav-item.active{background:linear-gradient(90deg,#4f7650,#608960)!important;box-shadow:0 8px 20px rgba(46,69,39,.30)!important}.avatar,.button.primary{background:#4f7650!important}.button.primary:hover{background:#3b5d3d!important}.module-card::before{background:#4f7650!important}.topbar{border-color:#cbd8c7!important}
+
+
+/* Shared screen-only field alignment; printed business documents keep their layout. */
+@media screen {
+ :is(.tt-form-grid,.ttv-grid,.ttrs-grid,.tter-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.grid:has(>label)){align-items:end}
+ .grid>label:not(:has(input[type=checkbox],input[type=radio])){min-width:0;display:flex;flex-direction:column;gap:6px}
+ :is(.tt-form-grid,.ttv-grid,.ttrs-grid,.tter-grid,.form-grid,.master-form-grid)>label:not(:has(input[type=checkbox],input[type=radio])),:is(.grid2,.grid3,.grid4,.grid:has(>label))>.field{min-width:0;display:flex;flex-direction:column;gap:6px}
+ :is(.tt-form-grid,.ttv-grid,.ttrs-grid,.tter-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.grid:has(>label)) :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select:not(.tt-native-select)){box-sizing:border-box;width:100%;min-width:0;min-height:42px;margin-top:0}
+ .tt-master-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;min-width:0}
+ .tt-master-entry>.tt-master-inline{align-self:stretch;min-height:42px}
+ .tt-form-grid .tt-search-select,.tt-bill-adjustment .tt-search-select{margin-top:0!important}
+ /* Shared salary/rent/expense payment details also use searchable selects. */
+ .ttrs-table-wrap{max-width:100%;overflow-x:auto}
+ .tt-bank-payment-fields{align-items:end}
+ .tt-bank-payment-fields>label{display:flex;flex-direction:column;gap:6px;min-width:0}
+ .tt-bank-payment-fields :is(input,select,.tt-search-select){margin-top:0!important}
+ :is(.tt-modebar,.tabs,.nav,.purchase-product-tabs,.purchase-workspace-tabs,.brokery-tabs){align-items:stretch}
+ :is(.tt-modebar,.tabs,.nav,.purchase-product-tabs,.purchase-workspace-tabs,.brokery-tabs)>button{min-height:46px;font-size:16px}
+}
+
+/* Screen forms: align each row at the label/control top, without changing print documents. */
+@media screen{
+ :is(.grid2,.grid3,.grid4,.ttv-grid,.ttrs-grid,.master-form-grid){align-items:start!important}
+ :is(.grid2,.grid3,.grid4,.ttv-grid,.ttrs-grid,.master-form-grid)>*{min-width:0}
+ :is(.field,.ttv-field,.ttrs-field){min-width:0;align-self:start}
+ :is(.field,.ttv-field,.ttrs-field)>label:first-child{min-height:26px;line-height:1.3;margin-bottom:0}
+ :is(.field,.ttv-field,.ttrs-field)>:is(input:not([type=checkbox]):not([type=radio]),select,textarea){width:100%;box-sizing:border-box;min-width:0;max-width:100%}
+ :is(.field,.ttv-field,.ttrs-field)>:is(input:not([type=checkbox]):not([type=radio]),select){min-height:40px}
+ :is(.tableWrap,.table-wrap,.ttv-table-wrap) :is(th,td){vertical-align:top;overflow-wrap:anywhere}
+ :is(.tableWrap,.table-wrap,.ttv-table-wrap) :is(input,select,textarea){box-sizing:border-box;min-width:0;max-width:100%}
+ .coveringDocumentsEditor table{table-layout:fixed;width:100%;min-width:520px}
+ .coveringDocumentsEditor :is(th,td):first-child{width:auto}
+ .coveringDocumentsEditor :is(th,td):nth-child(2),.coveringDocumentsEditor :is(th,td):nth-child(3){width:75px}
+ .coveringDocumentsEditor :is(th,td):last-child{width:132px;white-space:nowrap}
+ .coveringDocumentsEditor td input{height:36px}
+ .coveringDocumentsEditor td:last-child .btn{padding:6px;margin:0 2px 0 0}
+ #completeLot.lotCompleteButton{font-size:16px;min-height:52px;padding:15px 25px}
+ .ttGenericCommentary{display:none!important}
+}
+@media screen{
+ :is(.row,.r2,.r3,.r5,.grid){align-items:start}
+ :is(.row,.r2,.r3,.r5,.grid)>:has(>label){min-width:0}
+ :is(.row,.r2,.r3,.r5,.grid)>:has(>label)>label:first-child{min-height:26px;line-height:1.3}
+ :is(.row,.r2,.r3,.r5,.grid)>:has(>label)>:is(input:not([type=checkbox]):not([type=radio]),select,textarea){box-sizing:border-box;width:100%;min-width:0;max-width:100%}
+}
+
+@media screen{
+ :is(.ttv-grid,.ttrs-grid,.tt-batch-grid,.ttsb-grid,.tter-grid,.ttlsc-grid,.ttsl-filters,.tt-bill-adjustment){align-items:start!important}
+ :is(.ttv-grid,.ttrs-grid,.tt-batch-grid,.ttsb-grid,.tter-grid,.ttlsc-grid,.ttsl-filters,.tt-bill-adjustment)>*{min-width:0}
+ label.ttRowField{display:flex!important;flex-direction:column;gap:5px;min-width:0}
+ label.ttRowField>.ttRowLabel{display:block;min-height:26px;line-height:1.3}
+ label.ttRowField>:is(input,select,textarea){box-sizing:border-box;width:100%;min-width:0;max-width:100%}
+}
+
+@media screen{
+ label.ttRowField>:is(input:not([type=checkbox]):not([type=radio]),select:not(.tt-native-select)),label.ttRowField>.tt-search-select>input{height:40px!important;min-height:40px!important}
+ label.ttRowField>.tt-search-select{margin-top:0!important;min-width:0;width:100%}
+}
+@media screen{
+ label.ttRowField>:is(input,select,textarea){margin-top:0!important}
+ .tt-bill-adjustment>button,.tt-bill-adjustment>div:has(>[data-remove]){align-self:end}
+ .tt-bill-adjustment [data-remove]{min-height:40px}
+}
+@media screen{
+ :is(.field,.ttv-field,.ttrs-field)>:is(input,select,textarea){margin-top:0!important}
+}
+
+
+/* Dependent screen fields must stay hidden even when a grid/label rule sets display. */
+@media screen {
+ [hidden]{display:none!important}
+}
+
+/* Numeric entry remains numeric in calculations and submits; its visible
+   companion groups thousands and provides a readable screen font. */
+@media screen {
+ .tt-number-entry{display:grid;position:relative;width:100%;min-width:0;vertical-align:middle}
+ .tt-number-entry>input.tt-number-source{position:absolute!important;top:0!important;left:0!important;width:100%!important;height:100%!important;opacity:0!important;margin:0!important;padding:0!important;border:0!important;pointer-events:none}
+ .tt-number-entry>input.tt-number-display{width:100%!important;min-width:0!important;font-size:22px!important;line-height:1.4!important;min-height:40px!important;height:40px!important;margin:0!important;padding-top:4px!important;padding-bottom:4px!important;font-variant-numeric:tabular-nums;text-align:right;box-sizing:border-box}
+}
+
+@media print{.tt-number-display{display:none!important}}
+
+@media screen{.tt-transport-grid,.tt-form-grid{align-items:start!important}}
+
+/* Accounts entry controls share the established green action theme. */
+@media screen {
+ #ttExpenseDesk [hidden],.jvw [hidden]{display:none!important}
+ #ttExpenseDesk section{box-sizing:border-box;min-width:0}
+ #ttExpenseDesk label{font-size:13px;font-weight:600;color:#405663;min-width:0;display:grid;gap:6px}
+ #ttExpenseDesk input:not([type=checkbox]):not([type=radio]):not([type=date]),#ttExpenseDesk select,#ttExpenseDesk textarea{box-sizing:border-box;width:100%;min-width:0;min-height:44px;border:1px solid #ccd9d6;border-radius:8px;padding:10px;font-size:14px;background:#fff}
+ #ttExpenseDesk .btn,.jvw .btn,.am-grid~.btn{min-height:38px;border-radius:8px;padding:8px 14px;background:#e8f5ec;border:1px solid #b4d8be;color:#16603c;white-space:normal}
+ #ttExpenseDesk .btn.primary,#ttExpenseDesk .btn.green,.jvw .btn.green{background:#23844b;color:#fff;border-color:#23844b}
+ #ttExpenseDesk .btn.danger{background:#fff1ef;color:#9b3327;border-color:#ebc6c0}
+ .dex-modes{display:flex;justify-content:center;gap:12px;margin:16px 0;flex-wrap:wrap}
+ #ttExpenseDesk .dex-mode{display:flex;gap:10px;align-items:center;justify-content:center;min-width:180px;min-height:56px;font-weight:700;font-size:15px;background:#fff}
+ #ttExpenseDesk .dex-mode.active{background:#23844b;color:white;border-color:#23844b}
+ .dex-mode span{font-size:22px}.tte-grid{align-items:start}.tte label{display:grid;gap:6px}
+ .tte-grid label[style*="span 3"],.tte-grid label[style*="span 2"]{grid-column:1/-1!important}
+ .tte table{table-layout:auto}.tte td,.tte th{vertical-align:top;overflow-wrap:anywhere}.tte-row-actions{flex-wrap:wrap;min-width:150px}
+ .jvw input,.jvw select,.jvw textarea{box-sizing:border-box;min-width:0;min-height:40px;font-size:13px}.jvw label{font-size:12px!important}
+ @media(max-width:560px){#ttExpenseDesk .dex-mode{min-width:0;flex:1;font-size:12px;padding:8px}.dex-modes{gap:6px}.tte-grid{grid-template-columns:1fr!important}}
+}
+
+@media screen {
+ :is(#amWindow,#ttAssetsWindow,#ttInvestmentsWindow,#tt-all-ledgers,#ttReportsPanel) :is(input:not([type=checkbox]):not([type=radio]):not([type=date]),select,textarea){box-sizing:border-box;max-width:100%;min-width:0;min-height:40px;border-radius:7px}
+ :is(#amWindow,#ttAssetsWindow,#ttInvestmentsWindow,#tt-all-ledgers,#ttReportsPanel) .btn{border-radius:8px;min-height:36px;padding:8px 12px}
+ :is(#amWindow,#ttAssetsWindow,#ttInvestmentsWindow,#tt-all-ledgers,#ttReportsPanel) :is(label,td,th){min-width:0;overflow-wrap:anywhere}
+ #ttReportsPanel .panelHead{align-items:start;gap:20px;flex-wrap:wrap}#ttReportsPanel label{display:grid;gap:6px}#ttReportsPanel .masterTabs{display:flex;gap:8px;flex-wrap:wrap}
+ .tte-history{margin:14px 0}.tte-history>summary{padding:14px;border:1px solid #d0ded5;border-radius:9px;background:#edf5ef;color:#215a3b;cursor:pointer;font-weight:600}.tte-history[open]>summary{margin-bottom:10px}
+}
+
+/* Accounts shared row controls and master choice menus. */
+.tt-row-add,.tt-row-remove,.tt-row-edit{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 32px;min-width:32px!important;width:32px!important;height:32px!important;min-height:32px!important;padding:0!important;font-size:22px!important;line-height:1!important;font-weight:800;cursor:pointer;border:0!important;vertical-align:middle;margin:4px 8px 4px 0!important}
+.tt-row-add{background:#16804a!important;color:white!important;border-radius:7px!important}.tt-row-remove{background:#bf3c40!important;color:white!important;border-radius:50%!important}.tt-row-edit{background:#e6f2eb!important;color:#136b40!important;border-radius:7px!important;font-size:18px!important}
+.tt-option-row{display:flex;align-items:center;border-bottom:1px solid #e8efea}.tt-option-row>button:first-child{flex:1;min-width:0;text-align:left}.tt-select-menu .tt-option-edit{flex:0 0 32px;width:32px;margin:3px;padding:6px!important;text-align:center!important;color:#147342!important;background:#e7f4eb!important;border-radius:6px}.tt-select-menu .tt-option-add{color:#116b3e!important;background:#e5f4e9!important;font-weight:800;border-top:1px solid #b9d9c4;position:sticky;bottom:0}
+.ttrs-salary-tiles{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px!important;max-width:760px;margin:32px auto!important}.ttrs-salary-tiles .btn{background:#e9f6ee!important;border:1px solid #a6ceb4!important;color:#11653b!important;min-height:118px;padding:24px!important;border-radius:14px!important;font-size:20px!important;letter-spacing:.3px;box-shadow:0 3px 10px #123e2110}.ttrs-salary-tiles .btn:hover{background:#daf0e2!important}
+.ttrs-master-popup{position:fixed;inset:0;margin:auto;width:min(900px,94vw);max-height:90vh;overflow:auto;padding:22px;border:1px solid #b9d6c4;border-radius:14px;background:#f5faf7;z-index:100170;box-shadow:0 15px 70px #142c3655}.ttrs-master-popup::backdrop{background:#16382b77}.ttrs-master-popup input,.ttrs-master-popup select{min-height:42px;width:100%;box-sizing:border-box}.ttrs-master-popup .ttrs-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.ttrs-master-popup label{display:grid;gap:6px}.ttrs-master-popup .ttrs-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+@media(max-width:650px){.ttrs-salary-tiles{gap:10px!important}.ttrs-salary-tiles .btn{font-size:16px!important;padding:14px!important}.ttrs-master-popup .ttrs-grid{grid-template-columns:1fr}.tt-option-edit{min-height:36px}}
+
+.tt-dropdown-master-launcher{display:none!important}.tt-master-entry{display:block;width:100%;min-width:0}.tt-party-menu{z-index:100190!important}.tt-row-remove:disabled,.tt-row-add:disabled,.tt-row-edit:disabled{opacity:.45;cursor:default}.tt-master-control:has(.tt-dropdown-master-launcher){grid-template-columns:minmax(0,1fr) 34px}.dex-row{position:relative}.dex-row>.tt-row-remove-slot{grid-column:1;grid-row:1;display:flex;align-items:flex-start;padding-top:28px;min-height:28px}.dex-row>.dex-fields{grid-column:2;grid-row:1;min-width:0}.tt-row-remove-slot{display:inline-flex;align-items:center;vertical-align:middle;gap:8px}.tt-row-remove-slot .tt-row-remove{position:static!important;flex:0 0 26px;min-width:26px!important;width:26px!important;height:26px!important;min-height:26px!important;margin:0 8px 4px 0!important}
+
+.tte-master-popup{width:min(900px,94vw);max-height:90vh;overflow:auto;border:0;border-radius:16px;padding:16px;box-shadow:0 20px 60px #102c3440}.tte-master-popup::backdrop{background:#102c3466}.tte-master-popup .tte-box{margin:0}
+
+/* Accounts row geometry: controls occupy cells rather than floating over entry. */
+@media screen {
+ .jvw,.jvw *,.am-box,.am-box *,#ttPartyInlineEditor,#ttPartyInlineEditor *{box-sizing:border-box}
+ .jvw-line{grid-template-columns:34px minmax(230px,2.2fr) minmax(180px,2fr) minmax(100px,1fr) minmax(125px,1fr) minmax(125px,1fr)!important;align-items:start}
+ .jvw-line>*{min-width:0;max-width:100%}.jvw-line>[type=hidden]{display:none!important}
+ .jvw-line>.tt-row-remove-slot{grid-column:auto;align-self:start;padding-top:9px}
+ .jvw-line .jvw-manage-party{min-height:28px;padding:4px 8px;font-size:11px;margin-top:5px}
+ :is(#ttExpenseDesk,.jvw,.am-box,.tte,.ttrs,.ttrs-master-popup,#ttPartyInlineEditor) input:is([type=checkbox],[type=radio]){width:17px!important;height:17px!important;min-height:17px!important;max-width:17px;padding:0!important;flex:0 0 17px;margin:0!important;vertical-align:middle;accent-color:#16804a}
+ #ttPartyInlineEditor{max-height:88vh;overflow:auto;background:#f7faf8}
+ #ttPartyInlineEditor button{min-height:36px;padding:8px 12px;border:1px solid #bfd6c7;border-radius:7px;background:#e7f4ec;color:#175f39;cursor:pointer}
+ #ttPartyInlineEditor button[type=submit]{background:#16804a;color:#fff;border-color:#16804a}#ttPartyInlineEditor button[data-delete]{background:#fff1ef;color:#a22f2f;border-color:#e6c3bd}
+ #ttPartyInlineEditor form>label{display:grid;gap:6px;margin:12px 0}
+ #ttPartyInlineEditor form>label>input,#ttPartyInlineEditor form>label>select,#ttPartyInlineEditor textarea{width:100%;min-height:42px;padding:9px;border:1px solid #cbd9d1;border-radius:7px}
+ .tt-party-roles{border:1px solid #d2e0d8;border-radius:9px;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+ #ttPartyInlineEditor .tt-party-role{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;font-size:12px;line-height:1.4;margin:0!important;min-height:28px}
+ :is(.am-grid,.ttrs-grid,.jvw-line) input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=date]):not(.tt-number-source){min-height:44px!important;height:44px!important}
+ .am-grid label>.tt-search-select,.jvw-line .tt-search-select{margin-top:0!important}
+ /* These rows provide their own gap; the base page's extra input margin must
+    not offset plain/date controls below searchable choices and amounts. */
+ :is(.am-grid,.jvw-line,.iv-grid) :is(input:not([type=checkbox]):not([type=radio]),select,textarea,.tt-search-select){margin-top:0!important}
+ .am-bank-header{grid-template-columns:1fr 1fr!important}
+ .am-debit-row{grid-template-columns:30px repeat(3,minmax(0,1fr))!important;align-items:start;padding:12px;gap:10px}
+ .am-debit-row>.tt-row-remove-slot{grid-column:auto;align-self:start;margin-top:45px}
+ .am-debit-row [data-row-method]{min-height:44px;font-size:15px;padding:10px}
+ .am-add-line,.ttrs-add-line{display:flex;justify-content:flex-start!important;margin-top:10px}
+ .ttrs-month{justify-content:center!important;margin:12px auto 20px}.ttrs-month input{min-height:42px;max-width:240px}
+ .ttrs table td,.ttrs table th{vertical-align:middle}.ttrs table td:has(.tt-row-remove){width:38px;min-width:38px;padding:8px 4px}
+ .tt-select-menu .tt-keyboard-active{background:#dbf1e2!important;color:#124d2c;outline:2px solid #16804a;outline-offset:-2px}
+ @media(max-width:900px){.am-debit-row{grid-template-columns:30px repeat(2,minmax(0,1fr))!important}}
+ @media(max-width:600px){.am-debit-row{grid-template-columns:30px minmax(0,1fr)!important}}
+ @media(max-width:800px){.tt-party-roles{grid-template-columns:1fr}.am-bank-header{grid-template-columns:1fr!important}}
+}
+
+tr>td.tt-row-remove-slot,tr>th.tt-row-remove-slot{display:table-cell;width:38px!important;min-width:38px!important;padding:6px!important;vertical-align:top}tr>.tt-row-remove-slot .tt-row-remove{margin:0!important}
+
+/* Typed numeric entry only: no native spinner hit areas in any module. */
+input[type="number"]{-moz-appearance:textfield!important;appearance:textfield!important}
+input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none!important;appearance:none!important;display:none!important;margin:0!important}
+
+/* Accounts and Directors: align labels/primary controls independently of help or master actions. */
+@media screen {
+ body[data-tt-form-module] :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.am-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.grid:has(>label),.directorDealDialog .grid){align-items:start!important}
+ body[data-tt-form-module] :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.am-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.directorDealDialog .grid)>label:not(:has(>input[type=checkbox],>input[type=radio])){display:flex;flex-direction:column;gap:6px;min-width:0;line-height:1.4;align-self:start}
+ body[data-tt-form-module] .tradingPage .directorDealDialog .grid>label{align-self:start}
+ body[data-tt-form-module] :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.am-grid,.directorDealDialog .grid)>label> :is(input:not([type=checkbox]):not([type=radio]),select){min-height:42px;box-sizing:border-box;width:100%;margin:0}
+ body[data-tt-form-module] :is(.tabs,.sections,.reportNav,.tt-modebar,.purchase-workspace-tabs,.purchase-product-tabs,.brokery-tabs){display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+ body[data-tt-form-module] :is(.tabs,.sections,.reportNav,.tt-modebar,.purchase-workspace-tabs,.purchase-product-tabs,.brokery-tabs)>:is(button,a){display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:44px;margin:0}
+ .feMasterDialog{box-sizing:border-box;width:min(720px,94vw);max-height:90dvh;overflow:auto;border:1px solid #d5e1e6;border-radius:12px;padding:24px}
+ .feMasterDialog .tt-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.feMasterDialog .wide{grid-column:1/-1}.feMasterDialog :is(input,textarea){box-sizing:border-box;width:100%;padding:10px}.feMasterDialog [data-error]{color:#b42318}
+ @media(max-width:600px){.feMasterDialog .tt-form-grid{grid-template-columns:minmax(0,1fr)}}
+}

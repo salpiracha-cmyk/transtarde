@@ -1,0 +1,123 @@
+name: Owner AMT Only Export Reset
+
+on:
+  push:
+    branches: [main]
+    paths: ['ops/amt-only-export-reset.txt']
+  workflow_dispatch:
+    inputs:
+      reset_id:
+        description: 'Unique owner-authorized reset id'
+        required: true
+        type: string
+      preserve_ref:
+        description: 'Exact Export contract reference to preserve'
+        required: true
+        default: 'TG/AMT/13'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: owner-amt-only-export-reset
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: live-qa
+    env:
+      HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+      HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+      HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+      HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+      TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+      TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+      TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve approved reset command
+        id: reset
+        env:
+          MANUAL_ID: ${{ inputs.reset_id }}
+          MANUAL_REF: ${{ inputs.preserve_ref }}
+        run: |
+          set -euo pipefail
+          if [ -n "${MANUAL_ID:-}" ]; then
+            RESET_ID="$MANUAL_ID"
+            PRESERVE_REF="$MANUAL_REF"
+          else
+            IFS='|' read -r RESET_ID PRESERVE_REF < ops/amt-only-export-reset.txt
+          fi
+          case "$RESET_ID" in ''|*[!A-Za-z0-9._:-]*) echo "Invalid reset id"; exit 1 ;; esac
+          test ${#RESET_ID} -ge 8 || { echo "Reset id is too short"; exit 1; }
+          test "$PRESERVE_REF" = 'TG/AMT/13' || { echo "Unexpected preservation target"; exit 1; }
+          echo "reset_id=$RESET_ID" >> "$GITHUB_OUTPUT"
+          echo "preserve_ref=$PRESERVE_REF" >> "$GITHUB_OUTPUT"
+
+      - name: Validate implementation and secrets
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          php -l scripts/reset_exports_preserve_contract.php
+          node --check tests/live/owner-amt-only-export-verify.spec.js
+          for name in HOSTINGER_HOST HOSTINGER_PORT HOSTINGER_USER HOSTINGER_DEPLOY_PATH HOSTINGER_SSH_KEY HOSTINGER_KNOWN_HOSTS TRANSTRADE_QA_USERNAME TRANSTRADE_QA_PASSWORD; do
+            test -n "${!name:-}" || { echo "Missing required secret: $name"; exit 1; }
+          done
+          case "$HOSTINGER_DEPLOY_PATH" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) echo "Unexpected production path"; exit 1 ;; esac
+
+      - name: Configure verified SSH connection
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/deploy_key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh-keygen -y -f "$RUNNER_TEMP/ssh/deploy_key" >/dev/null
+
+      - name: Execute protected AMT-only reset
+        env:
+          RESET_ID: ${{ steps.reset.outputs.reset_id }}
+          PRESERVE_REF: ${{ steps.reset.outputs.preserve_ref }}
+        run: |
+          set -euo pipefail
+          SSH=(ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT")
+          SCP=(scp -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -P "$HOSTINGER_PORT")
+          REMOTE_BASE="${HOSTINGER_DEPLOY_PATH%/public_html}"
+          REMOTE_DIR="$REMOTE_BASE/.transtrade-owner-reset"
+          REMOTE_SCRIPT="$REMOTE_DIR/amt-only-${GITHUB_SHA}.php"
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" "mkdir -p '$REMOTE_DIR' && chmod 700 '$REMOTE_DIR'"
+          "${SCP[@]}" scripts/reset_exports_preserve_contract.php "$HOSTINGER_USER@$HOSTINGER_HOST:$REMOTE_SCRIPT"
+          result=$("${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" php "$REMOTE_SCRIPT" --target "$HOSTINGER_DEPLOY_PATH" --reset-id "$RESET_ID" --preserve-ref "$PRESERVE_REF" --apply)
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" "rm -f '$REMOTE_SCRIPT'"
+          echo "RESET_RESULT=$result"
+          php -r '$r=json_decode($argv[1],true);if(!is_array($r)||($r["ok"]??false)!==true){fwrite(STDERR,"AMT-only reset failed.\n");exit(1);} if(($r["preservedRef"]??$argv[2])!==$argv[2]){fwrite(STDERR,"Wrong preservation target.\n");exit(1);}' "$result" "$PRESERVE_REF"
+
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+
+      - name: Verify AMT is the only live Export record
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          set -euo pipefail
+          npm install --no-save @playwright/test@1.63.0
+          npx playwright install --with-deps chromium
+          npx playwright test tests/live/owner-amt-only-export-verify.spec.js --reporter=line
+
+      - name: Reset summary
+        if: always()
+        run: |
+          echo "## Owner AMT-only Export reset" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Preserved: \`${{ steps.reset.outputs.preserve_ref }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Safety snapshot: created before mutation" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Accounts and non-Export masters: preserved" >> "$GITHUB_STEP_SUMMARY"
+

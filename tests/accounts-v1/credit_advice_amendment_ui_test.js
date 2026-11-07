@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+let source=fs.readFileSync('accounts/export-receipts-ui.js','utf8');
+const sandbox={window:{},document:{querySelector:()=>null,addEventListener:()=>{},readyState:'loading'},localStorage:{getItem:()=> 'TTI'},setInterval:()=>{},setTimeout:()=>{}};vm.createContext(sandbox);
+source=source.replace("  const regularCodes",`  window.__receiptTest={configure:fixture=>{data=fixture;amendmentOf='ER1';payerType='TG';tgBankId='tg-bank';tgData={banks:[{id:'tg-bank',currency:'USD'}],openLiabilities:[]};currency='USD';chosen=new Map();},rows:sourceRows,choose:row=>chosen.set(row.key,row),validate:()=>validateTgSettlement('NET')};
+  const regularCodes`);
+vm.runInContext(source,sandbox);
+const t=sandbox.window.__receiptTest;t.configure({sources:{},receipts:[{id:'ER1',remitter:'TG',transactionCurrency:'USD',allocations:[{targetType:'UNAPPLIED_TG',targetId:'',foreignAmount:100}]}]});
+const advance=t.rows().find(x=>x.key==='AMEND|0');assert(advance);t.choose({...advance,applied:100});assert.doesNotThrow(()=>t.validate(),'Saved TG advance must remain advance when amending reference');
+t.configure({sources:{invoices:[{id:'INV1',mirrorCandidateId:'TG1'}]},receipts:[{id:'ER1',remitter:'TG',transactionCurrency:'USD',allocations:[{targetType:'INTERCOMPANY_RECEIVABLE',targetId:'INV1',invoiceRef:'INV1',foreignAmount:100}]}]});const invoice=t.rows().find(x=>x.key==='AMEND|0');assert.equal(invoice.mirrorCandidateId,'TG1');t.choose({...invoice,applied:100});assert.doesNotThrow(()=>t.validate(),'Fully settled invoice may be amended; server reverses before checking its balance');
+console.log('TG advance and settled invoice credit advice amendment reconstruction passed');

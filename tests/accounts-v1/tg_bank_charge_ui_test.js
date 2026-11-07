@@ -1,0 +1,12 @@
+const fs=require('fs'),assert=require('assert'),{JSDOM}=require('jsdom');
+(async()=>{
+ const dom=new JSDOM('<body></body>',{url:'https://fixture.test/accounts/',runScripts:'outside-only'}),w=dom.window;
+ w.localStorage.setItem('tt_accounts_entity','TG');w.TT_ACCOUNT_ACCESS={super:true,csrf:'fixture'};
+ const books={ok:true,canCreate:true,canEdit:true,canDelete:true,revision:1,banks:[{id:'USD',label:'TG USD',currency:'USD'}],payees:[],heads:[{code:'6800',name:'Bank charges',class:'Expense'},{code:'6900',name:'Office',class:'Expense'}],subaccounts:[{id:'TG-FEE',name:'TG remittance fee',parentCode:'6800',class:'Expense',active:true}],facilities:[],history:[],vatRate:7.5};
+ w.fetch=async()=>({ok:true,json:async()=>books});w.eval(fs.readFileSync('accounts/account-management-ui.js','utf8'));
+ await w.TT_ACCOUNT_PAYEES.open('EXPENSE');assert(w.document.querySelector('#payeeSetup [name=name]'),'Recipient setup must work independently from charge-type mode');w.document.querySelector('#payeeSetup').remove();
+ await w.TT_BANK_ENTRIES.open('USD','BANK_CHARGE');const f=w.document.querySelector('#amBankForm');assert(f);assert.equal(f.elements.exchangeRate.closest('label').hidden,true);assert.equal(f.elements.reference.required,false);assert(f.elements.subaccountId.querySelector('option[value="TG-FEE"]'));f.elements.subaccountId.value='TG-FEE';f.elements.amount.value='100';f.elements.amount.dispatchEvent(new w.Event('input'));assert.match(w.document.querySelector('[data-total]').textContent,/7.50 VAT.*107.50 bank debit/);
+ for(const type of ['PAYMENT','PETTY_CASH']){f.elements.type.value=type;f.elements.type.dispatchEvent(new w.Event('change'));assert.equal(f.elements.reference.required,false,'Hidden reference cannot block '+type);}
+ f.elements.type.value='BANK_CHARGE';f.elements.type.dispatchEvent(new w.Event('change'));w.document.querySelector('[data-tg-charge-types]').click();await new Promise(r=>setTimeout(r,0));assert.match(w.document.querySelector('#amWindow h2').textContent,/TG Bank Charge Types/);w.document.querySelector('[data-add]').click();assert.equal(w.document.querySelector('[name=parentCode]').value,'6800');assert(!w.document.querySelector('[name=parentCode] option[value="6900"]'));
+ dom.window.close();console.log('PASS TG bank charge native/master VAT fields, independent recipient setup, optional hidden references and separate charge-type editor');
+})().catch(e=>{console.error(e);process.exit(1)});

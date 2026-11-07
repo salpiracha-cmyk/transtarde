@@ -1,0 +1,21 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),{spawnSync}=require('node:child_process'),{JSDOM}=require('jsdom');
+(async()=>{
+ const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://fixture.test/index.php',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window,posts=[];
+ const location={id:'fixture-location',values:['Fixture Warehouse','FIXTURE','Warehouse','','','Active','Original notes','BRM']};
+ w.TT_SESSION={id:'1',name:'Fixture Owner',role:'Super Admin',csrf:'fixture'};w.scrollTo=()=>{};w.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
+ w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
+ w.fetch=async(url,options={})=>{if(options.method==='POST')posts.push(JSON.parse(options.body));return {ok:true,json:async()=>({ok:true,users:[],masters:{mills:[location]},options:{},approvals:[],snapshots:[]})}};
+ w.eval(fs.readFileSync('admin/app.js','utf8').replace('  initialize();','  window.locationAudit={openMasterDialog,saveMasterRecord}; initialize();'));
+ await new Promise(r=>setTimeout(r,50));w.document.querySelector('[data-master="mills"]').click();w.locationAudit.openMasterDialog(location.id);
+ const field=i=>w.document.getElementById('masterField'+i);assert(field(7),'Location editor must expose its billing company');assert.equal(field(7).value,'BRM');
+ field(2).value='External Mill';field(2).dispatchEvent(new w.Event('change'));assert(field(7).closest('label').hidden);assert.equal(field(7).value,'BRM','Hiding must retain the existing company');
+ field(2).value='Warehouse';field(2).dispatchEvent(new w.Event('change'));assert(!field(7).closest('label').hidden);assert.equal(posts.length,0);
+ field(6).value='Amended notes';await w.locationAudit.saveMasterRecord({preventDefault(){}});
+ const request=posts.find(p=>p.action==='update'&&p.type==='mills');assert(request);assert.equal(request.values[7],'BRM','An unrelated edit must retain bill responsibility');
+ const php=String.raw`$GLOBALS['fixture']=json_decode(stream_get_contents(STDIN),true);function tt_list_masters(){return $GLOBALS['fixture'];}function tt_current_user(){return ['role'=>'Super Admin','location'=>'All authorized locations'];}require 'master_store.php';require 'api/expense_locations.php';$out=[];foreach(['TTI','BRM','TG'] as $entity)$out[$entity]=array_column(ev1_owned_locations($entity),'id');echo json_encode($out);`;
+ const result=spawnSync('php',['-r',php],{input:JSON.stringify({mills:[{id:location.id,values:request.values}]}),encoding:'utf8'});assert.equal(result.status,0,result.stderr);
+ const projected=JSON.parse(result.stdout);assert(projected.BRM.includes(location.id));assert(!projected.TTI.includes(location.id)&&!projected.TG.includes(location.id),'Actual expense source must retain company separation');
+ w.locationAudit.openMasterDialog();assert.equal(field(7).value,'','A new location must not guess bill ownership');
+ dom.window.close();console.log('PASS actual location editor to expense-source projection: preserved BRM, conditional visibility, no guessed ownership, isolated books and explicit-save-only changes');
+})().catch(e=>{console.error(e);process.exitCode=1});

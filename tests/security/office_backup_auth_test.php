@@ -1,0 +1,86 @@
+<?php
+declare(strict_types=1);
+$root=sys_get_temp_dir().'/tti-office-'.bin2hex(random_bytes(8));
+$app=$root.'/app';mkdir($app,0700,true);
+foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','office_backup_auth.php'] as $file)copy(__DIR__.'/../../'.$file,$app.'/'.$file);
+try {
+    require $app.'/auth_store.php';require $app.'/office_backup_auth.php';
+    if(tt_office_backup_enabled())throw new RuntimeException('Credential must be absent before setup.');
+    $first=tt_office_backup_issue_token();
+    if(!tt_office_backup_enabled()||!tt_office_backup_token_valid($first)||tt_office_backup_token_valid(str_repeat('0',64)))throw new RuntimeException('Backup credential validation failed.');
+    if((fileperms(tt_office_backup_token_file())&0777)!==0600)throw new RuntimeException('Credential hash permissions are too broad.');
+    $long=str_repeat('x',72).'correct-suffix';tt_office_policy_pin($long);
+    if(!tt_office_password_allowed($long)||tt_office_password_allowed(str_repeat('x',72).'changed-suffix'))throw new RuntimeException('Long password suffix was ignored.');
+    unlink(tt_office_policy_file());
+    $password='fixture-recovery-password-§-2026';
+    if(tt_office_password_allowed('legacy-password-123'))throw new RuntimeException('Unconfigured password custody accepted a caller-selected password.');
+    tt_office_policy_pin($password);
+    if(!tt_office_password_allowed($password)||tt_office_password_allowed('attacker-password-123'))throw new RuntimeException('Pinned password boundary failed.');
+    if(str_contains(file_get_contents(tt_office_policy_file()),$password))throw new RuntimeException('Plaintext recovery password persisted.');
+    if((fileperms(tt_office_policy_file())&0777)!==0600)throw new RuntimeException('Password verifier permissions too broad.');
+    $denied=false;try{tt_office_policy_require_delivery();}catch(InvalidArgumentException){$denied=true;}if(!$denied)throw new RuntimeException('Delivery activated without a verified client.');
+    if(!tt_office_delivery_allowed(''))throw new RuntimeException('Staged delivery upgrade broke legacy PC.');
+    if(!tt_office_delivery_allowed(base64_encode($password)))throw new RuntimeException('Unicode PC recovery proof was rejected.');
+    tt_office_policy_require_delivery();
+    foreach(['',base64_encode('wrong-recovery-password'),'!invalid!',base64_encode($password).'='] as $bad)if(tt_office_delivery_allowed($bad))throw new RuntimeException('Delivery proof bypass.');
+    if(!tt_office_delivery_allowed(base64_encode($password)))throw new RuntimeException('Protected delivery rejected the PC.');
+    $second=tt_office_backup_issue_token();
+    if(tt_office_backup_token_valid($first)||!tt_office_backup_token_valid($second))throw new RuntimeException('Rotating a backup credential did not revoke the old one.');
+    if(tt_office_password_allowed($password)||tt_office_delivery_allowed(base64_encode($password)))throw new RuntimeException('Rotated token inherited an obsolete binding.');
+    tt_office_policy_pin($password);
+    if(!tt_office_policy_status()['deliveryRequired'])throw new RuntimeException('Owner repin silently disabled delivery protection.');
+    tt_office_backup_revoke_token();
+    if(tt_office_backup_enabled()||tt_office_backup_token_valid($second))throw new RuntimeException('Revocation failed.');
+    if(tt_backup_password_get()!==null)throw new RuntimeException('Managed password must be opt-in.');
+    $managed='fixture-master-password-2026';tt_backup_password_set($managed);
+    if(tt_backup_password_get()!==$managed||!tt_office_policy_status()['sharedPasswordConfigured'])throw new RuntimeException('Managed password did not round-trip.');
+    $vault=TT_DATA_DIR.'/backup-password.json';$key=TT_DATA_DIR.'/backup-password.key';
+    if(str_contains(file_get_contents($vault),$managed)||(fileperms($vault)&0777)!==0600||(fileperms($key)&0777)!==0600)throw new RuntimeException('Managed password storage leaked or permissions failed.');
+    $replacement='fixture-next-password-2026';tt_backup_password_set($replacement);
+    if(tt_backup_password_get()!==$replacement||!tt_office_delivery_allowed(''))throw new RuntimeException('Managed password rotation or token-only owner-selected mode failed.');
+    // Issuance must not disconnect a working PC. Only the one-use setup can rotate it.
+    $active=tt_office_backup_issue_token();$ticket=tt_office_setup_issue();
+    if(!tt_office_backup_token_valid($active))throw new RuntimeException('Setup download disconnected the active PC.');
+    if(str_contains(file_get_contents(tt_office_setup_file()),$ticket))throw new RuntimeException('Plain setup ticket persisted.');
+    $denied=false;try{tt_office_setup_redeem(str_repeat('0',64));}catch(InvalidArgumentException){$denied=true;}
+    if(!$denied||!tt_office_backup_token_valid($active))throw new RuntimeException('Invalid setup affected the PC.');
+    $new=tt_office_setup_redeem($ticket);
+    if(tt_office_backup_token_valid($active)||!tt_office_backup_token_valid($new))throw new RuntimeException('Setup did not reconnect securely.');
+    $denied=false;try{tt_office_setup_redeem($ticket);}catch(InvalidArgumentException){$denied=true;}
+    if(!$denied||!tt_office_backup_token_valid($new))throw new RuntimeException('Consumed setup was replayed.');
+    $old=tt_office_setup_issue();$latest=tt_office_setup_issue();
+    $denied=false;try{tt_office_setup_redeem($old);}catch(InvalidArgumentException){$denied=true;}
+    if(!$denied)throw new RuntimeException('Replaced setup remained active.');
+    $state=json_decode(file_get_contents(tt_office_setup_file()),true);$state['expiresAt']=time()-1;
+    file_put_contents(tt_office_setup_file(),json_encode($state));
+    $denied=false;try{tt_office_setup_redeem($latest);}catch(InvalidArgumentException){$denied=true;}
+    if(!$denied)throw new RuntimeException('Expired setup accepted.');
+    $ticket=tt_office_setup_issue();tt_office_backup_revoke_token();
+    $denied=false;try{tt_office_setup_redeem($ticket);}catch(InvalidArgumentException){$denied=true;}
+    if(!$denied)throw new RuntimeException('Disconnect did not invalidate pending setup.');
+    $ticket=tt_office_setup_issue();tt_office_backup_revoke_token();
+    $denied=false;try{tt_office_setup_redeem($ticket);}catch(InvalidArgumentException){$denied=true;}
+    if(!$denied)throw new RuntimeException('Disconnected PC could reconnect from revoked setup.');
+    $ticket=tt_office_setup_issue();tt_office_backup_issue_token();
+    $denied=false;try{tt_office_setup_redeem($ticket);}catch(InvalidArgumentException){$denied=true;}
+    if(!$denied)throw new RuntimeException('Setup survived a separate key rotation.');
+    mkdir($app.'/scripts',0700);
+    foreach(['office_backup_agent.py','connect_office_pc.ps1'] as $file)copy(__DIR__.'/../../scripts/'.$file,$app.'/scripts/'.$file);
+    $archive=tt_office_setup_archive();$zip=new ZipArchive();
+    if($zip->open($archive)!==true||$zip->numFiles!==5)throw new RuntimeException('PC setup archive is incomplete.');
+    $connection=json_decode($zip->getFromName('connection.json'),true);
+    if(!preg_match('/^[a-f0-9]{64}$/D',$connection['ticket']??'')||($connection['agentSha256']??'')!==hash_file('sha256',$app.'/scripts/office_backup_agent.py'))throw new RuntimeException('Setup agent identity failed.');
+    if(!str_contains($zip->getFromName('Connect_Office_PC.cmd'),'Connect_Office_PC.ps1')||!str_contains($zip->getFromName('Connect_Office_PC.ps1'),'--connect-setup'))throw new RuntimeException('Setup launcher failed.');
+    if(str_contains($zip->getFromName('connection.json'),'password'))throw new RuntimeException('Setup contains a backup password.');
+    $zip->close();unlink($archive);
+    $data=json_decode(file_get_contents($vault),true);$data['tag']=base64_encode(str_repeat('x',16));file_put_contents($vault,json_encode($data));
+    $rejected=false;try{tt_backup_password_get();}catch(RuntimeException){$rejected=true;}if(!$rejected)throw new RuntimeException('Tampered vault accepted.');
+    echo "PASS isolated office backup credential lifecycle\n";
+} finally {
+    if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
+    foreach(glob($root.'/transtrade_private/*')?:[] as $path)@unlink($path);
+    @rmdir($root.'/transtrade_private');
+    foreach(glob($app.'/scripts/*')?:[] as $path)@unlink($path);@rmdir($app.'/scripts');
+    foreach(glob($app.'/*')?:[] as $path)@unlink($path);
+    @rmdir($app);@rmdir($root);
+}

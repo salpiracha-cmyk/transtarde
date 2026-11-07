@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const code=fs.readFileSync(require('node:path').join(__dirname,'../../admin/app.js'),'utf8');
+assert.match(code,/initial\.users=\[\]/);
+assert.match(code,/initial\.audit=\[\]/);
+assert.doesNotMatch(code,/localStorage\.getItem\(STORAGE_KEY\)/);
+assert.match(code,/localStorage\.removeItem\(STORAGE_KEY\)/);
+assert.doesNotMatch(code,/localStorage\.setItem\(STORAGE_KEY/);
+assert.match(code,/localStorage\.setItem\(UI_STORAGE_KEY,JSON\.stringify\(\{locks:state\.locks\}\)\)/);
+console.log('PASS Master Console stores only local review notes, never server users, banks or audit records');

@@ -1,0 +1,54 @@
+const fs=require('fs');
+const assert=require('assert');
+const app=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
+const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');
+const customerMaster=fs.readFileSync(__dirname+'/../../customer-master.js','utf8');
+const operations=fs.readFileSync(__dirname+'/../../api/operations.mysql.php','utf8');
+const recovery=fs.readFileSync(__dirname+'/../../scripts/recover_export_records.php','utf8');
+const deploy=fs.readFileSync(__dirname+'/../../.github/workflows/deploy-production.yml','utf8');
+const sourceBridge=fs.readFileSync(__dirname+'/../../accounts/source-bridge.js','utf8');
+
+assert.match(app,/id='cCustomerSearch'/,'new Sales Contract uses a type-ahead customer field');
+assert.match(app,/\.startsWith\(q\)/,'customer matches are prefix-filtered as staff type');
+assert.match(app,/data-customer-pick/,'matching customers are clickable');
+assert.match(app,/Contract fields remain empty until a customer is selected/,'contract fields remain gated until customer selection');
+assert.match(app,/ref:'',seller:'TTI',customerId:'',date:''/,'new contract starts without reference or date values');
+assert.match(app,/next\.ref=nextContractRef\(customerId,next\.seller\)/,'selected customer receives the next +1 reference');
+assert.match(app,/function reusableContractTemplate\(customerId\)/,'last customer contract is available as a reusable template');
+assert.match(app,/const reusable=\['seller','product'/,'previous contract commercial fields load after customer selection');
+assert.match(css,/\.customerMatches/,'customer result list is styled below the search box');
+assert.doesNotMatch(customerMaster,/nav\.appendChild\(b\)/,'Master Data is not injected beside +FI');
+assert.match(operations,/Historical cleanup is permanently disabled/,'the former broad Export reset is explicitly disabled');
+assert.match(operations,/function operations_reset_export_payload\(string \$json\): array \{\s*\/\/ Historical cleanup[\s\S]*?return \[\$json, false\];/,'opening shared storage cannot purge Export records');
+assert.match(operations,/\$merged\['contracts'\] = operations_union_rows\(\(array\)\(\$current\['contracts'\]/,'an Export save merges contracts with current server history instead of replacing it');
+assert.match(operations,/\$merged\['customers'\] = operations_union_rows\(\(array\)\(\$current\['customers'\]/,'an Export save preserves customers created or recovered by another session');
+assert.match(operations,/\$merged\['shipments'\] = operations_union_rows\(\(array\)\(\$current\['shipments'\]/,'an Export save preserves shipment records absent from an older client copy');
+assert.doesNotMatch(app,/EXPORT_RESET_MARKER/,'the browser no longer carries an operational reset marker');
+assert.match(recovery,/current records always win/,'lost-record recovery explicitly preserves current production records');
+assert.match(recovery,/pre-export-record-recovery/,'lost-record recovery creates a safety snapshot before writing');
+assert.match(recovery,/deletedShipments/,'lost-record recovery respects deliberate deletion tombstones');
+assert.match(recovery,/--apply/,'lost-record recovery is no-op unless explicitly applied');
+assert.doesNotMatch(deploy,/recover_export_records\.php" --apply/,'normal deployments must never recreate operational records from historical snapshots');
+assert.match(app,/if\(contractStep===4&&packingDraft&&!persistPackingDraft\(\)\)return;const err=validateContractStep\(contractStep\)/,'active contract Next handler persists the visible packing before validation');
+const activeEditor=app.lastIndexOf('function renderContractEditor(){');
+const packingNext=app.indexOf('if(contractStep===4&&packingDraft&&!persistPackingDraft())return;',activeEditor);
+assert.ok(activeEditor>=0&&packingNext>activeEditor,'packing save belongs to the final active contract editor, not an obsolete override');
+
+
+assert.match(sourceBridge,/function showOutboxAttention\(\)\{document\.getElementById\('ttAccountsOutboxBadge'\)\?\.remove\(\)\}/,'Accounts retry processing stays active without exposing the pending badge');
+assert.doesNotMatch(sourceBridge,/badge\.textContent=.*Accounts handoffs pending/,'Accounts pending retry badge is not recreated');
+assert.match(app,/const TT_PORTS=\['Port Qasim, Pakistan','Karachi Port, Pakistan','Port Qasim, Pakistan or Karachi Port, Pakistan'\]/,'Port of Loading contains the three approved choices');
+assert.match(app,/pol:'Port Qasim, Pakistan or Karachi Port, Pakistan'/,'combined Port of Loading choice is the new-contract default');
+assert.match(app,/addable=key==='packing_types'/,'packing type selector exposes Add New to Export users');
+assert.match(app,/settings\.customPackingTypes\.push\(added\);save\(\)/,'new Export-user packing types persist locally without Super Admin access');
+assert.match(app,/terminalHandling=.*Load Port Terminal Handling Charges[\s\S]*filter\(x=>!automaticInsurance\.test\(x\)&&!automaticInspection\.test\(x\)&&!terminalHandling\.test\(x\)\);\s*if\(c\.incoterm==='FOB'\)stored\.push/,'terminal handling is removed from inherited terms and added only for FOB');
+assert.match(app,/requestAnimationFrame\(\(\)=>\{const top=form\?\.closest\('\.panel'\);if\(window\.TT_FORM_VIEWPORT\)window\.TT_FORM_VIEWPORT\.open\(top\);else top\?\.scrollIntoView\(\{block:'start',behavior:'instant'\}\)\}\)/,'Next and Back rerenders position the full form heading at the top');
+assert.match(app,/const CONTRACT_DRAFT_STORE='tt-export-contract-draft-v1'/,'Sales Contract explicit-step recovery checkpoint is defined');
+assert.match(app,/document\.getElementById\('nextStep'\)\.onclick=async[\s\S]{0,1100}await persistContractStepDraft\(\)[\s\S]{0,500}renderContractEditor\(\)/,'each successful Next waits for the acknowledged save before advancing');
+assert.match(app,/draft.status='Draft';draft.issued=false;draft.draftStep=contractStep/,'Sales Contract drafts are saved into shared contract state with their current step');
+assert.match(app,/mount\(\);restoreContractCheckpoint\(\);/,'same-user contract checkpoint is restored after reload or renewed login');
+assert.match(app,/function ttPartyOutput\(party\)\{const contact=\[party\?\.country,party\?\.email&&`EMAIL:/,'seller and buyer output includes only the selected address/contact fields');
+assert.match(app,/name:ttProperNounOutput\(party\?\.name\|\|''\)/,'seller and buyer output capitalization is normalized independently of entry casing');
+assert.ok(app.includes("/^(?:[A-Z]\\.)+[A-Z]?$/.test(upper)"),'dotted proper-noun abbreviations such as L.L.C. and U.A.E. remain uppercase');
+
+console.log('PASS Export data preservation, blank new contract, prefix customer picker, +1 reference and removed Master Data nav icon');

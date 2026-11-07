@@ -1,0 +1,16 @@
+# Owner decisions — 21 October 2026
+
+Salman requested closure of the functional review with the following decisions. These replace requests for another immediate business decision on the same points.
+
+1. **Monthly Sales Tax:** the owner will upload the bills. Choose one company/month and prepare a single combined printable PDF from the linked sources. A missing K-Electric bill must be named on screen and prominently on the PDF cover, while the available PP invoices/GDs and refund-related Pakistan invoices/B-Ls remain printable. Label the action/output as available/incomplete rather than complete. Other required original/source holds, month selection, payment tracing, permissions and source-fingerprint checks remain. Printing does not change filing status or accounting.
+2. **Zakat:** the owner confirms the existing entered B/F figure is correct. Preserve it; do not enter a replacement opening, an assumed annual charge or a guessed counter-entry. When the next annual assessment is created and completed, its balance ledger must carry the previous balance once, add the new assessed Zakat once and deduct actual payments. The existing implementation already projects this linkage. The added two-year regression verifies approved opening → prior assessment/payment/refund → carried balance → new annual assessment/payment, with identical repeated reads and no source journal changes. No new assessment is created today and no date is inferred from “after four months.” This decision confirms the owner's opening amount; it does not silently reclassify historical journals or remove source-review warnings.
+3. **Mill/bag stocks:** the owner will provide opening/closing stock figures later. Physical quantities remain deferred; no opening is inferred from financial balances.
+4. **AMT13:** the owner explains the shipment is unfinished, with the TG pack outstanding, and will ask Exports to finish it. Keep it open; do not close, issue or rewrite its original commercial/Customs documents on behalf of an audit.
+5. **Office-PC backup:** owner will check at the office. Actual scheduled tasks, destinations and device restore remain deferred.
+6. **Office shipment receipt:** owner will check the office destination/agent. Queue acceptance remains distinct from delivery confirmation.
+
+No additional business decision is requested from the owner today. Functional verification, layout/dynamic-label checks and technical follow-ups remain the reviewer's responsibility. Formal security preflight and hosted browser-recovery transport are still unavailable; neither is relabelled passed. The accepted current hosted file-only restore and its cleanup remain separate evidence.
+
+## Validation and release
+
+The monthly-file UI/combined-PDF test verifies the missing-K-Electric exception, actual missing-bill text on the PDF cover, preserved required PP/shipment-original holds, no empty pack and zero financial writes. The native browser regression downloads both complete and missing-electricity refund packs using the actual Pakistan invoice renderer. Zakat regression verifies the existing annual carry/control linkage without changing business records. Exact feature/main/deployment results are recorded in the implementation pull request.

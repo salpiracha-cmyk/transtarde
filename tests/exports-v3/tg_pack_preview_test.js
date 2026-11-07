@@ -1,0 +1,103 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
+const dom=new JSDOM('<div id="app"></div><div id="editor"></div><div id="printRoot"></div>',{url:'https://fixture.test/exports/',runScripts:'outside-only'}),w=dom.window;
+const theme=w.document.createElement('style');theme.textContent=fs.readFileSync('brand-theme.css','utf8');w.document.head.append(theme);
+w.structuredClone=structuredClone;w.setInterval=()=>0;w.confirm=()=>true;let alerts=[];w.alert=s=>alerts.push(s);w.TT_MODULE_ACCESS={user:'Fixture',masters:{}};
+let syncs=0,failSave=false,printed=[],delaySave=false,releaseSave;w.TT_SHARED_SYNC={flush(){},saveNow:async()=>{syncs++;if(failSave)throw Error('Fixture save refused');if(delaySave)await new Promise(resolve=>releaseSave=resolve);}};
+let source=fs.readFileSync('exports/app.js','utf8');source=source.replace('mount();restoreContractCheckpoint();','window.__tg={state,makeShipment,renderTG,renderOfficeDocumentRefresh,tgProformaDoc,fitTGProformaPages,coveringDocumentRows,tgRelationshipLetterDoc,tgRelationshipWording,tgRelationshipValidation,tgRelationshipValues,tgInternalCommercialInvoiceDoc,packingListDoc,coveringDoc,setCurrent:id=>{currentShipmentId=id},officeSetup:fn=>{saveShipmentFolder=fn;closeLotEditor=()=>{}},printer:fn=>{printShipmentDoc=fn}};');w.eval(source);
+const t=w.__tg,customer={id:'BUYER',name:'New Buyer',address:'New Buyer Address',notifies:[{name:'Receiver Two',address:'Receiver Two Address'}]};
+const c={id:'C',ref:'TG/QA/01',seller:'TG',customerId:'BUYER',date:'2026-10-01',product:'White Rice',variety:'IRRI-6',riceType:'White Rice',hsCode:'1006.30',qty:27,containers:1,tolerance:5,pol:'Port Qasim',podPort:'Banjul',podCountry:'Gambia',packingUnit:'KG',currency:'USD',incoterm:'CFR',paymentCode:'CAD100',terms:[],docs:[],packings:[{size:50,type:'P.P. Bags',brand:'QA',tare:100,containers:1,weightPer:27,price:450,masterBag:{enabled:false}}]};
+t.state.customers=[customer];t.state.contracts=[c];const s=t.makeShipment(c);s.id='LOT';s.kind='lot';s.lotId='01';s.customs={...s.customs,rate:400,exporter:'TTI',bank:'Fixture Bank',invoiceNo:'CUSTOM-QA',date:'2026-10-01',fiAllocations:[],gdRefs:[]};s.millActuals=[{number:'MSCU1234567',seal:'QA',bags:540,netKg:27000,tareKg:54,grossKg:27054,brand:'QA',packing:'50 KG'}];
+s.tgdocs={relationship:{wording:'Our Importer OLD TRADER is a trader and they have sold this cargo to OLD BUYER. Being the importer of the cargo. OLD BUYER is the final receiver of this cargo. We have Business Relationship with all parties in this Contract.'}};t.state.shipments=[s];t.setCurrent('LOT');t.printer((title,html)=>printed.push({title,html}));
+// Resolve a canonical selector label without printing its company/account suffix.
+const bankRow=['Company Account','TTI — Transtrade International','','','Fixture Bank','Fixture Branch','','USD','1234567890','','','','','Active'];w.TT_MODULE_ACCESS.masters.banks=[{id:'BANK-QA',values:bankRow}];
+const labelled=structuredClone(s);labelled.customs.bank=[bankRow[1],bankRow[4],bankRow[5],bankRow[8]].join(' · ');
+const selectedBank=t.tgRelationshipValues(labelled,c);assert.equal(selectedBank.bank,'Fixture Bank');assert.equal(selectedBank.bankAddress,'Fixture Branch');assert.doesNotMatch(selectedBank.bank,/1234567890/);
+labelled.tgdocs.relationship.bank='Manually entered bank';assert.equal(t.tgRelationshipValues(labelled,c).bank,'Manually entered bank','Unmatched custom bank names are never split or guessed');
+// Bank-purpose fields follow Customs while original customer contract stays intact.
+const bankLot=structuredClone(s),originalContract=structuredClone(c);originalContract.paymentCode='ADV100';originalContract.advancePct=100;originalContract.paymentDeadline='2030-12-31';originalContract.signedDeadline='2031-12-31';originalContract.terms=['ORIGINAL CUSTOMER PAYMENT SECRET'];originalContract.docs=['FI','Phytosanitary Certificate'];
+bankLot.customs.paymentTerms='CUSTOMS PAYMENT 100% CAD';bankLot.customs.customsPaymentCode='CAD100';bankLot.customs.rate=333;bankLot.customs.currency='EUR';bankLot.customs.date='2026-10-15';bankLot.customs.fiAllocations=[{number:'FI-A',amount:100},{number:'FI-B',amount:200},{number:'FI-A',amount:0}];
+const originalBytes=JSON.stringify([bankLot,originalContract]),bankProforma=new JSDOM(t.tgProformaDoc(bankLot,originalContract)).window.document;
+assert.match(bankProforma.body.textContent,/CUSTOMS PAYMENT 100% CAD/);assert.match(bankProforma.body.textContent,/333.00/);assert.doesNotMatch(bankProforma.body.textContent,/450.00|ORIGINAL CUSTOMER PAYMENT SECRET|2030|2031|100% advance amounting|Advance allocated/);assert.match(bankProforma.body.textContent,/15-10-2026/);assert.equal(bankProforma.querySelectorAll('.tgProformaAcceptance .docAutoSign img').length,2);assert.match(bankProforma.querySelector('.tgProformaAcceptance').innerHTML,/TTI_sign.png/);assert.match(bankProforma.querySelector('.tgProformaAcceptance').innerHTML,/TG_pakistan_bank_stamp.png/);assert.equal(bankProforma.querySelector('.tgProformaManualSign'),null,'No receiver signing area when notify is disabled');
+const withNotify=structuredClone(bankLot);withNotify.customs.exporter='BRM';withNotify.tgdocs.notifyParty={enabled:true,party:{name:'Receiver <QA>',address:'Receiver address'}};const accepted=new JSDOM(t.tgProformaDoc(withNotify,originalContract)).window.document;assert.match(accepted.querySelector('.tgProformaAcceptance').innerHTML,/BRM_sign.png/);assert.equal(accepted.querySelector('.tgProformaManualSign b').textContent,'Receiver <QA>');assert.equal(accepted.querySelector('.tgProformaManualSign img'),null);assert.match(accepted.querySelector('.tgProformaManualSign').textContent,/Signature & Company Stamp/);
+for(const internal of [false,true]){const letter=new JSDOM(t.coveringDoc(bankLot,originalContract,{bank:'QA bank',docs:[{name:'FI',originals:0,copies:1},{name:'Phytosanitary Certificate',originals:1,copies:1}]},internal)).window.document;assert.match(letter.querySelector('.coverDocs').textContent,/FI — FI-A, FI-B/);assert.match(letter.querySelector('.coverDocs').textContent,/Phytosanitary Certificate/);}
+assert.equal(JSON.stringify([bankLot,originalContract]),originalBytes,'Bank rendering does not change original contract or shipment');
+const d=w.document.getElementById('editor'),q=x=>d.querySelector(x),input=(id,value)=>{q(id).value=value;q(id).dispatchEvent(new w.Event('input',{bubbles:true}));},tab=key=>q(`[data-tg-tab="${key}"]`).click();
+// Cover defaults are applied to existing saved settings too, preserving the caller's state.
+const defaults=t.coveringDocumentRows(bankLot,originalContract,{docs:[{name:'Fumigation Certificate',originals:1,copies:1},{name:'Certificate of Origin',originals:1,copies:3},{name:'Commercial Invoice',originals:1,copies:2}]},true);
+assert.equal(defaults.some(row=>/fumigation|certificate of origin/i.test(row.name)),false);assert.deepEqual(Array.from(defaults.slice(-3),r=>r.name),['FI — FI-A, FI-B','Relationship Letter','Sales Contract / Proforma Invoice']);
+assert.ok(defaults.slice(-3).every(row=>row.originals===0&&row.copies===1));
+const before=JSON.stringify(s.tgdocs.relationship);assert.match(t.tgRelationshipLetterDoc(s,c),/OLD BUYER/);assert.equal(JSON.stringify(s.tgdocs.relationship),before,'Reading historical letter does not migrate or rewrite it');
+t.renderTG(d);assert.equal(syncs,0);assert.equal(d.querySelectorAll('.lotSplitWorkspace').length,1);assert.ok(q('#tgPreviewPaper .docPage'),'First tab renders a real document');
+assert.ok(s.tgdocs.covering.dispatchDate,'The whole pack has its bank date before the covering tab is ever opened');
+assert.equal(s.tgdocs.covering.bank,'Fixture Bank');
+for(const key of ['invoice','packing','cover','relationship','proforma']){tab(key);assert.ok(q('#tgPreviewPaper .docPage'),key+' preview');}
+tab('proforma');assert.equal(q('#tgNotifyFields').classList.contains('hidden'),true);q('#tgShowNotify').checked=true;q('#tgShowNotify').dispatchEvent(new w.Event('change',{bubbles:true}));q('#tgNotifyChoice').value='NOTIFY:0';q('#tgNotifyChoice').dispatchEvent(new w.Event('change',{bubbles:true}));assert.match(q('#tgPreviewPaper').textContent,/NOTIFY PARTY \/ CARGO RECEIVER/);assert.match(q('#tgPreviewPaper').textContent,/Receiver Two Address/);assert.equal(syncs,0);q('#tgShowNotify').checked=false;q('#tgShowNotify').dispatchEvent(new w.Event('change',{bubbles:true}));assert.doesNotMatch(q('#tgPreviewPaper').textContent,/NOTIFY PARTY \/ CARGO RECEIVER/);
+tab('fi');assert.ok(q('#tgFIFile'));assert.match(q('#tgPreviewPaper').textContent,/Upload the issued FI/);
+tab('relationship');assert.match(q('#tgPreviewPaper').textContent,/New Buyer Address/);assert.doesNotMatch(q('#tgPreviewPaper').textContent,/OLD BUYER/);assert.match(s.tgdocs.relationship.previousWording,/OLD BUYER/);
+input('#tgRelBank','Another Bank');input('#tgRelBuyer','Trader <img src=x onerror=bad()>');assert.match(q('#tgPreviewPaper').textContent,/Another Bank/);assert.equal(q('#tgPreviewPaper [onerror]'),null,'Party fields are escaped');
+const focus=q('#tgRelBuyer');focus.focus();input('#tgRelBuyer','Updated Trader');assert.equal(w.document.activeElement,focus,'Preview update preserves active entry');
+q('#tgRelParty').value='NOTIFY:0';q('#tgRelParty').dispatchEvent(new w.Event('change',{bubbles:true}));assert.match(q('#tgPreviewPaper').textContent,/Receiver Two Address/);assert.doesNotMatch(q('#tgPreviewPaper').textContent,/New Buyer Address/);
+assert.equal(syncs,0,'Typing, selecting and switching tabs never save');
+(async()=>{
+ await q('#tgPrintCurrent').onclick();assert.equal(syncs,1);assert.equal(printed.length,1);assert.equal(printed[0].html,q('#tgPreviewPaper').innerHTML,'Print uses exactly the reviewed preview');assert.match(printed[0].html,/Receiver Two Address/);
+ delaySave=true;const pending=q('#tgPrintCurrent').onclick();input('#tgRelBank','Unsaved during request');releaseSave();await pending;delaySave=false;assert.equal(printed.length,2);assert.match(printed[1].html,/Another Bank/);assert.doesNotMatch(printed[1].html,/Unsaved during request/,'An in-flight print uses the acknowledged snapshot');
+ failSave=true;await q('#tgPrintCurrent').onclick();assert.equal(printed.length,2,'Failed server acknowledgement must not print');
+ const errorBox=q('#exportSaveError');assert.equal(errorBox.getAttribute('role'),'alert');assert.equal(errorBox.textContent,'Fixture save refused');assert.equal(w.getComputedStyle(errorBox).color,'rgb(165, 29, 36)','Save errors must use red wording despite the shared green theme');failSave=false;
+ tab('invoice');q('#tgShowImporter').checked=true;q('#tgShowImporter').dispatchEvent(new w.Event('change',{bubbles:true}));q('#tgImporterChoice').value='NOTIFY:0';q('#tgImporterChoice').dispatchEvent(new w.Event('change',{bubbles:true}));assert.match(q('#tgPreviewPaper').textContent,/Receiver Two/);tab('packing');assert.match(q('#tgPreviewPaper').textContent,/Receiver Two/);
+ tab('relationship');q('#tgRelParty').value='INVOICE';q('#tgRelParty').dispatchEvent(new w.Event('change',{bubbles:true}));assert.match(q('#tgPreviewPaper').textContent,/Receiver Two Address/);
+ q('#tgRelParty').value='CUSTOM';q('#tgRelParty').dispatchEvent(new w.Event('change',{bubbles:true}));input('#tgRelAddress','');const count=printed.length;await q('#tgPrintCurrent').onclick();assert.equal(printed.length,count);assert.match(q('#exportSaveError').textContent,/Relationship Letter:.*receiver address/,'Validation is red and identifies the document');
+ // A complete pack can print without visiting the bank tab first.
+ q('#tgRelParty').value='INVOICE';q('#tgRelParty').dispatchEvent(new w.Event('change',{bubbles:true}));
+ s.tgdocs.covering={};s.tgdocs.activeTab='relationship';t.renderTG(d);
+ let completeCopies=0;w.URL.createObjectURL=()=>"blob:fixture";w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=function(){};t.officeSetup(async()=>{completeCopies++;return{bankPdf:new w.Blob(['fixture']),bankFilename:'Bank Shipment Documents CUSTOM-QA.pdf'}});await q('#printTGPack').onclick();assert.equal(completeCopies,1,'Complete pack uses the canonical PDF assembler including uploads');
+ const date='2026-07-06';s.tgdocs.covering.dispatchDate=date;t.renderTG(d);assert.equal(s.tgdocs.covering.dispatchDate,date,'Saved historical dates are preserved');
+ // A cleared date opens the actual Bank Covering Letter rather than marking the relationship date.
+ tab('cover');input('#cvDate','');tab('relationship');const beforeBlocked=syncs;await q('#printTGPack').onclick();
+ assert.equal(syncs,beforeBlocked);assert.equal(s.tgdocs.activeTab,'cover');assert.equal(q('#cvDate').value,'','An explicitly cleared bank date is not silently replaced during validation');
+ assert.match(q('#exportSaveError').textContent,/Bank Covering Letter: Letter \/ dispatch date is required/);
+ input('#cvDate',date);tab('relationship');await q('#printTGPack').onclick();assert.equal(completeCopies,2,'Correcting the named field allows retry');
+ assert.equal(alerts.length,0,'TG pack validation uses inline red feedback, without an unrelated field alert');
+ // Explicit TG Save must refresh office files after acknowledgement, and retain retry on error.
+ let queued=0;w.TT_SHIPMENT_FILES={};t.officeSetup(async()=>{queued++;throw Error('Fixture office upload refused')});
+ const failedOffice=await q('#saveTGPack').onclick();assert.equal(failedOffice,false);assert.equal(queued,1);assert.match(q('#exportSaveError').textContent,/office copy was not refreshed.*office upload refused/);assert.equal(q('#saveTGPack').disabled,false);
+ failSave=true;await q('#saveTGPack').onclick();assert.equal(queued,1,'A refused server save cannot queue office files');failSave=false;
+ t.officeSetup(async()=>{queued++;return{count:8,path:'Buyer / Contract / Lot',warnings:['Send original phytosanitary separately']}});
+ const main=w.document.createElement('div');main.id='main';w.document.body.append(main);assert.equal(await q('#saveTGPack').onclick(),true);assert.equal(queued,2);assert.match(main.textContent,/8 files queued/);assert.match(main.querySelector('.danger').textContent,/phytosanitary separately/);
+
+ if(process.env.TT_TG_PACK_BROWSER==='1'){
+  const {chromium}=require('playwright'),browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})}),page=await browser.newPage({viewport:{width:1450,height:1000}});
+  try{
+   await page.route('http://fixture.test/**',route=>{const name=new URL(route.request().url()).pathname;if(name.startsWith('/assets/')&&fs.existsSync('exports'+name))return route.fulfill({path:require('node:path').resolve('exports'+name)});return route.fulfill({contentType:'text/html',body:'<html><body></body></html>'})});await page.goto('http://fixture.test');
+   await page.setContent('<div class="lotEditorShell"><div id="editor"></div></div><div id="printRoot"></div>');
+   await page.addStyleTag({content:fs.readFileSync('exports/app.css','utf8')});
+   await page.addStyleTag({content:fs.readFileSync('brand-theme.css','utf8')});
+   await page.evaluate(()=>{window.TT_MODULE_ACCESS={user:'Fixture',masters:{}};window.TT_SHARED_SYNC={flush(){},saveNow:async()=>{}};window.__nativeInterval=window.setInterval;window.setInterval=()=>0;});
+   await page.addScriptTag({content:source});await page.evaluate(()=>{window.setInterval=window.__nativeInterval});
+   const fixture=JSON.parse(JSON.stringify(t.state));fixture.shipments[0].tgdocs.relationship.finalPartyChoice='INVOICE';
+   await page.evaluate(fixture=>{const t=window.__tg;Object.assign(t.state,fixture);t.setCurrent('LOT');t.renderTG(document.querySelector('#editor'));},fixture);
+   await page.locator('[data-tg-tab="relationship"]').click();await page.getByLabel('Bank',{exact:true}).fill('Preview Bank');
+   await page.locator('#tgPreviewPaper').getByText('Preview Bank',{exact:false}).first().waitFor();
+   for(const width of [1450,800,390]){
+    await page.setViewportSize({width,height:1000});await page.waitForTimeout(80);
+    const sizes=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth-innerWidth,preview:document.querySelector('#tgPreviewPaper').scrollWidth-document.querySelector('#tgPreviewPaper').clientWidth}));
+    assert.ok(sizes.overflow<=2&&sizes.preview<=2,JSON.stringify({width,...sizes}));
+   }
+   await page.setViewportSize({width:1450,height:1000});await page.locator('[data-tg-tab="proforma"]').click();await page.locator('#tgShowNotify').check();await page.locator('#tgNotifyChoice').selectOption('NOTIFY:0');
+   await page.screenshot({path:'tmp/qa/tg-pack/proforma-notify.png',fullPage:true});
+   for(const file of ['html2canvas-1.4.1.min.js','jspdf-4.2.1.umd.min.js','pdf-lib-1.17.1.min.js'])await page.addScriptTag({content:fs.readFileSync('exports/vendor/'+file,'utf8')});await page.addScriptTag({content:fs.readFileSync('exports/shipment-files.js','utf8')});
+   const proformaPdf=await page.evaluate(async()=>{const t=window.__tg,s=t.state.shipments[0],c=t.state.contracts[0],pdf=await TT_SHIPMENT_FILES.pdf(t.tgProformaDoc(s,c),t.fitTGProformaPages);return Array.from(new Uint8Array(await pdf.arrayBuffer()))});
+   fs.writeFileSync('tmp/qa/tg-pack/proforma-notify.pdf',Buffer.from(proformaPdf));
+   await page.locator('[data-tg-tab="relationship"]').click();
+   await page.evaluate(()=>{window.TT_SHARED_SYNC.saveNow=async()=>{throw new Error('Fixture save refused')}});await page.locator('#tgPrintCurrent').click();await page.locator('#exportSaveError').waitFor({state:'visible'});
+   assert.equal(await page.locator('#exportSaveError').evaluate(el=>getComputedStyle(el).color),'rgb(165, 29, 36)','Actual browser error text must be red');
+   fs.mkdirSync('tmp/qa/tg-pack',{recursive:true});await page.setViewportSize({width:1450,height:1000});await page.screenshot({path:'tmp/qa/tg-pack/relationship-preview.png',fullPage:true});
+  }finally{await browser.close();}
+ }
+ // Bulk refresh includes closed lots without saving/reopening source data; per-lot failures do not stop the batch.
+ const originalRoot=JSON.stringify(t.state),committed={...t.state,shipments:[{...structuredClone(s),id:'CLOSED',kind:'lot',lotId:'CLOSED',completed:true},{...structuredClone(s),id:'ACTIVE',kind:'lot',lotId:'ACTIVE',completed:false},{...structuredClone(s),id:'CANCEL',kind:'lot',lotId:'CANCEL',cancelled:true}]};
+ w.TT_SHARED_SYNC.readCommitted=()=>JSON.stringify(committed);let bulkCalls=[];t.officeSetup(async(lot,c,optional,progress,refreshExisting)=>{bulkCalls.push({id:lot.id,completed:lot.completed,refreshExisting});if(lot.id==='ACTIVE')throw Error('Fixture missing source');return{jobId:'job-closed',count:7,path:'fixture',warnings:['FI upload required']}});
+ t.renderOfficeDocumentRefresh();await main.querySelector('#startOfficeRefresh').onclick();assert.equal(bulkCalls.length,2);assert.equal(bulkCalls[0].completed,true);assert.ok(bulkCalls.every(row=>row.refreshExisting));assert.match(main.textContent,/Queued for TTI Server/);assert.match(main.textContent,/Needs attention: Fixture missing source/);assert.equal(JSON.stringify(t.state),originalRoot,'Bulk refresh never reopens or saves shipment source data');
+ const statusQueries=[];w.fetch=async url=>{const query=new URL(url,'https://fixture.test').searchParams;statusQueries.push([query.get('contract'),query.get('lot')]);return{ok:true,json:async()=>query.get('lot')==='CLOSED'?{ok:true,found:true,job:{id:'job-closed',receiptVerified:true,status:'VERIFIED',fileCount:7,verifiedFileCount:7}}:{ok:true,found:false}}};await main.querySelector('#checkOfficeRefresh').onclick();assert.match(main.textContent,/Latest package verified on TTI Server: 7 of 7 files.*Attention: FI upload required/,'A file receipt does not clear missing-document warnings');assert.match(main.textContent,/Latest refresh failed: Fixture missing source/);assert.deepEqual(statusQueries,[[s.contractRef,'CLOSED'],[s.contractRef,'ACTIVE']]);
+ console.log('PASS TG pack: five actual previews, linked receiver/address, standard draft, preserved historical wording, escaped values, focus/manual-save safety and acknowledged print parity');w.close();
+})().catch(e=>{console.error(e);w.close();process.exitCode=1});

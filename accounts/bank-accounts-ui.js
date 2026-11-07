@@ -1,0 +1,98 @@
+(() => {
+  'use strict';
+  const access = window.TT_ACCOUNT_ACCESS || {};
+  const api = '../api/bank_accounts.php';
+  const q = selector => document.querySelector('#ttBankAccountsDesk')?.querySelector(selector)||document.querySelector(selector);
+  const qa = selector => [...(document.querySelector('#ttBankAccountsDesk')||document).querySelectorAll(selector)];
+  const entity = () => localStorage.getItem('tt_accounts_entity') || 'TTI';
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const fmt = value => Number(value || 0).toLocaleString('en-PK', {maximumFractionDigits:2});
+  let data = null,loadSequence=0;
+
+  function toast(message, ok = true) {if(!ok&&window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(message);
+    let el = q('#ttBankToast');
+    if (!el) { el = document.createElement('div'); el.id = 'ttBankToast'; el.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100200;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003'; document.body.appendChild(el); }
+    el.style.background = ok ? '#147a5b' : '#a93a34'; el.textContent = message; el.hidden = false;
+    clearTimeout(el._t); el._t = setTimeout(() => { el.hidden = true; }, 3400);
+  }
+  function style() {
+    if (q('#ttBankStyle')) return;
+    const sheet = document.createElement('style'); sheet.id = 'ttBankStyle';
+    sheet.textContent = `.ttbk{padding:18px}.ttbk-kpis,.ttbk-grid,.ttbk-checks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}.ttbk-kpis{grid-template-columns:repeat(4,1fr)}.ttbk-kpi,.ttbk-card{border:1px solid #dfe6ec;border-radius:11px;background:#fff;padding:12px;margin-top:10px}.ttbk-kpi span,.ttbk-note{font-size:10px;color:#6f7a89}.ttbk-kpi b{display:block;font-size:17px;margin-top:4px}.ttbk-head{display:flex;gap:11px;align-items:center}.ttbk-head .sp{flex:1}.ttbk-icon{width:38px;height:38px;border-radius:10px;background:#edf3f8;display:grid;place-items:center;font-weight:900}.ttbk-pill{display:inline-block;padding:4px 7px;border-radius:999px;background:#eef3f7;font-size:10px;font-weight:800}.ttbk-pill.on{background:#e6f5ee;color:#14694f}.ttbk-detail{border-top:1px solid #edf0f3;margin-top:11px;padding-top:2px}.ttbk-grid input{width:100%;margin-top:5px;padding:9px;border:1px solid #cfd8e1;border-radius:8px}.ttbk-check{border:1px solid #e2e7ec;border-radius:9px;padding:9px;font-size:11px}.ttbk-check input{width:auto;margin-right:6px}.ttbk-actions{display:flex;justify-content:flex-end;margin-top:11px}.ttbk-alert{padding:10px;border-radius:9px;background:#fff6df;border:1px solid #ead6a2;margin-top:11px}#ws-bank[data-simple-receipt] .subGrid,#ws-bank[data-simple-receipt] #ttBrOpen,#ws-bank[data-simple-receipt] #ttBrBox{display:none!important}@media(max-width:800px){.ttbk-kpis,.ttbk-grid,.ttbk-checks{grid-template-columns:1fr 1fr}}@media(max-width:520px){.ttbk-kpis,.ttbk-grid,.ttbk-checks{grid-template-columns:1fr}}`;
+    sheet.textContent += '#ws-bank[data-tg-bank-workspace] .subGrid{display:none!important}';
+    document.head.appendChild(sheet);
+  }
+  async function load(force = false) {
+    if (data && !force && data.entity === entity()) return;
+    const requestedEntity=entity(),sequence=++loadSequence;
+    const response = await fetch(`${api}?entity=${encodeURIComponent(requestedEntity)}`, {credentials:'same-origin', headers:{Accept:'application/json'}});
+    let body = {}; try { body = await response.json(); } catch (_) {}
+    if(sequence!==loadSequence||requestedEntity!==entity())return;
+    if (!response.ok || !body.ok) throw new Error(body.error || 'Could not load bank accounts.');
+    data = body;
+  }
+  function label(account) {
+    const custom = String(account.settings?.displayName || '').trim();
+    return esc([account.bankName||'Bank',account.accountNumber||account.iban,account.currency,custom,account.accountTitle].filter(Boolean).join(' · '));
+  }
+  function badge(setting, key, text) { return setting[key] ? `<span class="ttbk-pill on">${text}</span>` : ''; }
+  function check(setting, account, key, text, disabled = false) {
+    return `<label class="ttbk-check"><input type="checkbox" data-bank-check="${key}" data-id="${esc(account.id)}" ${setting[key] ? 'checked' : ''} ${disabled ? 'disabled' : ''}>${text}</label>`;
+  }
+  function card(account, cash = false) {
+    const setting = account.settings || {}, planning = String(data.paymentPlanningCurrency || 'PKR').toUpperCase(), currency = String(account.currency || planning).toUpperCase();
+    const canPlan = currency === planning;
+    return `<article class="ttbk-card"><div class="ttbk-head"><div class="ttbk-icon">${cash ? '¤' : '▰'}</div><div><b>${cash ? esc(account.accountTitle) : label(account)}</b><div>${setting.active ? '<span class="ttbk-pill on">Active</span>' : '<span class="ttbk-pill">Inactive</span>'} ${!cash&&account.accountType?'<span class="ttbk-pill">'+esc(account.accountType)+'</span>':''} ${!cash&&account.depositType?'<span class="ttbk-pill">'+(account.depositType==='SAVING'?'Saving':'Current')+'</span>':''} ${badge(setting,'defaultReceiptAccount','Default Receipt')} ${badge(setting,'defaultPaymentAccount','Default Payment')} ${badge(setting,'retentionAccount','Foreign Retention · Separate Ledger')}</div></div><div class="sp"></div><b>${esc(currency)} ${fmt(account.availableBalance??account.bookBalance)}${Number(account.pendingRemittances||0)?`<small style="display:block">POSTED ${fmt(account.bookBalance)} · PENDING ${fmt(account.pendingRemittances)}</small>`:''}</b></div>
+      <div class="ttbk-actions"><button type="button" class="btn" data-bank-ledger="${esc(account.id)}">${cash ? 'Office Petty Cash Ledger' : 'Party-wise Bank Ledger'}</button></div><details class="ttbk-detail"><summary style="cursor:pointer;padding-top:11px;font-weight:800">Settings & Details ▾</summary>
+        ${cash ? '' : `<div class="ttbk-grid"><label>Account Title<input readonly value="${esc(account.accountTitle || '')}"></label><label>Bank / Branch<input readonly value="${esc((account.bankName || '') + (account.branch ? ` · ${account.branch}` : ''))}"></label><label>Account number<input readonly value="${esc(account.accountNumber || '')}"></label><label>IBAN<input readonly value="${esc(account.iban || '')}"></label><label>Account Type<select data-deposit-type="${esc(account.id)}"><option value="">Select account type</option><option value="CURRENT" ${account.depositType==='CURRENT'?'selected':''}>Current</option><option value="SAVING" ${account.depositType==='SAVING'?'selected':''}>Saving</option></select><button type="button" class="btn" data-deposit-save="${esc(account.id)}">Save Account Type</button></label></div>`}
+        <div class="ttbk-grid"><label>Display Name<input data-bank-field="displayName" data-id="${esc(account.id)}" value="${esc(setting.displayName || '')}"></label><label>Accounts Notes<input data-bank-field="notes" data-id="${esc(account.id)}" value="${esc(setting.notes || '')}"></label></div>
+        <div class="ttbk-checks">${cash ? '' : check(setting,account,'defaultReceiptAccount','Default Receipt Account',account.needsCompletion)+check(setting,account,'defaultPaymentAccount','Default Payment Account',account.needsCompletion)}${check(setting,account,'includeInPaymentPlanning',`Include in ${planning} Payment Planning`,!canPlan)}${check(setting,account,'visibleToMill','Visible to Mill')}${check(setting,account,'reconciliationEnabled','Bank/Cash Reconciliation')}${setting.retentionAccount ? '<span class="ttbk-pill on">Retention account · Company Master</span>' : ''}</div>
+        ${account.needsCompletion ? '<div class="ttbk-alert">Complete the account number or IBAN in Company Master before enabling it.</div>' : ''}${!cash && String(account.masterStatus||'Active').toLowerCase() !== 'active' ? '<div class="ttbk-alert">This bank is inactive in Company Master. Set it to Active there before using it for receipts.</div>' : ''}
+        <div class="ttbk-actions">${!cash&&account.depositType==='SAVING'?`<button type="button" class="btn" data-bank-profit="${esc(account.id)}">+ Saving Profit</button>`:''}${!cash&&String(account.masterStatus||'Active').toLowerCase()==='active'?(account.deletionPending?'<span class="ttbk-pill">Deletion approval pending</span>':`<button class="btn" data-bank-delete-request="${esc(account.id)}">Delete (By Approval)</button>`):''}<button class="btn primary" data-bank-save="${esc(account.id)}">Save Account Settings</button></div>
+      </details></article>`;
+  }
+  function body() {
+    if (!data) return '<div class="ttbk">Loading…</div>';
+    const balances = Object.entries(data.balancesByCurrency || {}).map(([currency,value]) => `${esc(currency)} ${fmt(value)}`).join(' · ') || '—';
+    return `<div class="ttbk"><div class="formCard"><h3>Banks & Cash</h3>${['TTI','BRM'].includes(entity())?'<button type="button" class="btn" data-forward-bookings>Forward Booking</button>':''}<div class="helper">Select one active receipt account as the default for each currency. Other enabled company accounts remain selectable.</div><div class="ttbk-kpis"><div class="ttbk-kpi"><span>Balances</span><b>${balances}</b></div><div class="ttbk-kpi"><span>Planning Funds</span><b>${esc(data.paymentPlanningCurrency || 'PKR')} ${fmt(data.paymentPlanningFunds)}</b></div><div class="ttbk-kpi"><span>Unassigned Old Entries</span><b>${fmt(data.unassignedBankBalance)}</b></div><div class="ttbk-kpi"><span>Master Accounts</span><b>${(data.accounts || []).length}</b></div></div></div>${[...(data.accounts||[]).filter(a=>a.settings?.defaultPaymentAccount||a.settings?.defaultReceiptAccount),...(data.cash?[{...data.cash,needsCompletion:false,isCash:true}]:[]),...(data.accounts||[]).filter(a=>!a.settings?.defaultPaymentAccount&&!a.settings?.defaultReceiptAccount)].map(account=>card(account,!!account.isCash)).join('')}</div>`;
+  }
+  async function saveDepositType(id){
+    const depositType=q(`[data-deposit-type="${CSS.escape(id)}"]`)?.value;
+    try{const response=await fetch(api,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'save_deposit_type',csrf:access.csrf,entity:entity(),accountId:id,depositType})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Account type could not be saved.');data=result;renderVisible();toast('Account type saved in Company Master.');}catch(error){toast(error.message,false)}
+  }
+  function bind() {qa('[data-bank-ledger]').forEach(button=>button.onclick=()=>window.TT_ALL_LEDGERS?.open(button.dataset.bankLedger.startsWith('CASH|')?button.dataset.bankLedger:'BANK|'+button.dataset.bankLedger,'bank'));qa('[data-forward-bookings]').forEach(b=>b.onclick=()=>window.TT_FORWARD_BOOKINGS?.open());
+    qa('[data-deposit-save]').forEach(button=>button.onclick=()=>saveDepositType(button.dataset.depositSave));
+    const canEditCompany=access.super||(access.masterPermissions?.companies||[]).includes('Edit');qa('[data-deposit-save]').forEach(button=>button.hidden=!canEditCompany);qa('[data-deposit-type]').forEach(select=>select.disabled=!canEditCompany);
+    qa('[data-bank-profit]').forEach(button=>button.onclick=()=>window.TT_BANK_DIRECT_ENTRY?.openProfit((data.accounts||[]).find(row=>row.id===button.dataset.bankProfit)));
+    qa('[data-bank-save]').forEach(button => { button.onclick = () => save(button.dataset.bankSave); });
+    qa('[data-bank-delete-request]').forEach(button => { button.onclick = () => requestDelete(button.dataset.bankDeleteRequest); });
+  }
+  function renderMasters() { const root = q('#masterBody'); if (root) { root.innerHTML = body(); bind(); } }
+  function renderBank() { const workspace = q('#ws-bank'); if (!workspace) return; const title=workspace.querySelector('.panelHead h2'),description=workspace.querySelector('.panelHead p'); workspace.toggleAttribute('data-tg-bank-workspace',entity()==='TG'); if (['TTI','BRM'].includes(entity())) { workspace.dataset.simpleReceipt='1'; if(title)title.textContent='Bank Receipt / Credit Advice'; if(description)description.textContent='Record a linked receipt and any amount retained in the company foreign currency account.'; workspace.querySelector('[data-tt-bank-root]')?.remove(); return; } delete workspace.dataset.simpleReceipt; if(title)title.textContent='Cash & Bank'; if(description)description.textContent='Receipts, payments, transfers and cheque activity.'; let root = workspace.querySelector('[data-tt-bank-root]'); if (!root) { root = document.createElement('div'); root.dataset.ttBankRoot = '1'; workspace.querySelector('.panelHead')?.insertAdjacentElement('afterend', root); } root.hidden=false;root.innerHTML = body(); bind(); if(entity()==='TG')void window.TT_TG_BANK_TRANSACTIONS_UI?.open?.(); }
+  function renderVisible(){const desk=document.querySelector('#ttBankAccountsDesk');if(desk){desk.querySelector('[data-bank-content]').innerHTML=body();bind();return;}if(q('#ws-masters.active'))renderMasters();}
+  async function requestDelete(id) {
+    const account=(data?.accounts||[]).find(item=>String(item.id)===String(id));if(!account)return;
+    const reason=window.prompt(`Reason for deleting ${account.bankName||account.accountTitle||'this bank account'}? Approval will be sent to Directors and Super Admin.`);
+    if(reason===null)return;
+    if(reason.trim().length<5)return toast('Enter a clear reason for the deletion request.',false);
+    try{
+      const response=await fetch(api,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({action:'request_delete',csrf:access.csrf,entity:entity(),accountId:id,reason:reason.trim()})});let result={};try{result=await response.json()}catch(_){}
+      if(!response.ok||!result.ok)throw new Error(result.error||'Bank deletion request could not be sent.');
+      data={...result,entity:entity()};toast('Deletion request sent to Directors and Super Admin.');renderVisible();
+    }catch(error){toast(String(error.message||error),false)}
+  }
+  async function save(id) {
+    const pick = (key, field = false) => { const el = q(`[data-bank-${field ? 'field' : 'check'}="${key}"][data-id="${CSS.escape(id)}"]`); return field ? String(el?.value || '').trim() : !!el?.checked; };
+    const payload = {action:'save_settings',csrf:access.csrf,entity:entity(),accountId:id,defaultReceiptAccount:pick('defaultReceiptAccount'),defaultPaymentAccount:pick('defaultPaymentAccount'),includeInPaymentPlanning:pick('includeInPaymentPlanning'),visibleToMill:pick('visibleToMill'),reconciliationEnabled:pick('reconciliationEnabled'),displayName:pick('displayName',true),notes:pick('notes',true)};
+    try {
+      const response = await fetch(api,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(payload)}); let result = {}; try { result = await response.json(); } catch (_) {}
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Bank settings could not be saved.');
+      data = {...result, entity:entity()}; toast('Bank / cash settings saved.'); renderVisible();
+    } catch (error) { toast(String(error.message || error), false); }
+  }
+  async function mount(target) { const company=entity(),owner=target===renderBank?window.TT_BANK_WORKSPACE?.claim('bank'):null;try { style(); await load();if(company!==entity()||(owner&&!window.TT_BANK_WORKSPACE.current(owner)))return; target(); } catch (error) { toast(String(error.message || error), false); } }
+  document.addEventListener('click', event => { if (event.target.closest?.('.appCard[data-key="bank"]')) {const revision=window.TT_BANK_WORKSPACE?.revision();setTimeout(() => {if(revision===window.TT_BANK_WORKSPACE?.revision())void mount(renderBank);},60);} if (event.target.closest?.('.tab[data-master="banks"]')) setTimeout(() => mount(renderMasters),30); if (event.target.closest?.('[data-tt-entity]')) data = null; });
+  async function open(){const requestedEntity=entity();style();q('#ttBankAccountsDesk')?.remove();const host=document.createElement('div');host.id='ttBankAccountsDesk';host.style.cssText='position:fixed;inset:0;z-index:100100;background:#17374766;padding:3vh 12px;overflow:auto';host.innerHTML='<section style="background:white;padding:20px;border-radius:12px;max-width:1150px;margin:auto"><header style="display:flex;justify-content:space-between"><h2>Bank Accounts & Balances</h2><button class="btn" data-close>Close</button></header><div data-bank-content>Loading bank accounts…</div></section>';document.body.appendChild(host);host.querySelector('[data-close]').onclick=()=>host.remove();try{await load(true);if(!host.isConnected)return;if(requestedEntity!==entity()){host.remove();return;}q('[data-bank-content]').innerHTML=body();bind();}catch(e){if(host.isConnected)q('[data-bank-content]').textContent=e.message;}window.TT_FORM_VIEWPORT?.open(host);}
+  window.TT_BANK_ACCOUNTS_UI = {open,mountBank:() => mount(renderBank), mountMaster:() => mount(renderMasters), reload:() => load(true).then(renderVisible)};
+})();
+

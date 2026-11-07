@@ -1,0 +1,559 @@
+name: Accounts V1 QA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths: ['document-filenames.js','document_filenames.php','runtime_html.php','tests/document_filenames_test.js','tests/document_filenames_test.php','staff-home.php','jv_notice_ui.php','index.html','index.php','document-reader-settings.php','tests/document-ai/**','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','exporter-loading.php','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  accounts-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: JavaScript and JSON syntax
+        run: |
+          find accounts exports admin directors tests/accounts-v1 -name '*.js' -print0 | xargs -0 -n1 node --check
+          node -e "JSON.parse(require('fs').readFileSync('accounts/accounting_master_v1.json','utf8'))"
+      - name: Document reader routing and backend checks
+        run: |
+          php tests/document-ai/routing_test.php
+          php tests/document-ai/backend_test.php
+      - name: Internal SODA allocation and raw FIFO regressions
+        run: |
+          php tests/accounts-v1/third_party_register_test.php
+          python3 tests/accounts-v1/third_party_register_http_test.py
+          php tests/accounts-v1/expense_reminder_cycles_test.php
+          php tests/accounts-v1/soda_buying_fifo_test.php
+          php tests/accounts-v1/production_recovery_cost_test.php
+      - name: Linked credit-advice and TG posting date corrections
+        run: |
+          php tests/accounts-v1/linked_post_date_test.php
+          python3 tests/accounts-v1/linked_post_date_http_test.py
+          python3 tests/accounts-v1/full_linked_edit_http_test.py
+      - name: Accounts rule and control audits
+        run: |
+          python3 tests/security/accounts_integrity_http_test.py
+          python3 tests/accounts-v1/legacy_source_integrity_http_test.py
+          python3 tests/security/offline_ledger_test.py
+          python3 tests/security/accounts_document_access_test.py
+          python3 tests/security/accounts_read_scope_test.py
+          node tests/security/live_credential_artifact_test.js
+          node tests/security/master_console_browser_storage_test.js
+          python3 tests/security/master_document_metadata_access_test.py
+          python3 tests/accounts-v1/staff_payment_amend_http_test.py
+          php tests/accounts-v1/directors_trading_test.php
+          php tests/accounts-v1/exporter_soda_arrangements_test.php
+          php tests/accounts-v1/fellow_exporter_lifecycle_test.php
+          python3 tests/accounts-v1/directors_trading_endpoint_test.py
+          python3 tests/accounts-v1/director_cost_defaults_test.py
+          php tests/accounts-v1/group_management_test.php
+          php tests/accounts-v1/cashflow_intercompany_scope_test.php
+          php tests/accounts-v1/cashflow_native_source_test.php
+          php tests/accounts-v1/intercompany_advance_application_test.php
+          node tests/accounts-v1/tg_internal_source_value_test.js
+          php tests/accounts-v1/group_zakat_payments_test.php
+          php tests/accounts-v1/group_daily_test.php
+          php tests/accounts-v1/commodity_quantity_test.php
+          python3 tests/accounts-v1/commodity_quantity_endpoint_test.py
+          php tests/accounts-v1/group_pending_remittances_test.php
+          python3 tests/accounts-v1/group_management_endpoint_test.py
+          python3 tests/accounts-v1/group_daily_endpoint_test.py
+          python3 tests/accounts-v1/commodity_lookup_read_only_test.py
+          php tests/accounts-v1/arrival_dependency_test.php
+          php tests/accounts-v1/bag_transfer_test.php
+          php tests/accounts-v1/bag_inventory_test.php
+          php tests/accounts-v1/bag_production_allocation_test.php
+          python3 tests/accounts-v1/bag_transfer_endpoint_test.py
+          python3 tests/accounts-v1/bag_receipt_endpoint_test.py
+          php tests/accounts-v1/mill_source_amend_test.php
+          python3 tests/accounts-v1/mill_source_amend_endpoint_test.py
+          php tests/accounts-v1/maize_labour_test.php
+          php tests/accounts-v1/mill_liabilities_test.php
+          php tests/accounts-v1/mill_liability_cost_sources_test.php
+          python3 tests/accounts-v1/mill_liabilities_endpoint_test.py
+          python3 tests/accounts-v1/mill_reference_endpoint_test.py
+          python3 tests/accounts-v1/arrival_withdrawal_test.py
+          node tests/accounts-v1/production_source_save_test.js
+          node tests/accounts-v1/mill_source_save_test.js
+          node tests/accounts-v1/accounts_notifications_test.js
+          node tests/accounts-v1/rules_engine_test.js
+          node tests/accounts-v1/salary_donations_test.js
+          node tests/accounts-v1/expenses_v1_test.js
+          python3 tests/accounts-v1/carry_forward_http_test.py
+          python3 tests/accounts-v1/direct_expense_http_test.py
+          python3 tests/accounts-v1/expense_invoice_http_test.py
+          python3 tests/accounts-v1/financial_report_classification_http_test.py
+          python3 tests/accounts-v1/master_family_roundtrip_http_test.py
+          python3 tests/accounts-v1/dashboard_commodity_dues_http_test.py
+          python3 tests/accounts-v1/petty_cash_http_test.py
+          python3 tests/accounts-v1/mill_petty_cash_http_test.py
+          python3 tests/accounts-v1/mill_record_delete_endpoint_test.py
+          python3 tests/accounts-v1/mill_cash_entry_http_test.py
+          python3 tests/accounts-v1/petty_cash_balance_projection_test.py
+          python3 tests/security/office_delivery_http_test.py
+          python3 tests/security/office_document_policy_test.py
+          python3 tests/security/office_document_http_test.py
+          node tests/security/startup_network_diagnostic_test.cjs
+          python3 tests/accounts-v1/party_ledger_http_test.py
+          python3 tests/accounts-v1/bank_entries_http_test.py
+          python3 tests/accounts-v1/bank_receipt_dates_http_test.py
+          python3 tests/accounts-v1/bank_reconciliation_http_test.py
+          php tests/accounts-v1/bank_reconciliation_projection_test.php
+          python3 tests/accounts-v1/bank_balance_asof_test.py
+          python3 tests/accounts-v1/company_investments_test.py
+          python3 tests/accounts-v1/recurring_bills_profit_test.py
+          python3 tests/accounts-v1/payment_plans_test.py
+          python3 tests/accounts-v1/supplier_discount_test.py
+          node tests/accounts-v1/reimbursements_general_expenses_test.js
+          node tests/accounts-v1/other_purchases_fixed_assets_test.js
+          php tests/accounts-v1/assets_registry_test.php
+          python3 tests/accounts-v1/assets_registry_http_test.py
+          node tests/accounts-v1/rent_recurring_test.js
+          node tests/accounts-v1/journal_vouchers_test.js
+          python3 tests/accounts-v1/jv_posting_flow_http_test.py
+          node tests/accounts-v1/end_to_end_audit.js
+          node tests/accounts-v1/static_audit.js
+          node tests/accounts-v1/clean_ui_test.js
+          node tests/master_data_topbar_audit.js
+          node tests/accounts-v1/payment_defaults_ui_test.js
+          python3 tests/accounts-v1/payment_defaults_http_test.py
+          python3 tests/accounts-v1/company_bank_defaults_http_test.py
+          python3 tests/accounts-v1/linked_retention_bank_test.py
+          php tests/accounts-v1/finish_options_test.php
+          php tests/accounts-v1/post_id_migration_test.php
+          python3 tests/accounts-v1/salary_month_http_test.py
+          php tests/accounts-v1/journal_activity_test.php
+          python3 tests/accounts-v1/journal_activity_http_test.py
+          python3 tests/accounts-v1/salary_opening_http_test.py
+          python3 tests/accounts-v1/salary_prepared_advance_http_test.py
+          python3 tests/accounts-v1/salary_master_sync_http_test.py
+          python3 tests/accounts-v1/salary_group_posting_http_test.py
+          python3 tests/accounts-v1/salary_flexible_http_test.py
+          python3 tests/accounts-v1/bank_overdraft_http_test.py
+          php tests/accounts-v1/ledger_visibility_test.php
+          php tests/accounts-v1/ledger_narration_test.php
+          node tests/accounts-v1/ledger_posting_rows_test.js
+          python3 tests/accounts-v1/party_history_http_test.py
+          node tests/accounts-v1/ledger_workbook_test.js
+          node tests/accounts-v1/export_v3_linkage_test.js
+          node tests/accounts-v1/export_receipt_scope_test.js
+          node tests/accounts-v1/product_stage_architecture_test.js
+          node tests/accounts-v1/broker_brokery_master_test.js
+          node tests/accounts-v1/planned_voucher_test.js
+          php tests/accounts-v1/soda_completion_test.php
+          php tests/accounts-v1/company_party_choices_test.php
+          php tests/accounts-v1/tg_account_scope_test.php
+          python3 tests/accounts-v1/tg_bill_preview_test.py
+          node tests/accounts-v1/soda_milling_routing_test.js
+          node tests/accounts-v1/soda_master_compatibility_test.js
+          python3 tests/accounts-v1/purchase_master_kat_link_test.py
+          node tests/accounts-v1/linkage_regressions_test.js
+          php tests/accounts-v1/customer_receivables_test.php
+          python3 tests/accounts-v1/retired_draft_http_test.py
+          php tests/accounts-v1/fi_credit_advice_link_test.php
+          php tests/accounts-v1/business_reports_test.php
+          php tests/accounts-v1/arp_fellow_completion_test.php
+          python3 tests/accounts-v1/fi_credit_advice_http_test.py
+          php tests/accounts-v1/tg_receipt_mirror_test.php
+          python3 tests/accounts-v1/tg_customer_receipts_http_test.py
+          php tests/accounts-v1/tg_native_currency_test.php
+          node tests/accounts-v1/tg_native_voucher_test.js
+          python3 tests/accounts-v1/tg_remittance_http_test.py
+          python3 tests/accounts-v1/general_bag_bill_http_test.py
+          php tests/accounts-v1/accounts_reset_scope_test.php
+          php tests/accounts-v1/qa_account_profile_test.php
+          php tests/accounts-v1/request_store_read_cache_test.php
+          php tests/accounts-v1/export_charge_seed_concurrency_test.php
+          php tests/security/qa_account_read_only_test.php
+          node tests/accounts-v1/director_approvals_ui_test.js
+          node tests/accounts-v1/director_bank_approval_ui_test.js
+          php tests/accounts-v1/director_approvals_test.php
+          python3 tests/accounts-v1/director_approvals_http_test.py
+          python3 tests/accounts-v1/approval_integrity_test.py
+          php tests/accounts-v1/accounts_reviews_test.php
+          python3 tests/accounts-v1/accounts_reviews_http_test.py
+          node tests/accounts-v1/credit_advice_amendment_ui_test.js
+          node tests/accounts-v1/accounts_uppercase_ui_test.js
+          php tests/accounts-v1/credit_advice_amendment_test.php
+          php tests/accounts-v1/service_ledger_groups_test.php
+          php tests/accounts-v1/bag_order_report_test.php
+          python3 tests/accounts-v1/bag_order_report_http_test.py
+          python3 tests/accounts-v1/historical_bags_http_test.py
+          php tests/accounts-v1/forward_bookings_test.php
+          python3 tests/accounts-v1/forward_bookings_http_test.py
+          php tests/accounts-v1/post_amendment_test.php
+          php tests/accounts-v1/public_reference_surfaces_test.php
+          python3 tests/accounts-v1/post_cancel_preview_test.py
+          php tests/accounts-v1/bank_payment_tracking_test.php
+          php tests/accounts-v1/fi_credit_advice_link_test.php
+          php tests/accounts-v1/business_reports_test.php
+          php tests/accounts-v1/arp_fellow_completion_test.php
+          python3 tests/accounts-v1/fi_credit_advice_http_test.py
+          php tests/accounts-v1/freight_metadata_test.php
+          python3 tests/accounts-v1/ready_rice_bill_http_test.py
+          python3 tests/accounts-v1/nonrice_rate_unit_test.py
+          python3 tests/accounts-v1/outside_corn_route_test.py
+          python3 tests/accounts-v1/exmill_correction_test.py
+          node tests/accounts-v1/nonrice_rate_unit_ui_test.js
+          php tests/accounts-v1/supplier_cheque_lifecycle_test.php
+          python3 tests/accounts-v1/supplier_opening_http_test.py
+          php tests/accounts-v1/supplier_opening_core_test.php
+          php tests/accounts-v1/local_customer_cheque_test.php
+          php tests/security/setup_storage_hardening_test.php
+          php tests/security/internal_helpers_access_rules_test.php
+          php tests/security/master_permission_migration_test.php
+          php tests/security/authentication_hardening_test.php
+          php tests/security/session_web_hardening_test.php
+          php tests/security/arrival_operator_diagnostic_test.php
+          php tests/security/server_backup_hardening_test.php
+          php tests/security/upload_validation_test.php
+          python3 tests/security/export_document_index_integrity_test.py
+          php tests/security/pc_pairing_test.php
+          php tests/security/owner_backup_jobs_test.php
+          php tests/security/office_backup_auth_test.php
+          python3 tests/security/office_backup_agent_test.py
+          python3 tests/security/office_backup_protocol_test.py
+          python3 tests/security/logout_http_test.py
+          node tests/accounts-v1/master_role_mapping_test.js
+          node tests/offline_recovery_audit.js
+      - name: Private stock reconciliation rules
+        run: |
+          php tests/security/operations_ownership_test.php
+          php tests/accounts-v1/paltai_test.php
+          php tests/accounts-v1/inventory_reconciliation_test.php
+          php tests/accounts-v1/opening_stock_test.php
+          php tests/accounts-v1/rice_ledger_test.php
+          python3 tests/accounts-v1/mill_rice_asset_delivery_test.py
+          python3 tests/accounts-v1/rice_ledger_endpoint_test.py
+          python3 tests/accounts-v1/stock_reconciliation_review_http_test.py
+          node tests/accounts-v1/inventory_reconciliation_ui_test.js
+          python3 tests/accounts-v1/inventory_reconciliation_http_test.py
+      - name: PHP syntax
+        run: |
+          find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check session-activity.js
+          php tests/runtime_delivery_test.php
+          php tests/runtime_asset_version_test.php
+          php tests/security/retired_owner_cleanup_test.php
+          python3 tests/security/private_session_storage_test.py
+          python3 tests/security/corrupt_session_recovery_test.py
+          python3 tests/security/startup_delivery_test.py
+          python3 tests/security/login_startup_latency_test.py
+          python3 tests/security/authentication_boundary_test.py
+          python3 tests/security/session_retention_test.py
+          python3 tests/security/entity_icon_authorization_test.py
+          python3 tests/security/workspace_navigation_test.py
+          python3 tests/security/api_workflow_authorization_test.py
+          python3 tests/security/security_report_boundary_test.py
+          python3 tests/security/security_resource_limits_test.py
+          python3 tests/security/setup_throttle_http_test.py
+          php tests/security/api_action_policy_test.php
+          python3 tests/security/api_action_permissions_test.py
+          python3 tests/security/operations_read_access_test.py
+          python3 tests/security/group_report_access_test.py
+          python3 tests/security/exmill_handoff_scope_test.py
+          python3 tests/security/mill_cash_authorization_test.py
+          python3 tests/security/operations_root_integrity_test.py
+          python3 tests/security/operations_scope_http_test.py
+          python3 tests/security/mill_shared_key_permissions_test.py
+          node tests/accounts-v1/payee_summary_escape_test.js
+          node tests/runtime_security_static_audit.js
+
+  inventory-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: disposable-root-only
+          MYSQL_DATABASE: transtrade_qa_inventory
+          MYSQL_USER: qa_inventory
+          MYSQL_PASSWORD: disposable-local-only
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pdisposable-root-only"
+          --health-interval=5s --health-timeout=5s --health-retries=15
+    env:
+      TT_DB_HOST: 127.0.0.1
+      TT_DB_NAME: transtrade_qa_inventory
+      TT_DB_USER: qa_inventory
+      TT_DB_PASS: disposable-local-only
+      TT_QA_MYSQL: '1'
+      TT_QA_BROWSER: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, mbstring, fileinfo
+          coverage: none
+      - name: Install isolated browser runtime
+        run: |
+          sudo python3 .github/scripts/browser-download-setup.py
+          python3 -m venv "$RUNNER_TEMP/inventory-venv"
+          "$RUNNER_TEMP/inventory-venv/bin/pip" -q install playwright==1.55.0
+          "$RUNNER_TEMP/inventory-venv/bin/playwright" install --with-deps chromium
+      - name: TG remittance review browser flow
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/tg_remittance_http_test.py'
+      - name: Native Mill SODA handoff and gate passes
+        run: |
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_operational_save_browser_test.py
+      - name: Salary month HTTP and browser flow
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
+        run: |
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_month_http_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_flexible_http_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_group_posting_http_test.py
+      - name: Ready rice bill browser and HTTP flow
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
+      - name: Native Director Home and persistent decisions
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
+        run: |
+          mkdir -p "$RUNNER_TEMP/inventory-evidence"
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/workspace_home_browser_test.py
+      - name: Expense review and shared form browser flows
+        run: |
+          npm install --prefix "$RUNNER_TEMP/expense-review-node" --no-save playwright@1.55.0 jsdom@26
+          export NODE_PATH="$RUNNER_TEMP/expense-review-node/node_modules"
+          node tests/accounts-v1/linked_post_date_ui_test.js
+          node tests/accounts-v1/full_linked_edit_ui_test.js
+          node tests/accounts-v1/accounts_startup_recovery_test.js
+          node tests/accounts-v1/assets_company_load_ui_test.js
+          node tests/accounts-v1/mill_liabilities_ui_test.js
+          node tests/accounts-v1/mill_liability_status_ui_test.js
+          node tests/accounts-v1/bag_transfers_ui_test.js
+          node tests/accounts-v1/bag_receipts_ui_test.js
+          node tests/accounts-v1/production_bag_allocation_ui_test.js
+          node tests/accounts-v1/production_source_save_ui_test.js
+          node tests/accounts-v1/mill_record_delete_ui_test.js
+          node tests/accounts-v1/mill_action_save_test.js
+          node tests/accounts-v1/arrival_recovery_ui_test.js
+          node tests/accounts-v1/arrival_queue_validation_test.js
+          node tests/accounts-v1/arrival_visibility_test.js
+          node tests/accounts-v1/arrival_session_recovery_test.js
+          node tests/accounts-v1/mill_session_gate_test.js
+          node tests/accounts-v1/mill_save_transport_test.js
+          node tests/accounts-v1/mill_settings_save_test.js
+          node tests/accounts-v1/mill_legacy_recovery_test.js
+          python3 tests/accounts-v1/arrival_recovery_http_test.py
+          node tests/accounts-v1/mill_source_save_ui_test.js
+          node tests/accounts-v1/mill_source_amend_ui_test.js
+          node tests/accounts-v1/console_access_preservation_test.js
+          node tests/accounts-v1/purchase_master_conditionals_test.js
+          node tests/accounts-v1/master_reference_conditionals_test.js
+          node tests/accounts-v1/master_console_save_safety_test.js
+          node tests/accounts-v1/master_customer_lists_ui_test.js
+          node tests/accounts-v1/master_business_date_test.js
+          node tests/accounts-v1/master_location_billing_test.js
+          php tests/accounts-v1/user_input_preservation_test.php
+          python3 tests/accounts-v1/ledger_catalog_identity_test.py
+          python3 tests/accounts-v1/admin_audit_test.py
+          python3 tests/accounts-v1/local_sales_entry_http_test.py
+          python3 tests/accounts-v1/brokerage_scope_test.py
+          node tests/accounts-v1/brokerage_readonly_ui_test.js
+          node tests/accounts-v1/admin_audit_ui_test.js
+          node tests/accounts-v1/mill_read_and_master_ack_test.js
+          node tests/accounts-v1/operations_bridge_scope_test.js
+          node tests/accounts-v1/maize_labour_ui_test.js
+          node tests/accounts-v1/outside_corn_ui_test.js
+          node tests/accounts-v1/mill_permission_reference_test.js
+          node tests/accounts-v1/mill_bag_view_permissions_test.js
+          node tests/accounts-v1/rice_ledger_ui_test.js
+          node tests/accounts-v1/production_compact_entry_test.js
+          node tests/accounts-v1/mill_report_entry_scope_test.js
+          php tests/accounts-v1/mill_recovery_test.php
+          php tests/accounts-v1/mill_gate_pass_test.php
+          python3 tests/accounts-v1/mill_gate_pass_http_test.py
+          python3 tests/accounts-v1/mill_recovery_http_test.py
+          node tests/accounts-v1/mill_recovery_ui_test.js
+          node tests/accounts-v1/production_form_browser_test.js
+          node tests/accounts-v1/mill_print_presentation_test.js
+          node tests/accounts-v1/mill_reference_scope_test.js
+          node tests/accounts-v1/mill_reference_ui_test.js
+          node tests/accounts-v1/mill_bag_ledger_scope_test.js
+          node tests/accounts-v1/export_loading_report_test.js
+          node tests/accounts-v1/mill_bag_identity_read_test.js
+          node tests/accounts-v1/used_bag_scope_test.js
+          node tests/accounts-v1/mill_bag_location_test.js
+          node tests/accounts-v1/mill_bag_artwork_test.js
+          node tests/accounts-v1/mill_cash_projection_test.js
+          node tests/accounts-v1/mill_cash_entry_ui_test.js
+          node tests/accounts-v1/mill_operational_status_test.js
+          TZ=Asia/Karachi node tests/accounts-v1/labour_scope_test.js
+          node tests/corn_weights_test.js
+          node tests/accounts-v1/corn_stock_test.js
+          node tests/accounts-v1/corn_completion_test.js
+          php tests/accounts-v1/corn_weights_test.php
+          TZ=America/Los_Angeles node tests/accounts-v1/labour_scope_test.js
+          node tests/accounts-v1/shipment_bill_result_edit_test.js
+          node tests/accounts-v1/family_payment_plan_test.js
+          node tests/accounts-v1/salary_simple_popup_test.js
+          node tests/accounts-v1/salary_payment_amend_ui_test.js
+          node tests/accounts-v1/fi_tags_read_only_test.js
+          php tests/accounts-v1/monthly_tax_source_test.php
+          python3 tests/accounts-v1/monthly_tax_http_test.py
+          php tests/accounts-v1/sales_tax_source_test.php
+          python3 tests/accounts-v1/sales_tax_endpoint_test.py
+          python3 tests/accounts-v1/shipment_archive_read_test.py
+          php tests/accounts-v1/withholding_source_test.php
+          php tests/accounts-v1/chart_posting_lineage_test.php
+          node tests/accounts-v1/accounting_desk_test.js
+          php tests/accounts-v1/tg_aed_payment_charge_test.php
+          php tests/accounts-v1/tg_delete_cascade_test.php
+          python3 tests/accounts-v1/tg_ledger_repair_http_test.py
+          node tests/accounts-v1/opening_balance_ui_test.js
+          node tests/accounts-v1/delete_impact_ui_test.js
+          node tests/accounts-v1/tg_aed_charge_ui_test.js
+          node tests/accounts-v1/tg_bank_charge_ui_test.js
+          node tests/accounts-v1/bank_sales_tax_refund_ui_test.js
+          node tests/accounts-v1/receipt_choices_ui_test.js
+          node tests/accounts-v1/tg_customer_receipts_ui_test.js
+          node tests/accounts-v1/tg_remittance_menu_test.js
+          node tests/accounts-v1/tg_pending_fi_ui_test.js
+          python3 tests/accounts-v1/tg_pending_fi_endpoint_test.py
+          node tests/accounts-v1/report_filter_drilldown_test.js
+          node tests/accounts-v1/commodity_quantity_ui_test.js
+          node tests/accounts-v1/monthly_tax_ui_test.js
+          node tests/accounts-v1/monthly_tax_invoice_fixture.js
+          node tests/accounts-v1/third_party_register_browser_test.js
+          node tests/accounts-v1/monthly_tax_pack_browser_test.js
+          node tests/accounts-v1/sales_tax_output_ui_test.js
+          node tests/accounts-v1/director_simple_costing_browser_test.js
+          node tests/accounts-v1/directors_trading_ui_test.js
+          node tests/accounts-v1/exporter_soda_arrangements_ui_test.js
+          node tests/accounts-v1/accounts_reference_startup_test.js
+          node tests/accounts-v1/local_sales_entry_ui_test.js
+          node tests/accounts-v1/fellow_exporter_controls_ui_test.js
+          node tests/accounts-v1/bag_arrangement_ui_test.js
+          node tests/accounts-v1/fellow_exporter_planning_browser_test.js
+          node tests/accounts-v1/director_simple_costing_test.js
+          node tests/accounts-v1/director_cashflow_output_test.js
+          node tests/accounts-v1/business_reports_browser_test.js
+          node tests/accounts-v1/group_management_ui_test.js
+          node tests/accounts-v1/group_daily_ui_test.js
+          node tests/accounts-v1/withholding_ui_test.js
+          node tests/accounts-v1/mill_date_control_test.js
+          node tests/accounts-v1/accounts_unified_forms_test.js
+          node tests/accounts-v1/review_entry_defaults_test.js
+          node tests/accounts-v1/review_receipt_ui_test.js
+          node tests/accounts-v1/bag_report_modes_test.js
+          node tests/accounts-v1/accounts_home_cleanup_ui_test.js
+          node tests/accounts-v1/bag_order_report_ui_test.js
+          node tests/accounts-v1/investment_edit_ui_test.js
+          node tests/accounts-v1/accounts_controls_ui_test.js
+          node tests/accounts-v1/module_form_consistency_test.js
+          node tests/accounts-v1/saved_expense_selection_ui_test.js
+          node tests/accounts-v1/jv_decision_notices_ui_test.js
+          node tests/accounts-v1/amendment_bank_fields_ui_test.js
+          node tests/accounts-v1/party_payment_choices_test.js
+          node tests/accounts-v1/opening_only_payment_ui_test.js
+          node tests/accounts-v1/opening_review_ui_test.js
+          node tests/accounts-v1/historical_bags_ui_test.js
+          node tests/accounts-v1/completed_instruction_ui_test.js
+          node tests/accounts-v1/local_sales_scope_ui_test.js
+          node tests/security/security_report_rendering_test.js
+          node tests/accounts-v1/bag_linked_supplier_ui_test.js
+          node tests/accounts-v1/forward_bookings_ui_test.js
+          node tests/accounts-v1/pay_to_unique_choice_test.js
+          node tests/accounts-v1/cheque_dates_ui_test.js
+          node tests/accounts-v1/business_date_defaults_test.js
+          node tests/accounts-v1/investment_payment_date_actions_test.js
+          node tests/accounts-v1/bank_ledger_name_search_ui_test.js
+          node tests/accounts-v1/ledger_amend_dates_ui_test.js
+          php tests/accounts-v1/cheque_dates_backend_test.php
+          node tests/accounts-v1/payment_difference_ui_test.js
+          node tests/accounts-v1/trial_balance_ui_test.js
+          node tests/accounts-v1/report_navigation_test.js
+          python3 tests/accounts-v1/shipment_posting_evidence_test.py
+          node tests/accounts-v1/party_payment_amend_ui_test.js
+          node tests/accounts-v1/party_voucher_display_test.js
+          node tests/accounts-v1/company_party_choices_ui_test.js
+          node tests/accounts-v1/desk_transition_test.js
+          node tests/accounts-v1/tg_ui_parity_test.js
+          node tests/accounts-v1/post_confirmation_ownership_test.js
+          node tests/accounts-v1/salary_voucher_review_test.js
+          node tests/accounts-v1/workspace_response_ownership_test.js
+          node tests/accounts-v1/bag_review_lifecycle_test.js
+          node tests/accounts-v1/accounts_master_controls_test.js
+          node tests/accounts-v1/accounts_master_popup_browser_test.js
+          node tests/accounts-v1/expense_review_batch_browser_test.js
+          node tests/accounts-v1/costing_navigation_test.js
+          node tests/accounts-v1/payables_draft_stability_test.js
+          node tests/accounts-v1/tg_navigation_scope_test.js
+          node tests/accounts-v1/expense_forms_browser_test.js
+          node tests/accounts-v1/cancellation_reason_ui_test.js
+          node tests/accounts-v1/post_register_browser_test.js
+          node tests/accounts-v1/bank_ledger_name_search_browser_test.js
+          node tests/accounts-v1/company_context_guard_browser_test.js
+          node tests/accounts-v1/direct_expense_browser_test.js
+          node tests/accounts-v1/petty_cash_ui_test.js
+          node tests/accounts-v1/unified_expense_browser_test.js
+          node tests/accounts-v1/expense_invoice_ui_test.js
+          node tests/accounts-v1/expense_invoice_browser_test.js
+          node tests/accounts-v1/purchase_handler_browser_test.js
+          node tests/accounts-v1/supplier_opening_browser_test.js
+          node tests/accounts-v1/numeric_entry_ui_test.js
+          node tests/accounts-v1/super_admin_console_navigation_audit.js
+          node tests/accounts-v1/numeric_no_step_browser_test.js
+          node tests/accounts-v1/accounts_date_jv_browser_test.js
+          node tests/accounts-v1/reconciliation_date_browser_test.js
+          node tests/accounts-v1/accounts_notifications_visibility_test.js
+          node tests/accounts-v1/accounts_layout_regression_browser_test.js
+          node tests/accounts-v1/form_viewport_browser_test.js
+          node tests/accounts-v1/soda_register_browser_test.js
+          node tests/accounts-v1/payment_plans_browser_test.js
+      - name: Carry-forward shipment form and expense payments
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/carry_forward_http_test.py'
+      - name: Actual MySQL and restricted-user browser reconciliation
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
+        run: |
+          php tests/accounts-v1/freight_metadata_test.php
+          python3 tests/security/mill_cash_authorization_test.py
+          python3 tests/security/operations_root_integrity_test.py
+          python3 tests/security/operations_scope_http_test.py
+          python3 tests/security/mill_shared_key_permissions_test.py
+          TT_MSA_TEST_MYSQL=1 python3 tests/accounts-v1/mill_source_amend_endpoint_test.py
+          # The later inventory HTTP fixture drops this disposable database in cleanup.
+          php tests/accounts-v1/group_daily_mysql_test.php
+          php tests/security/website_restore_mysql_test.php
+          TT_BAG_TEST_MYSQL=1 python3 tests/accounts-v1/bag_transfer_endpoint_test.py
+          TT_BAG_TEST_MYSQL=1 python3 tests/accounts-v1/bag_receipt_endpoint_test.py
+          TT_MRD_TEST_MYSQL=1 python3 tests/accounts-v1/mill_record_delete_endpoint_test.py
+          python3 tests/security/export_document_permissions_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_source_handoff_browser_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/group_daily_browser_test.py
+      - name: Bank entries, finance and subaccounts browser flow
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
+        run: |
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/bank_entries_browser_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/party_ledger_http_test.py
+      - name: Company investments and routed-funds browser flow
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/company_investments_test.py'
+      - name: Property registration and instalment browser flow
+        env:
+          NODE_PATH: ${{ runner.temp }}/expense-review-node/node_modules
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/assets_registry_http_test.py'
+      - name: Retain sanitized test evidence
+        continue-on-error: true # Evidence uploads are best effort; every functional check remains required.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory-reconciliation-${{ github.run_id }}
+          path: ${{ runner.temp }}/inventory-evidence/
+          retention-days: 14
+

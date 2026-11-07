@@ -1,0 +1,39 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__.'/bag_acceptance_core.php';
+
+/** Derive the shared queue; approval remains with the original module endpoint. */
+function tt_pending_director_rate_approvals(array $store): array {
+    $requests = [];
+    foreach (['bagSupplierBills' => 'bag', 'nonWovenBagSupplierBills' => 'nonwoven'] as $collection => $kind) {
+        foreach ((array)($store[$collection] ?? []) as $key => $bill) {
+            if (!is_array($bill) || !empty($bill['journalId'])
+                || in_array($bill['status'] ?? '', ['Cancelled', 'Posted'], true)
+                || !in_array($bill['entity'] ?? '', ['TTI', 'BRM'], true)) continue;
+            $assessment=bqa_assess($store,$bill);if(!$assessment['issues']||bqa_approved($bill,$assessment))continue;
+            $requests[] = [
+                'kind' => $kind, 'billId' => (string)($bill['id'] ?? $key),
+                'entity' => (string)$bill['entity'], 'fingerprint'=>$assessment['fingerprint'], 'canDecide'=>strlen(trim((string)($bill['supplierSettlement']??'')))>=5,
+                'title' => ($kind === 'nonwoven' ? 'Non-Woven bag' : 'Bag') . ' quantity / specification / weight approval · ' . (string)($bill['sellerInvoice'] ?? $key),
+                'detail' => (string)$bill['entity'] . ' · ' . (string)($bill['supplier'] ?? '') . ' · PO ' . (string)($bill['poNo'] ?? '')
+                    . ' · Invoice bags ' . (string)($bill['bags']??0) . ' · Invoice amount PKR ' . (string)($bill['totalAmount']??0) . ' · ' . implode('; ',$assessment['issues']) . ' · Supplier settlement: ' . (string)($bill['supplierSettlement']??'Not yet recorded')
+                    . ' · ' . (string)($bill['status'] ?? '') . ' · ' . (string)($bill['createdBy'] ?? ''),
+            ];
+        }
+    }
+    return $requests;
+}
+
+/** Pending JVs use the same original approval endpoint in both consoles. */
+function tt_pending_jv_approvals(array $store): array {
+    $rows=[];
+    foreach((array)($store['jvDrafts']??[]) as $id=>$draft){
+        if(!is_array($draft)||($draft['status']??'')!=='Pending Approval'||!in_array($draft['entity']??'',['TTI','BRM','TG'],true))continue;
+        $rows[]=['kind'=>'jv','id'=>(string)($draft['id']??$id),'entity'=>(string)$draft['entity'],
+            'title'=>'Journal Voucher · '.(string)(($draft['reference']??'')?:($draft['id']??$id)),
+            'detail'=>implode(' · ',array_filter([$draft['entity'],$draft['date']??'', $draft['createdBy']??'', $draft['narration']??''])),
+            'lines'=>(array)($draft['lines']??[]),'totalDebit'=>(float)($draft['totalDebit']??0),'totalCredit'=>(float)($draft['totalCredit']??0)];
+    }
+    return $rows;
+}

@@ -1,0 +1,67 @@
+name: Encrypted read-only group quantity review
+
+on:
+  pull_request:
+    paths: ['.github/workflows/group-quantity-review.yml', '.github/scripts/group_quantity_review.php']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/group-quantity-review.yml', '.github/scripts/group_quantity_review.php']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify immutable projection and encrypted output on disposable fixtures
+        run: |
+          php -l .github/scripts/expense_ledger_review.php
+          php -l .github/scripts/group_quantity_review.php
+  review:
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read quantity sources with encrypted output only
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+          REVIEW_KEY_B64: 'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQm9qQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FZOEFNSUlCaWdLQ0FZRUEzSUp2K29SMC9TVXdTMFRDNkxRLwp2WHdvbm9jaWk3OFlIVVdVd3VLRTRVdlZMNlZFd21VamhEWk0zaU90bTZQRnRVU2lZTVdRVUJIcjdTbXM0UXhEClJWbjVMVGU1MXFLaTU1VTI1dHVUTEZVT1ZPUjhoNmhYczByRVlzOUUvNTJjY3RsR0x2OWdZbUJlQU9aeVY4eHIKNnBoUk12MHJ1bXVPUU9Jb25MYlUvUkdNcE51cHl2MGdjOXY2aExFcEpwS3laWXcvWWw0N1JFakM0T1oybWFhVQo3YVFpUjdCK0IwemhxSXVwZFNCNmNKRDJkRnpKV3NoK3lXT1pGVGxNd3R4Sk9QTm4zSWhVSGpBT2VGUEZWUE5kCml1bWhOVU9jSXhoaW82dElyZzFVT29xd1NudkY4aUZIM1V1K3ZWVW1xQzJDanVxWVRRYllxOXE0NXVwUW1SaGMKNHlramtvcXY0dElnR1dtT2Q0R1dOSVh0ckpsTU5Ibis4MnJwdXpXckVLTFp1VENTeHBFT0MzMHdBZXFMdmRGVgp0TWFONE0yU1pnUklScFdIeEVmcVp6d3pGS1FDYkJDUi9vVDJUeWhhb3I3ZWplNVFpbGU4WGxjRlUxVzdkNFJNCjI2SHV0OGhiT3lNam1TbGFLQWE5Q3VOWlNWR216b1RVUVNLN1cyaHRWL1VEQWdNQkFBRT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=='
+        run: |
+          set -euo pipefail
+          python3 - <<'PYDRIVER'
+          import pathlib,os
+          helper=pathlib.Path('.github/scripts/expense_ledger_review.php').read_text().split("\nif(defined('TT_EXPENSE_REVIEW_LIBRARY'))return;")[0]
+          source=pathlib.Path('.github/scripts/group_quantity_review.php').read_text().split("declare(strict_types=1);",1)[1]
+          (pathlib.Path(os.environ['RUNNER_TEMP'])/'group-review-driver.php').write_text(helper+'\n'+source)
+          PYDRIVER
+          case "$HOSTINGER_DEPLOY_PATH" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          trap 'rm -rf "$RUNNER_TEMP/ssh"' EXIT
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_EXPENSE_REVIEW_ROOT='$HOSTINGER_DEPLOY_PATH' TT_EXPENSE_REVIEW_PUBLIC_KEY_B64='$REVIEW_KEY_B64' php" < "$RUNNER_TEMP/group-review-driver.php" > "$RUNNER_TEMP/expense-review.encrypted.json"
+          python3 - <<'PY'
+          import json,os,pathlib
+          data=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'expense-review.encrypted.json').read_text())
+          assert data['format']=='transtrade-expense-review-v1'
+          assert set(data)=={'format','algorithm','wrappedKey','iv','tag','ciphertext','sha256'}
+          assert len(data['ciphertext'])>100
+          print('Encrypted read-only review ready; financial records were not printed.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: group-quantity-review-${{ github.run_id }}
+          path: ${{ runner.temp }}/expense-review.encrypted.json
+          retention-days: 1

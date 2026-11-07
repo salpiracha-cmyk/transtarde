@@ -1,0 +1,2607 @@
+[
+  {
+    "file": ".github/qa-video/seed.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/account-management-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/accounts-accounting-desk.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/accounts-clean-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/accounts-enhancements.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/accounts-form-layout.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/accounts-live.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/accounts-navigation-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/accounts-notifications.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/accounts-row-controls.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/accounts-runtime.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/accounts-uppercase.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/accounts-v1-workflow-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/all-ledgers-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/app-bundle.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/assets-registry-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bag-bill-review-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bag-control-bridge.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bag-ops-sync-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bag-purchases-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bag-report-page.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bag-reports.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bag-supplier-payments-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bank-accounts-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bank-direct-entry-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bank-payment-details.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bank-reconciliation-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bank-workspace-owner.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bill-layout.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bill-payment-terms.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/bill-smart-ui-v2.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/brokerage-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/brokerage-wht-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/carry-forward-entry-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/carry-forward-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/carry-forward.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/cheque-date-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/commodity-calculation-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/commodity-kat-master-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/company-investments-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/costing-sheet-cogs-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/currency-master-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/donations-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/expense-desk-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/expense-editor-owner.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/expenses-v1-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/export-bank-shortfall-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/export-costing-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/export-realization-master-bootstrap.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/export-realization-master-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/export-receipts-tax-ui-patch.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/export-receipts-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/export-recognition-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/export-tax-certificates-fix.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/export-tax-certificates-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/forward-bookings-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/index.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/internal-bank-transfers-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/jv-notices-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/jv-workflow-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/loading-programme-sync.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/local-customer-ledger-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/local-customer-receipts-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/local-sales-control-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/local-sales-costing-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/local-sales-entity-rule.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/local-sales-payment-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/management-costing-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/master-autocomplete.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/mill-recovery-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/nonwoven-bag-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/opening-balance-review-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/opening-balances.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/other-purchases-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/other-supplier-payments-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/payables-bill-summary-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/payables-commodity-split-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/payment-planning-bank-funds.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/payment-plans-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/post-confirmation-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/print-dialog.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/production-costing-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/production-fixed-overhead-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/production-inventory-transfer-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/production-reports.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/profitability-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/purchase-commodity-split-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/rent-salary-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/reports-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/retention-receipt-filter.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/retention-remittance-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/rice-payables-link-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/rice-payment-overpayment-guard.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/sales-tax-refund-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/source-bridge.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/supplier-ledger-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/supplier-payment-broker-summary-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/supplier-payment-history-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/supplier-payment-planning-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/supplier-settlement-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/tg-bank-transactions-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/tg-bank-transfer-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/tg-customer-receipts-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/tg-liabilities-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/tg-remittances-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/tg-year-end-revaluation-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "accounts/transport-controls-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "admin/accounts-override.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "admin/app.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "admin/directors-permissions-override.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "admin/document-reader-settings.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "admin/export-realization-master-override.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "admin/tg-currency-master-override.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_bank_date_correction.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_bank_payment.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_chart_word.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_chart_word_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_dashboard.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_entry_eligibility.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_ledger_browser.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_ledger_visibility.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_payees.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_post_amend.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_post_amend_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_post_delete_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_posting_preview.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_receipt_amend_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_receipt_file.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_reference.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_reports.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_reviews.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_reviews_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_sales_tax.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_search.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_shipment_lookup.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_shipment_source.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_subaccounts.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_subaccounts_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/accounts_workflows_v1.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/assets_registry.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/assets_registry_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/backup.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bag_acceptance_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bag_bill_file.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bag_order_report.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bag_order_report_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bag_purchases.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bag_supplier_payments.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bank_accounts.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bank_direct_entries.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bank_entries.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bank_entries_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bank_reconciliation.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bank_reconciliation_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/bridge_outbox.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/brokerage_ledger.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/brokerage_master.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/brokerage_transactions.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/carry_forward_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/carry_forward_shipments.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/commodity_bill_calculation.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/commodity_bills.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/commodity_lookup.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/company_investments.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/company_investments_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/currency_master.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/customer_receivables_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/direct_expense_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/director_approvals.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/director_approvals_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/document_ai.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/document_ai_health.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/document_ai_sample.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/document_ai_settings.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/donations.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/expense_locations.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/expense_reminders.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/expense_reversals.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/expenses_v1.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_accounting.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_bank_shortfall.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_costing.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_customers.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_documents.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_pdf_assets.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_permission_policy.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_realization_master.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_receipt_tg_mirror.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_receipts.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_tax_certificates.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/export_tg_unallocated.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/fi_credit_advice.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/fi_credit_advice_link.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/forward_booking_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/forward_bookings.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/gemini_runtime.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/historical_bag_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/internal_bank_transfers.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/journal_vouchers.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/jv_decisions_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/local_customer_ledger.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/local_customer_receipts.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/local_sales_control.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/local_sales_costing.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/local_sales_entity_rule.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/local_sales_payments.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/location-master.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/management_costing.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/management_costing_attach.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/management_costing_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/master_documents.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/masters.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/mill_cash_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/mill_cash_ledger.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/mill_recovery.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/mill_recovery_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/mill_recovery_cost.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/mill_visible_banks.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/milling_purchase_sodas.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/nonwoven_bag_bills.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/office_agent.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/office_backup.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/offline-status.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/openai_document_runtime.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/opening_balance_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/operations.mysql.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/operations.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/operations_policy.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/other_purchases.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/other_supplier_settlements.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/payables_planning.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/payment_plan_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/payment_plans.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/production_costing.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/production_costing_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/production_fixed_overhead.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/production_inventory_transfer.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/purchase_sodas.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/receipt_invoice_links.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/rent_salary.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/rent_salary_v2.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/retention_remittances.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/salary_master_store.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/salary_month_workflow.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/sales_tax_refunds.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/service_ledger_groups.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/session_activity.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/shipment_profitability.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/stock_reconciliation_review.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/supplier_ledger.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/supplier_opening_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/supplier_payment_history.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/supplier_settlements.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/tg_bank_transactions.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/tg_bank_transfer.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/tg_currency_master.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/tg_export_accounts_receipts.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/tg_liabilities.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/tg_liability_projection.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/tg_remittance_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/tg_remittances.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/tg_year_end_revaluation.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "api/users.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "auth_store.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "backup_lib.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "brand-theme.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "change-password.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "customer-contract-options.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "customer-master.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "directors/bag-acceptance-approvals.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "directors/brokerage-master.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "directors/commodity-kat-master.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "directors/freight-master.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "directors/index.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "directors/tg-master.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "document-reader-settings.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "export-assets.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "export-state-cleanup.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/app-runtime.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/app.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/carry-forward-ui.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/carry-forward.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/office-agent-shipment-hooks.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/reopen-completed-lots.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/runtime_assets.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/shipment-files.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/tg-accounts-receipts.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/vendor/html2canvas-1.4.1.min.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/vendor/jspdf-4.2.1.umd.min.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "exports/vendor/pdf-lib-1.17.1.min.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "global-validation.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "index.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "inventory_reconciliation.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "login.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "logout.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "master_store.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "milling-quality-identity.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "milling/production-recovery-entry.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "module-accounts.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "module.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "module_release.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "office_backup_auth.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "offline_idempotency.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "owner_master_cleanup.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "product_stage.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "qa_account.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "recover-admin.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "recovery-settings.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "runtime_html.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/accounts_reset_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/cleanup_qa_data.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/diagnose_document_reader.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/diagnose_gemini.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/initialize_document_reader.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/migrate_accounts_post_ids.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/migrate_master_permissions.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/migrate_recovery_hash.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/post_id_migration_core.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/recover_export_documents_incident.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/recover_export_records.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/recover_harmain_soda_26003.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/reset_accounts_test_data.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/reset_exports_preserve_contract.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/reset_operational_test_data.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "scripts/reset_test_data.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "session-activity.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "session_store.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "setup.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "staff-home.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "stock-reconciliation.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounting_desk_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounts_controls_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounts_date_jv_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounts_home_cleanup_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounts_layout_regression_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounts_master_controls_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounts_master_popup_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounts_notifications_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounts_reset_scope_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounts_reviews_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounts_unified_forms_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/accounts_uppercase_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/amendment_bank_fields_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/assets_registry_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bag_acceptance_bridge_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bag_acceptance_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bag_director_decision_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bag_linked_supplier_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bag_order_report_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bag_order_report_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bag_report_modes_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bag_review_lifecycle_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bag_short_close_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bank_entries_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bank_payment_tracking_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bank_reconciliation_projection_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/bank_save_browser_qa.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/broker_brokery_master_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/cheque_dates_backend_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/cheque_dates_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/clean_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/company_bank_type_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/company_investments_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/costing_navigation_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/credit_advice_amendment_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/credit_advice_amendment_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/credit_advice_charge_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/customer_receivables_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/dependent_fields_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/direct_expense_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/director_approvals_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/director_approvals_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/director_bank_approval_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/end_to_end_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/expense_forms_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/expense_review_batch_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/expenses_v1_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/export_charge_seed_concurrency_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/export_receipt_scope_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/export_v3_linkage_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/fi_credit_advice_link_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/finish_options_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/form_viewport_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/forward_bookings_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/forward_bookings_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/freight_metadata_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/historical_bags_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/intercompany_transfer_ui_browser_qa.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/inventory_reconciliation_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/inventory_reconciliation_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/investment_edit_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/investment_payment_date_actions_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/journal_vouchers_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/jv_decision_notices_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/jv_history_layout_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/ledger_amend_dates_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/ledger_narration_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/ledger_posting_rows_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/ledger_visibility_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/ledger_workbook_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/linkage_regressions_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/local_customer_cheque_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/master_role_mapping_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/mill_recovery_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/mill_recovery_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/module_form_consistency_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/numeric_entry_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/numeric_no_step_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/opening_balance_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/opening_only_payment_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/opening_review_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/other_purchases_fixed_assets_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/party_editor_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/party_payment_choices_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/pay_to_unique_choice_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/payables_draft_stability_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/payee_summary_escape_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/payment_defaults_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/payment_difference_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/payment_plans_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/payment_source_dates_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/post_amendment_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/post_confirmation_ownership_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/post_id_migration_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/post_id_sequence_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/post_register_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/posting_preview_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/product_stage_architecture_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/production_recovery_cost_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/public_reference_surfaces_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/purchase_handler_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/qa_account_profile_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/reimbursements_general_expenses_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/rent_recurring_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/report_navigation_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/request_store_read_cache_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/review_entry_defaults_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/review_receipt_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/rules_engine_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/salary_donations_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/saved_expense_selection_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/service_ledger_groups_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/soda_master_compatibility_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/soda_milling_routing_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/static_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/super_admin_console_navigation_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/supplier_cheque_lifecycle_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/supplier_opening_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/supplier_opening_core_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/tg_navigation_scope_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/tg_receipt_mirror_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/today_ui_browser_qa.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/trial_balance_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/unified_expense_browser_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/accounts-v1/workspace_response_ownership_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/document-ai/backend_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/document-ai/routing_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/document-ai/settings_ui_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exmill_form_stability_browser_qa.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exmill_instruction_authority_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exmill_product_matching_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/app.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/backend_static_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/bridge_integration_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/browser_dom_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/commercial_documents_20260915_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/coo_master_refresh_20260930_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/deletion_server_ack_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/document_output_handover_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/document_revision_20260919_browser_qa.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/document_rules_20260917_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/export_corrections_20260916_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/export_entry_ux_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/export_master_icons_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/export_operational_input_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/export_release_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/exports_acceptance_20260914_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/exports_sol4_handover_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/final_documents_20260930_browser_qa.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/fob_removable_options_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/focus_preservation_browser_qa.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/full_workflow_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/import_master_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/lot_completion_persistence_browser_qa.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/lot_completion_stage_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/lot_reopen_permission_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/new_contract_reset_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/sales_contract_browser_qa.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/shared_save_persistence_test.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/shipment_documents_browser_qa.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/shipment_package_20261001_browser_qa.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/strengthened_workflow_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/tg_route_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/tti_qa02_closure_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports-v3/v3_dummy_workflow_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/exports_v32_corrections_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/live/accounts-hostinger-qa.spec.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/live/exports-reset-only.spec.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/live/hostinger-qa.spec.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/live/owner-amt-only-export-verify.spec.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/live/owner-reset-verify.spec.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/master_architecture_20260919_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/master_data_topbar_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/milling_container_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/offline_recovery_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/runtime_asset_version_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/runtime_delivery_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/runtime_security_static_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/security/authentication_hardening_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/security/master_permission_migration_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/security/office_backup_auth_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/security/operations_ownership_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/security/qa_account_read_only_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/security/retired_owner_cleanup_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/security/server_backup_hardening_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/security/session_web_hardening_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/security/setup_storage_hardening_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/security/upload_validation_test.php",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "tests/super_admin_cleanup_audit.js",
+    "status": "passed",
+    "error": ""
+  },
+  {
+    "file": "upload_validation.php",
+    "status": "passed",
+    "error": ""
+  }
+]

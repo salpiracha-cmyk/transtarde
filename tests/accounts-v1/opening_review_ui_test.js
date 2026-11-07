@@ -1,0 +1,32 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
+const turn=()=>new Promise(setImmediate);
+(async()=>{
+ const d=new JSDOM('<!doctype html><body></body>',{url:'https://fixture.test/accounts/',runScripts:'outside-only'}),w=d.window,posts=[];
+ const observers=[],Observer=w.MutationObserver;w.MutationObserver=class extends Observer{constructor(fn){super(fn);observers.push(this)}};
+ w.TT_ACCOUNT_ACCESS={csrf:'fixture',super:true};w.TT_FORM_VIEWPORT={open(){}};w.localStorage.setItem('tt_accounts_entity','TTI');
+ const opening={id:'OPEN-1',date:'2026-07-01',status:'Posted',lines:[{account:'2140',subledger:'Old Bag Name',debit:100,credit:0},{account:'3400',debit:0,credit:100}]};
+ const targets=[{key:'party:1:2140',kind:'party',account:'2140',party:'Bag One',label:'Bag One'}];let corrected=false,confirmations=0;
+ w.TT_POST_CONFIRMATION={show:async()=>confirmations++};w.TT_ACCOUNTS_MASTER_CHOICES={namesForRole:()=>['Bag One'],manageRoleInput(){}};
+ w.fetch=async(url,opt={})=>{let payload;if(opt.method==='POST'){const body=JSON.parse(opt.body);posts.push({url,body,owner:opt.ttConfirmation});corrected=true;payload={ok:true,result:{replacementPostId:'NEW-1'}};}
+ else if(String(url).includes('journal_vouchers'))payload={ok:true,opening:{allowed:true,date:'2026-07-01',currency:'PKR',entries:[opening],targets}};
+ else if(String(url).includes('bank_accounts'))payload={ok:true,accounts:[{id:'BANK-1',currency:'PKR',bankName:'Fixture Bank',settings:{active:true,allowPayments:true}}]};
+ else payload={ok:true,payables:corrected?[{billId:'BF:NEW-1:0',sourceKey:'OPENING|0',supplier:'Bag One',openingBalance:true,billNo:'Balance B/F',billDate:'2026-07-01',total:100,paid:0,outstanding:100,currency:'PKR'}]:[]};return new Response(JSON.stringify(payload));};
+ for(const name of ['opening-balance-review-ui.js','supplier-settlement-ui.js'])w.eval(fs.readFileSync('accounts/'+name,'utf8'));
+ await w.TT_SUPPLIER_SETTLEMENT_UI.openBills('BAGS','Bag One');
+ assert(w.document.querySelector('[data-bank]'),w.document.body.textContent);
+ const q=s=>w.document.querySelector(s),change=(s,v)=>{q(s).value=v;q(s).dispatchEvent(new w.Event('change',{bubbles:true}));};
+ change('#ttSimpleBills [data-bank]','BANK-1');change('#ttSimpleBills [data-bank-method]','ONLINE_BANKING');
+ q('#ttSimpleBills [data-amount]').value='100';q('#ttSimpleBills [data-date]').value='2026-07-08';q('#ttSimpleBills [data-narration]').value='Fixture payment draft';
+ q('[data-review-opening]').click();await turn();await turn();
+ assert.equal(q('[data-record]').value,'','Old party names require explicit original selection');
+ change('[data-record]','OPEN-1');assert.equal(q('[data-target]').value,targets[0].key);
+ assert.equal(q('[data-side]').value,'Credit');
+ q('#ttOpeningReview form').dispatchEvent(new w.Event('submit',{cancelable:true}));await turn();await turn();
+ assert.equal(posts.length,1);assert.match(posts[0].url,/accounts_post_amend/);assert.equal(posts[0].owner,'workflow');assert.equal(posts[0].body.openingPartyTargetKey,targets[0].key);
+ assert.deepEqual(posts[0].body.lines,[{account:'2140',subledger:'Bag One',debit:0,credit:100},{account:'3400',subledger:'',debit:100,credit:0}]);
+ assert.equal(q('#ttOpeningReview'),null);assert.equal(confirmations,1);
+ assert.equal(q('#ttSimpleBills [data-amount]').value,'100');assert.equal(q('#ttSimpleBills [data-date]').value,'2026-07-08');assert.equal(q('#ttSimpleBills [data-bank]').value,'BANK-1');assert.equal(q('#ttSimpleBills [data-bank-method]').value,'ONLINE_BANKING');assert.equal(q('#ttSimpleBills [data-narration]').value,'Fixture payment draft');assert.equal(q('[data-include-opening]').checked,true);
+ assert.match(q('[data-allocation-preview]').textContent,/Balance B\/F/);
+ observers.forEach(o=>o.disconnect());w.close();console.log('PASS opening review: explicit record selection, creditor correction, preserved payment draft and one confirmation');
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,0 +1,16 @@
+{
+  "finding": "C19",
+  "status": "failed",
+  "environment": "Disposable source-function fixture; no live record touched",
+  "trigger": "renderBagOrders invokes normalizeBagOrderIds on reading the bag list",
+  "originalIds": [
+    7,
+    7
+  ],
+  "resultIds": [
+    7,
+    1700000000001
+  ],
+  "writes": 1,
+  "limitation": "Duplicate historical IDs need a reviewed source/receipt mapping. This probe demonstrates the read-triggered write, not permission to renumber actual records."
+}

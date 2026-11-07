@@ -1,0 +1,300 @@
+name: Read-only production session diagnostics
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/session-storage-diagnostics.yml']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/session-storage-diagnostics.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Check protected diagnostic shell syntax
+        run: |
+          python3 - <<'PY'
+          import pathlib,subprocess
+          source=pathlib.Path('.github/workflows/session-storage-diagnostics.yml').read_text()
+          script=source.split('        run: |\n')[-1]
+          script='\n'.join(line[10:] if line.startswith('          ') else line for line in script.splitlines())
+          subprocess.run(['bash','-n'],input=script,text=True,check=True)
+          print('PASS read-only diagnostic shell syntax; production credentials remain unavailable on pull requests')
+          PY
+  diagnose:
+    needs: boundaries
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect session metadata and classified PHP errors
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$HOSTINGER_DEPLOY_PATH" <<'REMOTE'
+          set -euo pipefail
+          target=$1
+          case "$target" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
+          TT_DIAGNOSTIC_ROOT="$target" php <<'PHP'
+          <?php
+          $root=getenv('TT_DIAGNOSTIC_ROOT');$private=dirname($root).'/transtrade_private';$sessions=$private.'/sessions';
+          $out=['authSourceSha256'=>hash_file('sha256',$root.'/auth_store.php'),'phpCliVersion'=>PHP_VERSION,'cliSessionHandler'=>ini_get('session.save_handler'),'sessionDirectoryExists'=>is_dir($sessions),'sessionDirectoryWritable'=>is_writable($sessions),'sessionDirectoryMode'=>is_dir($sessions)?decoct(fileperms($sessions)&0777):null,'sessionFiles'=>0,'sessionFileModes'=>[],'recentSessionFiles'=>0,'configuredWebSessionSettings'=>[],'classifiedErrors'=>[]];
+          foreach(glob($sessions.'/sess_*')?:[] as $file){if(!is_file($file)||is_link($file))continue;$out['sessionFiles']++;$mode=decoct(fileperms($file)&0777);$out['sessionFileModes'][$mode]=($out['sessionFileModes'][$mode]??0)+1;if(filemtime($file)>time()-600)$out['recentSessionFiles']++;}
+          foreach([$root.'/.user.ini',$root.'/accounts/.user.ini'] as $i=>$file)if(is_file($file)){foreach(file($file) as $line)if(preg_match('/^\s*(session\.(?:save_handler|auto_start|gc_maxlifetime|gc_probability|gc_divisor)|opcache\.validate_timestamps)\s*=\s*([^;\r\n]+)/',$line,$m))$out['configuredWebSessionSettings'][$i][$m[1]]=trim($m[2]);}
+          $logs=array_unique(array_merge([$root.'/error_log',$root.'/accounts/error_log',dirname($root).'/logs/error.log'],glob(dirname($root).'/logs/*error*')?:[],glob($root.'/logs/*error*')?:[]));
+          foreach($logs as $file){if(!is_file($file)||!is_readable($file)||is_link($file))continue;$h=fopen($file,'rb');fseek($h,max(0,filesize($file)-131072));$text=stream_get_contents($h);fclose($h);foreach(explode("\n",$text)as$line){if(!preg_match('/Fatal error|Uncaught|session_start|Session migration|Private session storage|session_save_path/i',$line))continue;$kind='other PHP session/fatal error';if(preg_match('/Call to undefined function ([A-Za-z0-9_]+)/',$line,$m))$kind='Undefined function '.$m[1];elseif(preg_match('/Uncaught ([A-Za-z0-9_\\\\]+)/',$line,$m))$kind='Uncaught '.$m[1];if(str_contains($line,'Private session storage'))$kind='Private session storage unavailable';elseif(str_contains($line,'Session migration'))$kind='Session migration failure';elseif(str_contains($line,'session_start'))$kind='session_start failure';$out['classifiedErrors'][$kind]=($out['classifiedErrors'][$kind]??0)+1;}}
+          $out['anonymousLoginProbe']=['supported'=>function_exists('curl_init')];
+          if(function_exists('curl_init')){
+            $probe=curl_init('https://app.transtradeinternational.com/login.php');
+            curl_setopt_array($probe,[CURLOPT_FOLLOWLOCATION=>false,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>15,CURLOPT_WRITEFUNCTION=>static fn($handle,$chunk)=>strlen($chunk),CURLOPT_HTTPHEADER=>['Accept: text/html'],CURLOPT_USERAGENT=>'Transtrade-ReadOnly-Session-Diagnostic']);
+            curl_exec($probe);$info=curl_getinfo($probe);
+            $out['anonymousLoginProbe']+=['httpStatus'=>(int)$info['http_code'],'curlErrorCode'=>curl_errno($probe),'dnsSeconds'=>$info['namelookup_time'],'tcpSeconds'=>$info['connect_time'],'tlsSeconds'=>curl_getinfo($probe,CURLINFO_APPCONNECT_TIME),'firstByteSeconds'=>$info['starttransfer_time'],'totalSeconds'=>$info['total_time']];
+            curl_close($probe);
+          }
+          $out['releaseSha']=is_file($root.'/.transtrade-release')?trim(file_get_contents($root.'/.transtrade-release')):null;
+          $out['sessionRecordCounts']=['records'=>count(glob($sessions.'/records/*.json')?:[]),'locks'=>count(glob($sessions.'/records/*.json.lock')?:[]),'retired'=>count(glob($sessions.'/records/*.retired')?:[])];
+          $out['sessionFormatCounts']=[];$out['sessionSizeCounts']=['empty'=>0,'small'=>0,'large'=>0];
+          foreach(glob($sessions.'/sess_*')?:[]as$file){
+            if(!is_file($file)||is_link($file))continue;$h=@fopen($file,'rb');if(!$h)continue;
+            if(!flock($h,LOCK_SH|LOCK_NB)){fclose($h);continue;}
+            $raw=stream_get_contents($h);flock($h,LOCK_UN);fclose($h);if(!is_string($raw))continue;
+            $n=strlen($raw);$out['sessionSizeCounts'][$n===0?'empty':($n<=1024?'small':'large')]++;
+            $format=$n===0?'empty':(str_starts_with($raw,'a:')?'serialized-array':(ord($raw[0])<32?'binary':'php-delimited'));
+            if($format==='php-delimited'){
+              $offset=0;
+              while($offset<$n){
+                $delimiter=strpos($raw,'|',$offset);if($delimiter===false){$format='malformed-delimited';break;}
+                $key=substr($raw,$offset,$delimiter-$offset);
+                if(!in_array($key,['csrf','user_id','auth_version','authenticated_at','last_activity_at'],true)){$format='other-key';break;}
+                $tail=substr($raw,$delimiter+1);$decoded=@unserialize($tail,['allowed_classes'=>false]);
+                if($decoded===false&&!str_starts_with($tail,'b:0;')){$format='malformed-delimited';break;}
+                if(!is_string($decoded)&&!is_int($decoded)&&!is_bool($decoded)){$format='other-value';break;}
+                $encoded=serialize($decoded);if(!str_starts_with($tail,$encoded)){$format='malformed-delimited';break;}
+                $offset=$delimiter+1+strlen($encoded);
+              }
+            }
+            $out['sessionFormatCounts'][$format]=($out['sessionFormatCounts'][$format]??0)+1;
+          }
+          $flight=$sessions.'/runtime-errors.json';$out['runtimeFatalClassifications']=is_file($flight)?json_decode(file_get_contents($flight),true):[];
+          $out['storageReadProfile']=[];
+          foreach(['auth.json','accounts.json','operations.json'] as $name){
+            $file=$private.'/'.$name;if(!is_file($file)||is_link($file))continue;
+            $samples=[];$busy=0;
+            for($i=0;$i<5;$i++){
+              $lockPath=$name==='auth.json'?$private.'/auth.lock':$file;
+              $lock=@fopen($lockPath,'rb');if(!$lock)continue;
+              $start=hrtime(true);if(!flock($lock,LOCK_SH|LOCK_NB)){$busy++;fclose($lock);continue;}
+              $wait=(hrtime(true)-$start)/1e6;$start=hrtime(true);
+              $raw=file_get_contents($file);$read=(hrtime(true)-$start)/1e6;
+              flock($lock,LOCK_UN);fclose($lock);if(!is_string($raw))continue;
+              $start=hrtime(true);$data=json_decode($raw,true);$decode=(hrtime(true)-$start)/1e6;
+              $samples[]=['readMs'=>round($read,3),'decodeMs'=>round($decode,3),'lockMs'=>round($wait,3)];
+              $out['storageReadProfile'][$name]=['bytes'=>strlen($raw),'validJson'=>json_last_error()===JSON_ERROR_NONE,'samples'=>$samples,'busySamples'=>$busy];
+              if($name==='operations.json'&&$i===0){
+                $out['operationsPayloadProfile']=['storedBytes'=>strlen($raw),'gzipBytes'=>function_exists('gzencode')?strlen(gzencode($raw,6)):null,'keys'=>[]];
+                foreach((array)($data['values']??[])as$key=>$value){
+                  if(!is_string($value))continue;
+                  $out['operationsPayloadProfile']['keys'][]=['key'=>(string)$key,'bytes'=>strlen($value),'inlineImageCount'=>substr_count($value,'data:image/')];
+                }
+                usort($out['operationsPayloadProfile']['keys'],static fn($a,$b)=>$b['bytes']<=>$a['bytes']);
+              }
+              unset($data,$raw);
+            }
+          }
+          // Metadata only: never print file contents, business names or credentials.
+          $deployment=dirname($root).'/.transtrade-deploy';
+          $out['hostStorage']=['filesystemFreeBytes'=>disk_free_space(dirname($root)),'filesystemTotalBytes'=>disk_total_space(dirname($root)),'incomingWritable'=>is_writable($deployment.'/incoming'),'generatedArtifacts'=>[]];
+          foreach(['incoming','staging','backups'] as $kind){
+            $dir=$deployment.'/'.$kind;$row=['exists'=>is_dir($dir),'files'=>0,'directories'=>0,'bytes'=>0,'symlinksSkipped'=>0,'complete'=>true];
+            if(is_dir($dir)&&!is_link($dir))try{
+              $iterator=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::SELF_FIRST);
+              foreach($iterator as $item){
+                if($item->isLink()){$row['symlinksSkipped']++;continue;}
+                if($item->isDir())$row['directories']++;elseif($item->isFile()){$row['files']++;$row['bytes']+=$item->getSize();}
+                if($row['files']+$row['directories']>=1000000){$row['complete']=false;break;}
+              }
+            }catch(Throwable){$row['complete']=false;}
+            $out['hostStorage']['generatedArtifacts'][$kind]=$row;
+          }
+          // ARRIVAL_OPERATOR_AUDIT_FUNCTION_START
+          function arrival_operator_readonly_summary(array $auth,?array $ops,?array $inbox,?array $sessions=null):array {
+            $rows=null;if(isset($ops['values']['tt30queue'])){$rows=json_decode((string)$ops['values']['tt30queue'],true);if(!is_array($rows)||!array_is_list($rows))$rows=null;}
+            $out=['fileQueueReadable'=>$rows!==null,'fileQueueRecords'=>$rows===null?null:count($rows),'fileQueueVersion'=>$ops['meta']['tt30queue']['version']??null,'fileQueueUpdatedAt'=>$ops['meta']['tt30queue']['updatedAt']??null,'affectedDateCounts'=>[],'accounts'=>[],'recoveryInboxReadable'=>$inbox!==null,'physicalWrites'=>0,'financialWrites'=>0];
+            foreach(['2026-10-30','2026-10-31','2026-11-01','2026-11-02','2026-11-03','2026-11-04'] as $day)$out['affectedDateCounts'][$day]=$rows===null?null:count(array_filter($rows,static fn($r)=>is_array($r)&&($r['date']??'')===$day));
+            foreach((array)($auth['users']??[]) as $user){
+              $name=strtolower(preg_replace('/[^a-z]/i','',(string)($user['username']??'').' '.(string)($user['full_name']??'')));
+              $label=str_contains($name,'irfan')?'Irfan':(str_contains($name,'yarazam')||str_contains($name,'yaraazam')?'Yar Azam':'');if($label==='')continue;
+              $grant=$user['permissions']['Mill']??null;$queue=is_array($grant)?($grant['queue']??[]):[];$roles=['Super Admin','Director'];$derived=in_array($user['role']??'',$roles,true)||$grant==='all';
+              $actions=$derived?['View','Create','Edit']:array_values(array_intersect(['View','Create','Edit','Approve','Delete','Print','Reports'],is_array($queue)?array_merge(array_values(array_filter((array)$grant,'is_string')),$queue):[]));
+              $recovered=$inbox===null?null:count(array_filter((array)($inbox['records']??[]),static fn($r)=>(int)($r['userId']??0)===(int)($user['id']??-1)&&($r['record']['date']??'')>='2026-10-30'&&($r['record']['date']??'')<='2026-11-04'));
+              $loginDay=null;if(!empty($user['last_login_at']))try{$loginDay=(new DateTimeImmutable((string)$user['last_login_at']))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('Y-m-d');}catch(Throwable){}
+              $out['accounts'][]=['matchedOperator'=>$label,'active'=>!empty($user['active']),'role'=>(string)($user['role']??''),'configuredQueueActions'=>$actions,'assignedLocation'=>(string)($user['location']??''),'companyScopeConfigured'=>(bool)array_intersect(['entity-tti','entity-brm','entity-tg'],array_keys((array)($user['permissions']['Accounts']??[]))),'configuredTtiActions'=>array_values(array_intersect(['View','Create','Edit'],(array)($user['permissions']['Accounts']['entity-tti']??[]))),'signedInOnReportedDay'=>$loginDay===null?null:$loginDay==='2026-11-04','activeServerSessions'=>$sessions===null?null:count(array_filter($sessions,static fn($r)=>(int)($r['userId']??0)===(int)($user['id']??-1)&&!empty($user['active'])&&max(1,(int)($r['authVersion']??1))===max(1,(int)($user['session_version']??1))&&((int)($r['lastActivity']??0)<=0||(int)($r['lastActivity']??0)>time()-3600))),'recentServerRecoveryCopies'=>$recovered];
+            }
+            return $out;
+          }
+          // ARRIVAL_OPERATOR_AUDIT_FUNCTION_END
+          $arrivalRead=static function(string $file):?array {if(!is_file($file)||is_link($file))return null;$h=@fopen($file,'rb');if(!$h||!flock($h,LOCK_SH)){if(is_resource($h))fclose($h);return null;}try{$value=json_decode((string)stream_get_contents($h),true);return is_array($value)?$value:null;}finally{flock($h,LOCK_UN);fclose($h);}};
+          $arrivalAuth=$arrivalRead($private.'/auth.json');
+          // Reduce records to identity/version/activity in memory. Never emit identifiers, tokens or record paths.
+          $arrivalSessions=is_dir($sessions.'/records')?[]:null;$arrivalSessionFiles=glob($sessions.'/records/*.json')?:[];
+          if(count($arrivalSessionFiles)>5000)$arrivalSessions=null;
+          if($arrivalSessions!==null)foreach($arrivalSessionFiles as $sessionFile){
+            if(is_link($sessionFile)){$arrivalSessions=null;break;}
+            $sessionHandle=@fopen($sessionFile,'rb');if(!$sessionHandle||!flock($sessionHandle,LOCK_SH|LOCK_NB)){if(is_resource($sessionHandle))fclose($sessionHandle);$arrivalSessions=null;break;}
+            try{$sessionRecord=json_decode((string)stream_get_contents($sessionHandle),true);}finally{flock($sessionHandle,LOCK_UN);fclose($sessionHandle);}
+            if(!is_array($sessionRecord)){$arrivalSessions=null;break;}if(!empty($sessionRecord['user_id']))$arrivalSessions[]=['userId'=>$sessionRecord['user_id'],'authVersion'=>$sessionRecord['auth_version']??1,'lastActivity'=>$sessionRecord['last_activity_at']??0];unset($sessionRecord);
+          }
+          $out['arrivalOperatorReview']=$arrivalAuth===null?['authReadable'=>false]:arrival_operator_readonly_summary($arrivalAuth,$arrivalRead($private.'/operations.json'),is_file($private.'/arrival_recovery.json')?$arrivalRead($private.'/arrival_recovery.json'):['records'=>[]],$arrivalSessions);
+          echo json_encode($out,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n";
+          PHP
+          echo 'HOST_FILESYSTEM_INODES total used free percentage'
+          df -Pi "$target" | awk 'NR==2 {print $2, $3, $4, $5}'
+          if command -v quota >/dev/null 2>&1; then
+            echo 'HOST_QUOTA_NUMERIC_VALUES (block and file usage/limits; no account or filesystem names)'
+            quota -s 2>/dev/null | awk 'NR>2 {for(i=1;i<=NF;i++)if($i~/^[0-9.]+[kKmMgGtT]?[*!]?$/)printf "%s ",$i;print ""}' || true
+          fi
+          account=${target%%/domains/*}
+          case "$account" in /home/*) ;; *) exit 1 ;; esac
+          test "$(realpath "$account")" = "$account"
+          test ! -L "$account"
+          measure_storage() {
+            label=$1; location=$2
+            if [ ! -e "$location" ] || [ -L "$location" ]; then
+              echo "ACCOUNT_STORAGE category=$label available=false";return
+            fi
+            complete=true
+            value=$(du -skx -- "$location" 2>/dev/null) || complete=false
+            kib=$(printf '%s\n' "$value" | awk 'NR==1 {print $1}')
+            case "$kib" in *[!0-9]*|'') kib=0;complete=false ;; esac
+            echo "ACCOUNT_STORAGE category=$label kib=$kib complete=$complete"
+          }
+          measure_storage account_total "$account"
+          measure_storage all_websites "$account/domains"
+          measure_storage application_public "$target"
+          measure_storage application_private "${target%/public_html}/transtrade_private"
+          measure_storage business_recovery_snapshots "${target%/public_html}/transtrade_private/backups"
+          measure_storage application_sessions "${target%/public_html}/transtrade_private/sessions"
+          measure_storage software_deployment "${target%/public_html}/.transtrade-deploy"
+          measure_storage software_backups "${target%/public_html}/.transtrade-deploy/backups"
+          measure_storage account_mail "$account/mail"
+          measure_storage account_logs "$account/logs"
+          measure_storage host_cache "$account/.cache"
+          # Classify account-root entries without publishing names or contents.
+          other_index=0
+          for location in "$account"/* "$account"/.[!.]* "$account"/..?*; do
+            [ -e "$location" ] || continue
+            [ ! -L "$location" ] || continue
+            [ -d "$location" ] || continue
+            name=${location##*/}
+            case "$name" in
+              domains) label=websites ;;
+              backups|backup|.backups) label=account_backups ;;
+              .trash|.Trash|.Trash-*) label=trash ;;
+              .logs|logs) label=logs ;;
+              .cache|cache|.npm|.composer) label=cache ;;
+              .cagefs|.cl.selector|.local|.config|.ssh|.pki) label=host_environment ;;
+              tmp|temp) label=temporary ;;
+              mail|imap) label=mail ;;
+              *) other_index=$((other_index+1)); label=other_directory_$other_index ;;
+            esac
+            measure_storage "root_$label" "$location"
+          done
+          root_files_complete=true
+          root_files=$(find "$account" -xdev -maxdepth 1 -type f -printf '%b %s %f\n' 2>/dev/null | awk '
+            {category="other_files";
+             if($3~/^core([.][0-9]+)?$/)category="core_dumps";
+             else if($3~/[.](zip|gz|tgz|tar|bz2|xz|zst)$/)category="archives";
+             else if($3~/[.](log|out)$/)category="logs";
+             count[category]++;blocks[category]+=$1;bytes[category]+=$2}
+            END {for(category in count)printf "ACCOUNT_ROOT_FILES category=%s files=%d allocated_bytes=%.0f apparent_bytes=%.0f\n",category,count[category],blocks[category]*512,bytes[category]}') || root_files_complete=false
+          printf '%s\n' "$root_files"
+          echo "ACCOUNT_ROOT_FILES complete=$root_files_complete"
+          count_complete=true
+          counts=$(find "$account" -xdev -printf '%y\n' 2>/dev/null | awk '{c[$1]++}END {printf "files=%d directories=%d symlinks=%d",c["f"],c["d"],c["l"]}') || count_complete=false
+          echo "ACCOUNT_FILE_COUNTS $counts complete=$count_complete"
+          # No application data: diagnose an ephemeral loopback-only PHP server.
+          task_probe=$(mktemp -d /tmp/tt-server-probe-XXXXXXXX)
+          task_probe_pid=''
+          task_probe_cleanup(){
+            if [ -n "$task_probe_pid" ]; then kill "$task_probe_pid" 2>/dev/null || true; wait "$task_probe_pid" 2>/dev/null || true; fi
+            case "$task_probe" in /tmp/tt-server-probe-????????) rm -rf -- "$task_probe" ;; esac
+          }
+          trap task_probe_cleanup EXIT
+          mkdir -m 700 "$task_probe/www"
+          php -r 'echo bin2hex(random_bytes(32));' > "$task_probe/gate"
+          cat > "$task_probe/router.php" <<'PROBEROUTER'
+          <?php
+          if(!hash_equals(file_get_contents(__DIR__.'/gate'),(string)($_SERVER['HTTP_X_TT_PROBE']??''))){http_response_code(404);exit;}
+          header('Content-Type: application/json');echo '{"ok":true}';
+          PROBEROUTER
+          task_probe_resolved=$(php -r 'echo PHP_BINARY;')
+          for task_probe_runner in command resolved cleared_env; do
+          task_probe_php=php
+          if [ "$task_probe_runner" = resolved ]; then
+            case "$task_probe_resolved" in /*) [ -x "$task_probe_resolved" ] && task_probe_php=$task_probe_resolved ;; esac
+          fi
+          task_probe_port=$((20000 + RANDOM % 20000))
+          if [ "$task_probe_runner" = cleared_env ]; then
+            env -u TT_DB_HOST -u TT_DB_NAME -u TT_DB_USER -u TT_DB_PASS "$task_probe_php" -S "127.0.0.1:$task_probe_port" -t "$task_probe/www" "$task_probe/router.php" > "$task_probe/server.log" 2>&1 &
+          else
+            "$task_probe_php" -S "127.0.0.1:$task_probe_port" -t "$task_probe/www" "$task_probe/router.php" > "$task_probe/server.log" 2>&1 &
+          fi
+          task_probe_pid=$!
+          task_probe_status=000
+          for attempt in 1 2 3 4 5; do
+            task_probe_status=$(curl --noproxy 127.0.0.1 --silent --output /dev/null --write-out '%{http_code}' --max-time 2 -H "X-TT-Probe: $(cat "$task_probe/gate")" "http://127.0.0.1:$task_probe_port/ready") || true
+            [ "$task_probe_status" = 200 ] && break
+            sleep 1
+          done
+          TT_SERVER_PROBE_LOG="$task_probe/server.log" TT_SERVER_PROBE_STATUS="$task_probe_status" TT_SERVER_PROBE_RUNNER="$task_probe_runner" TT_SERVER_PROBE_PORT="$task_probe_port" TT_SERVER_PROBE_GATE="$task_probe/gate" "$task_probe_php" <<'PROBECATEGORY'
+          <?php
+          function probe_category(string $log): string { $category='unclassified';
+          foreach(['server_started'=>'/Development Server .*started/i','listen_failed'=>'/Failed to listen/i','unsupported_server'=>'/unknown option|invalid option|unrecognized option|not supported|Usage:/i','filesystem_restriction'=>'/open_basedir/i','port_in_use'=>'/Address already in use/i','permission_denied'=>'/Permission denied|Operation not permitted/i','resource_limit'=>'/fork|Resource temporarily unavailable|Too many open files|Cannot allocate memory/i','runtime_crash'=>'/Segmentation fault|core dumped|Aborted/i','command_missing'=>'/command not found|No such file or directory|Could not open input file/i','startup_failure'=>'/PHP (?:Fatal error|Warning:.*Startup)|Fatal error:/i','socket_family'=>'/Address family not supported/i'] as $label=>$pattern)if(preg_match($pattern,$log))$category=$label;return $category;}
+          $category=probe_category(file_get_contents(getenv('TT_SERVER_PROBE_LOG')));
+          $existing=[];foreach(glob('/tmp/tt-audit-rehearsal-*')?:[] as $dir){if(!preg_match('~/tt-audit-rehearsal-[A-Za-z0-9]{8}$~D',$dir)||!is_readable($dir.'/server.log'))continue;$existing[]=['category'=>probe_category((string)file_get_contents($dir.'/server.log'))];}
+          $bind='unavailable';if(function_exists('stream_socket_server')){$socket=@stream_socket_server('tcp://127.0.0.1:0',$errno,$message);$bind=$socket?'allowed':'denied';if($socket)fclose($socket);}
+          $nativeStatus='unavailable';$nativeError=0;
+          if(function_exists('stream_socket_client')){
+            $socket=@stream_socket_client('tcp://127.0.0.1:'.getenv('TT_SERVER_PROBE_PORT'),$nativeError,$nativeMessage,2);
+            $nativeStatus='connect_failed';if($socket){stream_set_timeout($socket,2);$request="GET /ready HTTP/1.1\r\nHost: 127.0.0.1\r\nX-TT-Probe: ".file_get_contents(getenv('TT_SERVER_PROBE_GATE'))."\r\nConnection: close\r\n\r\n";fwrite($socket,$request);$line=(string)fgets($socket);$nativeStatus=preg_match('~^HTTP/1\.[01] ([0-9]{3})~',$line,$match)?$match[1]:'invalid_response';fclose($socket);}
+          }
+          $status=getenv('TT_SERVER_PROBE_STATUS');if(!preg_match('/^[0-9]{3}$/D',$status))$status='unclassified';
+          echo 'PRIVATE_PHP_SERVER_PROBE '.json_encode(['runner'=>getenv('TT_SERVER_PROBE_RUNNER'),'httpStatus'=>$status,'serverCategory'=>$category,'nativeLoopbackBind'=>$bind,'nativeHttpStatus'=>$nativeStatus,'nativeSocketError'=>(int)$nativeError,'existingRehearsalServers'=>$existing,'applicationFilesRead'=>0,'applicationFilesWritten'=>0],JSON_THROW_ON_ERROR)."\n";
+          PROBECATEGORY
+          kill "$task_probe_pid" 2>/dev/null || true
+          wait "$task_probe_pid" 2>/dev/null || true
+          task_probe_pid=''
+          done
+          task_probe_cleanup
+          trap - EXIT
+          REMOTE
+          # Probe only whether SSH permits a direct channel to closed loopback
+          # port1. No application payload, copy, server or configuration change.
+          forward_log="$RUNNER_TEMP/ssh/forward-category"
+          forward_exit=0
+          timeout 25s ssh -T -W 127.0.0.1:1 -o ConnectTimeout=15 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" </dev/null >"$forward_log" 2>&1 || forward_exit=$?
+          forward_category=unclassified
+          if grep -Eqi 'administratively prohibited|forwarding disabled' "$forward_log"; then forward_category=forwarding_denied;
+          elif grep -Eqi 'connect failed: Connection refused|connect failed: connection refused' "$forward_log"; then forward_category=channel_allowed_loopback_refused;
+          elif [ "$forward_exit" = 124 ]; then forward_category=connection_timeout;
+          elif [ "$forward_exit" = 0 ]; then forward_category=channel_opened;
+          fi
+          rm -f -- "$forward_log"
+          echo "SSH_LOOPBACK_CHANNEL category=$forward_category payload_bytes=0 configuration_changes=0"

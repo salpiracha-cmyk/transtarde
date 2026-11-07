@@ -1,0 +1,58 @@
+name: Read-only office backup diagnostics
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/office-backup-diagnostics.yml', '.github/scripts/office_backup_diagnostics.php']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/office-backup-diagnostics.yml', '.github/scripts/office_backup_diagnostics.php']
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: php -l .github/scripts/office_backup_diagnostics.php
+      - name: Verify fixture output never exposes raw logs
+        run: |
+          set -euo pipefail
+          fixture=$(mktemp -d)
+          mkdir -p "$fixture/public_html" "$fixture/transtrade_private"
+          printf 'Allowed memory size exhausted; secret-fixture-token\n' > "$fixture/public_html/error_log"
+          TT_OFFICE_BACKUP_FIXTURE=1 TT_OFFICE_BACKUP_DIAGNOSTIC_ROOT="$fixture/public_html" php .github/scripts/office_backup_diagnostics.php > "$fixture/report.json"
+          python3 - "$fixture/report.json" <<'PY'
+          import json,sys,pathlib
+          raw=pathlib.Path(sys.argv[1]).read_text()
+          result=json.loads(raw)
+          assert result['mode']=='read_only'
+          assert result['logSignals']['memory_exhausted']==1
+          assert 'secret-fixture-token' not in raw
+          print('FIXTURE_METADATA_ONLY_OK')
+          PY
+  inspect:
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect backup metadata through the existing server connection
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_OFFICE_BACKUP_DIAGNOSTIC_ROOT='$HOSTINGER_DEPLOY_PATH' php" < .github/scripts/office_backup_diagnostics.php

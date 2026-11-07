@@ -1,0 +1,366 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__.'/accounts_posting_preview.php';
+header('X-TT-Posting-Preview: available');
+
+require dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__ . '/accounts_source_store.php';
+require_once __DIR__ . '/commodity_bill_calculation.php';
+header('Content-Type: application/json; charset=UTF-8');
+header('Cache-Control: no-store, no-cache, must-revalidate');
+
+const TT_COMMODITY_ACCOUNTS_FILE = TT_DATA_DIR . '/accounts.json';
+const TT_COMMODITY_MASTER_FILE = __DIR__ . '/../accounts/accounting_master_v1.json';
+
+function cb_respond(array $data, int $status = 200): never {
+    http_response_code($status);
+    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+function cb_can_write(array $user): bool {
+    if (($user['role'] ?? '') === 'Super Admin') return true;
+    $p = $user['permissions']['Accounts'] ?? null;
+    if ($p === 'all') return true;
+    if (!is_array($p)) return false;
+    if (in_array('Create',$p,true) || in_array('Edit',$p,true)) return true;
+    foreach($p as $a) if(is_array($a) && (in_array('Create',$a,true)||in_array('Edit',$a,true))) return true;
+    return false;
+}
+function cb_master(): array {
+    $raw=is_file(TT_COMMODITY_MASTER_FILE)?file_get_contents(TT_COMMODITY_MASTER_FILE):false;
+    $m=$raw?json_decode($raw,true):null;
+    if(!is_array($m)) throw new RuntimeException('Accounts master is unavailable.');
+    return $m;
+}
+function cb_default_store(): array {
+    return [
+        'revision'=>0,'journals'=>[],'events'=>[],'reminders'=>[],'masters'=>[],
+        'commodityBills'=>[],'supplierSettlements'=>[],'payableHolds'=>[],'purchaseSodasV2'=>[],'commodityKatMaster'=>[]
+    ];
+}
+function cb_read(): array {
+    tt_ensure_data_dir();
+
+    $h=@fopen(TT_COMMODITY_ACCOUNTS_FILE,'rb');
+    if($h===false||!flock($h,LOCK_SH)) throw new RuntimeException('Accounts storage unavailable.');
+    try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}
+    return tt_accounts_source_decode($raw,cb_default_store());
+}
+function cb_account_names(): array {
+    $out=[];
+    foreach((array)(cb_master()['chart']??[]) as $a) if(is_array($a)&&isset($a['code'])) $out[(string)$a['code']]=(string)($a['name']??$a['code']);
+    return $out;
+}
+function cb_line(string $account,float $debit,float $credit,array $names): array {
+    if(!isset($names[$account])) cb_respond(['ok'=>false,'error'=>'Approved account '.$account.' is missing from Chart of Accounts.'],422);
+    return ['account'=>$account,'accountName'=>$names[$account],'debit'=>round($debit,2),'credit'=>round($credit,2)];
+}
+function cb_next_id(array $items,string $prefix): string {
+    $n=count($items)+1;
+    do{$id=$prefix.'-'.gmdate('Y').'-'.str_pad((string)$n,6,'0',STR_PAD_LEFT);$n++;}while(isset($items[$id]));
+    return $id;
+}
+function cb_next_posting_number(array $bills,string $entity): int {
+    $max=0;
+    foreach($bills as $bill)if(is_array($bill)&&($bill['entity']??'')===$entity)$max=max($max,(int)($bill['postingNumber']??0));
+    return $max+1;
+}
+function cb_commodity(array $event,array $meta): string {
+    $saved=strtoupper(trim((string)($event['commodity']??$meta['commodity']??'')));
+    if(in_array($saved,['RICE','CORN','SESAME'],true)) return $saved;
+    $v=strtoupper((string)($meta['variety']??''));
+    if(str_contains($v,'CORN')||str_contains($v,'MAIZE')) return 'CORN';
+    if(str_contains($v,'SESAME')) return 'SESAME';
+    return 'RICE';
+}
+function cb_receipts(array $store,?string $entity=null): array {
+    $rows=[];
+    foreach((array)($store['events']??[]) as $event){
+        if(!is_array($event)||($event['eventType']??'')!=='COMMODITY_RECEIPT_ACCEPTED') continue;
+        if($entity!==null&&($event['entity']??'')!==$entity) continue;
+        if(!empty($event['billId'])) continue;
+        $j=$store['journals'][$event['journalId']??'']??null;
+        if(!is_array($j)) continue;
+        $meta=is_array($j['meta']??null)?$j['meta']:[];
+        $commodity=cb_commodity($event,$meta);$identity=tt_product_identity($commodity,(string)($meta['displayName']??$meta['baseVariety']??$meta['variety']??''),(string)($meta['productStage']??''),(string)($meta['riceType']??''));$rows[]=[
+            'eventId'=>(string)($event['id']??''),'sourceKey'=>(string)($event['sourceKey']??''),'entity'=>(string)($event['entity']??''),
+            'journalId'=>(string)($event['journalId']??''),'date'=>(string)($j['date']??''),'reference'=>(string)($j['reference']??''),
+            'provisionalAmount'=>(float)($j['totalDebit']??0),'commodity'=>$commodity,'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),
+            'truck'=>(string)($meta['truck']??''),'broker'=>(string)($meta['broker']??''),'party'=>(string)($meta['party']??''),'variety'=>(string)($meta['variety']??''),'baseVariety'=>(string)($meta['baseVariety']??$identity['baseVariety']),'riceType'=>(string)($meta['riceType']??$identity['riceType']),'productStage'=>(string)($meta['productStage']??$identity['productStage']),'displayName'=>(string)($meta['displayName']??$identity['displayName']),
+            'bags'=>(float)($meta['bags']??0),'payableWeightKg'=>(float)($meta['payableWeightKg']??0),'grossRatePerKg'=>(float)($meta['grossRatePerKg']??0),
+            'katPaisaPerKg'=>(float)($meta['katPaisaPerKg']??0),'provisionalNetRatePerKg'=>(float)($meta['provisionalNetRatePerKg']??0)
+        ];
+    }
+    usort($rows,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?:strcmp((string)$a['pohanch'],(string)$b['pohanch']));
+    return $rows;
+}
+function cb_date(string $v): string {
+    $d=DateTimeImmutable::createFromFormat('!Y-m-d',$v);$e=DateTimeImmutable::getLastErrors();
+    if(!$d||($e!==false&&(($e['warning_count']??0)>0||($e['error_count']??0)>0))||$d->format('Y-m-d')!==$v) cb_respond(['ok'=>false,'error'=>'Valid bill date required.'],422);
+    return $v;
+}
+function cb_money(mixed $v,string $label,bool $allowZero=false): float {
+    if(!is_int($v)&&!is_float($v)&&!(is_string($v)&&trim($v)!==''&&is_numeric($v)))cb_respond(['ok'=>false,'error'=>$label.' is invalid.'],422);
+    $n=round((float)$v,2);
+    if($n<0||(!$allowZero&&$n<=0)) cb_respond(['ok'=>false,'error'=>$label.' is invalid.'],422);
+    return $n;
+}
+function cb_credit_days(mixed $v): int {
+    if($v===''||$v===null||!is_numeric($v)) cb_respond(['ok'=>false,'error'=>'Soda credit days are required for payment planning.'],422);
+    $n=(int)$v;
+    if($n<0||$n>120) cb_respond(['ok'=>false,'error'=>'Soda credit days must be between 0 and 120.'],422);
+    return $n;
+}
+function cb_add_days(string $date,int $days): string {
+    $d=DateTimeImmutable::createFromFormat('!Y-m-d',$date,new DateTimeZone('Asia/Karachi'));
+    if(!$d) cb_respond(['ok'=>false,'error'=>'Invalid unloading date found while calculating payment due date.'],422);
+    return $d->modify(($days>=0?'+':'').$days.' days')->format('Y-m-d');
+}
+function cb_allocate_payable(array $receiptRows,float $total,int $creditDays): array {
+    $weights=[];$base=0.0;
+    foreach($receiptRows as $r){$v=max(0,(float)($r['provisionalAmount']??0));$weights[]=$v;$base+=$v;}
+    if($base<=0){$weights=array_fill(0,count($receiptRows),1.0);$base=(float)count($receiptRows);}
+    $alloc=[];$used=0.0;$last=count($receiptRows)-1;
+    foreach($receiptRows as $i=>$r){
+        $share=$i===$last?round($total-$used,2):round($total*($weights[$i]/$base),2);
+        $used=round($used+$share,2);
+        $receiptDate=(string)($r['date']??'');
+        $alloc[]=[
+            'sourceKey'=>(string)($r['sourceKey']??''),'eventId'=>(string)($r['eventId']??''),
+            'commodity'=>(string)($r['commodity']??''),'pohanch'=>(string)($r['pohanch']??''),'truck'=>(string)($r['truck']??''),'receiptDate'=>$receiptDate,
+            'dueDate'=>cb_add_days($receiptDate,$creditDays),'creditDays'=>$creditDays,
+            'supplierPayableShare'=>$share,'provisionalAmount'=>round((float)($r['provisionalAmount']??0),2),
+            'status'=>'Outstanding'
+        ];
+    }
+    return $alloc;
+}
+function cb_soda(array $store,string $entity,string $number): array {foreach(['purchaseSodas','purchaseSodasV2']as$collection)foreach((array)($store[$collection]??[]) as $s)if(is_array($s)&&($s['entity']??'')===$entity&&(string)($s['sodaNo']??'')===$number)return $s;cb_respond(['ok'=>false,'error'=>'The selected Soda is not in the approved Soda Master.'],422);}
+function cb_rule_number(array $rules,string $key,float $fallback):float{$v=$rules[$key]??$fallback;if(!is_numeric($v))cb_respond(['ok'=>false,'error'=>'KAT Master rule '.$key.' is invalid.'],422);return (float)$v;}
+function cb_brokery_rate(array $soda):?array{$broker=trim((string)($soda['broker']??''));if($broker==='')return null;foreach(tt_broker_profiles((string)($soda['sodaDate']??''),'buying')as$profile)if(strcasecmp((string)($profile['name']??''),$broker)===0&&is_array($profile['rate']??null))return $profile['rate'];return null;}
+function cb_brokery_amount(?array $rate,float $weightKg,float $bags=0):float{if(!$rate)return 0.0;$figure=(float)($rate['amount']??0);$basis=(string)($rate['basis']??'');$units=match($basis){'PER_100_KG'=>$weightKg/100,'PER_50_KG_BAG'=>$weightKg/50,'PER_BAG'=>$bags,'PER_MAUND'=>$weightKg/40,'PER_TON'=>$weightKg/1000,default=>0};return round(max(0,$units*$figure),2);}
+function cb_nonrice_calculation(array $store,array $soda,string $commodity,array $body):array{$inspection=is_array($body['inspection']??null)?$body['inspection']:[];$weight=cb_money($inspection['karachiWeightKg']??0,'Karachi weighbridge weight');$other=cb_money($inspection['otherDeductionKgPer100']??0,'Other deduction kg per 100 kg',true);$reason=trim((string)($inspection['otherDeductionReason']??''));if($other>0&&$reason==='')cb_respond(['ok'=>false,'error'=>'Reason is required for an other kg-per-100 deduction.'],422);$profile=(string)($soda['katProfile']??($commodity==='CORN'?'CORN':'SESAME_READY'));$master=(array)($store['commodityKatMaster'][$profile]['rules']??[]);$maund=cb_rule_number($master,'maundKg',40);$rate=cb_money($soda['rate']??0,'Approved Soda rate');$components=[];$deductionPer100=$other;if($commodity==='CORN'){$moisture=cb_money($inspection['moisturePct']??0,'Moisture percentage',true);$damage=cb_money($inspection['damageFungusPct']??0,'Damage / fungus percentage',true);$freePct=empty($store['commodityKatMaster'][$profile]['updatedAt'])&&(float)($master['moistureFreePct']??13)===13.0?14.0:cb_rule_number($master,'moistureFreePct',14);$moistureDed=max(0,$moisture-$freePct)*cb_rule_number($master,'moistureKgPer100PerPct',1);$damageDed=max(0,$damage-cb_rule_number($master,'damageFungusFreePct',2))*cb_rule_number($master,'damageFungusKgPer100PerPct',1);$deductionPer100+=$moistureDed+$damageDed;$components=['moisturePct'=>$moisture,'moistureDeductionKgPer100'=>$moistureDed,'damageFungusPct'=>$damage,'damageFungusDeductionKgPer100'=>$damageDed];}else{$admixture=cb_money($inspection['admixturePct']??0,'Admixture percentage',true);$free=cb_rule_number($master,'admixtureFreePct',$profile==='SESAME_RAW'?3:1);$admixDed=max(0,$admixture-$free)*cb_rule_number($master,'admixtureKgPer100PerPct',1);$deductionPer100+=$admixDed;$components=['admixturePct'=>$admixture,'admixtureFreePct'=>$free,'admixtureDeductionKgPer100'=>$admixDed];}$deductionKg=round($weight*$deductionPer100/100,3);if($deductionKg>$weight)cb_respond(['ok'=>false,'error'=>'KAT deductions cannot exceed Karachi weighbridge weight.'],422);$netKg=round($weight-$deductionKg,3);$unit=strtoupper(trim((string)($soda['rateUnit']??'MAUND')));if(!in_array($unit,['KG','MAUND','MT'],true)||$maund<=0)cb_respond(['ok'=>false,'error'=>'Review the approved Soda rate unit and positive maund weight before posting.'],422);$value=round($unit==='KG'?$netKg*$rate:($unit==='MT'?$netKg/1000*$rate:$netKg/$maund*$rate),2);$brokeryRate=cb_brokery_rate($soda);$brokery=cb_brokery_amount($brokeryRate,$weight,(float)($inspection['bags']??0));return ['profile'=>$profile,'karachiWeightKg'=>$weight,'deductionKg'=>$deductionKg,'netPayableKg'=>$netKg,'otherDeductionKgPer100'=>$other,'otherDeductionReason'=>$reason,'ratePerMaund'=>$unit==='KG'?$rate*$maund:($unit==='MT'?$rate*$maund/1000:$rate),'agreedRate'=>$rate,'rateUnit'=>$unit,'maundKg'=>$maund,'finalCommodityValue'=>$value,'brokerageGross'=>$brokery,'buyingBrokery'=>$brokeryRate,'components'=>$components];}
+
+try{
+    $user=tt_require_login();
+    if(!tt_user_can_open_module($user,'Accounts')) cb_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);
+
+    if($_SERVER['REQUEST_METHOD']==='GET'){
+        $entity=strtoupper(trim((string)($_GET['entity']??'')));
+        if($entity!==''&&!in_array($entity,['TTI','BRM','TG'],true)) cb_respond(['ok'=>false,'error'=>'Invalid entity.'],422);
+        if($entity===''||!tt_user_can_access_entity($user,$entity,'View'))cb_respond(['ok'=>false,'error'=>'An authorized legal entity is required.'],403);$s=cb_read();
+        cb_respond(['ok'=>true,'receipts'=>cb_receipts($s,$entity),'bills'=>array_values(array_filter((array)$s['commodityBills'],fn($bill)=>is_array($bill)&&($bill['entity']??'')===$entity)),'serverNow'=>gmdate('c')]);
+    }
+
+    if($_SERVER['REQUEST_METHOD']!=='POST') cb_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
+    if(!cb_can_write($user)) cb_respond(['ok'=>false,'error'=>'Accounts Create or Edit permission is required.'],403);
+    $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);
+    if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??''))) cb_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
+    if(($body['action']??'')!=='verify_bill') cb_respond(['ok'=>false,'error'=>'Unknown commodity bill action.'],422);
+
+    $entity=strtoupper(trim((string)($body['entity']??'')));
+    if(!in_array($entity,['TTI','BRM'],true)) cb_respond(['ok'=>false,'error'=>'Commodity purchase bill must be posted to an authorized Pakistan entity.'],422);
+    if(!tt_user_can_access_entity($user,$entity,'Create'))cb_respond(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);
+    $date=cb_date((string)($body['billDate']??''));
+    // Payment timing belongs to the approved Soda and is resolved after the
+    // receipt's Soda is validated; Accounts must not enter it again on a bill.
+    $creditDays=0;
+    $sourceKeys=array_values(array_unique(array_filter(array_map('strval',(array)($body['sourceKeys']??[])))));
+    if(!$sourceKeys||count($sourceKeys)>100) cb_respond(['ok'=>false,'error'=>'Select at least one unbilled Pohanch receipt.'],422);
+    $finalValue=cb_money($body['finalCommodityValue']??0,'Final commodity value');
+    $brokerageGross=cb_money($body['brokerageGross']??0,'Brokerage',true);
+    $brokerageWithholding=cb_money($body['brokerageWithholding']??0,'Brokerage withholding',true);
+    if($brokerageWithholding>$brokerageGross) cb_respond(['ok'=>false,'error'=>'Brokerage withholding cannot exceed gross brokerage.'],422);
+    $billNo=trim((string)($body['billNo']??''));
+    $brokerInput=trim((string)($body['broker']??''));
+    $remarks=trim((string)($body['remarks']??''));
+    $adjustments=is_array($body['adjustments']??null)?$body['adjustments']:[];
+    $adjustmentLines=is_array($body['adjustmentLines']??null)?array_values($body['adjustmentLines']):[];
+    $relationshipType=strtoupper(trim((string)($body['relationshipType']??'')));
+    $relationshipName=trim((string)($body['relationshipName']??''));
+    if(!in_array($relationshipType,['BROKER','SUPPLIER'],true)||$relationshipName==='')cb_respond(['ok'=>false,'error'=>'Choose either the Broker or Supplier before selecting the Soda.'],422);
+    $names=cb_account_names();
+
+    tt_ensure_data_dir();
+    $h=@fopen(TT_COMMODITY_ACCOUNTS_FILE,'r+b');
+    if($h===false||!flock($h,LOCK_EX)) throw new RuntimeException('Accounts storage unavailable.');
+    try{
+        rewind($h);$raw=stream_get_contents($h);$store=tt_accounts_source_decode($raw,cb_default_store());$previewBefore=array_map('strval',array_keys((array)($store['journals']??[])));
+
+        $events=[];$receiptRows=[];$provisional=0.0;$brokeryWeightKg=0.0;$brokeryBags=0.0;$sodas=[];$brokers=[];$commodities=[];
+        foreach($sourceKeys as $key){
+            $eventId=$entity.'|COMMODITY_RECEIPT_ACCEPTED|'.$key;
+            $ev=$store['events'][$eventId]??null;
+            if(is_array($ev)&&($ev['status']??'')==='Reversed')cb_respond(['ok'=>false,'error'=>'A reversed lifting cannot be billed.'],422);
+            if(!is_array($ev)) cb_respond(['ok'=>false,'error'=>'Receipt event not found for '.$key.'.'],422);
+            if(!empty($ev['billId'])) cb_respond(['ok'=>false,'error'=>'Receipt '.$key.' is already included in bill '.$ev['billId'].'.'],409);
+            $j=$store['journals'][$ev['journalId']??'']??null;
+            if(!is_array($j)) cb_respond(['ok'=>false,'error'=>'Receipt journal is missing for '.$key.'.'],422);
+            $meta=is_array($j['meta']??null)?$j['meta']:[];
+            $commodity=cb_commodity($ev,$meta);
+            $identity=tt_product_identity($commodity,(string)($meta['displayName']??$meta['baseVariety']??$meta['variety']??''),(string)($meta['productStage']??''),(string)($meta['riceType']??''));$row=[
+                'eventId'=>$eventId,'sourceKey'=>$key,'date'=>(string)($j['date']??''),'provisionalAmount'=>round((float)($j['totalDebit']??0),2),
+                'commodity'=>$commodity,'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),
+                'truck'=>(string)($meta['truck']??''),'broker'=>(string)($meta['broker']??''),'party'=>(string)($meta['party']??''),'variety'=>(string)($meta['variety']??''),'baseVariety'=>(string)($meta['baseVariety']??$identity['baseVariety']),'riceType'=>(string)($meta['riceType']??$identity['riceType']),'productStage'=>(string)($meta['productStage']??$identity['productStage']),'displayName'=>(string)($meta['displayName']??$identity['displayName']),
+                'bags'=>(float)($meta['bags']??0),'payableWeightKg'=>(float)($meta['payableWeightKg']??0)
+            ];
+            $provisional+=$row['provisionalAmount'];$brokeryWeightKg+=$row['payableWeightKg'];$brokeryBags+=$row['bags'];$sodas[]=$row['soda'];$brokers[]=$row['broker'];$commodities[]=$commodity;
+            $receiptRows[]=$row;$events[$eventId]=&$store['events'][$eventId];
+        }
+        $uniqueSodas=array_values(array_unique(array_filter(array_map('trim',$sodas))));
+        if(count($uniqueSodas)!==1) cb_respond(['ok'=>false,'error'=>'One commodity bill must contain Pohanch receipts from one Soda only.'],422);
+        $uniqueCommodities=array_values(array_unique(array_filter(array_map('trim',$commodities))));
+        if(count($uniqueCommodities)!==1) cb_respond(['ok'=>false,'error'=>'One purchase bill cannot mix Rice and Corn / Maize receipts.'],422);
+        $commodity=$uniqueCommodities[0];
+        $uniqueBrokers=array_values(array_unique(array_filter(array_map('trim',$brokers))));
+        if(count($uniqueBrokers)>1) cb_respond(['ok'=>false,'error'=>'One commodity bill cannot mix different brokers / payees.'],422);
+        $broker=$brokerInput!==''?$brokerInput:($uniqueBrokers[0]??'');
+
+
+        $soda=cb_soda($store,$entity,$uniqueSodas[0]);
+        $stage=strtoupper((string)($soda['productStage']??''));
+        $exMill=str_starts_with((string)$sourceKeys[0],'EXMILL|');
+        if(count($sourceKeys)>1&&($stage!=='READY'&&!($commodity==='CORN'&&$exMill)))cb_respond(['ok'=>false,'error'=>'Raw rice and ordinary Corn bills use one Pohanch per bill. Multiple containers are available for Ready or Ex-Mill purchases in one Soda.'],422);
+        if(count($sourceKeys)>1&&$commodity==='CORN')foreach($sourceKeys as $key)if(!str_starts_with($key,'EXMILL|'))cb_respond(['ok'=>false,'error'=>'Only Ex-Mill Corn can combine multiple containers.'],422);
+        $sodaBroker=trim((string)($soda['broker']??''));$sodaSupplier=trim((string)($soda['party']??''));
+        if($brokerInput!==''&&strcasecmp($brokerInput,$sodaBroker)!==0)cb_respond(['ok'=>false,'error'=>'Selected broker does not match the approved Soda.'],422);
+        $broker=$sodaBroker;
+        $settlementMode=(string)($body['settlementMode']??'SEPARATE');
+        if(!in_array($settlementMode,['BROKER_COMBINED','SEPARATE'],true))cb_respond(['ok'=>false,'error'=>'Choose the bill liability treatment.'],422);
+        if($settlementMode==='BROKER_COMBINED'&&$sodaBroker==='')cb_respond(['ok'=>false,'error'=>'A combined broker bill requires a broker.'],422);
+        $commodityPayee=$settlementMode==='BROKER_COMBINED'?$sodaBroker:($sodaSupplier!==''?$sodaSupplier:$sodaBroker);
+        $commodityRelationship=$settlementMode==='BROKER_COMBINED'?'BROKER':($sodaSupplier!==''?'SUPPLIER':'BROKER');
+        if($commodityPayee==='')cb_respond(['ok'=>false,'error'=>'Approved Soda must have a supplier or broker payee.'],422);
+        if($relationshipType!==$commodityRelationship||strcasecmp($relationshipName,$commodityPayee)!==0)cb_respond(['ok'=>false,'error'=>'Commodity bill payee must be '.$commodityPayee.' from the approved Soda.'],422);
+        $expectedRelationship=$relationshipType==='BROKER'?trim((string)($soda['broker']??$broker)):trim((string)($soda['party']??''));
+        if($expectedRelationship===''||strcasecmp($expectedRelationship,$relationshipName)!==0)cb_respond(['ok'=>false,'error'=>'The selected '.$relationshipType.' does not match the approved Soda.'],422);
+        if(strtoupper((string)($soda['commodity']??''))!==$commodity)cb_respond(['ok'=>false,'error'=>'Receipt commodity does not match the selected Soda.'],422);
+        $term=strtoupper((string)($soda['paymentTermType']??''));
+        $creditDays=$term==='CASH'?2:cb_credit_days($soda['creditDays']??null);
+        $calculation=null;
+        $readyRice=$commodity==='RICE'&&$stage==='READY';
+        if($readyRice){
+            if(!is_array($body['readyRiceCalculation']??null))cb_respond(['ok'=>false,'error'=>'Refresh Bill Posting to enter the ready-rice bag calculation.'],422);
+            $grossKg=0;foreach($receiptRows as $receipt){$journal=$store['journals'][$store['events'][$receipt['eventId']]['journalId']]??[];$grossKg+=(float)($journal['meta']['weighbridgeWeightKg']??$receipt['payableWeightKg']);}
+            $calculation=tt_ready_rice_bill_calculation($grossKg,(float)($soda['ratePerKg']??$soda['rate']??0),array_merge($body['readyRiceCalculation'],['loadingBags'=>$brokeryBags]),count($receiptRows));
+            $brokeryWeightKg=$calculation['netRiceWeightKg'];
+        }
+        $brokeryRate=cb_brokery_rate($soda);if($commodity==='RICE'&&$brokeryRate&&($brokeryRate['basis']??'')==='PER_50_KG_BAG'){$brokeryRate['amount']=round((float)$brokeryRate['amount']*2,2);$brokeryRate['basis']='PER_100_KG';}
+        if(!($commodity==='CORN'&&$exMill)&&$brokeryBags<=0&&is_array($body['inspection']??null))$brokeryBags=max(0,(float)($body['inspection']['bags']??0));
+        if($brokeryRate&&($brokeryRate['basis']??'')==='PER_BAG'&&$brokeryBags<=0)cb_respond(['ok'=>false,'error'=>'This broker uses Per bag Buying Brokery, but the selected Pohanch records do not contain a bag quantity. Correct the arrival before posting the bill.'],422);
+        $enteredBasis=trim((string)($body['brokerageBasis']??''));
+        $enteredRate=cb_money($body['brokerageRate']??0,'Buying brokery rate',true);
+        $whtPercent=cb_money($body['brokerageWhtPercent']??15,'Buying brokery WHT percentage',true);
+        if($whtPercent>100)cb_respond(['ok'=>false,'error'=>'Brokery WHT percentage must be at most 100.'],422);
+        if($enteredBasis!==''){
+            if(!in_array($enteredBasis,['PER_100_KG','PER_50_KG_BAG','PER_MAUND'],true))cb_respond(['ok'=>false,'error'=>'Choose an approved brokery unit.'],422);
+            $brokeryRate=['amount'=>$enteredRate,'basis'=>$enteredBasis];
+            if($commodity==='RICE'&&$enteredBasis!=='PER_100_KG')cb_respond(['ok'=>false,'error'=>'Rice buying brokery is per 100 kg.'],422);
+        }
+        $brokerageGross=cb_brokery_amount($brokeryRate,$brokeryWeightKg,$brokeryBags);
+        if($commodity==='RICE'&&$brokerageGross>0&&($brokeryRate['basis']??'')!=='PER_100_KG')cb_respond(['ok'=>false,'error'=>'Rice buying brokery is per 100 kg. Update the broker buying profile.'],422);
+        if($sodaBroker===''&&$brokerageGross>0)cb_respond(['ok'=>false,'error'=>'Buying brokery requires a broker on the Soda.'],422);
+        $brokerageWithholding=round($brokerageGross*$whtPercent/100,2);
+        if(in_array($commodity,['CORN','SESAME'],true)){
+            if($commodity==='CORN'&&$exMill){$sourceWeight=array_sum(array_column($receiptRows,'payableWeightKg'));if(abs((float)($body['inspection']['karachiWeightKg']??0)-$sourceWeight)>.001)cb_respond(['ok'=>false,'error'=>'Ex-Mill Corn billing must use the saved container net weights. Correct the source loading before billing.'],422);}
+            $calculation=cb_nonrice_calculation($store,$soda,$commodity,$body);
+            $finalValue=$calculation['finalCommodityValue'];
+            $calculation['brokerageGross']=$brokerageGross;
+            $calculation['buyingBrokery']=$brokeryRate;
+        }
+        if($brokerageWithholding>$brokerageGross)cb_respond(['ok'=>false,'error'=>'Brokery withholding cannot exceed system-calculated Buying Brokery.'],422);
+        $provisional=round($provisional,2);$billBaseValue=$calculation!==null&&!$readyRice?round((float)$calculation['finalCommodityValue'],2):$provisional;
+        if($readyRice)$billBaseValue=round($calculation['netRiceWeightKg']*$calculation['ratePerKg']+$calculation['kantaAmount']+$calculation['loadingAmount'],2);
+        if($adjustmentLines||$readyRice){
+            $addition=0.0;$deduction=0.0;$cleanLines=[];
+            foreach($adjustmentLines as $line){
+                if(!is_array($line))continue;$kind=strtoupper(trim((string)($line['kind']??'')));$description=trim((string)($line['description']??''));$amount=cb_money($line['amount']??0,'Adjustment amount');
+                if(!in_array($kind,['ADDITION','DEDUCTION'],true)||$description==='')cb_respond(['ok'=>false,'error'=>'Each bill adjustment needs Addition/Deduction, a description and an amount.'],422);
+                if($kind==='ADDITION')$addition+=$amount;else$deduction+=$amount;$cleanLines[]=['kind'=>$kind,'description'=>$description,'amount'=>$amount];
+            }
+            $serverFinal=round($billBaseValue+$addition-$deduction,2);
+            if($serverFinal<=0)cb_respond(['ok'=>false,'error'=>'Bill deductions cannot reduce the commodity value to zero or below.'],422);
+            if(abs($serverFinal-$finalValue)>.01)cb_respond(['ok'=>false,'error'=>'Bill total changed. Review the additions and deductions before posting.'],409);
+            $adjustmentLines=$cleanLines;
+            if($readyRice){
+                if($calculation['emptyBagDeduction']>0)$adjustmentLines[]=['kind'=>'DEDUCTION','description'=>'Empty bag weight','amount'=>$calculation['emptyBagDeduction'],'systemComponent'=>'EMPTY_BAGS'];
+                if($calculation['loadingAmount']>0)$adjustmentLines[]=['kind'=>'ADDITION','description'=>'Loading Charges ('.$calculation['loadingBags'].' bags × '.$calculation['loadingRatePerBag'].')','amount'=>$calculation['loadingAmount'],'systemComponent'=>'LOADING'];
+                if($calculation['kantaAmount']>0)$adjustmentLines[]=['kind'=>'ADDITION','description'=>'Kanta / Weight Charges','amount'=>$calculation['kantaAmount'],'systemComponent'=>'KANTA'];
+                $calculation['finalCommodityValue']=$serverFinal;$calculation['brokerageGross']=$brokerageGross;$calculation['brokerageWithholding']=$brokerageWithholding;
+            }
+        }
+        $delta=round($finalValue-$provisional,2);
+        $lines=[cb_line('2210',$provisional,0,$names)];
+        if($delta>0)$lines[]=cb_line('1310',$delta,0,$names);elseif($delta<0)$lines[]=cb_line('1310',0,abs($delta),$names);
+        $lines[]=array_merge(cb_line('2110',0,$finalValue,$names),['counterparty'=>$commodityPayee,'subledger'=>$commodityPayee]);
+        $netBrokerage=round($brokerageGross-$brokerageWithholding,2);
+        if($brokerageGross>0){
+            $lines[]=cb_line('1310',$brokerageGross,0,$names);
+            if($netBrokerage>0)$lines[]=array_merge(cb_line('2120',0,$netBrokerage,$names),['counterparty'=>$sodaBroker,'subledger'=>$sodaBroker]);
+            if($brokerageWithholding>0)$lines[]=cb_line('2300',0,$brokerageWithholding,$names);
+        }
+        $dr=round(array_sum(array_column($lines,'debit')),2);$cr=round(array_sum(array_column($lines,'credit')),2);
+        if(abs($dr-$cr)>.005) throw new RuntimeException('Commodity bill journal did not balance.');
+
+        $supplierPayableTotal=round($finalValue+$netBrokerage,2);
+        $receiptAllocations=cb_allocate_payable($receiptRows,$finalValue,$creditDays);
+        foreach($receiptAllocations as &$allocation){$allocation['component']='COMMODITY';$allocation['payee']=$commodityPayee;}
+        unset($allocation);
+        if($netBrokerage>0){
+            $brokerAllocations=cb_allocate_payable($receiptRows,$netBrokerage,$creditDays);
+            foreach($brokerAllocations as &$allocation){$allocation['sourceKey'].='|BROKERAGE';$allocation['component']='BROKERAGE';$allocation['payee']=$sodaBroker;}
+            unset($allocation);$receiptAllocations=array_merge($receiptAllocations,$brokerAllocations);
+        }
+        $billId=cb_next_id((array)$store['commodityBills'],'CB');
+        $postingNumber=cb_next_posting_number((array)$store['commodityBills'],$entity);
+        $journalId=tt_next_post_id((array)$store['journals'],'Accounts','Journal');
+        $dueDates=array_column($receiptAllocations,'dueDate');sort($dueDates);
+        $label=$commodity==='CORN'?'Corn / Maize':($commodity==='RICE'?'Rice':ucfirst(strtolower($commodity)));
+        $meta=[
+            'billId'=>$billId,'postingNumber'=>$postingNumber,'commodity'=>$commodity,'sourceKeys'=>$sourceKeys,'sodas'=>$uniqueSodas,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'supplier'=>$sodaSupplier,'payee'=>$commodityPayee,'partyLabel'=>implode(' / ',array_unique(array_filter([$sodaSupplier,$broker]))),'settlementMode'=>$settlementMode,'adjustments'=>$adjustments,'adjustmentLines'=>$adjustmentLines,
+            'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
+            'brokerageWithholding'=>$brokerageWithholding,'brokerageRate'=>$enteredBasis!==''?$enteredRate:null,'brokerageBasis'=>$enteredBasis,'brokerageWhtPercent'=>$whtPercent,'supplierPayableTotal'=>$supplierPayableTotal,
+            'creditDays'=>$creditDays,'paymentTermType'=>$term,'dueBasis'=>'Unloading Date','receiptAllocations'=>$receiptAllocations,'calculation'=>$calculation
+        ];
+        $store['journals'][$journalId]=[
+            'id'=>$journalId,'entity'=>$entity,'date'=>$date,'sourceType'=>'COMMODITY_BILL_VERIFIED','reference'=>$billNo?:$billId,
+            'narration'=>$label.' purchase bill '.($billNo?:$billId).' — '.implode(' / ',array_unique(array_filter([$sodaSupplier,$broker]))),'lines'=>$lines,
+            'totalDebit'=>$dr,'totalCredit'=>$cr,'status'=>'Posted','meta'=>$meta,'createdAt'=>gmdate('c'),
+            'createdBy'=>(string)($user['full_name']??$user['username']??'Staff'),'userId'=>(int)($user['id']??0),'reversalOf'=>null
+        ];
+        $store['commodityBills'][$billId]=[
+            'id'=>$billId,'postingNumber'=>$postingNumber,'entity'=>$entity,'commodity'=>$commodity,'billDate'=>$date,'billNo'=>$billNo,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'supplier'=>$sodaSupplier,'payee'=>$commodityPayee,'partyLabel'=>implode(' / ',array_unique(array_filter([$sodaSupplier,$broker]))),'settlementMode'=>$settlementMode,'sourceKeys'=>$sourceKeys,
+            'sodas'=>$uniqueSodas,'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
+            'brokerageWithholding'=>$brokerageWithholding,'brokerageRate'=>$enteredBasis!==''?$enteredRate:null,'brokerageBasis'=>$enteredBasis,'brokerageWhtPercent'=>$whtPercent,'supplierPayableTotal'=>$supplierPayableTotal,'journalId'=>$journalId,
+            'adjustments'=>$adjustments,'adjustmentLines'=>$adjustmentLines,'calculation'=>$calculation,'remarks'=>$remarks,'creditDays'=>$creditDays,'paymentTermType'=>$term,'dueBasis'=>'Unloading Date',
+            'dueDateFrom'=>$dueDates[0]??$date,'dueDateTo'=>$dueDates[count($dueDates)-1]??$date,
+            'receiptAllocations'=>$receiptAllocations,'paymentStatus'=>'Outstanding','status'=>'Verified / Posted',
+            'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Staff')
+        ];
+        foreach($receiptAllocations as $a){
+            if(($a['component']??'')==='BROKERAGE')continue;
+            $eventId=(string)$a['eventId'];
+            $store['events'][$eventId]['billId']=$billId;
+            $store['events'][$eventId]['commodity']=$commodity;
+            $store['events'][$eventId]['creditDays']=$creditDays;
+            $store['events'][$eventId]['dueDate']=$a['dueDate'];
+            $store['events'][$eventId]['supplierPayableShare']=$a['supplierPayableShare'];
+        }
+        tt_posting_preview_exit($body,$store,$previewBefore);$store['revision']=(int)($store['revision']??0)+1;
+        $enc=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0))throw new RuntimeException('Accounts storage could not be updated.');
+
+        if(fwrite($h,$enc)===false)throw new RuntimeException('Accounts storage could not be written.');
+        fflush($h);
+    }finally{flock($h,LOCK_UN);fclose($h);}
+    $warning='';
+    if($commodity==='RICE'&&$enteredBasis==='PER_100_KG'&&$enteredRate>0){
+        try{tt_bill_save_buying_brokery($sodaBroker,$enteredRate,$enteredBasis,$date,$billId,$user);}catch(Throwable $masterError){error_log('Bill '.$billId.' buying brokery master: '.$masterError->getMessage());$warning='Bill posted successfully, but the broker master rate could not be saved. Ask Super Admin to update the buying-brokery rate.';}
+    }
+    cb_respond(['ok'=>true,'warning'=>$warning,'bill'=>$store['commodityBills'][$billId],'journal'=>$store['journals'][$journalId],'revision'=>(int)$store['revision']]);
+}catch(InvalidArgumentException $e){
+    cb_respond(['ok'=>false,'error'=>$e->getMessage()],422);
+}catch(Throwable $e){
+    error_log('commodity_bills: '.$e->getMessage());
+    cb_respond(['ok'=>false,'error'=>'The commodity bill could not be completed.'],500);
+}
+

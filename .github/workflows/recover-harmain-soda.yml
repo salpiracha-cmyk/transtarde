@@ -1,0 +1,88 @@
+name: Recover owner-selected Harmain SODA 26003
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/recover-harmain-soda.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: transtrade-production-deployment
+  cancel-in-progress: false
+jobs:
+  recover:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+      HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+      HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+      HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test isolated recovery, preservation, conflicts and repeat execution
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          require 'scripts/recover_harmain_soda_26003.php';
+          function check($ok,$message){if(!$ok)throw new RuntimeException($message);}
+          $s=['id'=>'PS-RICE-26003','sodaNo'=>'26003','entity'=>'TTI','party'=>'Kas commodities','broker'=>'No broker',
+            'readyRoute'=>'EX_MILL','ratePerKg'=>113,'qtyToKg'=>270000,'locationName'=>'AL-Harmain rice mills',
+            'displayName'=>'PK-386 White Ready Rice','purchaseProductId'=>'product','baseVariety'=>'PK-386',
+            'riceType'=>'White','arrivalDueDate'=>'2026-09-25','audit'=>[]];
+          $a=['revision'=>10,'purchaseSodas'=>['existing'=>['id'=>'existing','sodaNo'=>'26001','entity'=>'TTI']],
+            'journals'=>['protected'=>['amount'=>123]],'events'=>['protected'],'purchaseSodaLiftings'=>[]];
+          $i=['id'=>835437943,'shipmentId'=>'L-mugwlj2o-ks1u9','lotRef'=>'TG/AMT/13/L01','entity'=>'TTI',
+            'mill'=>'AL-Harmain rice mills','sourceSodaId'=>'PS-RICE-26003','localSodaId'=>'','allocationStatus'=>'NO_MATCHING_ACCOUNTS_SODA'];
+          $o=['revision'=>20,'meta'=>[],'values'=>['tt40exinstructions'=>json_encode([$i]),'tt35exmill'=>'[]',
+            'tt35exload'=>json_encode([['instructionId'=>835437943,'sodaId'=>784441754,'container'=>'PRESERVE','kg'=>34567]]),
+            'exports'=>'preserve all exports']];
+          [$b,$p,$r]=harmain_plan($a,$o,$s,'2026-09-30T00:00:00Z');
+          check($b['journals']===$a['journals']&&$b['events']===$a['events']&&$b['purchaseSodaLiftings']===[],'Financial data changed');
+          check($p['values']['tt35exload']===$o['values']['tt35exload']&&$p['values']['exports']===$o['values']['exports'],'Container or Export data changed');
+          check($b['purchaseSodas']['PS-RICE-26003']['broker']==='','Deleted placeholder broker revived');
+          check(json_decode($p['values']['tt40exinstructions'],true)[0]['allocationStatus']==='LINKED','Instruction not linked');
+          [$c,$q]=harmain_plan($b,$p,$s,'2026-09-30T00:00:00Z');check($c===$b&&$q===$p,'Recovery is not idempotent');
+          $collision=$a;$collision['purchaseSodas']['another']=['entity'=>'TTI','sodaNo'=>'26003'];
+          try{harmain_plan($collision,$o,$s,'now');throw new LogicException('Collision was accepted');}catch(RuntimeException $e){}
+          $foreign=$o;$foreign['values']['tt40exinstructions']=json_encode([array_replace($i,['sourceSodaId'=>'PS-RICE-99999'])]);
+          try{harmain_plan($a,$foreign,$s,'now');throw new LogicException('Changed linkage was accepted');}catch(RuntimeException $e){}
+          $bad=$o;$bad['values']['tt35exload']=json_encode([['instructionId'=>835437943,'sodaId'=>123]]);
+          try{harmain_plan($a,$bad,$s,'now');throw new LogicException('Container conflict was accepted');}catch(RuntimeException $e){}
+          echo "Isolated recovery assertions passed.\n";
+          PHP
+      - name: Check recovery script and verified SSH configuration
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          php -l scripts/recover_harmain_soda_26003.php
+          for name in HOSTINGER_HOST HOSTINGER_PORT HOSTINGER_USER HOSTINGER_DEPLOY_PATH HOSTINGER_SSH_KEY HOSTINGER_KNOWN_HOSTS; do
+            test -n "${!name:-}" || { echo "Missing deployment secret: $name"; exit 1; }
+          done
+          case "$HOSTINGER_DEPLOY_PATH" in
+            /home/*/domains/app.transtradeinternational.com/public_html) ;;
+            *) echo 'Unexpected production target'; exit 1 ;;
+          esac
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh-keygen -y -f "$RUNNER_TEMP/ssh/key" >/dev/null
+      - name: Inspect, recover only original SODA, and verify Milling linkage
+        run: |
+          set -euo pipefail
+          SSH=(ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT")
+          SCP=(scp -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -P "$HOSTINGER_PORT")
+          remote_dir="${HOSTINGER_DEPLOY_PATH%/public_html}/.transtrade-harmain-recovery"
+          remote_script="$remote_dir/recover-$GITHUB_RUN_ID.php"
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" "mkdir -p '$remote_dir' && chmod 700 '$remote_dir'"
+          trap '"${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" "rm -f '\''$remote_script'\''"' EXIT
+          "${SCP[@]}" scripts/recover_harmain_soda_26003.php "$HOSTINGER_USER@$HOSTINGER_HOST:$remote_script"
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" php "$remote_script" "$HOSTINGER_DEPLOY_PATH"
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" php "$remote_script" "$HOSTINGER_DEPLOY_PATH" --apply
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" php "$remote_script" "$HOSTINGER_DEPLOY_PATH"
+          echo 'Original SODA recovered and linked; financial entries and container details preserved.' >> "$GITHUB_STEP_SUMMARY"

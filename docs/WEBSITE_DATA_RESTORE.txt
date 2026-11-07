@@ -1,0 +1,94 @@
+TRANSTRADE — RESTORE WEBSITE DATA
+
+This restores saved business data to a running Transtrade website. Opening an
+offline Recovery folder alone does not change the website.
+
+WHAT YOU NEED
+1. The password-protected TRANSTRADE_DATA ZIP, or an older TRANSTRADE_FULL ZIP.
+2. The ZIP password that was used when that particular file was created.
+3. Your current Super Admin login.
+4. Working internet, an awake computer and an available backup drive.
+5. A running, compatible Transtrade installation with enough free hosting space
+   for the upload, its unpacked data and a safety copy of current records.
+
+Do not choose a Software-only ZIP or a readable CSV export for this procedure.
+The complete ZIP must be smaller than 4 GB. It is uploaded in 1 MB pieces; you
+do not split or unpack it yourself. Expanded contents are limited to 16 GiB.
+
+RESTORE ON THE EXISTING WEBSITE
+1. Ask all staff to stop entering or changing records. Make a fresh backup first
+   if the current website still contains records you may need.
+2. Sign in as Super Admin.
+3. Open Backup & Recovery → Open Restore / Continue recovery.
+   Direct address: https://app.transtradeinternational.com/restore.php
+4. Choose the Data or older Complete ZIP from your PC or pen drive.
+5. Enter that ZIP's backup password. This is not your website login password
+   or emergency admin recovery code.
+6. Click Upload & verify / Resume upload. Keep the page open.
+   The page identifies the file, uploads pieces and verifies the encrypted data.
+   Uploading and verification do not replace live business records.
+7. Review the displayed filename, backup date, file count and software revisions.
+   The snapshot affects Accounts, Mill, Exports, Directors, master records,
+   settings and uploaded documents. Later entries will not remain in live books.
+8. When you are certain this is the right recovery point, type RESTORE and click
+   Confirm Restore. Accept the final confirmation message.
+9. Transtrade pauses other requests, creates and checks a safety copy, replaces
+   the saved data, restores a configured supported MySQL database when present,
+   and checks the result. Do not restart setup or change hosting files during it.
+10. Wait for RESTORE COMPLETE. Current user accounts, login passwords, roles,
+    backup password settings and PC connection remain in place. Existing
+    sessions are ended so an old open form cannot save over recovered records.
+11. Sign in again. Check the backup-date totals and several known records:
+    - Accounts: trial balance, ledgers, bank/petty cash and recent postings.
+    - Mill: stocks, arrivals, production, recoveries and bags.
+    - Exports: contracts, shipments, lots and original documents.
+    - Directors: reports and saved records.
+12. Allow staff to resume only after your checks. Make a new verified backup.
+
+IF INTERNET OR POWER STOPS
+- During upload: reopen Restore, select exactly the same ZIP, enter its password
+  again, and click Upload & verify / Resume upload. Completed pieces are reused.
+- During verification: use the same file and password; verified progress remains.
+- After Confirm Restore: reopen Restore and click Continue recovery. You do not
+  need to upload the ZIP or enter its password again for the confirmed operation.
+  The site stays paused until the restore or its rollback finishes.
+- A lost final response does not run the restore twice. Sign in again and open
+  Restore to read its recorded result.
+- If the page says it is reverting, continue until it confirms the previous data
+  was recovered. If it repeatedly cannot continue, leave the site paused, keep
+  the original ZIP and have support resolve the storage/server error. Do not
+  delete the private recovery workspace or maintenance marker yourself.
+
+CLEAR PREPARED UPLOAD
+This removes the hosted upload and its temporary unpacked copy only when no
+restore is active. It does not remove your PC/pen-drive original or the retained
+pre-restore safety copy. Clear a finished upload before choosing another backup.
+At most seven website-restore safety copies are retained by this flow; another
+restore is held for administrator review rather than deleting safety copies.
+These are pre-restore protection, not a routine hosted backup schedule.
+
+MOVING TO HOSTINGER OR ANOTHER HOST
+1. Upload the matching Full Software For Upload On Hosting package to the new
+   site's public_html, including hidden hosting configuration files.
+2. Keep transtrade_private outside public_html. Never upload private data to a
+   publicly accessible folder or GitHub.
+3. Configure HTTPS, PHP and any database required by that installation. Complete
+   the initial owner setup so you can sign in as Super Admin.
+4. Open Backup & Recovery on the new website and follow the restore steps above.
+   The restore uploads DATA to that hosting; it does not install application code.
+5. A MySQL installation needs the corresponding complete database snapshot and
+   compatible InnoDB tables. Incompatible configurations are refused before live
+   data replacement. This flow does not automatically provision a database or
+   convert a file-only backup into MySQL.
+6. Check all four modules before moving the domain or allowing staff to work.
+
+PASSWORDS AND IMPORTANT DISTINCTIONS
+- ZIP password: opens that encrypted archive. Old ZIPs keep their old password.
+- Super Admin login: authorizes access and the final restore confirmation.
+- Emergency recovery code: recovers Super Admin access; it cannot open a ZIP.
+- Offline Recovery: produces readable folders and hosting files on your PC.
+- Website Restore: replaces the website's saved data after Confirm Restore.
+- Software upload: installs or updates code separately from website data restore.
+
+Keep the original backup and its password separately. Never delete your last
+verified backup while testing a replacement.

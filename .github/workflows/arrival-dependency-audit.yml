@@ -1,0 +1,54 @@
+name: Read-only arrival dependency audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/arrival-integrity-20261017]
+    paths: ['.github/workflows/arrival-dependency-audit.yml','scripts/arrival_dependency_*.php']
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate diagnostic and disposable fixtures
+        run: |
+          php -l scripts/arrival_dependency_core.php
+          php -l scripts/arrival_dependency_audit.php
+          php tests/accounts-v1/arrival_dependency_test.php
+          python3 tests/accounts-v1/commodity_lookup_read_only_test.py
+      - name: Trace only the three owner-identified test arrivals without writes
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          case "$HOSTINGER_DEPLOY_PATH" in
+            /home/*/domains/app.transtradeinternational.com/public_html) ;;
+            *) echo "Unexpected production path"; exit 1 ;;
+          esac
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          python3 - <<'PY'
+          import os,pathlib
+          core=pathlib.Path('scripts/arrival_dependency_core.php').read_text()
+          runner=pathlib.Path('scripts/arrival_dependency_audit.php').read_text()
+          runner=runner.replace('<?php\n','',1).replace('declare(strict_types=1);\n','',1).replace("require __DIR__.'/arrival_dependency_core.php';\n",'',1)
+          pathlib.Path(os.environ['RUNNER_TEMP'],'arrival-audit.php').write_text(core+'\n'+runner)
+          PY
+          ssh -i "$RUNNER_TEMP/ssh/key" \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" \
+            "$HOSTINGER_USER@$HOSTINGER_HOST" \
+            env TT_DIAGNOSTIC_ROOT="$HOSTINGER_DEPLOY_PATH" php < "$RUNNER_TEMP/arrival-audit.php"

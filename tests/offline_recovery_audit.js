@@ -1,0 +1,27 @@
+const fs = require('fs');
+const assert = require('assert');
+const root = __dirname + '/..';
+const modulePhp = fs.readFileSync(root + '/module.php', 'utf8');
+const accounts = fs.readFileSync(root + '/accounts/index.php', 'utf8');
+const exportsJs = fs.readFileSync(root + '/exports/app.js', 'utf8');
+const sourceBridge = fs.readFileSync(root + '/accounts/source-bridge.js', 'utf8');
+const loadingBridge = fs.readFileSync(root + '/accounts/loading-programme-sync.js', 'utf8');
+const bagBridge = fs.readFileSync(root + '/accounts/bag-control-bridge.js', 'utf8');
+
+assert.ok(!fs.existsSync(root + '/offline-outbox.js'), 'the browser queue is removed from main');
+assert.doesNotMatch(modulePhp + accounts + exportsJs, /offline-outbox\.js|TT_OFFLINE_OUTBOX|Unsynced entries:|Upload pending entries\?/);
+assert.doesNotMatch(modulePhp, /deleteDatabase\(/, 'old browser data is never erased on page load');
+assert.doesNotMatch(modulePhp, /timer=setTimeout\(flush,180\)/, 'typing does not trigger server saves');
+assert.match(modulePhp, /function saveNow\(\)/, 'Milling and Exports retain acknowledged saves');
+assert.match(modulePhp, /settleCommits\(message\)/, 'failed saves reject the awaiting action');
+assert.match(exportsJs, /document\.getElementById\('nextStep'\)\.onclick=async/, 'Sales Contract Next waits for confirmation');
+assert.match(exportsJs, /await shared\.saveNow\(\)/, 'Start Shipment waits for confirmation');
+assert.match(exportsJs, /async function directPrint\([\s\S]*?await window\.TT_SHARED_SYNC\.saveNow\(\)/, 'printing waits for the server');
+assert.match(exportsJs, /async function issuePO\([\s\S]*?if\(pending\)return finishBagPo\(s\.id,pending,button\);[\s\S]*?pendingFinalOrders\.set\(s\.id,intent\)/, 'PO retry reuses the original save intent');
+assert.match(exportsJs, /async function finishBagPo\([\s\S]*?await window\.TT_SHARED_SYNC\.commitContractChanges\(changes,matches,identity\);[\s\S]*?await directPrint\('PURCHASE ORDER',purchaseOrderPrint\(order\),'without',true,/, 'PO printing waits for the scoped commit and prints without saving again');
+assert.match(exportsJs, /const sendPI=d\.querySelector\('#sendPI'\)[\s\S]*?await window\.TT_SHARED_SYNC\.saveNow\(\)/, 'Production Instructions wait for server confirmation');
+assert.match(modulePhp, /document\.addEventListener\('click',blockWhileSaving,true\)/, 'actions stay blocked during the save');
+assert.doesNotMatch(sourceBridge, /setInterval|mergeServerOutbox\(\)\.then\(flush\)/, 'Accounts handoffs do not post on timers');
+assert.match(loadingBridge, /tt:shared-saved/, 'Loading Programme handoff follows a confirmed save');
+assert.match(bagBridge, /tt:shared-saved/, 'bag handoff follows a confirmed save');
+console.log('PASS explicit server acknowledgement without browser sync interface');

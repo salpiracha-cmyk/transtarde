@@ -1,0 +1,311 @@
+"""Execute real PHP endpoints against disposable sessions and company books."""
+import json, pathlib, shutil, subprocess, tempfile
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
+    root = pathlib.Path(directory)
+    app = root / 'app'
+    (app / 'api').mkdir(parents=True)
+    (app / 'accounts').mkdir()
+    (root / 'sessions').mkdir()
+    private = root / 'transtrade_private'
+    private.mkdir()
+    for name in ['inventory_reconciliation.php','document_filenames.php','auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
+        shutil.copy(ROOT / name, app / name)
+    for name in ['journal_activity_core.php','bank_sales_receipts_core.php','local_sales_scope.php','mill_recovery_core.php','arrival_withdrawal_core.php','paltai_core.php','supplier_opening_core.php','accounts_payees.php','bank_entries.php','accounts_linked_edit_core.php','intercompany_advance_core.php','bank_entries_core.php','mill_cash_core.php','mill_cash_ledger.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php','accounts_reports.php', 'accounts_reports_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','jv_decisions_core.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_receipts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','expense_payment_source.php','expense_estimates_core.php','bag_read_scope.php','operations_scope.php','export_permission_policy.php','petty_cash_core.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','company_investments_core.php','salary_master_store.php', 'accounts_posting_preview.php', 'tg_native_currency.php']:
+        shutil.copy(ROOT / 'api' / name, app / 'api' / name)
+    shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
+    harness = root / 'request.php'
+    harness.write_text('''<?php
+$request=json_decode($argv[2],true);
+ini_set('session.save_path',$argv[3]); session_name('TRANSTRADE_SESSION'); session_id('fixture-session'); session_start();
+$_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];session_write_close();
+$_SERVER['REQUEST_URI']=$request['uri'];$_SERVER['REQUEST_METHOD']=$request['method'];$_SERVER['REMOTE_ADDR']='127.0.0.1';
+parse_str((string)(parse_url($request['uri'],PHP_URL_QUERY)??''),$_GET);$_POST=[];
+$GLOBALS['fixture_body']=json_encode($request['body']??[]);
+class FixtureInput {public $context;private $offset=0;function stream_open($p,$m,$o,&$opened){return $p==='php://input';}function stream_read($n){$v=substr($GLOBALS['fixture_body'],$this->offset,$n);$this->offset+=strlen($v);return $v;}function stream_eof(){return $this->offset>=strlen($GLOBALS['fixture_body']);}function stream_stat(){return [];}}
+stream_wrapper_unregister('php');stream_wrapper_register('php',FixtureInput::class);
+register_shutdown_function(function(){echo "\\nHTTP_STATUS=".(http_response_code()?:200);});
+require $argv[1];
+''')
+    auth = private / 'auth.json'
+    books = private / 'accounts.json'
+    permissions = {'entity-tti':['View','Create','Edit','Approve','Delete'], 'expenses':['View','Create','Edit'],'cashbank':['View','Create','Edit','Delete'],'masters':['View','Create','Edit','Delete'],'reports':['View'],'jv':['View','Create','Edit','Approve']}
+    user = {'id':1,'username':'fixture','full_name':'Fixture','role':'Staff','active':True,'session_version':1,'permissions':{'Accounts':permissions}}
+    def set_user():
+        auth.write_text(json.dumps({'users':[user],'masters':{'banks':[{'id':'BANK-1','depositType':'SAVING','values':['Company Account','TTI','','Company','Fixture Bank','','','PKR','123456789','PK01TEST','','','','Active']},{'id':'BANK-2','values':['Company Account','TTI','','Company 2','Fixture Bank 2','','','PKR','234567890','PK02TEST','','','','Active']},{'id':'BANK-USD','values':['Company Account','TTI','','USD','FX Bank','','','USD','345678901','PK03TEST','','','','Active']},{'id':'BANK-BRM','values':['Company Account','BRM','','BRM','Other books','','','PKR','456789012','PK04TEST','','','','Active']}]},'audit':[]}))
+        fixture=json.loads(auth.read_text());companies=[]
+        for company_code in ['TTI','BRM']:
+            banks=[]
+            for bank in fixture['masters']['banks']:
+                v=bank['values']
+                if v[1]!=company_code:continue
+                banks.append({'id':bank['id'],'accountType':'Company Account','depositType':bank.get('depositType','CURRENT'),'accountTitle':v[3],'bankName':v[4],'currency':v[7],'accountNumber':v[8],'iban':v[9],'status':'Active'})
+            values=['']*21;values[0]=company_code;values[1]=company_code;values[2]='Pakistan';values[12]='Active';values[13]=json.dumps(banks);values[14]=json.dumps(['PKR','USD'])
+            companies.append({'id':'company-'+company_code,'values':values})
+        fixture['masters']['companies']=companies;auth.write_text(json.dumps(fixture))
+    def request(endpoint, query='', body=None):
+        uri = '/api/' + endpoint + '.php' + query
+        req = {'uri':uri,'method':'GET' if body is None else 'POST','body':body}
+        result = subprocess.run(['php',str(harness),str(app/'api'/f'{endpoint}.php'),json.dumps(req),str(root/'sessions')],capture_output=True,text=True)
+        assert result.returncode==0,result.stdout+result.stderr
+        payload, status = result.stdout.rsplit('\nHTTP_STATUS=',1)
+        try: return int(status), json.loads(payload)
+        except json.JSONDecodeError: raise AssertionError(result.stdout + result.stderr)
+    for f in ROOT.joinpath('accounts').glob('*.json'): shutil.copy(f,app/'accounts'/f.name)
+    set_user()
+    books.write_text(json.dumps({'revision':0,'journals':{},'bankAccountSettings':{'BANK-1':{'defaultPaymentAccount':True}}}))
+    counter=0
+    def mutate(endpoint,**kwargs):
+        global counter
+        counter+=1
+        _,current=request(endpoint,'?entity=TTI')
+        body={'csrf':'fixture','entity':'TTI','requestKey':f'bank-fixture-{counter:05d}','revision':current['revision'],**kwargs}
+        status,result=request(endpoint,'?entity=TTI',body)
+        return status,result,body
+    def good(endpoint='bank_entries',**kwargs):
+        status,result,body=mutate(endpoint,**kwargs)
+        assert status==200,(status,result,body)
+        return result,body
+    sub,b=good('accounts_subaccounts',operation='add',name='Office stationery',parentCode='6900',taxCategory='NONE');sid=sub['result']['subaccountId']
+    assert mutate('accounts_subaccounts',operation='add',name='Office.  Stationery',parentCode='6900')[0]==422
+    home,_=good('accounts_subaccounts',operation='add',name='Home gardening',parentCode='6910',expenseType=True,expenseClassification='HOME')
+    homeid=home['result']['subaccountId']
+    assert next(a for a in home['subaccounts'] if a['id']==homeid)['expenseClassification']=='HOME'
+    before=books.read_bytes()
+    assert mutate('accounts_subaccounts',operation='add',name='Bad home head',parentCode='6900',expenseType=True,expenseClassification='HOME')[0]==422 and books.read_bytes()==before
+    mill,_=good('accounts_subaccounts',operation='add',name='Mill supplies',parentCode='5200',expenseType=True,expenseClassification='MILL')
+    assert next(a for a in mill['subaccounts'] if a['id']==mill['result']['subaccountId'])['expenseClassification']=='MILL'
+    office,_=good('accounts_subaccounts',operation='edit',id=homeid,name='Office gardening',parentCode='6900',expenseType=True,expenseClassification='OFFICE')
+    assert office['result']['subaccountId']==homeid and next(a for a in office['subaccounts'] if a['id']==homeid)['expenseClassification']=='OFFICE'
+    before=books.read_bytes()
+    status,preview,_=mutate('bank_entries',action='post',type='PETTY_CASH',bankId='BANK-1',date='2026-10-08',amount=500,bankPaymentMethod='ONLINE_BANKING',preview=True)
+    assert status==200 and len(preview['previews'])==1,(status,preview)
+    assert preview['previews'][0]['totalDebit']==preview['previews'][0]['totalCredit']==500
+    assert books.read_bytes()==before,'Reviewing bank accounting must not persist journals, IDs, revision or request keys'
+    petty,body=good(action='post',type='PETTY_CASH',bankId='BANK-1',date='2026-10-08',reference='PETTY-1',narration='Replenish cash',amount=500,bankPaymentMethod='ONLINE_BANKING')
+    assert [(l['account'],l['debit'],l['credit']) for l in petty['result']['journal']['lines']]==[('1120',500,0),('1110',0,500)]
+    before=books.read_bytes();status,retry=request('bank_entries','?entity=TTI',body)
+    assert status==200 and retry['result']==petty['result'] and books.read_bytes()==before
+    status,ack=request('bank_entries','?entity=TTI',{**body,'preview':True});assert status==200 and ack['result']==petty['result'] and books.read_bytes()==before,'A review retry must acknowledge an already committed request'
+    assert mutate('bank_entries',action='post',type='PETTY_CASH',bankId='BANK-USD',date='2026-10-08',reference='CASH-FX',narration='Wrong currency',amount=500)[0]==422 and books.read_bytes()==before
+    setup,_=good('accounts_payees',kind='EXPENSE',name='Caretaker',accountCode='6910',expenseCategory='HOME')
+    pid=setup['result']['payee']['id']
+    assert 'Caretaker' not in [x['values'][0] for x in json.loads(auth.read_text())['masters'].get('business_parties',[])], 'expense recipient must not become a Business Party'
+    assert setup['result']['payee']['configured']
+    bankpay={'action':'post','date':'2026-10-07','bankId':'BANK-1','reference':'MULTI-DEBIT','narration':'Home payments','type':'PAYMENT','amount':30,'bankPaymentMethod':'ONLINE_BANKING','debitRows':[{'payeeId':pid,'amount':10},{'payeeId':pid,'amount':20}]}
+    multi,_=good(**bankpay);mj=multi['result']['journal']
+    assert [(x['account'],x['debit'],x['credit']) for x in mj['lines']]==[('6910',10,0),('6910',20,0),('1110',0,30)]
+    assert mj['lines'][-1]['bankName']=='Fixture Bank' and mj['lines'][-1]['accountNumber']=='123456789'
+    status,ledger=request('accounts_ledger_browser','?entity=TTI&account=BANK%7CBANK-1&category=bank&from=2026-10-01&to=2026-10-31')
+    assert status==200 and next(r for r in ledger['rows'] if r['voucher']==mj['id'])['party'].casefold()=='caretaker'
+    status,register=request('accounts_ledger_browser','?entity=TTI&account=POSTS&from=2026-10-01&to=2026-10-31')
+    assert status==200 and next(r for r in register['rows'] if r['voucher']==mj['id'])['party'].casefold()=='caretaker'
+
+    # Owner batch: row-level cheques and optional narration, all committed atomically.
+    rowpay={**bankpay,'reference':'','narration':'','debitRows':[{'payeeId':pid,'amount':10,'bankPaymentMethod':'CHEQUE','chequeNo':'ROW-101','chequeDate':'2026-10-07','narration':'First payment'},{'payeeId':pid,'amount':20,'bankPaymentMethod':'CHEQUE','chequeNo':'ROW-102','chequeDate':'2026-10-07','narration':''}]}
+    posted,_=good(**rowpay);rowj=posted['result']['journal'];banklines=[l for l in rowj['lines'] if l['account']=='1110']
+    assert [(l['credit'],l['chequeNo']) for l in banklines]==[(10,'ROW-101'),(20,'ROW-102')]
+    assert rowj['totalDebit']==rowj['totalCredit']==30 and rowj['lines'][0]['memo']=='FIRST PAYMENT'
+    before=books.read_bytes();assert mutate('bank_entries',**rowpay)[0]==422 and books.read_bytes()==before
+    duplicate={**rowpay,'debitRows':[{**r,'chequeNo':'ROW-103'} for r in rowpay['debitRows']]}
+    assert mutate('bank_entries',**duplicate)[0]==422 and books.read_bytes()==before
+    petty,_=good(action='post',type='PETTY_CASH',bankId='BANK-1',date='2026-10-07',amount=50,reference='',narration='')
+    assert [(l['account'],l['debit'],l['credit']) for l in petty['result']['journal']['lines']]==[('1120',50,0),('1110',0,50)]
+
+    before=books.read_bytes();assert mutate('bank_entries',**{**bankpay,'reference':'BAD-SPLIT','amount':31})[0]==422 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**bankpay,'reference':'UNCONFIGURED','debitRows':[{'payeeId':'EXP|talha','amount':30}]})[0]==422
+    purpose,_=good(**{**bankpay,'reference':'MIXED-PURPOSE','debitRows':[{'payeeId':pid,'accountCode':'7210','amount':10},{'payeeId':pid,'accountCode':'6900','amount':20}]});assert [l['account'] for l in purpose['result']['journal']['lines']]==['7210','6900','1110']
+    zakat_note,_=good(**{**bankpay,'reference':'ZAKAT-NARRATION','narration':'Zakat distribution','debitRows':[{'payeeId':pid,'accountCode':'6900','amount':30}]});assert [l['account'] for l in zakat_note['result']['journal']['lines']]==['7210','1110']
+    zakat_row,_=good(**{**bankpay,'reference':'ZAKAT-ROW','narration':'Mixed payment','debitRows':[{'payeeId':pid,'accountCode':'6900','amount':10,'narration':'Zakat'},{'payeeId':pid,'accountCode':'6900','amount':20,'narration':'Office stationery'}]});assert [l['account'] for l in zakat_row['result']['journal']['lines']]==['7210','6900','1110']
+    assert mutate('bank_entries',**{**bankpay,'reference':'WRONG-EXPENSE-TYPE','debitRows':[{'payeeId':pid,'accountCode':'1110','amount':30}]})[0]==422
+    permissions['cashbank']=['View'];set_user();assert mutate('accounts_payees',kind='BUSINESS',name='Denied',accountCode='2190')[0]==403;permissions['cashbank']=['View','Create','Edit','Delete'];set_user()
+    args={'action':'post','date':'2026-10-07','bankId':'BANK-1','reference':'PROFIT-1','narration':'Monthly gross saving profit','type':'SAVING_PROFIT','amount':1000,'withholdingTax':150}
+    result,b=good(**args);j=result['result']['journal'];assert [(x['account'],x['debit'],x['credit']) for x in j['lines']]==[('1110',850,0),('1260',150,0),('4400',0,1000)]
+    before=books.read_bytes();status,retry=request('bank_entries','?entity=TTI',b);assert status==200 and retry['result']==result['result'] and books.read_bytes()==before
+    assert request('bank_entries','?entity=TTI',{**b,'amount':5})[0]==409 and books.read_bytes()==before
+    assert request('bank_entries','?entity=TTI',{**b,'requestKey':'stale-fixture-key','revision':0})[0]==409
+    assert mutate('bank_entries',**args)[0]==422
+    assert mutate('bank_entries',**{**args,'reference':'WRONG-BANK','bankId':'BANK-BRM'})[0]==422
+    assert mutate('bank_entries',**{**args,'reference':'CURRENT-PROFIT','bankId':'BANK-2'})[0]==422
+    assert mutate('bank_entries',**{**args,'reference':'EXCESS-TAX','withholdingTax':1001})[0]==422
+    charge,_=good(action='post',type='BANK_CHARGE',bankId='BANK-1',date='2026-10-07',reference='CARD-FEE',narration='Annual card charge',amount=20,subaccountId='TTI-DEFAULT-BANK_CARD')
+    assert charge['result']['journal']['lines'][0]['subaccountId']=='TTI-DEFAULT-BANK_CARD'
+    payment={'action':'post','type':'PAYMENT','bankId':'BANK-1','date':'2026-10-07','reference':'PAYMENT-1','narration':'Stationery purchase','amount':100,'subaccountId':sid,'payee':'Any recipient','bankPaymentMethod':'CHEQUE','chequeNo':'CH-1','chequeDate':'2026-10-07'}
+    payment_result,_=good(**payment);j=payment_result['result']['journal'];assert j['lines'][0]['account']=='6900' and j['lines'][0]['subaccountId']==sid and j['lines'][1]['credit']==100
+    before=books.read_bytes();assert mutate('bank_entries',**{**payment,'reference':'DUPLICATE-CHEQUE'})[0]==422 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**payment,'reference':'WRONG-COMPANY','bankId':'BANK-BRM'})[0]==422
+    # A master move must not detach a posted subsidiary balance from its head.
+    before_move=books.read_bytes()
+    status,blocked,_=mutate('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6400',taxCategory='NONE')
+    assert status==422 and 'posted history' in blocked['error'] and books.read_bytes()==before_move,(status,blocked)
+    old=json.loads(books.read_text())['journals'][j['id']]['lines'][0];assert old['account']=='6900' and old['subaccountName']=='OFFICE STATIONERY'
+    good('accounts_subaccounts',operation='edit',id=sid,name='Office stationery renamed',parentCode='6900',taxCategory='NONE')
+    good(**{**payment,'reference':'PAYMENT-2','bankPaymentMethod':'ONLINE_BANKING','chequeNo':''})
+    _,ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+sid+'&from=2026-01-01&to=2026-10-07');assert ledger['closing']==200 and len(ledger['rows'])==2
+    assert {l['account'] for l in ledger['rows']}=={'6900'}
+    snapshot=request('accounts_subaccounts','?entity=TTI&to=2026-10-07')[1]
+    assert next(a for a in snapshot['subaccounts'] if a['id']==sid)['balance']==200
+    status,report=request('accounts_reports','?entity=TTI&asOf=2026-10-07&from=2026-01-01');assert status==200 and report['trialBalance']['totalDebit']==report['trialBalance']['totalCredit']
+    tax=request('accounts_subaccounts','?entity=TTI&from=2026-01-01&to=2026-10-07')[1]['taxReport'];assert next(r for r in tax if r['category']=='SAVINGS' and r['treatment']=='Recoverable')['debit']==150
+    before_tax=books.read_bytes();detail=request('accounts_subaccounts','?entity=TTI&from=2026-01-01&to=2026-10-07&report=withholding');assert detail[0]==200 and any(r['debit']==150 for r in detail[1]['taxEntries'])
+    reports_before=permissions['reports'];permissions['reports']=[];set_user();assert request('accounts_subaccounts','?entity=TTI&report=withholding')[0]==403
+    status,master_view=request('accounts_subaccounts','?entity=TTI');assert status==200 and 'taxEntries' not in master_view,'Master-only access exposed report narratives'
+    permissions['reports']=reports_before;set_user();assert books.read_bytes()==before_tax,'Read-only tax permission probes changed books'
+    transfer,_=good(action='post',type='TRANSFER',bankId='BANK-1',destinationBankId='BANK-2',date='2026-10-07',reference='TRANSFER-1',narration='Company bank transfer',amount=50,bankPaymentMethod='ONLINE_BANKING')
+    assert [l['bankAccountId'] for l in transfer['result']['journal']['lines']]==['BANK-2','BANK-1']
+    facility,_=good(action='facility',operation='add',name='Export refinance',bankId='BANK-1',reference='FAC-1');fid=facility['result']['facilityId']
+    finance={'action':'post','type':'FINANCE_DRAW','bankId':'BANK-1','facilityId':fid,'date':'2026-10-06','reference':'DRAW-1','narration':'Export finance advance','amount':10000,'financeReference':'INST-1','exportReference':'FI-10'}
+    draw,_=good(**finance);assert [l['account'] for l in draw['result']['journal']['lines']]==['1110','2610']
+    repay,_=good(**{**finance,'type':'FINANCE_REPAY','date':'2026-10-07','reference':'REPAY-1','amount':3000,'bankPaymentMethod':'ONLINE_BANKING'})
+    assert repay['facilities'][0]['outstanding']==7000
+    assert mutate('bank_entries',**{**finance,'type':'FINANCE_REPAY','date':'2026-10-07','reference':'EXCESS-REPAY','amount':7001,'bankPaymentMethod':'ONLINE_BANKING'})[0]==422
+    assert mutate('bank_entries',action='reverse',journalId=draw['result']['journalId'],date='2026-10-07',reason='Cannot strand principal repayment')[0]==422
+    markup,_=good(**{**finance,'type':'FINANCE_MARKUP','date':'2026-10-07','reference':'MARKUP-1','amount':100,'subaccountId':'TTI-DEFAULT-FINANCE_MARKUP','bankPaymentMethod':'ONLINE_BANKING'})
+    assert markup['facilities'][0]['outstanding']==7000 and markup['result']['journal']['lines'][0]['account']=='6800'
+    good(action='reverse',journalId=repay['result']['journalId'],date='2026-10-07',reason='Correct principal repayment')
+    good(action='reverse',journalId=draw['result']['journalId'],date='2026-10-07',reason='Correct finance drawdown')
+    assert request('bank_entries','?entity=TTI')[1]['facilities'][0]['outstanding']==0
+    fx,_=good(action='facility',operation='add',name='USD bank facility',bankId='BANK-USD');fxid=fx['result']['facilityId']
+    good(**{**finance,'facilityId':fxid,'bankId':'BANK-USD','date':'2026-10-06','reference':'USD-DRAW','amount':100,'exchangeRate':280})
+    fxrepay,_=good(**{**finance,'facilityId':fxid,'bankId':'BANK-USD','type':'FINANCE_REPAY','date':'2026-10-07','reference':'USD-REPAY','amount':100,'exchangeRate':281,'bankPaymentMethod':'ONLINE_BANKING'})
+    assert fxrepay['result']['journal']['totalDebit']==fxrepay['result']['journal']['totalCredit']==28100
+    assert next(l for l in fxrepay['result']['journal']['lines'] if l['account']=='7100')['debit']==100
+    # Finance principal is a liability in financial reports, never export sales.
+    good(**{**finance,'date':'2026-10-07','reference':'DRAW-NEW','amount':500})
+    _,report=request('accounts_reports','?entity=TTI&asOf=2026-10-07&from=2026-01-01');assert any(str(r['account'])=='2610' and r['amount']==500 for r in report['balanceSheet']['liabilities']),report['balanceSheet']['liabilities']
+    _,heads=request('accounts_subaccounts','?entity=TTI');assert next(h for h in heads['heads'] if h['code']=='2600')['balance']==-500
+    _,finance_ledger=request('accounts_ledger_browser','?entity=TTI&account=HEAD|2600&from=2026-01-01&to=2026-10-07');assert finance_ledger['closing']==-500
+    # One expense payment uses a named subaccount and keeps its single bank credit.
+    ex={'action':'pay_expense','csrf':'fixture','entity':'TTI','requestKey':'expense-subaccount-01','paymentDate':'2026-10-07','payee':'Stationery shop','paymentAccountId':'BANK-1','reference':'EXP-SUB','amount':25,'bankPaymentMethod':'ONLINE_BANKING','expenseLines':[{'category':'OFFICE','purpose':'Repairs materials','amount':25,'subaccountId':sid}]}
+    status,expense=request('expenses_v1','?entity=TTI',ex);assert status==200,(status,expense);j=json.loads(books.read_text())['journals'][expense['result']['journalId']];assert j['lines'][0]['account']=='6900' and j['lines'][0]['subaccountId']==sid and len(j['lines'])==2
+    # Named accounts also work in the controlled JV, carrying their head snapshot.
+    draft={'action':'save_draft','csrf':'fixture','entity':'TTI','date':'2026-10-07','reference':'JV-SUB','narration':'Accrued repairs','lines':[{'account':'SUB|'+sid,'debit':10,'credit':0},{'account':'2140','subledger':'Supplier','debit':0,'credit':10}]}
+    status,jv=request('journal_vouchers','?entity=TTI',draft);assert status==200,(status,jv);assert next(v for v in jv['jvs'] if v['id']==jv['result']['jvId'])['lines'][0]['subaccountId']==sid
+    # Archive with balance preserves every posted ledger and report.
+    good('accounts_subaccounts',operation='delete',id=sid)
+    assert mutate('bank_entries',**{**payment,'reference':'ARCHIVED-SUB','chequeNo':'CH-99'})[0]==422
+    _,ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+sid+'&from=2026-01-01&to=2026-10-07');assert ledger['closing']==225
+    good('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6900',taxCategory='NONE',active=True)
+    child,_=good('accounts_subaccounts',operation='add',name='Printer supplies',parentCode='6900',parentId=sid,taxCategory='NONE');cid=child['result']['subaccountId']
+    grand,_=good('accounts_subaccounts',operation='add',name='Toner supplies',parentCode='6900',parentId=cid,taxCategory='NONE');gid=grand['result']['subaccountId']
+    before=books.read_bytes();assert mutate('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6400',parentId=gid,taxCategory='NONE')[0]==422 and books.read_bytes()==before
+    historical=json.loads(books.read_text())['journals']
+    good('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6900',taxCategory='NONE')
+    _,tree=request('accounts_subaccounts','?entity=TTI');desc=next(x for x in tree['subaccounts'] if x['id']==gid);assert desc['parentCode']=='6900' and desc['parentId']==cid and 'TONER SUPPLIES' in desc['path']
+    assert json.loads(books.read_text())['journals']==historical
+    nested={**ex,'requestKey':'nested-expense-01','reference':'NESTED-EXP','expenseLines':[{'category':'OFFICE','purpose':'Printer toner','amount':25,'accountCode':'6900','subaccountId':gid}]}
+    status,res=request('expenses_v1','?entity=TTI',nested);assert status==200,(status,res)
+    _,parent_ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+sid+'&from=2026-01-01&to=2026-10-07');assert parent_ledger['closing']==250
+    bad={**nested,'requestKey':'nested-expense-bad','reference':'BAD-NESTED','expenseLines':[{**nested['expenseLines'][0],'accountCode':'6400'}]};assert request('expenses_v1','?entity=TTI',bad)[0]==422
+    good('accounts_subaccounts',operation='move_head',code='6400',parentCode='5200')
+    _,heads=request('accounts_subaccounts','?entity=TTI');assert next(h for h in heads['heads'] if h['code']=='6400')['parent']=='5200'
+    assert mutate('accounts_subaccounts',operation='move_head',code='5200',parentCode='6400')[0]==422
+    assert mutate('accounts_subaccounts',operation='move_head',code='6400',parentCode='1000')[0]==422
+    before=books.read_bytes();permissions['cashbank']=['View'];set_user();assert request('bank_entries','?entity=TTI',{**b,'requestKey':'readonly-bank-key'})[0]==403 and books.read_bytes()==before
+    permissions['cashbank']=[];set_user();assert request('bank_entries','?entity=TTI')[0]==403
+    permissions['cashbank']=['View','Create','Edit'];permissions['masters']=['View'];set_user();assert mutate('accounts_subaccounts',operation='add',name='Denied master',parentCode='6900')[0]==403
+    assert request('bank_entries','?entity=BRM')[0]==403
+    permissions['masters']=['View','Create','Edit','Delete'];set_user();assert request('bank_entries','?entity=TTI',{**b,'csrf':'bad'})[0]==419
+    # One Accounts posting supplies the Mill ledger; reading cannot duplicate or save it.
+    user['permissions']['Mill']={'petty':['View']};set_user()
+    auth_data=json.loads(auth.read_text());auth_data['masters']['mills']=[{'id':'mills-1','values':['TTI Rice Mills','','Own Mill','','','Active','','TTI']}];auth.write_text(json.dumps(auth_data))
+    mill,body=good(action='post',type='PETTY_CASH',bankId='BANK-1',date='2026-10-09',amount=750,pettyCashDestination='MILL',millLocationId='mills-1',reference='MILL-CASH-1',bankPaymentMethod='ONLINE_BANKING')
+    lines=mill['result']['journal']['lines'];assert lines[0]['debit']==750 and lines[1]['credit']==750 and lines[0]['millLocationId']=='mills-1'
+    before=books.read_bytes();status,view=request('mill_cash_ledger','?entity=TTI&locationId=mills-1');assert status==200,(status,view)
+    assert len(view['rows'])==1 and view['rows'][0]['debit']==750 and view['rows'][0]['voucher']==mill['result']['journalId']
+    assert request('mill_cash_ledger','?entity=TTI&locationId=mills-1')[1]['rows']==view['rows'] and books.read_bytes()==before
+    assert mutate('bank_entries',action='post',type='PETTY_CASH',bankId='BANK-1',date='2026-10-09',amount=10,pettyCashDestination='MILL',millLocationId='wrong-mill')[0]==422
+    good(action='reverse',journalId=mill['result']['journalId'],date='2026-10-10',reason='Reverse mill fixture')
+    assert request('mill_cash_ledger','?entity=TTI&locationId=mills-1')[1]['rows']==[]
+    cash,body=good(action='post',type='PETTY_CASH',bankId='CASH|TTI',date='2026-10-10',amount=100,pettyCashDestination='MILL',millLocationId='mills-1',reference='MILL-CASH-2')
+    assert all(line['account']=='1120' for line in cash['result']['journal']['lines'])
+    before=books.read_bytes();user['permissions']['Mill']={'petty':[]};set_user();assert request('mill_cash_ledger','?entity=TTI&locationId=mills-1')[0]==403 and books.read_bytes()==before
+    # Consortium funds are a liability, independent of the owner's Zakat expense.
+    fund,_=good('accounts_subaccounts',operation='add',name='Zakat collected for distribution',parentCode='2100',taxCategory='NONE');fund_id=fund['result']['subaccountId']
+    report_query='?entity=TTI&from=2026-10-01&to=2026-10-31';before_pl=request('accounts_reports',report_query)[1]['profitAndLoss']
+    collection,collection_body=good(action='post',type='RECEIPT',bankId='BANK-1',date='2026-10-11',amount=200,subaccountId=fund_id,payee='Consortium donor',reference='ZAKAT-FUND-COLLECTION',narration='Funds received for distribution')
+    collection_lines=collection['result']['journal']['lines'];assert [(l['account'],l['debit'],l['credit']) for l in collection_lines]==[('2100',0,200),('1110',200,0)]
+    before=books.read_bytes();assert request('bank_entries','?entity=TTI',collection_body)[0]==200 and books.read_bytes()==before
+    distribution,_=good(action='post',type='PAYMENT',bankId='BANK-1',date='2026-10-12',amount=75,subaccountId=fund_id,payee='Fund beneficiary',reference='ZAKAT-FUND-DISTRIBUTION',narration='Distribute collected funds',bankPaymentMethod='ONLINE_BANKING')
+    assert [(l['account'],l['debit'],l['credit']) for l in distribution['result']['journal']['lines']]==[('2100',75,0),('1110',0,75)]
+    assert request('accounts_reports',report_query)[1]['profitAndLoss']==before_pl,'Collection and fund distribution must not create or refund the owner Zakat expense'
+    _,fund_ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+fund_id+'&from=2026-10-01&to=2026-10-31');assert fund_ledger['closing']==-125 and len(fund_ledger['rows'])==2
+    # Other Receipt types use the shared Add/Edit/Delete subaccount lifecycle.
+    receipt_type,_=good('accounts_subaccounts',operation='add',name='Auction proceeds',parentCode='4400',taxCategory='NONE',receiptType=True)
+    receipt_type_id=receipt_type['result']['subaccountId']
+    assert next(a for a in receipt_type['subaccounts'] if a['id']==receipt_type_id)['receiptType']
+    before=books.read_bytes();assert mutate('accounts_subaccounts',operation='add',name='Invalid receipt expense',parentCode='6900',receiptType=True)[0]==422 and books.read_bytes()==before
+    typed,typed_body=good(action='post',type='RECEIPT',bankId='BANK-1',date='2026-10-13',amount=750,reference='OTHER-TYPED-RECEIPT',receiptKind='OTHER',receiptTypeId=receipt_type_id,payee='Auction buyer')
+    typed_journal=typed['result']['journal'];assert typed_journal['meta']['receiptTypeId']==receipt_type_id
+    assert typed_journal['lines'][0]['account']=='4400' and typed_journal['lines'][0]['subaccountId']==receipt_type_id
+    before=books.read_bytes();assert request('bank_entries','?entity=TTI',typed_body)[0]==200 and books.read_bytes()==before
+    good('accounts_subaccounts',operation='edit',id=receipt_type_id,name='Auction receipts',parentCode='4400',taxCategory='NONE',receiptType=True)
+    assert json.loads(books.read_text())['journals'][typed_journal['id']]==typed_journal,'Editing receipt types must preserve historical receipts'
+    before=books.read_bytes();assert mutate('accounts_subaccounts',operation='edit',id=receipt_type_id,name='Wrong accounting treatment',parentCode='3100',receiptType=True)[0]==422 and books.read_bytes()==before
+    good('accounts_subaccounts',operation='delete',id=receipt_type_id)
+    before=books.read_bytes();assert mutate('bank_entries',action='post',type='RECEIPT',bankId='BANK-1',date='2026-10-13',amount=1,reference='DELETED-TYPE',receiptKind='OTHER',receiptTypeId=receipt_type_id,payee='Buyer')[0]==422 and books.read_bytes()==before
+    assert json.loads(books.read_text())['journals'][typed_journal['id']]==typed_journal
+    # Linked receipts must update the original SODA, including advances, with one bank movement.
+    user['permissions']['Accounts']['customer']=['View','Create','Edit']
+    user['permissions']['Accounts']['group-reports']=['View','Approve']
+    set_user()
+    state=json.loads(books.read_text())
+    state['exporterDeals']={'HK':{'id':'HK','entity':'TTI','partyId':'HKM','party':'Haji Khushi Mohammed','reference':'HKM-3500','product':'5% White Rice','direction':'SALE','date':'2026-10-01','version':1,'payments':[]},'OTHER':{'id':'OTHER','entity':'BRM','partyId':'HKM','party':'Wrong books','reference':'BRM','direction':'SALE','date':'2026-10-01'},'KH':{'id':'KH','entity':'TTI','partyId':'KHAN','party':'Khan Rice Mills','reference':'KHAN-AMT','direction':'PURCHASE','date':'2026-10-01'}}
+    state['journals']['LOCAL-ORIGINAL']={'id':'LOCAL-ORIGINAL','entity':'TTI','date':'2026-10-01','status':'Posted','sourceType':'LOCAL_SALE_APPROVED','meta':{'soda':'LS-1','party':'Local Customer','product':'Rice'},'lines':[{'account':'1220','debit':1000,'credit':0,'soda':'LS-1','party':'Local Customer'}]}
+    books.write_text(json.dumps(state))
+    (private/'operations.json').write_text(json.dumps({'values':{'tt35localsales':json.dumps([{'soda':'LS-1','party':'Local Customer','entity':'TTI','date':'2026-10-01','millName':'TTI Rice Mills','product':'Rice'},{'soda':'LS-ADV','party':'Another Local Customer','entity':'TTI','date':'2026-10-01','millName':'TTI Rice Mills','product':'Broken'},{'soda':'BRM-ONLY','party':'Wrong books','entity':'BRM','date':'2026-10-01','millName':'BRM'}])}}))
+    before=books.read_bytes()
+    status,sources=request('bank_entries','?entity=TTI&view=receipt-sources&receiptKind=LOCAL_SALE')
+    assert status==200 and {x['id'] for x in sources['rows']}=={'LS-1','LS-ADV'},sources
+    assert books.read_bytes()==before
+    base={'action':'post','type':'RECEIPT','bankId':'BANK-1','date':'2026-10-14','amount':1200,'receiptKind':'LOCAL_SALE','receiptPartyId':'Local Customer','receiptSodaId':'LS-1','reference':'LOCAL-BANK-RECEIPT'}
+    preview,_=good(**base,preview=True)
+    assert books.read_bytes()==before and len(preview['previews'])==1
+    local,local_body=good(**base)
+    lines=local['result']['journal']['lines']
+    assert [(l['account'],l['debit'],l['credit']) for l in lines]==[('1110',1200,0),('1220',0,1000),('2510',0,200)]
+    assert all(l.get('soda')=='LS-1' for l in lines if l['account']!='1110')
+    before=books.read_bytes();assert request('bank_entries','?entity=TTI',local_body)[0]==200 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**base,'receiptPartyId':'Another Local Customer','reference':'BAD-PARTY'})[0]==422 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**base,'receiptSodaId':'BRM-ONLY','reference':'BAD-BOOKS'})[0]==422 and books.read_bytes()==before
+    good(action='reverse',journalId=local['result']['journalId'],date='2026-10-15',reason='Reverse linked local receipt')
+    rows=request('bank_entries','?entity=TTI&view=receipt-sources&receiptKind=LOCAL_SALE')[1]['rows']
+    assert next(x for x in rows if x['id']=='LS-1')['openReceivable']==1000
+    advanced,_=good(**{**base,'receiptPartyId':'Another Local Customer','receiptSodaId':'LS-ADV','reference':'LOCAL-ADVANCE'})
+    assert [l['account'] for l in advanced['result']['journal']['lines']]==['1110','2510']
+    fellow={**base,'receiptKind':'FELLOW_EXPORTER','receiptPartyId':'HKM','receiptSodaId':'HK','amount':5000000,'reference':'HKM-ACTUAL-ADVANCE'}
+    before=books.read_bytes();preview,_=good(**fellow,preview=True);assert books.read_bytes()==before
+    received,received_body=good(**fellow);journal=received['result']['journal'];lines=journal['lines']
+    assert [(l['account'],l['debit'],l['credit']) for l in lines]==[('1230',0,5000000),('1110',5000000,0)]
+    assert all(l['exporterDealId']=='HK' for l in lines) and journal['meta']['customerAdvance']
+    assert json.loads(books.read_text())['exporterDeals']['HK']['version']==2
+    before=books.read_bytes();assert request('bank_entries','?entity=TTI',received_body)[0]==200 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**fellow,'receiptPartyId':'KHAN','reference':'MISMATCH'})[0]==422 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**fellow,'receiptSodaId':'OTHER','reference':'OTHER-BOOKS'})[0]==422 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**fellow,'bankId':'BANK-USD','exchangeRate':280,'reference':'FX-BLOCK'})[0]==422 and books.read_bytes()==before
+    sources=request('bank_entries','?entity=TTI&view=receipt-sources&receiptKind=FELLOW_EXPORTER')[1]['rows']
+    assert [x['id'] for x in sources]==['HK'] and sources[0]['customerAdvance']==5000000
+    good(action='reverse',journalId=journal['id'],date='2026-10-15',reason='Reverse linked fellow receipt')
+    sources=request('bank_entries','?entity=TTI&view=receipt-sources&receiptKind=FELLOW_EXPORTER')[1]['rows']
+    assert sources[0]['customerAdvance']==0
+    user['permissions']['Accounts']['group-reports']=['View'];set_user();before=books.read_bytes()
+    assert mutate('bank_entries',**{**fellow,'reference':'NO-APPROVE'})[0]==422 and books.read_bytes()==before
+    user['permissions']['Accounts']['customer']=[];set_user()
+    assert request('bank_entries','?entity=TTI&view=receipt-sources&receiptKind=LOCAL_SALE')[0]==422 and books.read_bytes()==before
+    # Full native Bank Entry correction: open is read-only; preview/commit share its source engine.
+    user['permissions']['Accounts']['cashbank']=['View','Create','Edit'];set_user()
+    created,_=good(action='post',type='SAVING_PROFIT',bankId='BANK-1',date='2026-10-18',amount=100,withholdingTax=10,taxSubaccountId='TTI-DEFAULT-TAX-SAVINGS-RECOVERABLE',reference='FULL-BANK-EDIT',narration='Original saving profit')
+    old_id=created['result']['journalId'];before=books.read_bytes()
+    status,opened=request('bank_entries','?entity=TTI&editPostId='+old_id);assert status==200,opened
+    assert opened['editEntry']['input']['amount']==100 and opened['editEntry']['input']['withholdingTax']==10 and books.read_bytes()==before
+    correction={**opened['editEntry']['input'],'action':'amend','journalId':old_id,'reason':'Correct full saving profit form','amount':150,'withholdingTax':15,'date':'2026-10-17','narration':'Corrected native saving profit'}
+    preview,_=good(**correction,preview=True);assert books.read_bytes()==before and len(preview['previews'])==2
+    amended,body=good(**correction);j=amended['result']['journal'];assert j['meta']['publicPostId']==old_id and j['meta']['amountNative']==150 and j['meta']['withholdingTax']==15
+    assert j['date']=='2026-10-17' and sum(l['debit'] for l in j['lines'] if l['account']=='1110')==135
+    before=books.read_bytes();assert request('bank_entries','?entity=TTI',body)[0]==200 and books.read_bytes()==before
+    for endpoint in ['bank_entries','accounts_subaccounts']:
+        books.write_text('{broken JSON');before=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500 and books.read_bytes()==before
+    print('Bank entries, finance, subaccounts, expense/JV/ledger/report links, retries, corrections, permissions and corrupt-store protection passed.')
+
+

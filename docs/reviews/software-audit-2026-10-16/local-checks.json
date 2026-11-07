@@ -1,0 +1,2263 @@
+{
+  "baseline": "1beeac3f880fda95ab2dd722e653bdab0ee067ab",
+  "elapsedSeconds": 231.73,
+  "results": [
+    {
+      "command": "php tests/document-ai/routing_test.php",
+      "file": "tests/document-ai/routing_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__document-ai__routing_test.php.log"
+    },
+    {
+      "command": "php tests/document-ai/backend_test.php",
+      "file": "tests/document-ai/backend_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__document-ai__backend_test.php.log"
+    },
+    {
+      "command": "node tests/accounts-v1/accounts_notifications_test.js",
+      "file": "tests/accounts-v1/accounts_notifications_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__accounts_notifications_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/rules_engine_test.js",
+      "file": "tests/accounts-v1/rules_engine_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__rules_engine_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/salary_donations_test.js",
+      "file": "tests/accounts-v1/salary_donations_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__salary_donations_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/expenses_v1_test.js",
+      "file": "tests/accounts-v1/expenses_v1_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.24,
+      "log": "tests__accounts-v1__expenses_v1_test.js.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/carry_forward_http_test.py",
+      "file": "tests/accounts-v1/carry_forward_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.18,
+      "log": "tests__accounts-v1__carry_forward_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/direct_expense_http_test.py",
+      "file": "tests/accounts-v1/direct_expense_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 10.25,
+      "log": "tests__accounts-v1__direct_expense_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/financial_report_classification_http_test.py",
+      "file": "tests/accounts-v1/financial_report_classification_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.43,
+      "log": "tests__accounts-v1__financial_report_classification_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/party_ledger_http_test.py",
+      "file": "tests/accounts-v1/party_ledger_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.54,
+      "log": "tests__accounts-v1__party_ledger_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/bank_entries_http_test.py",
+      "file": "tests/accounts-v1/bank_entries_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 17.23,
+      "log": "tests__accounts-v1__bank_entries_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/bank_reconciliation_http_test.py",
+      "file": "tests/accounts-v1/bank_reconciliation_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 3.16,
+      "log": "tests__accounts-v1__bank_reconciliation_http_test.py.log"
+    },
+    {
+      "command": "php tests/accounts-v1/bank_reconciliation_projection_test.php",
+      "file": "tests/accounts-v1/bank_reconciliation_projection_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__accounts-v1__bank_reconciliation_projection_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/company_investments_test.py",
+      "file": "tests/accounts-v1/company_investments_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.86,
+      "log": "tests__accounts-v1__company_investments_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/recurring_bills_profit_test.py",
+      "file": "tests/accounts-v1/recurring_bills_profit_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 3.38,
+      "log": "tests__accounts-v1__recurring_bills_profit_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/payment_plans_test.py",
+      "file": "tests/accounts-v1/payment_plans_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 13.55,
+      "log": "tests__accounts-v1__payment_plans_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/supplier_discount_test.py",
+      "file": "tests/accounts-v1/supplier_discount_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 11.8,
+      "log": "tests__accounts-v1__supplier_discount_test.py.log"
+    },
+    {
+      "command": "node tests/accounts-v1/reimbursements_general_expenses_test.js",
+      "file": "tests/accounts-v1/reimbursements_general_expenses_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__reimbursements_general_expenses_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/other_purchases_fixed_assets_test.js",
+      "file": "tests/accounts-v1/other_purchases_fixed_assets_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__other_purchases_fixed_assets_test.js.log"
+    },
+    {
+      "command": "php tests/accounts-v1/assets_registry_test.php",
+      "file": "tests/accounts-v1/assets_registry_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__assets_registry_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/assets_registry_http_test.py",
+      "file": "tests/accounts-v1/assets_registry_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.43,
+      "log": "tests__accounts-v1__assets_registry_http_test.py.log"
+    },
+    {
+      "command": "node tests/accounts-v1/rent_recurring_test.js",
+      "file": "tests/accounts-v1/rent_recurring_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__rent_recurring_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/journal_vouchers_test.js",
+      "file": "tests/accounts-v1/journal_vouchers_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.56,
+      "log": "tests__accounts-v1__journal_vouchers_test.js.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/jv_posting_flow_http_test.py",
+      "file": "tests/accounts-v1/jv_posting_flow_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.49,
+      "log": "tests__accounts-v1__jv_posting_flow_http_test.py.log"
+    },
+    {
+      "command": "node tests/accounts-v1/end_to_end_audit.js",
+      "file": "tests/accounts-v1/end_to_end_audit.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.2,
+      "log": "tests__accounts-v1__end_to_end_audit.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/static_audit.js",
+      "file": "tests/accounts-v1/static_audit.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__accounts-v1__static_audit.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/clean_ui_test.js",
+      "file": "tests/accounts-v1/clean_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__clean_ui_test.js.log"
+    },
+    {
+      "command": "node tests/master_data_topbar_audit.js",
+      "file": "tests/master_data_topbar_audit.js",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.17,
+      "log": "tests__master_data_topbar_audit.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/payment_defaults_ui_test.js",
+      "file": "tests/accounts-v1/payment_defaults_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__accounts-v1__payment_defaults_ui_test.js.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/payment_defaults_http_test.py",
+      "file": "tests/accounts-v1/payment_defaults_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.65,
+      "log": "tests__accounts-v1__payment_defaults_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/company_bank_defaults_http_test.py",
+      "file": "tests/accounts-v1/company_bank_defaults_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.38,
+      "log": "tests__accounts-v1__company_bank_defaults_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/linked_retention_bank_test.py",
+      "file": "tests/accounts-v1/linked_retention_bank_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 3.89,
+      "log": "tests__accounts-v1__linked_retention_bank_test.py.log"
+    },
+    {
+      "command": "php tests/accounts-v1/finish_options_test.php",
+      "file": "tests/accounts-v1/finish_options_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__accounts-v1__finish_options_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/post_id_migration_test.php",
+      "file": "tests/accounts-v1/post_id_migration_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__accounts-v1__post_id_migration_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/salary_month_http_test.py",
+      "file": "tests/accounts-v1/salary_month_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.27,
+      "log": "tests__accounts-v1__salary_month_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/bank_overdraft_http_test.py",
+      "file": "tests/accounts-v1/bank_overdraft_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.44,
+      "log": "tests__accounts-v1__bank_overdraft_http_test.py.log"
+    },
+    {
+      "command": "php tests/accounts-v1/ledger_visibility_test.php",
+      "file": "tests/accounts-v1/ledger_visibility_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__ledger_visibility_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/ledger_narration_test.php",
+      "file": "tests/accounts-v1/ledger_narration_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.23,
+      "log": "tests__accounts-v1__ledger_narration_test.php.log"
+    },
+    {
+      "command": "node tests/accounts-v1/ledger_posting_rows_test.js",
+      "file": "tests/accounts-v1/ledger_posting_rows_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__accounts-v1__ledger_posting_rows_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/ledger_workbook_test.js",
+      "file": "tests/accounts-v1/ledger_workbook_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.23,
+      "log": "tests__accounts-v1__ledger_workbook_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/export_v3_linkage_test.js",
+      "file": "tests/accounts-v1/export_v3_linkage_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__export_v3_linkage_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/export_receipt_scope_test.js",
+      "file": "tests/accounts-v1/export_receipt_scope_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__export_receipt_scope_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/product_stage_architecture_test.js",
+      "file": "tests/accounts-v1/product_stage_architecture_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__product_stage_architecture_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/broker_brokery_master_test.js",
+      "file": "tests/accounts-v1/broker_brokery_master_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.27,
+      "log": "tests__accounts-v1__broker_brokery_master_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/soda_milling_routing_test.js",
+      "file": "tests/accounts-v1/soda_milling_routing_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__accounts-v1__soda_milling_routing_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/soda_master_compatibility_test.js",
+      "file": "tests/accounts-v1/soda_master_compatibility_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__soda_master_compatibility_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/linkage_regressions_test.js",
+      "file": "tests/accounts-v1/linkage_regressions_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__linkage_regressions_test.js.log"
+    },
+    {
+      "command": "php tests/accounts-v1/customer_receivables_test.php",
+      "file": "tests/accounts-v1/customer_receivables_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.23,
+      "log": "tests__accounts-v1__customer_receivables_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/fi_credit_advice_link_test.php",
+      "file": "tests/accounts-v1/fi_credit_advice_link_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__fi_credit_advice_link_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/fi_credit_advice_http_test.py",
+      "file": "tests/accounts-v1/fi_credit_advice_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.39,
+      "log": "tests__accounts-v1__fi_credit_advice_http_test.py.log"
+    },
+    {
+      "command": "php tests/accounts-v1/tg_receipt_mirror_test.php",
+      "file": "tests/accounts-v1/tg_receipt_mirror_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__tg_receipt_mirror_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/tg_remittance_http_test.py",
+      "file": "tests/accounts-v1/tg_remittance_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.8,
+      "log": "tests__accounts-v1__tg_remittance_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/general_bag_bill_http_test.py",
+      "file": "tests/accounts-v1/general_bag_bill_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.33,
+      "log": "tests__accounts-v1__general_bag_bill_http_test.py.log"
+    },
+    {
+      "command": "php tests/accounts-v1/accounts_reset_scope_test.php",
+      "file": "tests/accounts-v1/accounts_reset_scope_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__accounts_reset_scope_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/qa_account_profile_test.php",
+      "file": "tests/accounts-v1/qa_account_profile_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.23,
+      "log": "tests__accounts-v1__qa_account_profile_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/request_store_read_cache_test.php",
+      "file": "tests/accounts-v1/request_store_read_cache_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.28,
+      "log": "tests__accounts-v1__request_store_read_cache_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/export_charge_seed_concurrency_test.php",
+      "file": "tests/accounts-v1/export_charge_seed_concurrency_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.34,
+      "log": "tests__accounts-v1__export_charge_seed_concurrency_test.php.log"
+    },
+    {
+      "command": "php tests/security/qa_account_read_only_test.php",
+      "file": "tests/security/qa_account_read_only_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__security__qa_account_read_only_test.php.log"
+    },
+    {
+      "command": "node tests/accounts-v1/director_approvals_ui_test.js",
+      "file": "tests/accounts-v1/director_approvals_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.17,
+      "log": "tests__accounts-v1__director_approvals_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/director_bank_approval_ui_test.js",
+      "file": "tests/accounts-v1/director_bank_approval_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__director_bank_approval_ui_test.js.log"
+    },
+    {
+      "command": "php tests/accounts-v1/director_approvals_test.php",
+      "file": "tests/accounts-v1/director_approvals_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__director_approvals_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/director_approvals_http_test.py",
+      "file": "tests/accounts-v1/director_approvals_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.39,
+      "log": "tests__accounts-v1__director_approvals_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/approval_integrity_test.py",
+      "file": "tests/accounts-v1/approval_integrity_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 5.44,
+      "log": "tests__accounts-v1__approval_integrity_test.py.log"
+    },
+    {
+      "command": "php tests/accounts-v1/accounts_reviews_test.php",
+      "file": "tests/accounts-v1/accounts_reviews_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.23,
+      "log": "tests__accounts-v1__accounts_reviews_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/accounts_reviews_http_test.py",
+      "file": "tests/accounts-v1/accounts_reviews_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.49,
+      "log": "tests__accounts-v1__accounts_reviews_http_test.py.log"
+    },
+    {
+      "command": "node tests/accounts-v1/credit_advice_amendment_ui_test.js",
+      "file": "tests/accounts-v1/credit_advice_amendment_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__credit_advice_amendment_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/accounts_uppercase_ui_test.js",
+      "file": "tests/accounts-v1/accounts_uppercase_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__accounts_uppercase_ui_test.js.log"
+    },
+    {
+      "command": "php tests/accounts-v1/credit_advice_amendment_test.php",
+      "file": "tests/accounts-v1/credit_advice_amendment_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__credit_advice_amendment_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/service_ledger_groups_test.php",
+      "file": "tests/accounts-v1/service_ledger_groups_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__service_ledger_groups_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/bag_order_report_test.php",
+      "file": "tests/accounts-v1/bag_order_report_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__bag_order_report_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/bag_order_report_http_test.py",
+      "file": "tests/accounts-v1/bag_order_report_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.34,
+      "log": "tests__accounts-v1__bag_order_report_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/historical_bags_http_test.py",
+      "file": "tests/accounts-v1/historical_bags_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.66,
+      "log": "tests__accounts-v1__historical_bags_http_test.py.log"
+    },
+    {
+      "command": "php tests/accounts-v1/forward_bookings_test.php",
+      "file": "tests/accounts-v1/forward_bookings_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__forward_bookings_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/forward_bookings_http_test.py",
+      "file": "tests/accounts-v1/forward_bookings_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.6,
+      "log": "tests__accounts-v1__forward_bookings_http_test.py.log"
+    },
+    {
+      "command": "php tests/accounts-v1/post_amendment_test.php",
+      "file": "tests/accounts-v1/post_amendment_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__accounts-v1__post_amendment_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/public_reference_surfaces_test.php",
+      "file": "tests/accounts-v1/public_reference_surfaces_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__public_reference_surfaces_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/post_cancel_preview_test.py",
+      "file": "tests/accounts-v1/post_cancel_preview_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.54,
+      "log": "tests__accounts-v1__post_cancel_preview_test.py.log"
+    },
+    {
+      "command": "php tests/accounts-v1/bank_payment_tracking_test.php",
+      "file": "tests/accounts-v1/bank_payment_tracking_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__bank_payment_tracking_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/freight_metadata_test.php",
+      "file": "tests/accounts-v1/freight_metadata_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__freight_metadata_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/ready_rice_bill_http_test.py",
+      "file": "tests/accounts-v1/ready_rice_bill_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 3.8,
+      "log": "tests__accounts-v1__ready_rice_bill_http_test.py.log"
+    },
+    {
+      "command": "php tests/accounts-v1/supplier_cheque_lifecycle_test.php",
+      "file": "tests/accounts-v1/supplier_cheque_lifecycle_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__supplier_cheque_lifecycle_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/supplier_opening_http_test.py",
+      "file": "tests/accounts-v1/supplier_opening_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.33,
+      "log": "tests__accounts-v1__supplier_opening_http_test.py.log"
+    },
+    {
+      "command": "php tests/accounts-v1/supplier_opening_core_test.php",
+      "file": "tests/accounts-v1/supplier_opening_core_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__supplier_opening_core_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/local_customer_cheque_test.php",
+      "file": "tests/accounts-v1/local_customer_cheque_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__local_customer_cheque_test.php.log"
+    },
+    {
+      "command": "php tests/security/setup_storage_hardening_test.php",
+      "file": "tests/security/setup_storage_hardening_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__security__setup_storage_hardening_test.php.log"
+    },
+    {
+      "command": "php tests/security/master_permission_migration_test.php",
+      "file": "tests/security/master_permission_migration_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__security__master_permission_migration_test.php.log"
+    },
+    {
+      "command": "php tests/security/authentication_hardening_test.php",
+      "file": "tests/security/authentication_hardening_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.39,
+      "log": "tests__security__authentication_hardening_test.php.log"
+    },
+    {
+      "command": "php tests/security/session_web_hardening_test.php",
+      "file": "tests/security/session_web_hardening_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__security__session_web_hardening_test.php.log"
+    },
+    {
+      "command": "php tests/security/server_backup_hardening_test.php",
+      "file": "tests/security/server_backup_hardening_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.37,
+      "log": "tests__security__server_backup_hardening_test.php.log"
+    },
+    {
+      "command": "php tests/security/upload_validation_test.php",
+      "file": "tests/security/upload_validation_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__security__upload_validation_test.php.log"
+    },
+    {
+      "command": "php tests/security/office_backup_auth_test.php",
+      "file": "tests/security/office_backup_auth_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__security__office_backup_auth_test.php.log"
+    },
+    {
+      "command": "python3 tests/security/office_backup_agent_test.py",
+      "file": "tests/security/office_backup_agent_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.33,
+      "log": "tests__security__office_backup_agent_test.py.log"
+    },
+    {
+      "command": "python3 tests/security/logout_http_test.py",
+      "file": "tests/security/logout_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.33,
+      "log": "tests__security__logout_http_test.py.log"
+    },
+    {
+      "command": "node tests/accounts-v1/master_role_mapping_test.js",
+      "file": "tests/accounts-v1/master_role_mapping_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__master_role_mapping_test.js.log"
+    },
+    {
+      "command": "node tests/offline_recovery_audit.js",
+      "file": "tests/offline_recovery_audit.js",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__offline_recovery_audit.js.log"
+    },
+    {
+      "command": "php tests/security/operations_ownership_test.php",
+      "file": "tests/security/operations_ownership_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__security__operations_ownership_test.php.log"
+    },
+    {
+      "command": "php tests/accounts-v1/inventory_reconciliation_test.php",
+      "file": "tests/accounts-v1/inventory_reconciliation_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__accounts-v1__inventory_reconciliation_test.php.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/stock_reconciliation_review_http_test.py",
+      "file": "tests/accounts-v1/stock_reconciliation_review_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.92,
+      "log": "tests__accounts-v1__stock_reconciliation_review_http_test.py.log"
+    },
+    {
+      "command": "node tests/accounts-v1/inventory_reconciliation_ui_test.js",
+      "file": "tests/accounts-v1/inventory_reconciliation_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__inventory_reconciliation_ui_test.js.log"
+    },
+    {
+      "command": "python3 tests/accounts-v1/inventory_reconciliation_http_test.py",
+      "file": "tests/accounts-v1/inventory_reconciliation_http_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 5.18,
+      "log": "tests__accounts-v1__inventory_reconciliation_http_test.py.log"
+    },
+    {
+      "command": "php tests/runtime_delivery_test.php",
+      "file": "tests/runtime_delivery_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__runtime_delivery_test.php.log"
+    },
+    {
+      "command": "php tests/runtime_asset_version_test.php",
+      "file": "tests/runtime_asset_version_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__runtime_asset_version_test.php.log"
+    },
+    {
+      "command": "php tests/security/retired_owner_cleanup_test.php",
+      "file": "tests/security/retired_owner_cleanup_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__security__retired_owner_cleanup_test.php.log"
+    },
+    {
+      "command": "python3 tests/security/private_session_storage_test.py",
+      "file": "tests/security/private_session_storage_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 4.62,
+      "log": "tests__security__private_session_storage_test.py.log"
+    },
+    {
+      "command": "python3 tests/security/startup_delivery_test.py",
+      "file": "tests/security/startup_delivery_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.49,
+      "log": "tests__security__startup_delivery_test.py.log"
+    },
+    {
+      "command": "python3 tests/security/login_startup_latency_test.py",
+      "file": "tests/security/login_startup_latency_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 5.03,
+      "log": "tests__security__login_startup_latency_test.py.log"
+    },
+    {
+      "command": "python3 tests/security/authentication_boundary_test.py",
+      "file": "tests/security/authentication_boundary_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 13.59,
+      "log": "tests__security__authentication_boundary_test.py.log"
+    },
+    {
+      "command": "python3 tests/security/session_retention_test.py",
+      "file": "tests/security/session_retention_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 2.85,
+      "log": "tests__security__session_retention_test.py.log"
+    },
+    {
+      "command": "python3 tests/security/entity_icon_authorization_test.py",
+      "file": "tests/security/entity_icon_authorization_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.49,
+      "log": "tests__security__entity_icon_authorization_test.py.log"
+    },
+    {
+      "command": "python3 tests/security/api_workflow_authorization_test.py",
+      "file": "tests/security/api_workflow_authorization_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 6.65,
+      "log": "tests__security__api_workflow_authorization_test.py.log"
+    },
+    {
+      "command": "python3 tests/security/mill_cash_authorization_test.py",
+      "file": "tests/security/mill_cash_authorization_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 6.35,
+      "log": "tests__security__mill_cash_authorization_test.py.log"
+    },
+    {
+      "command": "node tests/accounts-v1/payee_summary_escape_test.js",
+      "file": "tests/accounts-v1/payee_summary_escape_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__accounts-v1__payee_summary_escape_test.js.log"
+    },
+    {
+      "command": "node tests/runtime_security_static_audit.js",
+      "file": "tests/runtime_security_static_audit.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__runtime_security_static_audit.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/accounts_unified_forms_test.js",
+      "file": "tests/accounts-v1/accounts_unified_forms_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 2.14,
+      "log": "tests__accounts-v1__accounts_unified_forms_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/review_entry_defaults_test.js",
+      "file": "tests/accounts-v1/review_entry_defaults_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.01,
+      "log": "tests__accounts-v1__review_entry_defaults_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/review_receipt_ui_test.js",
+      "file": "tests/accounts-v1/review_receipt_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.03,
+      "log": "tests__accounts-v1__review_receipt_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/bag_report_modes_test.js",
+      "file": "tests/accounts-v1/bag_report_modes_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.0,
+      "log": "tests__accounts-v1__bag_report_modes_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/accounts_home_cleanup_ui_test.js",
+      "file": "tests/accounts-v1/accounts_home_cleanup_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.91,
+      "log": "tests__accounts-v1__accounts_home_cleanup_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/bag_order_report_ui_test.js",
+      "file": "tests/accounts-v1/bag_order_report_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.85,
+      "log": "tests__accounts-v1__bag_order_report_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/investment_edit_ui_test.js",
+      "file": "tests/accounts-v1/investment_edit_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.95,
+      "log": "tests__accounts-v1__investment_edit_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/accounts_controls_ui_test.js",
+      "file": "tests/accounts-v1/accounts_controls_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.84,
+      "log": "tests__accounts-v1__accounts_controls_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/module_form_consistency_test.js",
+      "file": "tests/accounts-v1/module_form_consistency_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.96,
+      "log": "tests__accounts-v1__module_form_consistency_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/saved_expense_selection_ui_test.js",
+      "file": "tests/accounts-v1/saved_expense_selection_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.79,
+      "log": "tests__accounts-v1__saved_expense_selection_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/jv_decision_notices_ui_test.js",
+      "file": "tests/accounts-v1/jv_decision_notices_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.0,
+      "log": "tests__accounts-v1__jv_decision_notices_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/amendment_bank_fields_ui_test.js",
+      "file": "tests/accounts-v1/amendment_bank_fields_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.78,
+      "log": "tests__accounts-v1__amendment_bank_fields_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/party_payment_choices_test.js",
+      "file": "tests/accounts-v1/party_payment_choices_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.98,
+      "log": "tests__accounts-v1__party_payment_choices_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/opening_only_payment_ui_test.js",
+      "file": "tests/accounts-v1/opening_only_payment_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.41,
+      "log": "tests__accounts-v1__opening_only_payment_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/opening_review_ui_test.js",
+      "file": "tests/accounts-v1/opening_review_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.31,
+      "log": "tests__accounts-v1__opening_review_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/historical_bags_ui_test.js",
+      "file": "tests/accounts-v1/historical_bags_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.47,
+      "log": "tests__accounts-v1__historical_bags_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/bag_linked_supplier_ui_test.js",
+      "file": "tests/accounts-v1/bag_linked_supplier_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.1,
+      "log": "tests__accounts-v1__bag_linked_supplier_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/forward_bookings_ui_test.js",
+      "file": "tests/accounts-v1/forward_bookings_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.95,
+      "log": "tests__accounts-v1__forward_bookings_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/pay_to_unique_choice_test.js",
+      "file": "tests/accounts-v1/pay_to_unique_choice_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.79,
+      "log": "tests__accounts-v1__pay_to_unique_choice_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/cheque_dates_ui_test.js",
+      "file": "tests/accounts-v1/cheque_dates_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.89,
+      "log": "tests__accounts-v1__cheque_dates_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/investment_payment_date_actions_test.js",
+      "file": "tests/accounts-v1/investment_payment_date_actions_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.05,
+      "log": "tests__accounts-v1__investment_payment_date_actions_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/ledger_amend_dates_ui_test.js",
+      "file": "tests/accounts-v1/ledger_amend_dates_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.0,
+      "log": "tests__accounts-v1__ledger_amend_dates_ui_test.js.log"
+    },
+    {
+      "command": "php tests/accounts-v1/cheque_dates_backend_test.php",
+      "file": "tests/accounts-v1/cheque_dates_backend_test.php",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__cheque_dates_backend_test.php.log"
+    },
+    {
+      "command": "node tests/accounts-v1/payment_difference_ui_test.js",
+      "file": "tests/accounts-v1/payment_difference_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.95,
+      "log": "tests__accounts-v1__payment_difference_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/trial_balance_ui_test.js",
+      "file": "tests/accounts-v1/trial_balance_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.79,
+      "log": "tests__accounts-v1__trial_balance_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/report_navigation_test.js",
+      "file": "tests/accounts-v1/report_navigation_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__report_navigation_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/post_confirmation_ownership_test.js",
+      "file": "tests/accounts-v1/post_confirmation_ownership_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.8,
+      "log": "tests__accounts-v1__post_confirmation_ownership_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/workspace_response_ownership_test.js",
+      "file": "tests/accounts-v1/workspace_response_ownership_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.95,
+      "log": "tests__accounts-v1__workspace_response_ownership_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/bag_review_lifecycle_test.js",
+      "file": "tests/accounts-v1/bag_review_lifecycle_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.7,
+      "log": "tests__accounts-v1__bag_review_lifecycle_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/accounts_master_controls_test.js",
+      "file": "tests/accounts-v1/accounts_master_controls_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.17,
+      "log": "tests__accounts-v1__accounts_master_controls_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/accounts_master_popup_browser_test.js",
+      "file": "tests/accounts-v1/accounts_master_popup_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 1.16,
+      "log": "tests__accounts-v1__accounts_master_popup_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/expense_review_batch_browser_test.js",
+      "file": "tests/accounts-v1/expense_review_batch_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.9,
+      "log": "tests__accounts-v1__expense_review_batch_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/costing_navigation_test.js",
+      "file": "tests/accounts-v1/costing_navigation_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 4.21,
+      "log": "tests__accounts-v1__costing_navigation_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/payables_draft_stability_test.js",
+      "file": "tests/accounts-v1/payables_draft_stability_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 2.36,
+      "log": "tests__accounts-v1__payables_draft_stability_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/tg_navigation_scope_test.js",
+      "file": "tests/accounts-v1/tg_navigation_scope_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__accounts-v1__tg_navigation_scope_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/expense_forms_browser_test.js",
+      "file": "tests/accounts-v1/expense_forms_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.89,
+      "log": "tests__accounts-v1__expense_forms_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/post_register_browser_test.js",
+      "file": "tests/accounts-v1/post_register_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.91,
+      "log": "tests__accounts-v1__post_register_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/direct_expense_browser_test.js",
+      "file": "tests/accounts-v1/direct_expense_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.95,
+      "log": "tests__accounts-v1__direct_expense_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/unified_expense_browser_test.js",
+      "file": "tests/accounts-v1/unified_expense_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.95,
+      "log": "tests__accounts-v1__unified_expense_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/purchase_handler_browser_test.js",
+      "file": "tests/accounts-v1/purchase_handler_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.89,
+      "log": "tests__accounts-v1__purchase_handler_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/supplier_opening_browser_test.js",
+      "file": "tests/accounts-v1/supplier_opening_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.99,
+      "log": "tests__accounts-v1__supplier_opening_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/numeric_entry_ui_test.js",
+      "file": "tests/accounts-v1/numeric_entry_ui_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 1.16,
+      "log": "tests__accounts-v1__numeric_entry_ui_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/numeric_no_step_browser_test.js",
+      "file": "tests/accounts-v1/numeric_no_step_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.95,
+      "log": "tests__accounts-v1__numeric_no_step_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/accounts_date_jv_browser_test.js",
+      "file": "tests/accounts-v1/accounts_date_jv_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 1.51,
+      "log": "tests__accounts-v1__accounts_date_jv_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/accounts_layout_regression_browser_test.js",
+      "file": "tests/accounts-v1/accounts_layout_regression_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 1.51,
+      "log": "tests__accounts-v1__accounts_layout_regression_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/form_viewport_browser_test.js",
+      "file": "tests/accounts-v1/form_viewport_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 1.05,
+      "log": "tests__accounts-v1__form_viewport_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/payment_plans_browser_test.js",
+      "file": "tests/accounts-v1/payment_plans_browser_test.js",
+      "workflows": [
+        "accounts-v1-qa.yml",
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 1.51,
+      "log": "tests__accounts-v1__payment_plans_browser_test.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "python3 tests/security/export_document_permissions_test.py",
+      "file": "tests/security/export_document_permissions_test.py",
+      "workflows": [
+        "accounts-v1-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 8.9,
+      "log": "tests__security__export_document_permissions_test.py.log"
+    },
+    {
+      "command": "node tests/exports-v3/shared_save_persistence_test.js",
+      "file": "tests/exports-v3/shared_save_persistence_test.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__exports-v3__shared_save_persistence_test.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/lot_reopen_permission_test.js",
+      "file": "tests/exports-v3/lot_reopen_permission_test.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.23,
+      "log": "tests__exports-v3__lot_reopen_permission_test.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/lot_completion_persistence_browser_qa.js",
+      "file": "tests/exports-v3/lot_completion_persistence_browser_qa.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.9,
+      "log": "tests__exports-v3__lot_completion_persistence_browser_qa.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/exports-v3/exports_acceptance_20260914_audit.js",
+      "file": "tests/exports-v3/exports_acceptance_20260914_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__exports-v3__exports_acceptance_20260914_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/exports_sol4_handover_audit.js",
+      "file": "tests/exports-v3/exports_sol4_handover_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.13,
+      "log": "tests__exports-v3__exports_sol4_handover_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/commercial_documents_20260915_audit.js",
+      "file": "tests/exports-v3/commercial_documents_20260915_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__exports-v3__commercial_documents_20260915_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/document_rules_20260917_audit.js",
+      "file": "tests/exports-v3/document_rules_20260917_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__exports-v3__document_rules_20260917_audit.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/dependent_fields_test.js",
+      "file": "tests/accounts-v1/dependent_fields_test.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.69,
+      "log": "tests__accounts-v1__dependent_fields_test.js.log"
+    },
+    {
+      "command": "node tests/accounts-v1/bank_save_browser_qa.js",
+      "file": "tests/accounts-v1/bank_save_browser_qa.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.89,
+      "log": "tests__accounts-v1__bank_save_browser_qa.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/accounts-v1/today_ui_browser_qa.js",
+      "file": "tests/accounts-v1/today_ui_browser_qa.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.96,
+      "log": "tests__accounts-v1__today_ui_browser_qa.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/exports-v3/export_release_test.js",
+      "file": "tests/exports-v3/export_release_test.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.27,
+      "log": "tests__exports-v3__export_release_test.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/sales_contract_browser_qa.js",
+      "file": "tests/exports-v3/sales_contract_browser_qa.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.95,
+      "log": "tests__exports-v3__sales_contract_browser_qa.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/exports-v3/shipment_documents_browser_qa.js",
+      "file": "tests/exports-v3/shipment_documents_browser_qa.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.94,
+      "log": "tests__exports-v3__shipment_documents_browser_qa.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/exports-v3/coo_master_refresh_20260930_audit.js",
+      "file": "tests/exports-v3/coo_master_refresh_20260930_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.98,
+      "log": "tests__exports-v3__coo_master_refresh_20260930_audit.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/exports-v3/final_documents_20260930_browser_qa.js",
+      "file": "tests/exports-v3/final_documents_20260930_browser_qa.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 1.05,
+      "log": "tests__exports-v3__final_documents_20260930_browser_qa.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/exports-v3/shipment_package_20261001_browser_qa.js",
+      "file": "tests/exports-v3/shipment_package_20261001_browser_qa.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.9,
+      "log": "tests__exports-v3__shipment_package_20261001_browser_qa.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/exports-v3/backend_static_audit.js",
+      "file": "tests/exports-v3/backend_static_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.17,
+      "log": "tests__exports-v3__backend_static_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/bridge_integration_test.js",
+      "file": "tests/exports-v3/bridge_integration_test.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__exports-v3__bridge_integration_test.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/browser_dom_audit.js",
+      "file": "tests/exports-v3/browser_dom_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 1.64,
+      "log": "tests__exports-v3__browser_dom_audit.js.log",
+      "rerun": {
+        "status": "passed",
+        "dependency": "jsdom@27",
+        "reason": "Match the Exports CI dependency; no application source change."
+      }
+    },
+    {
+      "command": "node tests/exports-v3/focus_preservation_browser_qa.js",
+      "file": "tests/exports-v3/focus_preservation_browser_qa.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "failed",
+      "exitCode": 1,
+      "seconds": 0.95,
+      "log": "tests__exports-v3__focus_preservation_browser_qa.js.log",
+      "classification": "blocked_browser_runtime"
+    },
+    {
+      "command": "node tests/exports-v3/export_master_icons_audit.js",
+      "file": "tests/exports-v3/export_master_icons_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__exports-v3__export_master_icons_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/export_entry_ux_audit.js",
+      "file": "tests/exports-v3/export_entry_ux_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__exports-v3__export_entry_ux_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/deletion_server_ack_audit.js",
+      "file": "tests/exports-v3/deletion_server_ack_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__exports-v3__deletion_server_ack_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/new_contract_reset_audit.js",
+      "file": "tests/exports-v3/new_contract_reset_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__exports-v3__new_contract_reset_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/full_workflow_audit.js",
+      "file": "tests/exports-v3/full_workflow_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.23,
+      "log": "tests__exports-v3__full_workflow_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/import_master_audit.js",
+      "file": "tests/exports-v3/import_master_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.84,
+      "log": "tests__exports-v3__import_master_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/lot_completion_stage_audit.js",
+      "file": "tests/exports-v3/lot_completion_stage_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.17,
+      "log": "tests__exports-v3__lot_completion_stage_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/strengthened_workflow_audit.js",
+      "file": "tests/exports-v3/strengthened_workflow_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__exports-v3__strengthened_workflow_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/tg_route_audit.js",
+      "file": "tests/exports-v3/tg_route_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.27,
+      "log": "tests__exports-v3__tg_route_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/tti_qa02_closure_audit.js",
+      "file": "tests/exports-v3/tti_qa02_closure_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.17,
+      "log": "tests__exports-v3__tti_qa02_closure_audit.js.log"
+    },
+    {
+      "command": "node tests/exports-v3/v3_dummy_workflow_audit.js",
+      "file": "tests/exports-v3/v3_dummy_workflow_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__exports-v3__v3_dummy_workflow_audit.js.log"
+    },
+    {
+      "command": "node tests/exports_v32_corrections_audit.js",
+      "file": "tests/exports_v32_corrections_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__exports_v32_corrections_audit.js.log"
+    },
+    {
+      "command": "node tests/milling_container_audit.js",
+      "file": "tests/milling_container_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.18,
+      "log": "tests__milling_container_audit.js.log"
+    },
+    {
+      "command": "node tests/exmill_instruction_authority_test.js",
+      "file": "tests/exmill_instruction_authority_test.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.24,
+      "log": "tests__exmill_instruction_authority_test.js.log"
+    },
+    {
+      "command": "node tests/exmill_product_matching_test.js",
+      "file": "tests/exmill_product_matching_test.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.23,
+      "log": "tests__exmill_product_matching_test.js.log"
+    },
+    {
+      "command": "node tests/exmill_form_stability_browser_qa.js",
+      "file": "tests/exmill_form_stability_browser_qa.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.9,
+      "log": "tests__exmill_form_stability_browser_qa.js.log"
+    },
+    {
+      "command": "node tests/super_admin_cleanup_audit.js",
+      "file": "tests/super_admin_cleanup_audit.js",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.12,
+      "log": "tests__super_admin_cleanup_audit.js.log"
+    },
+    {
+      "command": "python3 tests/operations_compression_http_test.py",
+      "file": "tests/operations_compression_http_test.py",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.28,
+      "log": "tests__operations_compression_http_test.py.log"
+    },
+    {
+      "command": "python3 tests/export_asset_delivery_http_test.py",
+      "file": "tests/export_asset_delivery_http_test.py",
+      "workflows": [
+        "milling-exports-qa.yml"
+      ],
+      "status": "passed",
+      "exitCode": 0,
+      "seconds": 0.33,
+      "log": "tests__export_asset_delivery_http_test.py.log"
+    }
+  ],
+  "notes": [
+    "Local environment: PHP 8.5.11, Node 22.23.3, jsdom 26 for Accounts.",
+    "Exports DOM check passed when rerun with CI-required jsdom 27.",
+    "22 browser-launch checks were blocked by the host environment; no application assertions were reached.",
+    "MySQL and Python browser variants were not run locally.",
+    "Hosted workflow evidence and failure classifications are in the review report."
+  ]
+}

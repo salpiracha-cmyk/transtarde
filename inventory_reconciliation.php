@@ -1,0 +1,607 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__ . '/product_stage.php';
+require_once __DIR__.'/api/mill_recovery_core.php';
+require_once __DIR__.'/api/arrival_withdrawal_core.php';
+require_once __DIR__.'/api/paltai_core.php';
+
+/** Server-owned reconciliation. Operational staff submit facts, never a Ghati balance. */
+const TT_MILL_DELETIONS='tt40milldeletions';
+const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'];
+const TT_BAG_SERVER_KEYS = ['tt41bagtransfers'];
+const TT_INV_CONFIRMATIONS = 'tt39physicalconfirmations';
+const TT_INV_SOURCE_KEYS = ['tt30prod','tt30ship','tt30slips','tt32stockadj','tt35localsales','tt35exportersale',TT_INV_CONFIRMATIONS];
+
+function tt_inv_json(mixed $value): string {
+    return json_encode($value, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+}
+function tt_inv_rows(array $values,string $key): array {
+    $rows=json_decode((string)($values[$key]??'[]'),true);
+    return is_array($rows)?array_values(array_filter($rows,'is_array')):[];
+}
+function tt_inv_norm(string $value): string { return strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value))); }
+function tt_inv_entity(array $row): string { return strtoupper(trim((string)($row['entity']??'TTI'))); }
+function tt_inv_location(array $row): string {
+    return tt_inv_norm((string)($row['millName']??$row['locationName']??$row['mill']??$row['stockLocation']??'TTI Rice Mills'));
+}
+function tt_inv_same_scope(array $a,array $b): bool {
+    return tt_inv_entity($a)===tt_inv_entity($b)&&tt_inv_location($a)===tt_inv_location($b);
+}
+function tt_inv_scope(array $row): array {
+    return ['entity'=>tt_inv_entity($row),'millId'=>$row['millId']??'','locationId'=>$row['locationId']??'',
+        'millName'=>(string)($row['millName']??$row['locationName']??$row['mill']??'TTI Rice Mills')];
+}
+function tt_inv_has_action(array $user,string $module,array $icons,string $action='View'): bool {
+    if (($user['role']??'')==='Super Admin') return true;
+    $p=$user['permissions'][$module]??[];
+    if ($p==='all') return true;
+    if (!is_array($p)) return false;
+    $allowed=$action==='View'?['View','Create','Edit','Approve']:[$action];
+    foreach ($allowed as $a) if (in_array($a,$p,true)) return true;
+    foreach ($icons as $icon) foreach ($allowed as $a) if (in_array($a,(array)($p[$icon]??[]),true)) return true;
+    return false;
+}
+function tt_inv_can_report(array $user,string $entity=''): bool {
+    if (($user['role']??'')==='Super Admin') return true;
+    if (tt_inv_has_action($user,'Directors',['reports','stock-reconciliation','ghati'])) return true;
+    return tt_inv_has_action($user,'Accounts',['reports','stock-reconciliation']) &&
+        ($entity!=='' ? tt_user_can_access_entity($user,$entity,'View') : count(tt_user_accounts_entities($user))>0);
+}
+function tt_inv_is_private_row(array $row): bool {
+    return !empty($row['managedReconciliation'])||!empty($row['managementOnly'])||
+        (!empty($row['systemFixed'])&&!empty($row['noStockPost']));
+}
+function tt_inv_public_adjustment(array $row): array {
+    $keys=['id','entity','millId','millName','locationId','locationName','brand','stockName','rawStockName',
+        'readyRiceKg','rawRiceKg','arrivalKg','byProducts','managedReconciliation','openingStock','baseVariety','commodity','date','time','ref'];
+    $out=array_intersect_key($row,array_flip($keys));
+    $out['type']=!empty($row['openingStock'])?'Opening stock':'Physical stock confirmation';
+    return $out;
+}
+/** Never return management stores through the operational shared-state route. */
+function tt_inv_public_values(array $values,array $meta=[]): array {
+    foreach(array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS,[TT_MILL_DELETIONS]) as $key){unset($values[$key],$meta[$key]);}
+    if(isset($values['tt30prod'])){
+        $rows=tt_inv_rows($values,'tt30prod');
+        foreach($rows as &$r){$r['rows']=array_values(array_filter((array)($r['rows']??[]),static fn($x)=>!is_array($x)||!tt_inv_is_private_row($x)));}
+        unset($r);$values['tt30prod']=tt_inv_json($rows);
+    }
+    if(isset($values['tt30prodaudit'])){
+        $rows=tt_inv_rows($values,'tt30prodaudit');
+        foreach($rows as&$r)foreach(['before','after']as$side)if(isset($r[$side]['rows']))$r[$side]['rows']=array_values(array_filter((array)$r[$side]['rows'],static fn($x)=>!is_array($x)||!tt_inv_is_private_row($x)));
+        unset($r);$values['tt30prodaudit']=tt_inv_json($rows);
+    }
+    if(isset($values['tt32stockadj'])){
+        $rows=tt_inv_rows($values,'tt32stockadj');
+        foreach($rows as &$r){if(tt_inv_is_private_row($r)||str_contains((string)($r['type']??''),'Physical Nil'))$r=tt_inv_public_adjustment($r);}
+        unset($r);$values['tt32stockadj']=tt_inv_json($rows);
+    }
+    if(isset($values[TT_INV_CONFIRMATIONS])){
+        $values[TT_INV_CONFIRMATIONS]=tt_inv_json(array_map(static fn($r)=>array_intersect_key($r,array_flip(
+            ['id','entity','millId','millName','locationId','stockName','physicalKg','date','shift','shiftDate','status','createdAt','sourceShipmentId']
+        )),tt_inv_rows($values,TT_INV_CONFIRMATIONS)));
+    }
+    return ['values'=>$values,'meta'=>$meta,'restrictedKeys'=>array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS,[TT_MILL_DELETIONS])];
+}
+function tt_inv_date(string $value): string {
+    $d=DateTimeImmutable::createFromFormat('!Y-m-d',$value);$e=DateTimeImmutable::getLastErrors();
+    if(!$d||($e!==false&&($e['warning_count']||$e['error_count']))||$d->format('Y-m-d')!==$value)throw new InvalidArgumentException('A valid calendar date is required.');
+    return $value;
+}
+/** Production permits every valid past business date, without a rolling cutoff. */
+function tt_inv_production_date(string $value,string $now):string {
+    $date=tt_inv_date($value);$today=(new DateTimeImmutable($now))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('Y-m-d');
+    if($date>$today)throw new DomainException('Production date cannot be in the future. Choose today or the actual past production date.');return $date;
+}
+function tt_inv_kg(mixed $value,bool $zero=true): float {
+    if(!(is_int($value)||is_float($value)||(is_string($value)&&trim($value)!==''&&is_numeric($value))))throw new InvalidArgumentException('A numeric weight is required.');
+    $n=(float)$value;if(!is_finite($n)||$n<0||(!$zero&&$n===0.0))throw new InvalidArgumentException('A valid non-negative weight is required.');
+    return round($n,3);
+}
+function tt_inv_shift_name(string $value): string {
+    return match(strtolower(trim($value))){'day','morning'=>'Day','night'=>'Night',default=>''};
+}
+function tt_inv_shift_at(string $now): array {
+    $d=(new DateTimeImmutable($now))->setTimezone(new DateTimeZone('Asia/Karachi'));
+    $hour=(int)$d->format('G');$shift=$hour>=6&&$hour<18?'Day':($hour>=20||$hour<6?'Night':'');
+    return ['date'=>($hour<6?$d->modify('-1 day'):$d)->format('Y-m-d'),'shift'=>$shift];
+}
+function tt_inv_product(array $row,string $stage='FINISHED'): string {
+    return tt_product_display((string)($row['commodity']??'RICE'),(string)($row['baseVariety']??$row['variety']??$row['displayName']??''),$stage,(string)($row['riceType']??''));
+}
+function tt_inv_output_name(array $production,array $row): string {
+    $name=(string)($row['product']??'Unknown');
+    if(preg_match('/^READY RICE\s*[—-]\s*/iu',$name)){
+        $brand=trim((string)preg_replace('/^READY RICE\s*[—-]\s*/iu','',$name));
+        return (string)($row['displayName']??tt_inv_product($production)).($brand!==''?' — '.$brand:'');
+    }
+    return $name;
+}
+function tt_inv_output_kg(array $production,string $stockName): float {
+    $kg=0.;foreach((array)($production['rows']??[])as$r){
+        if(!is_array($r)||tt_inv_is_private_row($r)||!empty($r['noStockPost']))continue;
+        if(tt_inv_norm(tt_inv_output_name($production,$r))===tt_inv_norm($stockName))$kg+=!empty($production['recoveryVersion'])?mr_output_kg($r):(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);
+    }return round($kg,3);
+}
+function tt_inv_resolve_stock(array $map,array $shipment): string {
+    $explicit=trim((string)($shipment['stockSourceName']??''));if($explicit!=='')return $explicit;
+    if(in_array(strtoupper((string)($shipment['commodity']??'')),['MAIZE','CORN','MAKAI'],true))return tt_inv_product($shipment,'RAW');
+    $brand=(string)($shipment['brand']??'');$finished=tt_inv_product($shipment).($brand!==''?' — '.$brand:'');
+    if(array_key_exists($finished,$map))return $finished;
+    $ready=tt_inv_product($shipment,'READY');
+    if(array_key_exists($ready,$map))return $ready;
+    $matches=array_keys(array_filter($map,static fn($kg,$name)=>$brand!==''&&str_ends_with(strtoupper($name),' — '.strtoupper($brand)),ARRAY_FILTER_USE_BOTH));
+    if(empty($shipment['baseVariety'])&&empty($shipment['riceType'])&&count($matches)===1)return $matches[0];
+    return $finished;
+}
+const TT_INV_POHANCH_ESTIMATE = '(Estimate as Pohanch not issued)';
+
+/** Arrival Report quantities for operational display only. */
+function tt_inv_pending_arrivals(array $values): array {
+    $issued=[];
+    foreach(tt_inv_rows($values,'tt30slips') as $row){
+        $id=trim((string)($row['queueId']??''));
+        if($id!=='')$issued[$id]=true;
+    }
+    $pending=[];
+    foreach(tt_inv_rows($values,'tt30queue') as $row){
+        $id=trim((string)($row['id']??''));
+        $kg=(float)($row['weight']??0);
+        if($id===''||isset($issued[$id])||!empty($row['rejected'])||!is_finite($kg)||$kg<=0)continue;
+        if(!mr_valid_date((string)($row['date']??''))||trim((string)($row['entity']??''))===''||trim((string)($row['millName']??$row['locationName']??''))==='')continue;
+        $pending[$id]=$row;
+    }
+    return $pending;
+}
+
+/** Physical by-products belong to a mill and variety, independent of the accounting owner.
+ * Unknown historical variety remains unassigned. Never infer it from another lot.
+ */
+function tt_inv_physical_name(string $name,array $record): string {
+    $name=trim($name);
+    if(!preg_match('/^(?:B2(?:\s*[—-].*)?|B2 \/ BROKEN|BROKEN(?:\s*[—-].*)?|B3|CSR|B2 CSR|PADDY|POWDER|SWEEPING|STONE \/ SUTLI \/ DUST)$/iu',$name))return $name;
+    $product=preg_match('/^(?:B2(?! CSR)|BROKEN)/iu',$name)?'B2':$name;
+    $legacyName=trim((string)($record['variety']??''));
+    $base=trim((string)($record['baseVariety']??'')) ?: $legacyName;
+    $riceType=trim((string)($record['riceType']??''));
+    // Owner confirmed the specific July opening batch is White Rice.
+    if ($riceType==='' && ($record['id']??'')==='OPENSTOCK-TTI-IRRI6-20260701'
+        && !empty($record['openingStock']) && ($record['date']??'')==='2026-07-01'
+        && tt_inv_same_scope($record,['entity'=>'TTI','millName'=>'TTI Rice Mills'])
+        && tt_inv_norm($base)==='irri6') {
+        $riceType='White';
+    }
+    $riceType=$riceType ?: (tt_product_type_from_name($legacyName) ?: tt_product_type_from_name($base));
+    $variety=$base!=='' ? tt_product_display((string)($record['commodity']??'RICE'),$base,'FINISHED',$riceType) : 'UNASSIGNED VARIETY';
+    return $variety.' — '.$product;
+}
+function tt_inv_physical_stock(array $values,array $scope,?callable $observe=null): array {
+    $total=[];$records=[];
+    foreach(array_slice(TT_INV_SOURCE_KEYS,0,6)as$key)foreach(tt_inv_rows($values,$key)as$i=>$r)$records[$key][(string)($r['id']??$r['ref']??$r['slip']??'#'.($i+1))]=$r;
+    if(!empty($scope['arrivalEstimates']))$records['tt30queue']=tt_inv_pending_arrivals($values);
+    foreach(['TTI','BRM']as$entity){
+        $company=$scope;unset($company['physicalPool']);$company['entity']=$entity;
+        tt_inv_stock($values,$company,static function(array $event)use(&$total,$records,$observe,$entity):void{
+            $record=$records[$event['source']][$event['sourceId']]??[];
+            $name=tt_inv_physical_name($event['product'],$record);
+            $total[$name]=round(($total[$name]??0)+(float)$event['kg'],3);
+            if($observe){$event['product']=$name;$event['sourceEntity']=$entity;$observe($event);}
+        });
+    }
+    return $total;
+}
+/** Same quantity ledger as Milling; management-only rows never become production. */
+function tt_inv_stock(array $values,array $scope, ?callable $observe=null): array {
+    if(!empty($scope['physicalPool']))return tt_inv_physical_stock($values,$scope,$observe);
+    $m=[];$context=[];
+    $add=static function(string $n,float $kg)use(&$m,&$context,$observe):void{
+        $before=$m[$n]??0.;$m[$n]=round($before+$kg,3);
+        if($observe)$observe($context+['product'=>$n,'kg'=>round($m[$n]-$before,3)]);
+    };
+    $source=static function(string $key,array $r,int $index,string $kind)use(&$context):void{
+        $date=(string)($r['unloadingDate']??$r['arrivalDate']??$r['date']??'');
+        $context=['source'=>$key,'sourceId'=>(string)($r['id']??$r['ref']??$r['slip']??'#'.($index+1)),'date'=>mr_valid_date($date)?$date:'','kind'=>$kind,'basis'=>'Recorded quantity','scopeVerified'=>trim((string)($r['entity']??''))!==''&&trim((string)($r['millName']??$r['locationName']??$r['mill']??$r['stockLocation']??''))!==''];
+    };
+    $receiptDetails=static function(array $row):array{
+        $details=[];
+        foreach(['bags','loadingWeight','karachiWeight','brokenKat','moistureKat','damageKat','chalkyKat','paddyKat'] as $field){
+            if(isset($row[$field])&&is_numeric($row[$field]))$details[$field]=(float)$row[$field];
+        }
+        return $details;
+    };
+    foreach(tt_inv_rows($values,'tt30slips') as $i=>$r){
+        if(!tt_inv_same_scope($scope,$r))continue;
+        $source('tt30slips',$r,$i,'Arrival');
+        if(!empty($scope['arrivalEstimates']))$context['receiptDetails']=$receiptDetails($r);
+        $add((string)($r['displayName']??tt_inv_product($r,(string)($r['productStage']??'RAW'))),(float)($r['payableWeight']??0));
+    }
+    if(!empty($scope['arrivalEstimates']))foreach(tt_inv_pending_arrivals($values) as $r){
+        if(!tt_inv_same_scope($scope,$r))continue;
+        $source('tt30queue',$r,0,'Arrival');
+        $context['date']=$r['date'];
+        $context['arrivalEstimate']=true;
+        $context['basis']=TT_INV_POHANCH_ESTIMATE;
+        $context['receiptDetails']=$receiptDetails(['loadingWeight'=>$r['weight']]+$r);
+        $add(trim((string)($r['displayName']??''))?:tt_inv_product($r,(string)($r['productStage']??'RAW')),(float)$r['weight']);
+    }
+    foreach(tt_inv_rows($values,'tt30prod')as$i=>$p){if(!tt_inv_same_scope($scope,$p))continue;$source('tt30prod',$p,$i,'Production output');$input=0.;
+        foreach((array)($p['rows']??[])as$r){if(!is_array($r)||tt_inv_is_private_row($r)||!empty($r['noStockPost']))continue;$kg=(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);if(!empty($p['recoveryVersion']))$kg=mr_output_kg($r);$add(tt_inv_output_name($p,$r),$kg);$input+=$kg;}
+        if(!empty($p['recoveryVersion']))$input=mr_consumption_kg($p)??$input;
+        $context['kind']='Production consumption';if(mr_is_calculated($p))$context['basis']='Calculated from recorded physical outputs';elseif(empty($p['recoveryVersion'])||mr_actual_input($p)===null)$context['basis']='Provisional — input inferred from output';
+        $add((string)($p['inputStockName']??tt_inv_product($p,(string)($p['inputStage']??'RAW'))),-$input);
+    }
+    foreach(tt_inv_rows($values,'tt35localsales')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt35localsales',$r,$i,'Local sale');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['kg']??0)],(array)($r['loads']??[]));
+        $kg=array_sum(array_map(static fn($x)=>(float)($x['kg']??0),(array)($r['loads']??[])));
+        $name=($r['product']??'')==='Ready Rice'?tt_inv_resolve_stock($m,$r+['brand'=>'Local Bags']):(string)($r['product']??'Unknown');$add($name,-$kg);
+    }
+    foreach(tt_inv_rows($values,'tt35exportersale')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt35exportersale',$r,$i,'Sale to exporter');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['net']??0)],(array)($r['containers']??[]));
+        $kg=array_sum(array_map(static fn($x)=>(float)($x['net']??0),(array)($r['containers']??[])));
+        $add(!empty($r['stockSourceName'])?(string)$r['stockSourceName']:(($r['product']??'')==='Ready Rice'?tt_inv_resolve_stock($m,$r):(string)($r['brand']??$r['product']??'Unknown')),-$kg);
+    }
+    foreach(tt_inv_rows($values,'tt30ship')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt30ship',$r,$i,'Export loading');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['weight']??0)],(array)($r['containers']??[]));
+        $kg=array_sum(array_map(static fn($x)=>(float)($x['weight']??0),(array)($r['containers']??[])));$add(tt_inv_resolve_stock($m,$r),-$kg);
+    }
+    foreach(tt_inv_rows($values,'tt32stockadj')as$i=>$r){if(!tt_inv_same_scope($scope,$r))continue;$source('tt32stockadj',$r,$i,!empty($r['openingStock'])?'Opening stock':'Stock adjustment');
+        if(($r['type']??'')==='Paltai Transfer'){$add((string)$r['from'],-(float)($r['sourceDeductionKg']??$r['weightKg']??0));$add((string)$r['to'],(float)($r['weightKg']??0));$add((string)($r['rawStockName']??'RAW RICE'),(float)($r['sweepingKg']??0));continue;}
+        if(!empty($r['readyRiceKg']))$add((string)($r['stockName']??$r['brand']??'Unknown'),(float)$r['readyRiceKg']);
+        if(!empty($r['rawRiceKg']))$add((string)($r['rawStockName']??'RAW RICE'),(float)$r['rawRiceKg']);
+        if(!empty($r['arrivalKg']))$add((string)($r['rawStockName']??'RAW RICE'),(float)$r['arrivalKg']);
+        foreach((array)($r['byProducts']??[])as$n=>$kg)$add((string)$n,(float)$kg);
+    }return $m;
+}
+function tt_inv_shift_reports(array $values,array $confirmation): array {
+    return array_values(array_filter(tt_inv_rows($values,'tt30prod'),static fn($p)=>tt_inv_same_scope($p,$confirmation)&&
+        ($p['date']??'')===($confirmation['shiftDate']??'')&&tt_inv_shift_name((string)($p['shift']??''))===($confirmation['shift']??'')&&!empty($confirmation['shift'])));
+}
+function tt_inv_quantities(array $reports,string $stockName): array {
+    $out=[];foreach($reports as$p)$out[(string)($p['id']??'')]=tt_inv_output_kg($p,$stockName);ksort($out);return $out;
+}
+/** Preserve server-only portions when a filtered browser saves its operational projection. */
+/** Compare dated raw-stock trajectories inside the existing inventory save lock. */
+function tt_inv_production_timeline(array $values,array $scope,string $stock):array {
+    $events=[];tt_inv_stock($values,$scope,static function($event)use(&$events,$stock){if(($event['product']??'')!==$stock)return;$parts=(array)($event['parts']??[]);$kg=(float)$event['kg'];if($parts&&abs(array_sum(array_column($parts,'kg'))-$kg)<.001){foreach($parts as $part){$date=(string)($part['date']??'');$amount=(float)$part['kg'];if(mr_valid_date($date)||$amount<0)$events[mr_valid_date($date)?$date:'']=($events[mr_valid_date($date)?$date:'']??0)+$amount;}}else{$date=(string)($event['date']??'');if(mr_valid_date($date)||$kg<0)$events[mr_valid_date($date)?$date:'']=($events[mr_valid_date($date)?$date:'']??0)+$kg;}});return $events;
+}
+function tt_inv_guard_calculated_stock(array $before,array $after,array $changed):void {
+    $checked=[];foreach($changed as $run){if(!mr_is_calculated($run)||!(mr_consumption_kg($run)>0))continue;$scope=tt_inv_scope($run);$stock=(string)($run['inputStockName']??tt_inv_product($run,(string)($run['inputStage']??'RAW')));$key=json_encode([$scope,$stock]);if(isset($checked[$key]))continue;$checked[$key]=true;
+        $old=tt_inv_production_timeline($before,$scope,$stock);$next=tt_inv_production_timeline($after,$scope,$stock);$dates=array_unique(array_merge(array_keys($old),array_keys($next)));sort($dates);$a=0.;$b=0.;foreach($dates as $date){$a+=(float)($old[$date]??0);$b+=(float)($next[$date]??0);if($b<-.001&&$b<$a-.001)throw new DomainException('Insufficient dated '.$stock.' stock at this company and mill. Production is not saved; reconcile the original raw-stock receipts before retrying.');}
+    }
+}
+
+/** Physical used arrival bags, separate from accepted branded supplier receipts. */
+function tt_inv_arrival_packing_qty(array $run): int {
+    $ratios=['powder'=>2,'b3'=>2,'csr'=>2,'b2 csr'=>2,'paddy'=>1,'sweeping'=>1,'stone / sutli / dust'=>1];
+    $total=0;
+    foreach((array)($run['rows']??[]) as $row){
+        if(!is_array($row)||tt_inv_is_private_row($row)||!empty($row['noStockPost'])||mr_output_kg($row)<=0)continue;
+        $product=strtolower(trim((string)($row['product']??'')));
+        if(!isset($ratios[$product]))continue;
+        $override=$row['arrivalBagsUsed']??null;
+        if($override!==null&&$override!==''){
+            $qty=$override;
+        }elseif(!empty($row['arrivalPackingKgOnly'])||($row['outputUnit']??'')==='KG'){
+            $unitKg=$row['arrivalPackingUnitKg']??($product==='powder'?35:50);
+            if(!is_numeric($unitKg)||!is_finite((float)$unitKg)||(float)$unitKg<=0)throw new DomainException('The packing weight for '.$row['product'].' must be positive.');
+            $kg=mr_output_kg($row)+(float)($row['lessKg']??0)-(float)($row['loadingAdjustmentKg']??0);
+            $qty=ceil(round($kg/(float)$unitKg,8));
+        }else{
+            $qty=$row['bags']??0;
+        }
+        $hasOverride=$override!==null&&$override!=='';
+        if(!is_numeric($qty)||!is_finite((float)$qty)||(float)$qty<0||(float)$qty>100000000||($hasOverride&&(float)$qty!==floor((float)$qty)))
+            throw new DomainException('The saved packing quantity for '.$row['product'].' is invalid.');
+        $total+=(int)ceil(round((float)$qty,8))*($hasOverride?1:$ratios[$product]);
+    }
+    return $total;
+}
+
+function tt_inv_arrival_bag_timeline(array $values,array $scope): array {
+    $daily=[];
+    $add=static function(array $row,string $date,mixed $qty,int $sign)use(&$daily,$scope):void{
+        if(empty($row['entity'])||!($row['millId']??$row['millName']??$row['locationName']??$row['mill']??null)||!tt_inv_same_scope($row,$scope)||!mr_valid_date($date))return;
+        if(!is_numeric($qty)||!is_finite((float)$qty)||(float)$qty<0||(float)$qty!==floor((float)$qty))return;
+        $daily[$date]=($daily[$date]??0)+$sign*(int)$qty;
+    };
+    foreach(tt_inv_rows($values,'tt30slips') as $row)$add($row,(string)($row['unloadingDate']??$row['arrivalDate']??''),$row['bags']??0,1);
+    foreach(tt_inv_rows($values,'tt37usedbags') as $row)if(($row['source']??'')==='arrival'&&in_array($row['movement']??'',['Inward','Outward'],true))
+        $add($row,(string)($row['date']??''),$row['qty']??0,$row['movement']==='Inward'?1:-1);
+    foreach(tt_inv_rows($values,'tt30prod') as $row)if(($row['arrivalPackingVersion']??null)===1)
+        $add($row,(string)($row['date']??''),$row['arrivalPackingQty']??0,-1);
+    return $daily;
+}
+
+function tt_inv_guard_arrival_bags(array $before,array $after,array $affected): void {
+    $scopes=[];
+    foreach($affected as $row){
+        if(($row['arrivalPackingVersion']??null)!==1||empty($row['arrivalPackingQty']))continue;
+        $scopes[tt_inv_entity($row).'|'.tt_inv_location($row)]=$row;
+    }
+    foreach($scopes as $scope){
+        $old=tt_inv_arrival_bag_timeline($before,$scope);$next=tt_inv_arrival_bag_timeline($after,$scope);
+        $dates=array_unique(array_merge(array_keys($old),array_keys($next)));sort($dates);
+        $previous=0;$current=0;
+        foreach($dates as $date){
+            $previous+=$old[$date]??0;$current+=$next[$date]??0;
+            if($current<0&&$current<$previous)throw new DomainException('Insufficient Arrival / Pohanch bags on '.$date.'. Short by '.number_format(abs($current)).' bags. Review arrival receipts or enter the actual bags used.');
+        }
+    }
+}
+/** Explicitly deleted source identities stay retired when an older tab saves. */
+function tt_inv_guard_deleted_source(array $values,string $key,string $json): void {
+    if($key===TT_MILL_DELETIONS)throw new DomainException('Deletion history is maintained by the server.');
+    if(!in_array($key,['tt30queue','tt30prod','tt33bagreceipts','tt35localsales','tt35exportersale'],true))return;
+    $deleted=[];
+    foreach(tt_inv_rows($values,TT_MILL_DELETIONS) as $receipt)if(($receipt['collection']??'')===$key)$deleted[(string)$receipt['sourceId']]=true;
+    foreach(tt_inv_rows([$key=>$json],$key) as $row){
+        $id=(string)($row['id']??$row['soda']??$row['ref']??'');
+        if(isset($deleted[$id]))throw new DomainException('This entry was deleted. Reload the saved entries before saving again.');
+    }
+}
+function tt_inv_prepare_write(array $values,string $key,string $json,array $user,string $now): string {
+    tt_inv_guard_deleted_source($values,$key,$json);
+    tt_guard_arrival_collection($key,(string)($values[$key]??'[]'),$json);
+    if(in_array($key,['tt30bags','tt33bagreceipts'],true)){require_once __DIR__.'/api/bag_receipts_core.php';$json=br_guard_write($values,$key,$json);}
+    if(in_array($key,['tt36bagissues','tt30prodaudit'],true)){
+        $incoming=json_decode($json,true,512,JSON_THROW_ON_ERROR);if(!is_array($incoming)||!array_is_list($incoming))throw new DomainException('Production history must be a list.');
+        $identity=static fn($r)=>(string)($key==='tt36bagissues'?($r['productionId']??''):($r['id']??''));
+        $managed=[];foreach(tt_inv_rows($values,$key) as $row)if(!empty($row['serverManaged']))$managed[$identity($row)]=$row;
+        $public=[];foreach(tt_inv_rows(tt_inv_public_values([$key=>$values[$key]??'[]'])['values'],$key) as $row)if(!empty($row['serverManaged']))$public[$identity($row)]=$row;
+        $seen=[];foreach($incoming as &$row){if(!is_array($row))throw new DomainException('Production history must contain records.');$id=$identity($row);if(isset($managed[$id])){if(isset($seen[$id])||($public[$id]??null)!=$row)throw new DomainException('Saved production history is maintained by its explicit source save.');$row=$managed[$id];$seen[$id]=true;}elseif(!empty($row['serverManaged']))throw new DomainException('Production history cannot be attributed by a client.');}unset($row);
+        if(array_diff_key($managed,$seen))throw new DomainException('Saved production history cannot be removed from an operational collection.');$json=tt_inv_json($incoming);
+    }
+    if($key==='tt37usedbags'||$key==='tt30slips')tt_inv_guard_arrival_bags($values,array_replace($values,[$key=>$json]),tt_inv_rows($values,'tt30prod'));
+    if($key==='tt32labourfeed')return pt_guard_labour($values,$json);
+    if(in_array($key,TT_BAG_SERVER_KEYS,true))throw new DomainException('Bag movement acknowledgements are server-owned. Use the explicit bag movement workflow.');
+    if($key==='tt30prod'){require_once __DIR__.'/api/bag_inventory_core.php';$decoded=json_decode($json,true);$versioned=false;foreach(array_merge(is_array($decoded)?$decoded:[],tt_inv_rows($values,$key)) as $row)if(is_array($row)&&!empty($row['bagAllocationVersion'])){$versioned=true;break;}if($versioned)$json=bti_prepare_production($values,$json,tt_list_masters(),$user,$now);}
+    if(in_array($key,['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses'],true)){require_once __DIR__.'/api/mill_source_amend_core.php';return msa_guard_append($values,$key,$json,$user);}
+    if(in_array($key,TT_INV_PRIVATE_KEYS,true))throw new DomainException('Reconciliation records are server-owned. Use Accounts or Directors reports.');
+    if(!in_array($key,['tt30prod','tt30ship','tt32stockadj',TT_INV_CONFIRMATIONS],true))return $json;
+    $incoming=json_decode($json,true);if(!is_array($incoming)||!array_is_list($incoming))throw new InvalidArgumentException('Operational rows must be an array.');
+    $old=tt_inv_rows($values,$key);$index=[];$sequence=0;foreach($old as$r){$index[(string)($r['id']??'')]=$r;$sequence=max($sequence,(int)($r['serverSequence']??0));}
+    if($key==='tt30prod'&&!tt_inv_has_action($user,'Mill',['production'],'Create')&&!tt_inv_has_action($user,'Mill',['production'],'Edit'))throw new DomainException('Production entry permission is required.');
+    $seen=[];$out=[];
+    foreach($incoming as$r){if(!is_array($r))throw new InvalidArgumentException('Invalid operational row.');$id=(string)($r['id']??'');
+        if($id===''||isset($seen[$id]))throw new InvalidArgumentException('Each operational row needs a unique stable identity.');$seen[$id]=true;$before=$index[$id]??null;
+        if($key===TT_INV_CONFIRMATIONS){
+            if($before){$out[]=$before;continue;}
+            $scope=tt_inv_scope($r);if(!in_array($scope['entity'],['TTI','BRM'],true)||trim((string)($r['millName']??''))==='')throw new InvalidArgumentException('Stock company and mill are required.');
+            $name=trim((string)($r['stockName']??''));$stocks=tt_inv_stock($values,$scope);
+            if($name===''||!array_key_exists($name,$stocks))throw new InvalidArgumentException('Select the exact saved stock product. Refresh the stock position.');
+            $shift=tt_inv_shift_at($now);
+            $lastLoading=null;$sources=[];
+            foreach(tt_inv_rows($values,'tt30ship')as$shipment){
+                if(!tt_inv_same_scope($scope,$shipment)||tt_inv_resolve_stock($stocks,$shipment)!==$name)continue;
+                if(!empty($r['sourceShipmentId'])&&(string)($shipment['id']??'')!==(string)$r['sourceShipmentId'])continue;
+                $sources[]=['sourceShipmentId'=>(string)($shipment['id']??''),'shipmentId'=>(string)($shipment['_ttShipmentId']??$shipment['shipmentId']??''),
+                    'contractRef'=>(string)($shipment['contractRef']??''),'lotRef'=>(string)($shipment['_ttLotId']??$shipment['lotRef']??$shipment['ref']??'')];
+                foreach((array)($shipment['containers']??[])as$container)if((float)($container['weight']??0)>0&&!empty($container['loadingAt'])&&($lastLoading===null||$container['loadingAt']>$lastLoading['loadingAt']))$lastLoading=$container;
+            }
+            if(!empty($r['sourceShipmentId'])&&!$sources)throw new InvalidArgumentException('The selected shipment does not match this company, mill and stock product.');
+            if($lastLoading&&!empty($lastLoading['productionShift']))$shift=['date'=>$lastLoading['productionShiftDate'],'shift'=>$lastLoading['productionShift']];
+            $desired=tt_inv_kg($r['physicalKg']??0);$raw=(bool)preg_match('/\bRAW RICE$/i',$name);
+            if($raw&&abs($stocks[$name])>=50000)throw new InvalidArgumentException('Raw Rice can be confirmed physically NIL only below 50 MT.');
+            foreach($old as$other)if(tt_inv_same_scope($other,$scope)&&($other['stockName']??'')===$name&&($other['status']??'')==='Awaiting current-shift production')throw new InvalidArgumentException('This physical confirmation is already waiting for production.');
+            $r=$scope+['id'=>$id,'stockName'=>$name,'physicalKg'=>$desired,'date'=>(new DateTimeImmutable($now))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('Y-m-d'),'shiftDate'=>$shift['date'],'shift'=>$shift['shift'],
+                'snapshotKg'=>$stocks[$name],'isRaw'=>$raw,'createdAt'=>$now,'createdBy'=>(string)($user['username']??''),'status'=>$raw?'Pending':'Awaiting current-shift production',
+                'sourceShipmentId'=>(string)($r['sourceShipmentId']??''),'sourceShipments'=>$sources];
+            $r['baseline']=tt_inv_quantities(tt_inv_shift_reports($values,$r),$name);
+        }elseif($key==='tt30ship'){
+            $containers=[];foreach((array)($before['containers']??[])as$container)$containers[(string)($container['id']??'')]=$container;
+            foreach((array)($r['containers']??[])as$i=>$container){
+                $prior=$containers[(string)($container['id']??'')]??[];
+                if((float)($container['weight']??0)>0){
+                    if(isset($prior['loadingAt'])){foreach(['loadingAt','productionShiftDate','productionShift']as$field)$container[$field]=$prior[$field]??'';}
+                    else{$shift=tt_inv_shift_at($now);$container['loadingAt']=$now;$container['productionShiftDate']=$shift['date'];$container['productionShift']=$shift['shift'];}
+                }
+                $r['containers'][$i]=$container;
+            }
+        }elseif($key==='tt32stockadj'){
+            if(($r['type']??'')==='Paltai Transfer'||($before['type']??'')==='Paltai Transfer')$r=pt_prepare($values,$r,$before,array_merge($old,array_values(array_filter($out,static fn($x)=>!isset($index[(string)$x['id']])))));
+            if((tt_inv_is_private_row($r)||str_contains((string)($r['type']??''),'Physical Nil'))&&!$before)throw new DomainException('A client cannot create a management stock adjustment.');
+            if($before&&(tt_inv_is_private_row($before)||str_contains((string)($before['type']??''),'Physical Nil'))){
+                if(tt_inv_public_adjustment($before)!==tt_inv_public_adjustment($r))throw new DomainException('Reconciled stock adjustments cannot be changed from Milling.');
+                $r=$before;
+            }
+        }elseif($key==='tt30prod'){
+            if(!$before||($before['date']??'')!==($r['date']??''))$r['date']=tt_inv_production_date((string)($r['date']??''),$now);
+            if(!empty($before['clientSaveRequestId'])&&empty($r['clientSaveRequestId']))throw new DomainException('Reload the saved production report before amending its acknowledged source.');
+            if(!empty($before['recoveryVersion'])&&empty($r['recoveryVersion']))throw new DomainException('Actual-input production cannot be downgraded to a legacy entry.');
+            if($before&&!mr_is_calculated($before)&&mr_is_calculated($r)&&mr_actual_input($before)!==null)throw new DomainException('Historical measured input must retain its original calculation basis.');
+            if($before&&mr_is_calculated($before)&&!mr_is_calculated($r))throw new DomainException('Retain the saved calculated consumption basis when amending this shift.');
+            if(!empty($r['clientSaveRequestId']))$r['recoveryVersion']=mr_is_calculated($r)?2:1;
+            if(($r['arrivalPackingVersion']??null)===1||($before['arrivalPackingVersion']??null)===1){
+                $r['arrivalPackingVersion']=1;
+                $r['arrivalPackingQty']=tt_inv_arrival_packing_qty($r);
+            }else unset($r['arrivalPackingVersion'],$r['arrivalPackingQty']);
+            mr_validate_inputs($r,$before===null);if($before===null)$r['recoveryVersion']=mr_is_calculated($r)?2:1;
+            $hidden=array_values(array_filter((array)($before['rows']??[]),static fn($x)=>is_array($x)&&tt_inv_is_private_row($x)));
+            foreach((array)($r['rows']??[])as$x)if(is_array($x)&&tt_inv_is_private_row($x))throw new DomainException('Reconciliation rows cannot be entered as production.');
+            $r['rows']=array_merge((array)($r['rows']??[]),$hidden);
+            $r['createdAt']=$before['createdAt']??$now;
+            $r['serverSequence']=$before['serverSequence']??++$sequence;
+            $compare=$r;$prior=$before;unset($compare['createdAt'],$compare['updatedAt'],$compare['serverSequence']);if($prior)unset($prior['createdAt'],$prior['updatedAt'],$prior['serverSequence']);
+            $r['updatedAt']=$compare===$prior?($before['updatedAt']??$now):$now;
+            if(array_key_exists('shiftEntriesComplete',$r)){$r['shiftEntriesComplete']=$r['shiftEntriesComplete']===true;$r['date']=tt_inv_date((string)($r['date']??''));if(tt_inv_shift_name((string)($r['shift']??''))==='')throw new InvalidArgumentException('Production shift is required.');}
+        }
+        $out[]=$r;
+    }
+    // Filtered data must never delete private historical adjustments or confirmations.
+    if($key===TT_INV_CONFIRMATIONS||$key==='tt32stockadj')foreach($old as$r)if(!isset($seen[(string)($r['id']??'')])&&($key===TT_INV_CONFIRMATIONS||tt_inv_is_private_row($r)||str_contains((string)($r['type']??''),'Physical Nil')))$out[]=$r;
+    if($key==='tt30prod'){
+        // Fixed management rows cannot be lost by deleting their linked production report.
+        foreach($old as$p)if(!isset($seen[(string)$p['id']])){
+            $hidden=array_filter((array)($p['rows']??[]),static fn($r)=>is_array($r)&&tt_inv_is_private_row($r));
+            $attached=array_filter(tt_inv_rows($values,'tt34nilqueue'),static fn($r)=>(string)($r['productionId']??'')===(string)$p['id']);
+            if($hidden||$attached)throw new DomainException('This report has a fixed reconciliation reference. Accounts/Directors review is required before reversal.');
+        }
+        // A final-entry tick belongs to a complete shift, not to one partial lot.
+        $changed=[];foreach($out as$r){$b=$index[(string)$r['id']]??null;$a=$r;unset($a['createdAt'],$a['updatedAt'],$a['serverSequence']);if($b){unset($b['createdAt'],$b['updatedAt'],$b['serverSequence']);}if($a!==$b)$changed[]=$r;}
+        // Raw rice can be physically processed before the receipt paperwork is posted.
+        $reprocessing=array_filter($changed,static fn($run)=>strtoupper((string)($run['inputStage']??'RAW'))!=='RAW');
+        if($reprocessing)tt_inv_guard_calculated_stock($values,array_replace($values,['tt30prod'=>tt_inv_json($out)]),$reprocessing);
+        foreach($changed as$r)foreach($out as&$other)if((string)$other['id']!==(string)$r['id']&&tt_inv_same_scope($r,$other)&&($r['date']??'')===($other['date']??'')&&tt_inv_shift_name((string)($r['shift']??''))===tt_inv_shift_name((string)($other['shift']??'')))$other['shiftEntriesComplete']=false;unset($other);
+    }
+    if($key==='tt32stockadj')foreach($old as$r)if(($r['type']??'')==='Paltai Transfer'&&!isset($seen[(string)$r['id']]))throw new DomainException('Saved Paltai transfers cannot be removed.');
+    return tt_inv_json($out);
+}
+/** Pure transform, called inside the same lock/transaction as the source save. */
+function tt_inv_reconcile(array $values,string $now): array {
+    $values=pt_effects($values);
+    $confirmations=tt_inv_rows($values,TT_INV_CONFIRMATIONS);$adjustments=tt_inv_rows($values,'tt32stockadj');
+    $events=tt_inv_rows($values,'tt34ghati');$queue=tt_inv_rows($values,'tt34nilqueue');$productions=tt_inv_rows($values,'tt30prod');
+    $eventsByRef=[];foreach($events as$e)$eventsByRef[(string)($e['ref']??'')]=true;
+    foreach($confirmations as&$c){
+        $reports=tt_inv_shift_reports($values,$c);$quantities=tt_inv_quantities($reports,(string)$c['stockName']);
+        $completed=(bool)array_filter($reports,static fn($p)=>!empty($p['shiftEntriesComplete']));
+        if(($c['status']??'')==='Resolved'){
+            // Zero-output or unrelated later lots cannot change this product's reconciliation.
+            // Compare contributing reports numerically; a real quantity amendment still needs review.
+            $nonzero=static fn($kg)=>abs((float)$kg)>=.0005;
+            $resolved=array_filter((array)($c['resolvedQuantities']??[]),$nonzero);
+            $current=array_filter($quantities,$nonzero);
+            if(empty($c['isRaw'])&&$resolved!=$current)$c['reviewRequired']='Production quantities changed after reconciliation; Accounts/Directors review required.';
+            continue;
+        }
+        if(empty($c['isRaw'])&&!$completed)continue;
+        $delta=empty($c['isRaw'])?array_sum($quantities)-array_sum((array)($c['baseline']??[])):0;
+        $balance=round((float)$c['snapshotKg']+$delta,3);$adjust=round((float)$c['physicalKg']-$balance,3);
+        $c['resolvedAt']=$now;$c['resolvedQuantities']=$quantities;$c['adjustmentKg']=$adjust;$c['status']='Resolved';
+        if(abs($adjust)<.0005)continue; // Current shift explains it: no gain, no loss, no adjustment.
+        $ref='STOCK-CONFIRMATION|'.$c['id'];$scope=tt_inv_scope($c)+['sourceShipmentId'=>(string)($c['sourceShipmentId']??''),'sourceShipments'=>(array)($c['sourceShipments']??[])];$rawName=tt_product_identity('RICE',explode(' — ',(string)$c['stockName'])[0],'RAW')['displayName'];
+        $adjustments[]=$scope+['id'=>'RECON-'.$c['id'],'ref'=>$ref,'date'=>$c['date'],'time'=>$now,'stockName'=>$c['stockName'],'brand'=>$c['stockName'],
+            'rawStockName'=>!empty($c['isRaw'])?$c['stockName']:$rawName,'rawRiceKg'=>!empty($c['isRaw'])?$adjust:max(0,-$adjust),
+            'readyRiceKg'=>!empty($c['isRaw'])?0:$adjust,'type'=>'Physical stock confirmation','managedReconciliation'=>true];
+        if(!isset($eventsByRef[$ref])){$events[]=$scope+['id'=>'GHATI-'.$c['id'],'ref'=>$ref,'date'=>$c['date'],'time'=>$now,'kind'=>$adjust>0?'gain':'shortage','kg'=>abs($adjust),
+            'product'=>$c['stockName'],'narration'=>$adjust>0?'Last loading excess after current-shift production':'Physical NIL stock shortage',
+            'managementOnly'=>true];$eventsByRef[$ref]=true;}
+        if($adjust>0&&empty($c['isRaw']))$queue[]=$scope+['id'=>'ROW-'.$c['id'],'ref'=>$ref,'date'=>$c['date'],'reconciledAt'=>$now,'existingProductionIds'=>array_map(static fn($p)=>(string)$p['id'],$productions),'product'=>$c['stockName'],'kg'=>$adjust,
+            'systemFixed'=>true,'noStockPost'=>true,'managementOnly'=>true,'status'=>'Pending Production Report','narration'=>'Last loading excess — fixed reconciliation row; no stock, raw consumption or journal posting.'];
+    }unset($c);
+    foreach($queue as&$row){if(empty($row['managementOnly'])||($row['status']??'')!=='Pending Production Report')continue;
+        $next=array_values(array_filter($productions,static fn($p)=>tt_inv_same_scope($p,$row)&&
+            (isset($row['existingProductionIds'])?!in_array((string)$p['id'],$row['existingProductionIds'],true):isset($p['createdAt'])&&$p['createdAt']>(string)($row['reconciledAt']??''))));
+        usort($next,static fn($a,$b)=>(int)($a['serverSequence']??0)<=>(int)($b['serverSequence']??0)?:strcmp((string)($a['createdAt']??''),(string)($b['createdAt']??''))?:strcmp((string)$a['id'],(string)$b['id']));
+        if($next){$row['productionId']=$next[0]['id'];$row['appliedDate']=$next[0]['date'];$row['appliedShift']=$next[0]['shift'];$row['status']='Applied to Production';}
+    }unset($row);
+    foreach([TT_INV_CONFIRMATIONS=>$confirmations,'tt32stockadj'=>$adjustments,'tt34ghati'=>$events,'tt34nilqueue'=>$queue]as$key=>$rows){if(isset($values[$key])||$rows)$values[$key]=tt_inv_json($rows);}
+    return $values;
+}
+
+/** Explicit management review uses the original physical fact and amended production. */
+function tt_inv_can_review(array $user,string $entity):bool {
+ if(($user['role']??'')==='Super Admin')return true;
+ if(tt_inv_has_action($user,'Directors',['reports','stock-reconciliation'],'Edit')||tt_inv_has_action($user,'Directors',['reports','stock-reconciliation'],'Approve'))return tt_inv_can_report($user,$entity);
+ return tt_inv_has_action($user,'Accounts',['reports','stock-reconciliation'],'Edit')&&tt_user_can_access_entity($user,$entity,'Edit');
+}
+function tt_inv_review_revision(array $values):string {
+ $selected=[];foreach(array_merge(TT_INV_SOURCE_KEYS,TT_INV_PRIVATE_KEYS) as $key)$selected[$key]=(string)($values[$key]??'');ksort($selected);return hash('sha256',tt_inv_json($selected));
+}
+function tt_inv_review(array $values,string $entity,string $id,string $reason,array $user,string $now):array {
+ if(!tt_inv_can_review($user,$entity))throw new DomainException('Accounts or Directors reconciliation review permission is required.');
+ if(strlen(trim($reason))<5||strlen($reason)>500)throw new InvalidArgumentException('Enter a review reason of 5 to 500 characters.');
+ $confirmations=tt_inv_rows($values,TT_INV_CONFIRMATIONS);$index=null;
+ foreach($confirmations as $i=>$c)if((string)($c['id']??'')===$id&&tt_inv_entity($c)===$entity)$index=$i;
+ if($index===null)throw new InvalidArgumentException('Select a physical confirmation in these company books.');
+ $before=$confirmations[$index];if(($before['status']??'')!=='Resolved'||empty($before['reviewRequired'])||!empty($before['isRaw']))throw new InvalidArgumentException('This confirmation has no amended production to review.');
+ $reports=tt_inv_shift_reports($values,$before);if(!array_filter($reports,static fn($p)=>!empty($p['shiftEntriesComplete'])))throw new InvalidArgumentException('The current shift must be marked complete in Milling before review.');
+ $ref='STOCK-CONFIRMATION|'.$id;$old=[];foreach(['tt32stockadj','tt34ghati','tt34nilqueue'] as $key){
+  $old[$key]=tt_inv_rows($values,$key);$values[$key]=tt_inv_json(array_values(array_filter($old[$key],static fn($r)=>($r['ref']??'')!==$ref)));
+ }
+ $target=$before;$target['status']='Pending';unset($target['reviewRequired']);$values[TT_INV_CONFIRMATIONS]=tt_inv_json([$target]);
+ $next=tt_inv_reconcile($values,$now);
+ $confirmations[$index]=tt_inv_rows($next,TT_INV_CONFIRMATIONS)[0];$next[TT_INV_CONFIRMATIONS]=tt_inv_json($confirmations);
+ // Replace the existing derived row at its original position. Never duplicate stock.
+ foreach($old as $key=>$rows){
+  $new=tt_inv_rows($next,$key);$replacement=null;foreach($new as $r)if(($r['ref']??'')===$ref)$replacement=$r;
+  $kept=[];$had=false;foreach($rows as $r){if(($r['ref']??'')!==$ref){$kept[]=$r;continue;}$had=true;if($replacement!==null){
+   if($key==='tt34nilqueue')foreach(['productionId','appliedDate','appliedShift','status','existingProductionIds','reconciledAt'] as $field)if(isset($r[$field]))$replacement[$field]=$r[$field];
+   if($key==='tt34ghati')$replacement['time']=$r['time']??$replacement['time'];$kept[]=$replacement;
+  }}
+  if(!$had&&$replacement!==null)$kept[]=$replacement;$next[$key]=tt_inv_json($kept);
+ }
+ $after=tt_inv_rows($next,TT_INV_CONFIRMATIONS)[$index];
+ $audit=tt_inv_rows($next,'tt34stockreviewaudit');$audit[]=['entity'=>$entity,'confirmationId'=>$id,'reason'=>trim($reason),'before'=>$before,'after'=>$after,'derivedBefore'=>$old,'at'=>$now,'by'=>$user['username']??''];$next['tt34stockreviewaudit']=tt_inv_json($audit);
+ return $next;
+}
+function tt_inv_stock_position(array $values,string $entity):array {
+ $scopes=[];foreach(['tt30prod','tt30ship','tt30slips','tt32stockadj','tt35localsales','tt35exportersale'] as $key)foreach(tt_inv_rows($values,$key) as $row)if(tt_inv_entity($row)===$entity){$scope=tt_inv_scope($row);$scopes[tt_inv_location($scope)]=$scope;}
+ $rows=[];foreach($scopes as $scope)foreach(tt_inv_stock($values,$scope) as $name=>$kg)$rows[]=$scope+['stockName'=>$name,'bookKg'=>round($kg,3)];
+ usort($rows,static fn($a,$b)=>strcmp($a['millName'],$b['millName'])?:strcmp($a['stockName'],$b['stockName']));return $rows;
+}
+
+function tt_inv_statement(array $values,string $entity): array {
+    $events=[];$ghati=0.;$gain=0.;
+    foreach(tt_inv_rows($values,'tt34ghati')as$e){if(tt_inv_entity($e)!==$entity)continue;$kg=max(0,(float)($e['kg']??0));
+        if(($e['kind']??'')==='gain'){$offset=min($ghati,$kg);$ghati-=$offset;$gain+=$kg-$offset;}
+        elseif(($e['kind']??'')==='shortage'){$offset=min($gain,$kg);$gain-=$offset;$ghati+=$kg-$offset;}else continue;
+        $e['ghatiAfter']=round($ghati,3);$e['gainAfter']=round($gain,3);$events[]=$e;
+    }
+    return ['entity'=>$entity,'ghatiKg'=>round($ghati,3),'carryForwardGainKg'=>round($gain,3),'events'=>$events,
+        'confirmations'=>array_values(array_filter(tt_inv_rows($values,TT_INV_CONFIRMATIONS),static fn($r)=>tt_inv_entity($r)===$entity)),
+        'fixedProductionRows'=>array_values(array_filter(tt_inv_rows($values,'tt34nilqueue'),static fn($r)=>tt_inv_entity($r)===$entity)),
+        'informationalOnly'=>true];
+}
+
+function tt_inv_read_values(): array {
+    $env=static function(string $key):string{$name='TT_DB_'.$key;return defined($name)?(string)constant($name):(string)(getenv($name)?:'');};
+    if($env('HOST')!==''&&$env('NAME')!==''&&$env('USER')!==''){
+        $db=new PDO('mysql:host='.$env('HOST').';dbname='.$env('NAME').';charset=utf8mb4',$env('USER'),$env('PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+        $values=[];foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll()as$row)$values[(string)$row['storage_key']]=(string)$row['payload'];return $values;
+    }
+    $path=TT_DATA_DIR.'/operations.json';if(!is_file($path))return [];
+    $h=fopen($path,'r');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Operational storage is unavailable.');
+    try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}
+    $store=json_decode($raw?:'{}',true,512,JSON_THROW_ON_ERROR);return (array)($store['values']??[]);
+}
+function tt_inv_rate(array $values,string $entity,string $asOf): ?float {
+    $end=new DateTimeImmutable(tt_inv_date($asOf));$cut=$end->modify('-9 days')->format('Y-m-d');$qty=0.;$value=0.;
+    foreach(tt_inv_rows($values,'tt30slips')as$r){
+        if(tt_inv_entity($r)!==$entity||($r['productStage']??'RAW')!=='RAW')continue;
+        $date=(string)($r['unloadingDate']??$r['arrivalDate']??'');$kg=(float)($r['payableWeight']??0);$rate=(float)($r['purchaseRate']??0);
+        if($date>=$cut&&$date<=$asOf&&$kg>0&&$rate>0){$qty+=$kg;$value+=$kg*$rate;}
+    }return $qty>0?round($value/$qty,6):null;
+}
+
+/** Transport old embedded artwork by reference without migrating or deleting stored bytes. */
+const TT_INV_ARTWORK_URL = '/export-assets.php?name=legacy&sha256=';
+function tt_inv_artwork_data(string $value): bool {
+    return preg_match('~^data:image/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$~i',$value)===1;
+}
+function tt_inv_walk_artwork(mixed $value,callable $replace): mixed {
+    if(is_string($value))return $replace($value);
+    if(is_array($value)){foreach($value as$key=>$item)$value[$key]=tt_inv_walk_artwork($item,$replace);}
+    elseif($value instanceof stdClass){foreach($value as$key=>$item)$value->$key=tt_inv_walk_artwork($item,$replace);}
+    return $value;
+}
+function tt_inv_artwork_json(string $json): string {
+    if(!str_contains($json,'data:image/'))return $json;
+    $data=json_decode($json,false,512,JSON_THROW_ON_ERROR);
+    $data=tt_inv_walk_artwork($data,static fn(string $value):string=>tt_inv_artwork_data($value)?TT_INV_ARTWORK_URL.hash('sha256',$value):$value);
+    return json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_PRESERVE_ZERO_FRACTION|JSON_THROW_ON_ERROR);
+}
+function tt_inv_artwork_index(array $publicValues): array {
+    $index=[];
+    foreach($publicValues as$json){
+        if(!is_string($json)||!str_contains($json,'data:image/'))continue;
+        $data=json_decode($json,false,512,JSON_THROW_ON_ERROR);
+        tt_inv_walk_artwork($data,static function(string $value)use(&$index):string{
+            if(tt_inv_artwork_data($value))$index[hash('sha256',$value)]=$value;
+            return $value;
+        });
+    }
+    return $index;
+}
+function tt_inv_restore_artwork(string $json,array $publicValues,?int $maxBytes=null): string {
+    if(!str_contains($json,TT_INV_ARTWORK_URL))return $json;
+    $index=tt_inv_artwork_index($publicValues);
+    $data=json_decode($json,false,512,JSON_THROW_ON_ERROR);
+    $expandedBytes=strlen($json);
+    $data=tt_inv_walk_artwork($data,static function(string $value)use($index,$maxBytes,&$expandedBytes):string{
+        if(!str_starts_with($value,TT_INV_ARTWORK_URL))return $value;
+        $hash=substr($value,strlen(TT_INV_ARTWORK_URL));
+        if(!preg_match('/^[a-f0-9]{64}$/',$hash)||!isset($index[$hash]))throw new InvalidArgumentException('An artwork reference is unavailable. Reload and review before saving.');
+        $expandedBytes+=strlen($index[$hash])-strlen($value);
+        if($maxBytes!==null&&$expandedBytes>$maxBytes)throw new InvalidArgumentException('Saved artwork makes the shared workspace too large to update.');
+        return $index[$hash];
+    });
+    return json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_PRESERVE_ZERO_FRACTION|JSON_THROW_ON_ERROR);
+}

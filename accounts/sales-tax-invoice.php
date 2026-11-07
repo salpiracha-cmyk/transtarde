@@ -1,0 +1,8 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__).'/api/monthly_tax_source.php';
+try{$u=tt_require_login();$e=strtoupper((string)($_GET['entity']??''));mt_access($u,$e);$root=ast_root();$source=mt_invoice_source($root,$e,(string)($_GET['shipment']??''));$s=$source['shipments'][0];if(isset($_GET['version'])&&!hash_equals(hash('sha256',json_encode([$s,$source['contracts'][0],$source['customers']])),(string)$_GET['version']))throw new DomainException('The invoice changed. Reload the monthly filing list.');$masters=tt_list_masters();$companies=array_values(array_filter((array)($masters['companies']??[]),static fn($r)=>strtoupper((string)($r['values'][1]??$r['values'][0]??''))===$e));tt_release_read_session();header('Cache-Control: private, no-store');header('Content-Type: text/html; charset=UTF-8');
+}catch(DomainException $x){http_response_code(422);exit(htmlspecialchars($x->getMessage(),ENT_QUOTES,'UTF-8'));}
+$flags=JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT;
+?>
+<!doctype html><html><head><meta charset="utf-8"><title>Pakistan Commercial Invoice</title><link rel="stylesheet" href="/api/monthly_tax_assets.php?entity=<?=$e?>&amp;asset=app.css"></head><body><div id="taxInvoice" role="status">Preparing the saved Pakistan invoice…</div><script>window.TT_EXPORT_TAX_SOURCE=<?=json_encode($source,$flags)?>;window.TT_MODULE_ACCESS={masters:{companies:<?=json_encode($companies,$flags)?>}};window.TT_TAX_ENTITY=<?=json_encode($e,$flags)?>;</script><script src="/api/monthly_tax_assets.php?entity=<?=$e?>&amp;asset=app.js"></script><script src="/api/monthly_tax_assets.php?entity=<?=$e?>&amp;asset=shipment-files.js"></script><script src="/accounts/sales-tax-invoice.js"></script></body></html>

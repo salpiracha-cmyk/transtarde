@@ -1,0 +1,53 @@
+name: Private current-file restore verification
+
+on:
+  pull_request:
+    paths: ['.github/scripts/migration_rehearsal_host.sh', '.github/scripts/migration_rehearsal_boundaries.py', '.github/workflows/private-file-recovery.yml']
+  push:
+    branches: [main]
+    paths: ['.github/scripts/migration_rehearsal_host.sh', '.github/scripts/migration_rehearsal_boundaries.py', '.github/workflows/private-file-recovery.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-current-file-restore
+  cancel-in-progress: false
+
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          bash -n .github/scripts/migration_rehearsal_host.sh
+          python3 .github/scripts/migration_rehearsal_boundaries.py
+  restore:
+    needs: boundaries
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: live-qa
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify only a private temporary file copy and remove it
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          task_private=$(mktemp -d "$RUNNER_TEMP/tt-file-restore-XXXXXXXX")
+          trap 'rm -rf -- "$task_private"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$task_private/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$task_private/known_hosts"
+          gate=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
+          echo "::add-mask::$gate"
+          { printf 'export TT_REHEARSAL_GATE_HEX=%s\n' "$gate"; cat .github/scripts/migration_rehearsal_host.sh; } > "$task_private/host.sh"
+          # The validated port argument is unused in files-only mode: no listener,
+          # tunnel, browser, raw-data download or production restore is started.
+          ssh -T -i "$task_private/key" -o UserKnownHostsFile="$task_private/known_hosts" -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" timeout 600 bash -s -- "$HOSTINGER_DEPLOY_PATH" 23456 files-only < "$task_private/host.sh"

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "rows": [
+    {
+      "fingerprint": "ee27278d3e2e167684e99f028ac4cad8e0f669eb33ceaf38c2bb71a6e6e8ccec",
+      "row": 0,
+      "changes": {
+        "account": "6910",
+        "category": "HOME",
+        "expenseFor": "SHARED",
+        "personalTreatment": "COMPANY",
+        "expenseArea": "HOME",
+        "homeExpenseDetail": "WATER_TANKER"
+      },
+      "narration": "Tankers",
+      "reason": "Owner confirmed this water payment is for tankers under company-borne Combined Home Expense"
+    }
+  ],
+  "archiveExpenseOnlyRecipients": false
+}

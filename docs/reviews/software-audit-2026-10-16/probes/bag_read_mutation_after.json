@@ -1,0 +1,16 @@
+{
+  "finding": "C19",
+  "status": "passed",
+  "environment": "Disposable source-function fixture; no live record touched",
+  "trigger": "renderBagOrders invokes normalizeBagOrderIds on reading the bag list",
+  "originalIds": [
+    7,
+    7
+  ],
+  "resultIds": [
+    7,
+    7
+  ],
+  "writes": 0,
+  "limitation": "Duplicate historical IDs need a reviewed source/receipt mapping. The repaired read refuses ambiguous identities without writing; reviewed historical mappings remain required."
+}

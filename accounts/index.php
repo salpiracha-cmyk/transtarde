@@ -1,0 +1,57 @@
+<?php
+declare(strict_types=1);
+require __DIR__ . '/../auth_store.php';
+require_once __DIR__.'/../inventory_reconciliation.php';
+require_once __DIR__.'/../api/group_management_core.php';
+require_once __DIR__ . '/../runtime_html.php';
+$user = tt_require_login();
+if (!tt_user_can_open_module($user, 'Accounts')) {
+    http_response_code(403);
+    exit('You do not have permission to open this module.');
+}
+$allowedEntities = tt_user_accounts_entities($user);
+if (!$allowedEntities) {
+    http_response_code(403);
+    exit('No Accounts legal entity has been assigned to this user.');
+}
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') tt_release_read_session();
+$file = __DIR__ . '/Transtrade_Accounts_Master_V1.html';
+if (!is_file($file)) {
+    http_response_code(404);
+    exit('Accounts module not found.');
+}
+header('Content-Type: text/html; charset=UTF-8');
+$html = (string)file_get_contents($file);
+$access = [
+    'module' => 'Accounts',
+    'workspaces' => tt_user_workspaces($user),
+    'userId' => (int)($user['id'] ?? 0),
+    'user' => (string)($user['full_name'] ?? ''),
+    'role' => (string)($user['role'] ?? ''),
+    'permissions' => $user['permissions']['Accounts'] ?? [],
+    'super' => (($user['role'] ?? '') === 'Super Admin'),
+    'csrf' => tt_csrf(),
+    'entities' => $allowedEntities,
+    'canGroupDaily'=>gm_permission($user,'DAILY','View','Accounts'),
+    'canGroupZakat'=>gm_permission($user,'ZAKAT','View','Accounts'),
+    'canInventoryReconciliation'=>tt_inv_can_report($user), 'masterAccess' => tt_user_can_access_masters($user),
+    'companyVatRates'=>['TG'=>tt_company_vat_rate('TG',5)],
+    'masterPermissions' => $user['master_permissions'] ?? [],
+    'masters' => tt_user_visible_masters($user),
+];
+// Accounts choices do not consume export document templates, artwork or charge history.
+// Their dedicated desks load the canonical master when explicitly opened.
+foreach (['products','export_documents','export_terms','export_realization_charges'] as $type) unset($access['masters'][$type]);
+$bootstrap = '<style id="tt-accounts-boot-style">html.tt-accounts-boot .topbar,html.tt-accounts-boot .shell{visibility:hidden}html.tt-accounts-boot body:before{content:"Loading Accounts…";position:fixed;inset:0;display:grid;place-items:center;background:#eef2f6;color:#102a46;font:700 15px Arial;z-index:99999}</style><script>document.documentElement.classList.add("tt-accounts-boot");window.TT_ACCOUNT_ACCESS=' . json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) . ';' . file_get_contents(__DIR__.'/accounts-startup-recovery.js') . '</script>';
+$html = tt_replace_html_once(
+    '/<head(\s[^>]*)?>/i',
+    static fn(array $match): string => $match[0] . $bootstrap . '<link rel="stylesheet" href="/brand-theme.css?v=20261006-number-entry-1">',
+    $html
+);
+$html = tt_replace_html_once(
+    '/<\/body>/i',
+    static fn(): string => '<script src="/session-activity.js?v=20260929-1"></script><script src="app-bundle.php?v=current"></script><script src="/brand-theme.js?v=20261010-number-entry-2"></script></body>',
+    $html
+);
+echo tt_version_local_assets($html,'/accounts/');
+
