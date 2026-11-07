@@ -441,10 +441,12 @@ function stat(s){
 document.addEventListener(&#x27;click&#x27;,event=&gt;{
  const target=event.target.closest?.(&#x27;[data-mill-delete]&#x27;);if(!target)return;
  event.preventDefault();event.stopImmediatePropagation();
+ const deleted=sales.find(s=&gt;String(s.id??s.soda)===target.dataset.sourceId);
  parent.TT_MILL_DELETE.remove(&#x27;tt35localsales&#x27;,target.dataset.sourceId,()=&gt;{
-  sales=parent.loadLocalPartySales([]);savedSales.clear();sales.forEach(s=&gt;savedSales.set(s.soda,structuredClone(s)));
-  if(sel&amp;&amp;!sales.some(s=&gt;s.soda===sel.soda)){back();}
-  render();
+  sales=parent.loadLocalPartySales([]);
+  if(deleted)savedSales.delete(deleted.soda);
+  if(sel&amp;&amp;deleted?.soda===sel.soda){back();return;}
+  document.getElementById(&#x27;saleRow_&#x27;+deleted?.soda)?.remove();renderExcess();
  });
 },true);
 function render(){
