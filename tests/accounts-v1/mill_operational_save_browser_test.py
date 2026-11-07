@@ -191,7 +191,11 @@ def run():
             production.locator('#prodShiftComplete').check();production.locator('#capacityReason').fill('Fixture low-volume completed shift');production.get_by_role('button',name='Save Production',exact=True).click()
             production.wait_for_function("get(STORE_PROD,[]).length===1&&get(STORE_PROD,[])[0].shiftEntriesComplete===true")
             final_runs=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30prod']);assert len(final_runs)==1 and final_runs[0]['id']==production_id and final_runs[0]['calculatedInputKg']==700 and final_runs[0]['rawInputs']==[] and final_runs[0]['operatingHours']==8.5 and final_runs[0]['downtimeReason']=='Power breakdown'
-            assert books.read_bytes()==production_books,'Output-accounted production changed financial books'
+            after_production_books=books.read_bytes()
+            if after_production_books!=production_books:
+                original=json.loads(production_books);changed=json.loads(after_production_books)
+                differences={key: {'before':original.get(key),'after':changed.get(key)} for key in original.keys()|changed.keys() if original.get(key)!=changed.get(key)}
+                raise AssertionError('Output-accounted production changed financial books: '+json.dumps({key:str(value)[:1600] for key,value in differences.items()},sort_keys=True))
             production.close();print('PASS native output-accounted production lost-ack retry, retained Ready Rice input, same-record progress replacement and completion, direct-kg by-product, raw-stock validation and unchanged books')
             # The authenticated native print uses committed loading and the shared half-A4 template.
             container={'id':'QA-GATE-LOAD','container':'MSCU123456-6','seal':'QA-SEAL','truck':'QA-404','date':'2026-10-27','weight':26950,'weighbridgeKg':27000,'packingKg':50,'bags':1000,'gate':'FIXTURE-GP','loadingComplete':True}

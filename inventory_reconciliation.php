@@ -6,6 +6,7 @@ require_once __DIR__.'/api/arrival_withdrawal_core.php';
 require_once __DIR__.'/api/paltai_core.php';
 
 /** Server-owned reconciliation. Operational staff submit facts, never a Ghati balance. */
+const TT_MILL_DELETIONS='tt40milldeletions';
 const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'];
 const TT_BAG_SERVER_KEYS = ['tt41bagtransfers'];
 const TT_INV_CONFIRMATIONS = 'tt39physicalconfirmations';
@@ -59,7 +60,7 @@ function tt_inv_public_adjustment(array $row): array {
 }
 /** Never return management stores through the operational shared-state route. */
 function tt_inv_public_values(array $values,array $meta=[]): array {
-    foreach(array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS) as $key){unset($values[$key],$meta[$key]);}
+    foreach(array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS,[TT_MILL_DELETIONS]) as $key){unset($values[$key],$meta[$key]);}
     if(isset($values['tt30prod'])){
         $rows=tt_inv_rows($values,'tt30prod');
         foreach($rows as &$r){$r['rows']=array_values(array_filter((array)($r['rows']??[]),static fn($x)=>!is_array($x)||!tt_inv_is_private_row($x)));}
@@ -80,7 +81,7 @@ function tt_inv_public_values(array $values,array $meta=[]): array {
             ['id','entity','millId','millName','locationId','stockName','physicalKg','date','shift','shiftDate','status','createdAt','sourceShipmentId']
         )),tt_inv_rows($values,TT_INV_CONFIRMATIONS)));
     }
-    return ['values'=>$values,'meta'=>$meta,'restrictedKeys'=>array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS)];
+    return ['values'=>$values,'meta'=>$meta,'restrictedKeys'=>array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS,[TT_MILL_DELETIONS])];
 }
 function tt_inv_date(string $value): string {
     $d=DateTimeImmutable::createFromFormat('!Y-m-d',$value);$e=DateTimeImmutable::getLastErrors();
@@ -324,7 +325,19 @@ function tt_inv_guard_arrival_bags(array $before,array $after,array $affected): 
         }
     }
 }
+/** Explicitly deleted source identities stay retired when an older tab saves. */
+function tt_inv_guard_deleted_source(array $values,string $key,string $json): void {
+    if($key===TT_MILL_DELETIONS)throw new DomainException('Deletion history is maintained by the server.');
+    if(!in_array($key,['tt30queue','tt30prod','tt33bagreceipts','tt35localsales','tt35exportersale'],true))return;
+    $deleted=[];
+    foreach(tt_inv_rows($values,TT_MILL_DELETIONS) as $receipt)if(($receipt['collection']??'')===$key)$deleted[(string)$receipt['sourceId']]=true;
+    foreach(tt_inv_rows([$key=>$json],$key) as $row){
+        $id=(string)($row['id']??$row['soda']??$row['ref']??'');
+        if(isset($deleted[$id]))throw new DomainException('This entry was deleted. Reload the saved entries before saving again.');
+    }
+}
 function tt_inv_prepare_write(array $values,string $key,string $json,array $user,string $now): string {
+    tt_inv_guard_deleted_source($values,$key,$json);
     tt_guard_arrival_collection($key,(string)($values[$key]??'[]'),$json);
     if(in_array($key,['tt30bags','tt33bagreceipts'],true)){require_once __DIR__.'/api/bag_receipts_core.php';$json=br_guard_write($values,$key,$json);}
     if(in_array($key,['tt36bagissues','tt30prodaudit'],true)){

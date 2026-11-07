@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 const BTS_STATE_KEY='tt41bagtransfers';
-const BTS_SOURCE_KEYS=['transtrade_export_v3_operational','tt30bags','tt30prod','tt33bagreceipts','tt36bagissues','tt35localsales','tt35brandmeta',BTS_STATE_KEY];
+const BTS_SOURCE_KEYS=['transtrade_export_v3_operational','tt30bags','tt30prod','tt33bagreceipts','tt36bagissues','tt35localsales','tt35brandmeta','tt40milldeletions',BTS_STATE_KEY];
 function bts_state(array $values): array {
     $raw=$values[BTS_STATE_KEY]??'';$state=$raw===''?[]:(is_string($raw)?json_decode($raw,true,512,JSON_THROW_ON_ERROR):$raw);
     if(!is_array($state)||($state&&($state['schemaVersion']??null)!==1))throw new DomainException('The saved bag movement schema requires review.');
