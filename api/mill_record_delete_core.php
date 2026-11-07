@@ -30,7 +30,13 @@ function mrd_dependencies(array $values,array $books,string $key,array $row): vo
     if($key==='tt30prod'){
         foreach(tt_inv_rows($values,'tt34nilqueue') as $reference)if((string)($reference['productionId']??'')===$id)throw new DomainException('This production has a stock reconciliation. Review it in Accounts before deletion.');
         foreach((array)($row['rows']??[]) as $output)if(tt_inv_is_private_row($output))throw new DomainException('This production has a fixed stock reconciliation. Review it in Accounts before deletion.');
-        foreach((array)($books['productionCostRuns']??[]) as $cost)if(($cost['entity']??'')===($row['entity']??'TTI')&&($cost['date']??'')===($row['date']??''))throw new DomainException('Production cost is approved for this date. Review the linked cost before deleting production.');
+        foreach((array)($books['productionCostRuns']??[]) as $cost){
+            if(($cost['entity']??'')!==($row['entity']??'TTI'))continue;
+            $runIds=$cost['calculation']['runIds']??null;
+            $included=is_array($runIds)?in_array($id,array_map('strval',$runIds),true):
+                (($cost['date']??'')===($row['date']??'')&&(($cost['variety']??'')===''||tt_inv_norm((string)$cost['variety'])===tt_inv_norm((string)($row['variety']??''))));
+            if($included)throw new DomainException('This production is included in an approved cost. Review the linked cost before deleting production.');
+        }
     }
     if(in_array($key,['tt35localsales','tt35exportersale'],true)){
         if(!empty($row['_ttBridge'])||!empty($row['exporterDealId']))throw new DomainException('This sale is linked to its originating SODA. Reverse it from that workflow first.');

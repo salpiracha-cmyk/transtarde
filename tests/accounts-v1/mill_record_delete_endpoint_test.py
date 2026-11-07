@@ -91,6 +91,11 @@ if($argv[1]==='seed'){
     status,result=req('tt30prod',production)
     assert status==422 and 'cost' in result['error'] and snapshot()==before,result
     books.write_bytes(financial)
+    books.write_text(json.dumps({'journals':{},'productionCostRuns':{'OTHER-COST':{'entity':'TTI','date':'2026-10-17','calculation':{'runIds':[99999]}}}}))
+    seed(initial)
+    status,result=req('tt30prod',production,requestKey='unrelated-approved-cost')
+    assert status==200,(status,result)
+    books.write_bytes(financial)
     dispatched = copy.deepcopy(json.loads(initial['tt35localsales'])[0])
     dispatched['loads']=[{'id':'LOAD-1','kg':500,'printed':True}]
     seed({**initial,'tt35localsales':json.dumps([dispatched])});before=snapshot()
