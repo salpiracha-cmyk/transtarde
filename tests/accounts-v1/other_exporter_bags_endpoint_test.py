@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory(prefix='other-exporter-bags-') as tmp:
 define('TT_DATA_DIR',__DIR__.'/data');
 function tt_require_login(){return ['id'=>7,'full_name'=>'Mill receiver','role'=>'Staff','location'=>($_GET['mode']??'')==='location'?'Other Mill':'Own Mill','permissions'=>($_GET['mode']??'')==='company'?['Accounts'=>['entity-brm'=>['View','Create']]]:[]];}
 function tt_user_can_open_module($u,$m){return ($_GET['mode']??'')!=='no-mill';}
-function tt_user_can_module_action($u,$m,$i,$a){return $m==='Mill'&&(($_GET['mode']??'')!=='read'||$a==='View');}
+function tt_user_can_module_action($u,$m,$i,$a){return $m==='Mill'&&(($_GET['mode']??'')!=='read'||$a==='View')&&(($_GET['mode']??'')!=='spec-only'||($i==='instructions'&&$a==='View'));}
 function tt_user_business_entity($u,$e,$a){return tt_user_can_access_entity($u,$e,$a);}
 function tt_user_can_access_entity($u,$e,$a){return ($_GET['mode']??'')!=='company'||$e==='BRM';}
 function tt_verify_csrf($v){return $v==='fixture';}
@@ -33,8 +33,9 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
     ops_path=root/'data/operations.json'
     ops_path.write_text(json.dumps({'revision':1,'values':{'tt30bags':json.dumps([{'id':999,'entity':'TTI','mill':'Another Mill','brand':'Private marking','received':0}]),'tt33bagreceipts':'[]','tt30prod':'[]','tt36bagissues':'[]','tt35exportersale':'[]','transtrade_export_v3_operational':'{}'},'meta':{}}))
     env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
-    def req(body=None, mode=''):
+    def req(body=None, mode='', purpose=''):
         query={'entity':'TTI','locationId':'M1','mode':mode}
+        if purpose:query['purpose']=purpose
         out=subprocess.run(['php', str(root/'runner.php')],input=json.dumps({'query':query,'body':body}),text=True,capture_output=True,env=env,check=True)
         assert 'STATUS:' in out.stderr,out.stderr
         return int(out.stderr.rsplit('STATUS:',1)[1]),json.loads(out.stdout)
@@ -43,6 +44,13 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
     assert not data['choices'] and data['deals'][0]['product']=='White rice 5% broken' and data['deals'][0]['productionStockName']=='Planned rice output','Unreceived instructed SODA disappeared with its bag choices'
     assert not set(data['deals'][0]).intersection({'price','payments','history','settlements','bankId','currency'}),'Mill planning feed exposed commercial data'
     assert snapshot()==before,'Read created stock or edited books'
+    status,spec=req(mode='spec-only',purpose='specifications');assert status==200 and len(spec['specifications'])==1,spec
+    assert spec['specifications'][0]['notes']=='Fixture production instruction' and '987654' not in json.dumps(spec)
+    assert 'inventory' not in spec and 'productionOrders' not in spec and snapshot()==before,'Specification read changed or over-fetched sources'
+    assert req(mode='spec-only',purpose='production')[0]==403,'Specification-only user gained Production access'
+    for mode in ['no-mill','location','company']:
+        assert req(mode=mode,purpose='specifications')[0]==403 and snapshot()==before,'Specification read bypassed scope rights'
+    assert req(dict(csrf='fixture',entity='TTI',locationId='M1',purpose='specifications'))[0]==405 and snapshot()==before,'Read-only specification purpose accepted a write'
     base={'csrf':'fixture','entity':'TTI','locationId':'M1','sodaId':'HK','version':1}
     order=data['productionOrders'][0];assert order['sourceId']=='HK' and order['entity']=='TTI' and not order['brand']
     registered=dict(action='register_production_brand',purpose='production',csrf='fixture',entity='TTI',locationId='M1',orderId=order['orderId'],version=order['version'],brand='Actual marking',requestKey='register-actual-brand-0001')
@@ -87,5 +95,6 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
     assert book_path.read_bytes()==after[0]
     current=json.loads(book_path.read_text());current['exporterDeals']['HK']['status']='Closed';book_path.write_text(json.dumps(current));closed=snapshot()
     status,data=req();assert status==200 and not data['deals'] and not data['choices'] and data['diagnostics'][0]['remaining']==125,data
+    assert req(mode='spec-only',purpose='specifications')[1]['specifications']==[] and snapshot()==closed,'Closed specification remained visible or changed data'
     assert req(dict(receipt,requestKey='closed-other-bag-receipt-0003'))[0]==422 and snapshot()==closed
     print('PASS actual other exporter bag controller: permissions, CSRF, read privacy, blank-only audited SODA brand save, replay, physical receipts, canonical source versions, unchanged journals, closed-stock history and production choices')
