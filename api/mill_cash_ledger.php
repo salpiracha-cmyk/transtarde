@@ -9,9 +9,10 @@ try{
     $method=$_SERVER['REQUEST_METHOD']??'GET';if(!in_array($method,['GET','POST'],true))mcl_out(['ok'=>false,'error'=>'Method not allowed.'],405);
     $u=tt_require_login();$write=$method==='POST';$b=$write?json_decode(tt_accounts_input(),true,512,JSON_THROW_ON_ERROR):$_GET;
     if(!tt_user_can_open_module($u,'Mill')||!tt_user_can_module_action($u,'Mill','petty','View'))mcl_out(['ok'=>false,'error'=>'Mill Petty Cash View permission required.'],403);
+    $deleting=$write&&($b['action']??'')==='delete';$action=$deleting?'Edit':'Create';
     $entity=strtoupper((string)($b['entity']??'TTI'));
     if(!in_array($entity,['TTI','BRM'],true))mcl_out(['ok'=>false,'error'=>'Select the company mill.'],422);
-    if(!tt_user_business_entity($u,$entity,'View')||($write&&(!tt_user_business_entity($u,$entity,'Create')||!tt_user_can_module_action($u,'Mill','petty','Create'))))mcl_out(['ok'=>false,'error'=>'Mill Petty Cash and company permission required.'],403);
+    if(!tt_user_business_entity($u,$entity,'View')||($write&&(!tt_user_business_entity($u,$entity,$action)||!tt_user_can_module_action($u,'Mill','petty',$action))))mcl_out(['ok'=>false,'error'=>'Mill Petty Cash and company permission required.'],403);
     $locationId=trim((string)($b['locationId']??''));$name=(string)($b['millName']??'');
     if($locationId==='')foreach(mcl_locations($entity) as $row)if(tt_location_identity($row['name'])===tt_location_identity($name)){$locationId=$row['id'];break;}
     $location=mcl_location($entity,$locationId);
@@ -26,7 +27,7 @@ try{
         else{
             if((int)($b['revision']??-1)!==(int)$s['revision'])mcl_out(['ok'=>false,'code'=>'STALE_REVISION','error'=>'Accounts changed. Refresh balances and review again; your payment has not posted.'],409);
             $before=array_map('strval',array_keys((array)$s['journals']));$GLOBALS['TT_PETTY_PREVIEW']=!empty($b['preview']);
-            $result=mcl_post($s,$entity,$location,$b,$u);tt_posting_preview_exit($b,$s,$before);
+            $result=$deleting?mcl_delete($s,$entity,$location,$b,$u):mcl_post($s,$entity,$location,$b,$u);if(!$deleting)tt_posting_preview_exit($b,$s,$before);
             $s['millPettyRequests'][$identity]=['fingerprint'=>$fingerprint,'result'=>$result];$s['revision']=(int)$s['revision']+1;
             $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Mill cash payment could not be saved.');
         }

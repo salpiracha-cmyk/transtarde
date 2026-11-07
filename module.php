@@ -320,6 +320,26 @@ $sharedBootstrap = <<<'HTML'
   function showSyncError(msg,conflict){console.error(msg);if(conflict)dispatchEvent(new CustomEvent('tt:shared-conflict',{detail:{message:msg}}))}
   function checkInbound(){if(exportWorkspaceBusy()){deferInbound();return}const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);if(access.moduleId!=='milling')inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
   // A bill Save appends only its reviewed record. It never flushes another form.
+  async function deleteMillRecord(intent){
+    if(access.moduleId!=='milling'||pending.size||inFlight.size)throw new Error('Finish the current save before deleting a Mill entry.');
+    const keys=[intent.collection,'tt30bags','tt33bagreceipts','tt36bagissues','tt30prodaudit','tt32labourfeed'];
+    const originals=new Map(keys.map(key=>[key,localStorage.getItem(key)]));
+    keys.forEach(key=>inFlight.add(key));saveHolds++;waiting();
+    try{
+      const response=await fetch('/api/mill_record_delete.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({...intent,csrf:access.csrf})});
+      const saved=await response.json();
+      if(!response.ok||!saved.ok)throw new Error(saved.error||'Deletion could not be confirmed. Retry the same deletion.');
+      if(saved.receipt?.requestKey!==intent.requestKey||saved.receipt?.collection!==intent.collection||saved.receipt?.sourceId!==String(intent.sourceId)||typeof saved.values?.[intent.collection]!=='string')throw new Error('Deletion acknowledgement is incomplete. Retry the same deletion.');
+      for(const [key,value] of Object.entries(saved.values)){
+        if(!keys.includes(key)||typeof value!=='string'||!Number.isInteger(saved.meta?.[key]?.version))throw new Error('Deletion returned incomplete saved entries. Retry the same deletion.');
+        if(pending.has(key)||localStorage.getItem(key)!==originals.get(key))throw new Error('The entry was deleted. Reopen saved entries to view the confirmed result.');
+      }
+      for(const [key,value] of Object.entries(saved.values)){
+        directSet(key,value);committedValues.set(key,value);receipts.set(key,value);keyVersions.set(key,saved.meta[key].version);remoteKeys.add(key);
+      }
+      return saved.receipt;
+    }finally{keys.forEach(key=>inFlight.delete(key));saveHolds--;waiting();}
+  }
   async function commitProduction(record,before=null){
     if(access.moduleId!=='milling')throw new Error('Open the Milling workspace before saving production.');
     const keys=['tt30prod','tt36bagissues','tt30prodaudit'];
@@ -441,7 +461,7 @@ $sharedBootstrap = <<<'HTML'
       return identity?value:true;
     }finally{inFlight.delete(key);saveHolds--;waiting();}
   }
-  window.TT_SHARED_SYNC={recoverLegacy,commitContractChanges,commitMillSettings,readVersion:key=>keyVersions.get(key)??null,commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,confirmExportSave:async(attempted,matches)=>{
+  window.TT_SHARED_SYNC={deleteMillRecord,recoverLegacy,commitContractChanges,commitMillSettings,readVersion:key=>keyVersions.get(key)??null,commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,confirmExportSave:async(attempted,matches)=>{
     if(access.moduleId!=='exports'||!allowed(EXPORT_STORE)||typeof matches!=='function')return false;
     const response=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin',cache:'no-store'}),snapshot=await response.json();
     const value=snapshot.values?.[EXPORT_STORE],version=snapshot.meta?.[EXPORT_STORE]?.version;
@@ -507,7 +527,7 @@ $accountsSourceBridge = '<script src="mill-duplicate-approvals.js"></script><scr
 $brandBody = '<script src="/session-activity.js?v=20261105-mill-idle"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
-if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/arrival-recovery-ui.js"></script><script src="/accounts/arrival-visibility.js"></script><script src="/accounts/arrival-device-guard.js"></script><script>window.TT_POST_CONFIRMATION_REVIEW_ONLY=true;</script><script src="/accounts/post-confirmation-ui.js"></script><script src="/accounts/mill-petty-cash-ui.js"></script><script src="/accounts/mill-settings-save.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261105-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261105-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
+if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/mill-record-delete-ui.js"></script><script src="/accounts/arrival-recovery-ui.js"></script><script src="/accounts/arrival-visibility.js"></script><script src="/accounts/arrival-device-guard.js"></script><script>window.TT_POST_CONFIRMATION_REVIEW_ONLY=true;</script><script src="/accounts/post-confirmation-ui.js"></script><script src="/accounts/mill-petty-cash-ui.js"></script><script src="/accounts/mill-settings-save.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261105-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261105-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
 $localSalesEntry='';
 if($localSalesView){
     $entry=file_get_contents(__DIR__.'/milling/local-sales-entry.js');

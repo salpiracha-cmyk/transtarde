@@ -94,6 +94,8 @@ jobs:
           python3 tests/accounts-v1/dashboard_commodity_dues_http_test.py
           python3 tests/accounts-v1/petty_cash_http_test.py
           python3 tests/accounts-v1/mill_petty_cash_http_test.py
+          python3 tests/accounts-v1/mill_record_delete_endpoint_test.py
+          node tests/accounts-v1/mill_record_delete_ui_test.js
           python3 tests/accounts-v1/mill_cash_entry_http_test.py
           python3 tests/accounts-v1/petty_cash_balance_projection_test.py
           python3 tests/security/office_delivery_http_test.py
@@ -529,6 +531,7 @@ jobs:
           php tests/security/website_restore_mysql_test.php
           TT_BAG_TEST_MYSQL=1 python3 tests/accounts-v1/bag_transfer_endpoint_test.py
           TT_BAG_TEST_MYSQL=1 python3 tests/accounts-v1/bag_receipt_endpoint_test.py
+          TT_MRD_TEST_MYSQL=1 python3 tests/accounts-v1/mill_record_delete_endpoint_test.py
           python3 tests/security/export_document_permissions_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_source_handoff_browser_test.py

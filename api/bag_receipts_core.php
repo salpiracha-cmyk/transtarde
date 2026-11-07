@@ -29,7 +29,9 @@ function br_commit(array &$values,array &$state,array $masters,array $body,array
     $action=(string)($body['action']??'');if(!in_array($action,['receive_supplier','receipt_status','accept_corrected','return_supplier','return_available','reverse_supplier_return'],true))throw new DomainException('Choose an explicit supplier receipt action.');
     $request=bt_request($state,$body,$user,'SUPPLIER_'.$action);
     if($request['prior']){
-        $prior=$request['prior'];if(($prior['kind']??'')!=='supplierReceipt')throw new DomainException('This request identity belongs to another movement.');$scope=$prior['scope'];
+        $prior=$request['prior'];
+        foreach(bti_rows($values,'tt40milldeletions') as $deleted)if(($deleted['collection']??'')==='tt33bagreceipts'&&(string)($deleted['sourceId']??'')===(string)($prior['receipt']['id']??''))throw new DomainException('This receipt was deleted. Reopen the saved receipt history.');
+        if(($prior['kind']??'')!=='supplierReceipt')throw new DomainException('This request identity belongs to another movement.');$scope=$prior['scope'];
         $authorize($scope['entity'],$scope['millName'],$action==='receive_supplier'?'Create':'Edit',$scope['locationId']);
         $orders=bti_rows($values,'tt30bags');$matching=array_values(array_filter($orders,static fn($r)=>(string)($r['id']??'')===(string)$body['bagId']));
         return ['receipt'=>$prior['receipt'],'disposition'=>$prior['disposition']??null,'order'=>count($matching)===1?$matching[0]:$prior['order'],'replayed'=>true];

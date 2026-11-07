@@ -4,9 +4,10 @@ require_once __DIR__ . '/product_stage.php';
 require_once __DIR__.'/api/mill_recovery_core.php';
 require_once __DIR__.'/api/arrival_withdrawal_core.php';
 require_once __DIR__.'/api/paltai_core.php';
+require_once __DIR__.'/api/mill_record_delete_core.php';
 
 /** Server-owned reconciliation. Operational staff submit facts, never a Ghati balance. */
-const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'];
+const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit',MRD_ARCHIVE];
 const TT_BAG_SERVER_KEYS = ['tt41bagtransfers'];
 const TT_INV_CONFIRMATIONS = 'tt39physicalconfirmations';
 const TT_INV_SOURCE_KEYS = ['tt30prod','tt30ship','tt30slips','tt32stockadj','tt35localsales','tt35exportersale',TT_INV_CONFIRMATIONS];
@@ -325,6 +326,7 @@ function tt_inv_guard_arrival_bags(array $before,array $after,array $affected): 
     }
 }
 function tt_inv_prepare_write(array $values,string $key,string $json,array $user,string $now): string {
+    mrd_guard_write($values,$key,$json);
     tt_guard_arrival_collection($key,(string)($values[$key]??'[]'),$json);
     if(in_array($key,['tt30bags','tt33bagreceipts'],true)){require_once __DIR__.'/api/bag_receipts_core.php';$json=br_guard_write($values,$key,$json);}
     if(in_array($key,['tt36bagissues','tt30prodaudit'],true)){

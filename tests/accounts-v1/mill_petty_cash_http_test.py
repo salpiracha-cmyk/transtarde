@@ -56,6 +56,10 @@ with tempfile.TemporaryDirectory(prefix='petty-cash-') as directory:
         funded=post({**b,'requestKey':'mill-partial-funding','revision':get()['revision'],'amount':50,'date':'2026-08-03'})
         assert funded['mills'][0]['balance']==-100,funded
         st,ledger=request('/api/accounts_ledger_browser.php?entity=TTI&account=CASH%7CTTI%7CMILL%7CM1&to=2026-12-31');assert st==200 and ledger['closing']==-100,(st,ledger)
+        deletion={'entity':'TTI','locationId':'M1','revision':get()['revision'],'requestKey':'mill-delete-expense-retry','action':'delete','journalId':expense_result['result']['journalId'],'reason':'Duplicate mill payment entered'}
+        st,deleted=request('/api/mill_cash_ledger.php',deletion);assert st==200 and deleted['result']['status']=='Deleted' and deleted['balance']==50,(st,deleted)
+        stable=books.read_bytes();st,replayed=request('/api/mill_cash_ledger.php',deletion);assert st==200 and replayed['balance']==50 and books.read_bytes()==stable
+        st,blocked=request('/api/mill_cash_ledger.php',{**deletion,'requestKey':'mill-delete-receipt-blocked','journalId':funded['result']['journalId'],'revision':get()['revision']});assert st==422 and books.read_bytes()==stable,(st,blocked)
         a=json.loads(auth.read_text());a['users']=[{**user,'role':'Staff','permissions':{'Accounts':{'expenses':['View']}},'entities':['TTI']}];auth.write_text(json.dumps(a));post({**b,'requestKey':'mill-no-create','revision':get()['revision']},403)
         print('PASS Office→Mill transfer: active company mills, receiver, two 1120 legs, shared mill and Accounts ledgers, zero-write preview, retry/conflict, overdrafts/date/future funding, authorized audited reversal and permission boundaries')
     finally:

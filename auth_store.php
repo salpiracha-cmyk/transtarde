@@ -1030,6 +1030,8 @@ function tt_user_can_director_approve(array $user): bool {
 
 /** Route ownership is server-defined; company grants never substitute for an icon. */
 function tt_api_write_grants(string $endpoint,array $body): ?array {
+    if($endpoint==='mill_record_delete.php')return [['Mill',['tt30queue'=>'queue','tt30prod'=>'production','tt33bagreceipts'=>'newbags','tt35localsales'=>'local','tt35exportersale'=>'local'][$body['collection']??'']??'none','Edit']];
+    if($endpoint==='mill_cash_ledger.php')return [['Mill','petty',($body['action']??'')==='delete'?'Edit':'Create']];
     if($endpoint==='arrival_recovery.php')return [['Mill','queue','View']];
     if($endpoint==='directors_cost_defaults.php')return [['Directors','costing','Create'],['Directors','costing','Edit'],['Directors','exporter-trading','Create'],['Directors','exporter-trading','Edit']];
     if($endpoint==='directors_trading.php'){if(($_GET['origin']??'')==='mill')return [['Mill','local','View']];if(($_GET['origin']??'')==='exports')return [['Exports','loading','Edit']];$icon=($_GET['area']??'')==='costing'?'costing':'exporter-trading';$right=($body['action']??'')==='preview_costing'?'View':(($body['action']??'')==='save_costing'&&!empty($body['id'])?'Edit':(in_array($body['action']??'',['post_settlement','payment'],true)?'Approve':(in_array($body['action']??'',['save_bag_arrangement','amend_deal','loading','amend_loading','allocate_expense','remove_expense','review_loading'],true)?'Edit':'Create')));return [['Directors',$icon,$right]];}
