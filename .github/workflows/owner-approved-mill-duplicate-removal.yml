@@ -1,0 +1,66 @@
+name: Remove the exact owner-approved duplicate production
+on:
+  push:
+    branches: [codex/owner-approved-mill-duplicate-removal]
+permissions:
+  contents: read
+concurrency:
+  group: transtrade-production-deployment
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 92350958b0a51bcf3a8cdd0387c09fedb39cd3dd
+      - name: Verify exact live source and moved folders without writing business data
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
+          ssh -o ConnectTimeout=20 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_REVIEW_TARGET=$target_q php" <<'PHP'
+          <?php
+          $root=getenv('TT_REVIEW_TARGET');
+          require $root.'/auth_store.php';require_once $root.'/inventory_reconciliation.php';
+          require_once $root.'/api/operations_policy.php';require_once $root.'/api/operations_scope.php';
+          require_once $root.'/api/bag_transfers_store.php';require_once $root.'/api/mill_record_delete_store.php';
+          $read=static function($path){$h=fopen($path,'rb');if(!$h||!flock($h,LOCK_SH))throw new RuntimeException('Source unavailable');try{return json_decode(stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);}finally{flock($h,LOCK_UN);fclose($h);}};
+          if((defined('TT_DB_HOST')&&TT_DB_HOST!=='')||getenv('TT_DB_HOST'))throw new RuntimeException('Backend changed; review again');
+          $auth=$read(TT_STORE_FILE);$ops=$read(TT_DATA_DIR.'/operations.json');$values=$ops['values'];
+          $owners=array_values(array_filter($auth['users'],static fn($u)=>($u['role']??'')==='Super Admin'&&strtolower(trim($u['username']??''))==='salman'));
+          $operators=array_values(array_filter($auth['users'],static fn($u)=>str_contains(strtolower($u['full_name']??$u['username']??''),'yar')&&str_contains(strtolower($u['full_name']??$u['username']??''),'azam')));
+          if(count($owners)!==1||count($operators)!==1)throw new RuntimeException('Actor identity changed');
+          $targetDigest='96b7b6a3c57a777d0a77ec2db57f9212717c7665a755d656f63d99a7752bebfd';$originalDigest='0821f18c64628f1696438e8a66e8a9eae0d586a44c1d9c84e12d76cc9194ca53';
+          $find=static fn($rows,$digest)=>array_values(array_filter($rows,static fn($r)=>hash('sha256',(string)($r['id']??''))===$digest));
+          $reports=tt_inv_rows($values,'tt30prod');$targets=$find($reports,$targetDigest);$originals=$find($reports,$originalDigest);
+          if(count($originals)!==1)throw new RuntimeException('Original report changed; no deletion attempted');
+          $original=tt_inv_json($originals[0]);$request='owner-duplicate-removal-20261107';$reason='Salman requested removal of Yar Azam duplicate Day shift report dated 02-11-2026. Original report retained.';
+          if(count($targets)!==1){
+              $prior=array_values(array_filter(tt_inv_rows($values,TT_MILL_DELETIONS),static fn($r)=>($r['requestKey']??'')===$request));
+              if(count($prior)!==1)throw new RuntimeException('Target identity changed');
+              $row=$prior[0]['before'];
+          }else{
+              $row=$targets[0];$issues=array_values(array_filter(tt_inv_rows($values,'tt36bagissues'),static fn($r)=>(string)($r['productionId']??'')===(string)$row['id']));
+              $amendments=array_filter(tt_inv_rows($values,'tt30prodaudit'),static fn($r)=>(string)($r['productionId']??'')===(string)$row['id']);
+              if(count($issues)!==1||(int)($issues[0]['userId']??0)!==(int)$operators[0]['id']||$amendments)throw new RuntimeException('Requested entry author changed');
+          }
+          if(($row['date']??'')!=='2026-11-02'||tt_inv_shift_name($row['shift']??'')!=='Day'||tt_inv_entity($row)!=='TTI'||tt_inv_location($row)!=='ttiricemills')throw new RuntimeException('Target scope changed');
+          $shown=os_project($owners[0],['tt30prod'=>tt_inv_json([$row])]+$values)['values']['tt30prod'];$financialBefore=hash_file('sha256',TT_DATA_DIR.'/accounts.json');
+          $result=mrd_write($owners[0],['collection'=>'tt30prod','sourceId'=>(string)$row['id'],'expected'=>json_decode($shown,true,512,JSON_THROW_ON_ERROR)[0],'requestKey'=>$request,'reason'=>$reason]);
+          $remaining=tt_inv_rows($result['values'],'tt30prod');$kept=$find($remaining,$originalDigest);
+          if($find($remaining,$targetDigest)||count($kept)!==1||tt_inv_json($kept[0])!==$original)throw new RuntimeException('Deletion verification failed');
+          echo json_encode(['requestedDuplicateRemoved'=>true,'originalReportUnchanged'=>true,'archivedOriginalRetained'=>isset($result['receipt']['before']),'financialSourceUnchanged'=>$financialBefore===hash_file('sha256',TT_DATA_DIR.'/accounts.json'),'requestKey'=>$request],JSON_THROW_ON_ERROR).PHP_EOL;
+          PHP
