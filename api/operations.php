@@ -10,7 +10,23 @@ header('Cache-Control: no-store, no-cache, must-revalidate');
 
 const TT_OPERATIONS_FILE = TT_DATA_DIR . '/operations.json';
 
+function operations_telegram_after_save(array $data, int $status): void {
+    if($status>=300||empty($data['ok'])||($_SERVER['REQUEST_METHOD']??'GET')!=='POST'||!isset($data['revision']))return;
+    if(!is_file(TT_DATA_DIR.'/telegram-dispatch.json'))return;
+    if(!function_exists('fastcgi_finish_request')&&!function_exists('litespeed_finish_request'))return;
+    register_shutdown_function(static function(): void {
+        if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
+        if(function_exists('fastcgi_finish_request'))fastcgi_finish_request();
+        elseif(function_exists('litespeed_finish_request'))litespeed_finish_request();
+        try {
+            require_once __DIR__.'/telegram_dispatch_core.php';
+            tg_dispatch();
+        } catch(Throwable) { error_log('Telegram background delivery requires retry.'); }
+    });
+}
+
 function operations_respond(array $data, int $status = 200): never {
+    operations_telegram_after_save($data,$status);
     http_response_code($status);
     echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;

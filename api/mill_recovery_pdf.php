@@ -68,6 +68,11 @@ function mr_pdf_render(array $report): string {
         $y -= 20;
     };
     $page();
+    if (isset($report['tables'])) {
+        foreach ($report['tables'] as $section) {
+            $table($section['title'], $section['headers'], $section['widths'], $section['rows']);
+        }
+    } else {
     $totals = static fn(array $g): array => array_map('mr_pdf_number', [$g['inputKg'], $g['readyKg'], $g['byProductKg'], $g['outputKg'], $g['recoveryPct'], $g['differenceKg']]);
     $summaryHeaders = ['Date', 'Input kg', 'Ready kg', 'By-products kg', 'Output kg', 'Recovery %', 'Difference kg'];
     $summaryWidths = [110,110,110,110,110,100,120];
@@ -89,6 +94,7 @@ function mr_pdf_render(array $report): string {
                     ...array_map('mr_pdf_number', [$r['bags'], $r['bagWeight'] ?? null, $r['grossKg'], $r['lessKg'], $r['kg'], $r['recoveryPct']]),
                 ], $group[$section]));
         }
+    }
     }
     $pages[] = $stream;
     $objects = ['', '', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>'];

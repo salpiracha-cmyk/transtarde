@@ -358,6 +358,11 @@ jobs:
             -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" \
             "bash -s -- rotate $target_q $DEPLOY_SHA" < "$RUNNER_TEMP/code-backup-rotation.sh"
 
+      - name: Activate Telegram automatic delivery on Hostinger
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3             -i "$RUNNER_TEMP/ssh/deploy_key"             -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts"             -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST"             "bash '$HOSTINGER_DEPLOY_PATH/scripts/install-telegram-cron.sh'"
+
       - name: Deployment summary
         run: |
           echo "## Production deployment" >> "$GITHUB_STEP_SUMMARY"

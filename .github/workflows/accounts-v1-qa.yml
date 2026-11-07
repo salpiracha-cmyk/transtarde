@@ -372,6 +372,7 @@ jobs:
           node tests/accounts-v1/production_compact_entry_test.js
           node tests/accounts-v1/mill_report_entry_scope_test.js
           php tests/accounts-v1/mill_recovery_test.php
+          php tests/accounts-v1/telegram_dispatch_test.php
           php tests/accounts-v1/mill_gate_pass_test.php
           python3 tests/accounts-v1/mill_gate_pass_http_test.py
           python3 tests/accounts-v1/mill_recovery_http_test.py
