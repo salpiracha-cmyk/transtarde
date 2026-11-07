@@ -112,6 +112,7 @@ if($argv[1]==='seed'){
     assert status == 200, (status, result)
     assert json.loads(result['values']['tt30prod']) == [] and json.loads(result['values']['tt36bagissues']) == []
     assert books.read_bytes() == financial
+    deleted_state=stored()['values']
     # Removing unconsumed receipts adjusts the actual received counter.
     state = stored()['values']
     state['tt36bagissues'] = '[]'
@@ -119,6 +120,19 @@ if($argv[1]==='seed'){
     status, result = req('tt33bagreceipts', receipt, requestKey='receipt-delete-12345678')
     assert status == 200, (status, result)
     assert json.loads(result['values']['tt30bags'])[0]['received'] == 0 and json.loads(result['values']['tt33bagreceipts']) == []
+    consumed=copy.deepcopy(initial)
+    consumed['tt35localsales']=json.dumps([{'id':'SALE-USED','entity':'TTI','millName':'TTI Rice Mills','product':'B3','loads':[{'kg':100}]}])
+    seed(consumed);before=snapshot()
+    status,result=req('tt30prod',production,requestKey='consumed-production-delete')
+    assert status==422 and 'insufficient' in result['error'] and snapshot()==before,result
+    billed=copy.deepcopy(initial);billed['tt30prod']='[]';billed['tt36bagissues']='[]'
+    books.write_text(json.dumps({'journals':{},'bagSupplierBills':{'B1':{'entity':'TTI','poNo':'PO-1','lineKey':'L1','journalId':'J1','status':'Posted'}}}))
+    seed(billed);before=snapshot()
+    status,result=req('tt33bagreceipts',receipt,requestKey='posted-bag-bill-delete')
+    assert status==422 and 'supplier bill' in result['error'] and snapshot()==before,result
+    books.write_bytes(financial)
+    # Return to the earlier successful source deletion state.
+    seed(deleted_state)
     # A local sale without downstream handoffs can be removed.
     sale = json.loads(initial['tt35localsales'])[0]
     status, result = req('tt35localsales', sale, requestKey='local-sale-delete-12345')
