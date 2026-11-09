@@ -168,6 +168,7 @@ def run():
             # while the canonical Pohanch stays available for authorized reprints.
             staff=browser.new_context()
             operator=staff.new_page()
+            operator.set_viewport_size({'width':390,'height':844})
             operator.goto(base+'/login.php')
             operator.locator('[name="username"]').fill('qaoperator')
             operator.locator('[name="password"]').fill(credentials['password'])
@@ -175,7 +176,7 @@ def run():
             operator.goto(base+'/module.php?id=milling')
             operator.locator('.mill-card[onclick="chooseMill(1)"]').click()
             operator.locator('#home [onclick="openPanel(\'arrival\')"]').first.click()
-            operator.get_by_role('button',name='Search / Reprint Pohanch',exact=True).click()
+            assert operator.get_by_role('heading',name='Search / Reprint Pohanch',exact=True).is_visible()
             for query in ('QA 101',amended[0]['slip'],amended[0]['soda']):
                 operator.locator('#searchPohValue').fill(query)
                 operator.locator('#searchPohValue').press('Enter')
@@ -193,8 +194,10 @@ def run():
             assert body.count('ORIGINAL')==1 and body.count('OFFICE COPY')==1
             assert len(re.findall(r'\d{2}-\d{2}-\d{4}',body))==4 and not re.search(r'\d{4}-\d{2}-\d{2}',body)
             assert not json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30slips'])[0]['printed']
-            popup.get_by_role('button',name='Mark as printed').click()
-            popup.locator('#pohanchPrintStatus').filter(has_text='Marked as printed').wait_for(state='attached')
+            assert popup.get_by_role('button',name='Mark as printed').is_visible()
+            popup.close()
+            operator.locator('#unprintedSlips').get_by_role('button',name='Mark as printed',exact=True).click()
+            operator.locator('#pohanchPendingStatus').filter(has_text='marked as printed').wait_for()
             operator.locator('#unprintedSlips').filter(has_text='No saved unprinted Pohanch').wait_for()
             after_operations=context.request.get(base+'/api/operations.mysql.php').json()['values']
             assert json.loads(after_operations['tt30slips'])==[{**amended[0],'printed':True}]
@@ -204,7 +207,7 @@ def run():
             operator.locator('.mill-card[onclick="chooseMill(1)"]').click()
             operator.locator('#home [onclick="openPanel(\'arrival\')"]').first.click()
             operator.locator('#unprintedSlips').filter(has_text='No saved unprinted Pohanch').wait_for()
-            operator.get_by_role('button',name='Search / Reprint Pohanch',exact=True).click()
+            assert operator.get_by_role('heading',name='Search / Reprint Pohanch',exact=True).is_visible()
             operator.locator('#searchPohValue').fill('QA101')
             operator.locator('#searchPohValue').press('Enter')
             operator.locator('#searchPohResults').get_by_role('button',name='Reprint').wait_for()
