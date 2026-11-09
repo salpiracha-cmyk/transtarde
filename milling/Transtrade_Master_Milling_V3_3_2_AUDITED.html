@@ -148,7 +148,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px;borde
 <div class="actions"><button id="savePohanchButton" class="ok" onclick="saveSlip()">Save Pohanch</button><button onclick="printCurrentSlip()">Print Pohanch</button></div><div id="pohanchFeedback" class="note hidden" role="status" aria-live="polite" style="margin-top:10px"></div>
 </div>
 <div class="card"><h3>Saved but Not Printed</h3>
-<p class="sub">If you already printed a slip, choose Mark as printed here.</p>
+
 <div id="pohanchPendingStatus" role="status" aria-live="polite"></div>
 <div style="overflow-x:auto"><table><thead><tr><th>Pohanch #</th><th>Truck</th><th>Broker</th><th>Unloading Date</th><th>Soda</th><th>Action</th></tr></thead><tbody id="unprintedSlips"></tbody></table></div></div>
 </section>
@@ -1179,7 +1179,7 @@ function pohanchPrintHtml(s){
     @media print{.print-tools{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style></head><body>
   <div class="print-tools"><button type="button" id="pohanchPrintAgain">Print / Save PDF</button>
-  <button type="button" id="pohanchConfirmPrinted">Mark as printed</button><span id="pohanchPrintStatus" role="status"></span></div>
+  <span id="pohanchPrintStatus" role="status"></span></div>
   <main class="sheet">${copy(false)}${copy(true)}</main></body></html>`;
 }
 function canConfirmPohanchPrint(){
@@ -1187,26 +1187,6 @@ function canConfirmPohanchPrint(){
   const grants=access.permissions;
   const actions=Array.isArray(grants)?grants:(grants?.arrival||[]);
   return access.super||access.role==='Director'||grants==='all'||actions.includes('Create')||actions.includes('Edit');
-}
-async function confirmPohanchPrint(slip){
-  await window.TT_SHARED_SYNC.commitMillAction(STORE_SLIPS,{...slip,printed:true},slip);
-  renderUnprinted();
-}
-async function confirmPendingPohanchPrint(id,button){
-  const slip=get(STORE_SLIPS,[]).find(row=>String(row.id)===String(id));
-  const status=document.getElementById('pohanchPendingStatus');
-  if(!slip||!canConfirmPohanchPrint())return;
-  status.textContent='';
-  button.disabled=true;
-  try{
-    await confirmPohanchPrint(slip);
-    status.style.color='';
-    status.textContent=slip.slip+' marked as printed. It is available under Search / Reprint Pohanch.';
-  }catch(error){
-    status.style.color='#b42318';
-    status.textContent=error.message||'Print status could not be saved. Search again before retrying.';
-    button.disabled=false;
-  }
 }
 function markPrinted(id){
   const slip=get(STORE_SLIPS,[]).find(row=>String(row.id)===String(id));
@@ -1216,31 +1196,33 @@ function markPrinted(id){
   preview.document.write(pohanchPrintHtml(slip));
   preview.document.close();
   const print=()=>preview.print();
-  const button=preview.document.getElementById('pohanchConfirmPrinted');
   const status=preview.document.getElementById('pohanchPrintStatus');
+  const pendingStatus=document.getElementById('pohanchPendingStatus');
   preview.document.getElementById('pohanchPrintAgain').onclick=print;
-  button.hidden=!!slip.printed||!canConfirmPohanchPrint();
-  if(slip.printed)status.textContent='Already marked as printed.';
-  else if(!button.hidden)status.textContent='After printing or saving the PDF, mark the Pohanch as printed.';
-  button.onclick=async()=>{
-    button.disabled=true;
+  let saving=false,confirmed=!!slip.printed;
+  if(confirmed)status.textContent='Print status already saved.';
+  if(canConfirmPohanchPrint())preview.addEventListener('afterprint',async()=>{
+    if(saving||confirmed)return;
+    saving=true;
+    status.textContent='Saving print status…';
     try{
-      await confirmPohanchPrint(slip);
-      status.textContent='Marked as printed. You can reprint it from Search.';
-      button.hidden=true;
+      await window.TT_SHARED_SYNC.commitMillAction(STORE_SLIPS,{...slip,printed:true},slip);
+      confirmed=true;
+      renderUnprinted();
+      pendingStatus.style.color='';
+      status.textContent=pendingStatus.textContent=slip.slip+' print status saved.';
     }catch(error){
-      status.textContent=error.message||'Print status could not be saved. Search again before retrying.';
-      button.disabled=false;
-    }
-  };
+      pendingStatus.style.color='#b42318';
+      status.textContent=pendingStatus.textContent=error.message||'Print status could not be saved. Reopen the slip and try printing again.';
+    }finally{saving=false}
+  });
   preview.requestAnimationFrame(()=>preview.requestAnimationFrame(print));
 }
 function renderUnprinted(){
   const slips=get(STORE_SLIPS,[]).filter(row=>stockScopeMatches(row)&&!row.printed);
-  const canConfirm=canConfirmPohanchPrint();
   unprintedSlips.innerHTML=slips.length?slips.map(row=>{
     const id=Number(row.id)||0;
-    return `<tr><td>${escHtml(row.slip)}</td><td>${escHtml(row.truck)}</td><td>${escHtml(row.broker)}</td><td>${escHtml(row.unloadingDate||'')}</td><td>${escHtml(row.soda)}</td><td><div style="display:flex;flex-wrap:wrap;gap:6px"><button type="button" class="sec" onclick="editSlip(${id})">Edit</button><button type="button" onclick="markPrinted(${id})">Print Pohanch</button>${canConfirm?`<button type="button" class="sec" onclick="confirmPendingPohanchPrint(${id},this)">Mark as printed</button>`:''}</div></td></tr>`;
+    return `<tr><td>${escHtml(row.slip)}</td><td>${escHtml(row.truck)}</td><td>${escHtml(row.broker)}</td><td>${escHtml(row.unloadingDate||'')}</td><td>${escHtml(row.soda)}</td><td><div style="display:flex;flex-wrap:wrap;gap:6px"><button type="button" class="sec" onclick="editSlip(${id})">Edit</button><button type="button" onclick="markPrinted(${id})">Print Pohanch</button></div></td></tr>`;
   }).join(''):'<tr><td colspan="6">No saved unprinted Pohanch.</td></tr>';
 }
 async function searchPohanch(){
