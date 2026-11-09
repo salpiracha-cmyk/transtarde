@@ -193,11 +193,12 @@ def run():
             assert body.count('Moisture KAT (kg)4.25')==2
             assert body.count('ORIGINAL')==1 and body.count('OFFICE COPY')==1
             assert len(re.findall(r'\d{2}-\d{2}-\d{4}',body))==4 and not re.search(r'\d{4}-\d{2}-\d{2}',body)
-            assert not json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30slips'])[0]['printed']
-            assert popup.get_by_role('button',name='Mark as printed').is_visible()
+            assert operator.get_by_role('button',name='Mark as printed',exact=True).count()==0
+            assert popup.get_by_role('button',name='Mark as printed',exact=True).count()==0
+            # Headless Chromium has no OS print dialog. Exercise its completion signal.
+            popup.evaluate("window.dispatchEvent(new Event('afterprint'))")
+            operator.locator('#pohanchPendingStatus').filter(has_text='print status saved').wait_for()
             popup.close()
-            operator.locator('#unprintedSlips').get_by_role('button',name='Mark as printed',exact=True).click()
-            operator.locator('#pohanchPendingStatus').filter(has_text='marked as printed').wait_for()
             operator.locator('#unprintedSlips').filter(has_text='No saved unprinted Pohanch').wait_for()
             after_operations=context.request.get(base+'/api/operations.mysql.php').json()['values']
             assert json.loads(after_operations['tt30slips'])==[{**amended[0],'printed':True}]
