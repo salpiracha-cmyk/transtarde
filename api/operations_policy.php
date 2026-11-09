@@ -308,6 +308,54 @@ function operations_guard_fellow_soda(string $key,string $oldJson,string $nextJs
         if(($d['entity']??'')!==($r['entity']??$r['accountEntity']??''))throw new DomainException('The fellow-exporter SODA belongs to different company books.');
     }
 }
+/** A Pohanch save can update only the quality fields of its own linked Arrival List row. */
+function operations_pohanch_arrival_effect(array $user,array $before,array $next,array $expected): array {
+    $id=(string)($expected['id']??'');
+    $priorSlips=array_column(tt_inv_rows($before,'tt30slips'),null,'id');
+    $changed=array_values(array_filter(tt_inv_rows($next,'tt30slips'),static fn($row)=>!operations_same_value($priorSlips[$row['id']]??null,$row)));
+    if($id===''||count($changed)!==1||(string)($changed[0]['queueId']??'')!==$id)throw new DomainException('The Pohanch and Arrival List link could not be confirmed.');
+    $slip=$changed[0];
+    $queue=tt_inv_rows($before,'tt30queue');
+    foreach($queue as $index=>$row){
+        if((string)($row['id']??'')!==$id)continue;
+        if(!os_scope($user,$row,os_root($before))||!tt_inv_same_scope(tt_inv_scope($row),$slip)||!empty($row['rejected']))
+            throw new DomainException('The linked truck is unavailable for this company and mill.');
+        if(!operations_same_value($row,$expected))throw new DomainException('This truck changed in the Arrival List. Reopen it before saving the Pohanch.');
+        $fields=['broken','brokenKat','moistureKatKg','damageKat','chalkyKat','paddyKat'];
+        foreach($fields as $field){
+            $value=$slip[$field]??'';
+            if($value!==''&&(!is_numeric($value)||!is_finite((float)$value)||(float)$value<0||($field==='broken'&&(float)$value>100)||($field==='moistureKatKg'&&(float)$value>(float)($slip['payableWeight']??0))))
+                throw new DomainException('The Pohanch has an invalid broken percentage or KAT.');
+            if($field==='broken')$value=(float)$value;
+            if((string)($row[$field]??'')!==(string)$value)$queue[$index][$field]=$value;
+        }
+        if(!operations_same_value($queue[$index],$row))$next['tt30queue']=json_encode($queue,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+        return $next;
+    }
+    throw new DomainException('The linked Arrival List truck could not be found.');
+}
+
+function operations_pohanch_print_confirmation(array $before,array $after): bool {
+    if (!empty($before['printed']) || ($after['printed']??null)!==true) return false;
+    $before['printed']=true;
+    return operations_same_value($before,$after);
+}
+
+// A print acknowledgement carries no stock, purchasing or accounting change.
+function operations_pohanch_print_only(string $key,string $oldJson,string $nextJson): bool {
+    if ($key!=='tt30slips') return false;
+    $old=json_decode($oldJson?:'[]',true,512,JSON_THROW_ON_ERROR);
+    $next=json_decode($nextJson,true,512,JSON_THROW_ON_ERROR);
+    if (!is_array($old)||!is_array($next)||!array_is_list($old)||!array_is_list($next)||count($old)!==count($next)) return false;
+    $confirmed=false;
+    foreach ($old as $i=>$before) {
+        if (operations_same_value($before,$next[$i])) continue;
+        if (!is_array($before)||!is_array($next[$i])||!operations_pohanch_print_confirmation($before,$next[$i])) return false;
+        $confirmed=true;
+    }
+    return $confirmed;
+}
+
 function operations_validate_row_actions(array $user,string $module,string $key,string $oldJson,string $nextJson): void {
     if(!in_array($module,['Mill','Milling'],true)||($user['role']??'')==='Super Admin')return;
     if($key==='tt30bags'&&!operations_icon_write($user,'Mill','newbags'))return; // Production's empty-placeholder-only exception is checked separately.
@@ -319,7 +367,10 @@ function operations_validate_row_actions(array $user,string $module,string $key,
         foreach(['entity-tti','entity-brm','entity-tg'] as $e)if(array_key_exists($e,(array)($user['permissions']['Accounts']??[]))){if(!tt_user_can_access_entity($user,(string)($row['entity']??'TTI'),$action))throw new DomainException('Company '.$action.' permission is required.');break;}};
     if(!is_array($old)||!is_array($next)||!array_is_list($old)||!array_is_list($next))throw new DomainException('Operational rows must retain their list shape.');
     $index=[];$seen=[];foreach($old as $r){$id=os_identity($r);if(isset($index[$id]))throw new DomainException('Existing operational identities need review.');$index[$id]=$r;}
-    foreach($next as $r){if(!is_array($r))throw new DomainException('Operational rows must be records.');$id=os_identity($r);if(isset($seen[$id]))throw new DomainException('Operational identities must be unique.');$seen[$id]=true;if(!isset($index[$id]))$require('Create',$r);elseif(!operations_same_value($index[$id],$r)){$require('Edit',$index[$id]);$require('Edit',$r);}}
+    foreach($next as $r){if(!is_array($r))throw new DomainException('Operational rows must be records.');$id=os_identity($r);if(isset($seen[$id]))throw new DomainException('Operational identities must be unique.');$seen[$id]=true;if(!isset($index[$id]))$require('Create',$r);elseif(!operations_same_value($index[$id],$r)){
+        $action=$key==='tt30slips'&&operations_pohanch_print_confirmation($index[$id],$r)&&!tt_user_can_module_action($user,'Mill','arrival','Edit')?'Create':'Edit';
+        $require($action,$index[$id]);$require($action,$r);
+    }}
     foreach(array_diff_key($index,$seen) as $r)$require('Edit',$r);
 }
 

@@ -691,6 +691,7 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 - Daily Production includes recovery and actual input tons/hour, alongside the previous calendar shift at the same mill. Missing input/time stays unavailable. Brand and Contract Recovery consolidate by lot/product/packing/brand/contract without date/shift detail rows, and retain separate raw material, ready rice and by-product sections.
 
 - Owner size clarification: gate passes and Arrival / Pohanch use approximately the top half of portrait A4, with readable details and manual signature/stamp space. Production and recovery reports may fill A4 and continue across pages; do not force long reports onto a single sheet.
+- Owner clarification, 9 November 2026: Arrival / Pohanch prints two copies on one portrait A4 sheet. Put Original at the top right of the first copy and a faint Office Copy watermark behind the second. Add a centre cut line and stamp/signature space on both copies. Show only the saved unloading date, in the table and above it at the right.
 
 ## Fellow-exporter local SODAs and shipment partnerships — 28 October 2026
 

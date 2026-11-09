@@ -385,12 +385,12 @@ $sharedBootstrap = <<<'HTML'
       return saved;
     }finally{keys.forEach(k=>inFlight.delete(k));saveHolds--;waiting();}
   }
-  async function commitMillAction(key,record,before=null,prefix=''){
+  async function commitMillAction(key,record,before=null,prefix='',arrivalBefore=null){
     if(access.moduleId!=='milling'||!['tt30queue','tt30slips','tt30directoralerts','tt37usedbags','tt33pettyexp','tt32stockadj','tt35localsales','tt35exportersale'].includes(key))throw new Error('Unsupported Milling action.');
-    const keys=key==='tt32stockadj'?[key,'tt32labourfeed']:[key];
+    const keys=key==='tt32stockadj'?[key,'tt32labourfeed']:key==='tt30slips'&&arrivalBefore?[key,'tt30queue']:[key];
     if(keys.some(k=>pending.has(k)||inFlight.has(k)))throw new Error('This collection has an unfinished change. Reload and review it before saving.');
     keys.forEach(k=>inFlight.add(k));saveHolds++;waiting();
-    try{const result=await window.TT_MILL_ACTION_SAVE.commit({endpoint,access,key,record,before,prefix});
+    try{const result=await window.TT_MILL_ACTION_SAVE.commit({endpoint,access,key,record,before,prefix,arrivalBefore});
       for(const [k,row] of Object.entries({[key]:{value:result.value,version:result.version},...result.related})){
         if(!keys.includes(k)||pending.has(k))continue;directSet(k,row.value);committedValues.set(k,row.value);receipts.set(k,row.value);keyVersions.set(k,Number(row.version||0));remoteKeys.add(k);
       }
