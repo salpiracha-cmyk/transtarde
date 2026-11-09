@@ -45,6 +45,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px;borde
 .paltai-tool svg{width:30px;height:30px}
 .badge{display:inline-block;padding:3px 7px;border-radius:99px;background:#e5f3ed;color:#22604e;font-size:12px;font-weight:700}.update-count{position:absolute;right:12px;top:10px;display:none;width:30px;height:30px;padding:0;border-radius:50%;background:#18a34a;color:#fff;font-size:15px;font-weight:900;line-height:30px;text-align:center;box-shadow:0 2px 7px #0003}.update-count.show{display:block}.circleMinus,.circlePlus{width:28px;height:28px;border-radius:50%;padding:0;font-size:20px;line-height:28px}.circleMinus{background:#b83c3c}.circlePlus{background:#1f9d63}
 .system-fixed-row{background:#f3f5f6}.system-fixed-row input{background:#eef1f2;font-weight:800;color:#344}
+body,body label,body input,body textarea,body select,body button,body td,body th,body .sub,body small{font-weight:700!important}
 </style>
 </head>
 <body>
@@ -261,7 +262,8 @@ th{background:#f1f6f4}
 .mini{font-size:12px;color:#60746e}
 @media(max-width:800px){.g4,.g3,.g2{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.g4,.g3,.g2{grid-template-columns:1fr}}
-.tt-row-remove{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:#bf3c40;color:white;width:32px;height:32px;min-width:32px;padding:0;font-size:22px;font-weight:800;cursor:pointer}td:has(.tt-row-remove){width:38px;vertical-align:top}&lt;/style&gt;
+.tt-row-remove{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:#bf3c40;color:white;width:32px;height:32px;min-width:32px;padding:0;font-size:22px;font-weight:800;cursor:pointer}td:has(.tt-row-remove){width:38px;vertical-align:top}body,body label,body input,body textarea,body select,body button,body td,body th,body .sub,body small{font-weight:700!important}
+&lt;/style&gt;
 &lt;/head&gt;
 &lt;body&gt;
 &lt;header&gt;&lt;b&gt;Transtrade International — Local Party Sales&lt;/b&gt;&lt;span&gt;Mill Interface&lt;/span&gt;&lt;/header&gt;
@@ -1162,18 +1164,18 @@ function pohanchPrintHtml(s){
     @page{size:A4 portrait;margin:8mm 10mm}
     *{box-sizing:border-box}
     body{margin:0;font:11px Arial,sans-serif;color:#1b252c}
-    .sheet{width:190mm;max-width:100%;margin:auto}
+    .sheet{width:190mm;max-width:100%;margin:auto;font-size:14px;font-weight:700;text-transform:uppercase;line-height:1.13}
     .pohanch{position:relative;isolation:isolate;height:140mm;padding:11mm 1mm 5mm;display:flex;flex-direction:column;break-inside:avoid}
     .office{border-top:1px dashed #78848c}
-    .original{position:absolute;right:1mm;top:2mm;font-size:15px;font-weight:bold}
+    .original{position:absolute;right:1mm;top:2mm;font-size:18px;font-weight:bold}
     .watermark{position:absolute;z-index:-1;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-29deg);font-size:73px;font-weight:bold;white-space:nowrap;color:#e0e3e5}
-    header{text-align:center}h2{font-size:18px;margin:1mm 0 2mm}h3{font-size:14px;margin:0 0 3mm}
+    header{text-align:center}h2{font-size:21px;margin:1mm 0 2mm}h3{font-size:17px;margin:0 0 3mm}
     .references{position:relative;text-align:center;margin:0 0 3mm}
     .unloading{position:absolute;right:0;top:0}
     table{width:100%;border-collapse:collapse;table-layout:fixed}
-    td,th{border:1px solid #bac2c7;padding:4px 6px;text-align:left;overflow-wrap:anywhere}
-    th{width:22%;font-weight:bold}td{font-weight:normal}
-    .sig{margin-top:auto;padding-top:4px;border-top:1px solid #78848c;width:45mm;font-weight:bold;font-size:9px}
+    td,th{border:1px solid #bac2c7;padding:2.5px 6px;text-align:left;overflow-wrap:anywhere;font-weight:700}
+    th{width:22%}
+    .sig{margin-top:auto;padding-top:4px;border-top:1px solid #78848c;width:45mm;font-weight:bold;font-size:12px}
     .print-tools{font:14px Arial,sans-serif;padding:10px;text-align:center;background:#edf2ee}
     .print-tools button{margin:0 6px}
     @media print{.print-tools{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
