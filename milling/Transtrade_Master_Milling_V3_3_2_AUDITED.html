@@ -1076,10 +1076,8 @@ async function addQueue(){
  return window.TT_MILL_ACTION_SAVE.save(STORE_QUEUE,rec,{before:editingQueueId?editingQueueSnapshot:null,label:'Arrival List truck',onSaved:saved=>{clearQueueForm();renderQueue();refreshArrivalQueue();fillMasters();queueSaveStatus.style.color='#147a5b';window.dispatchEvent(new CustomEvent('tt:arrival-saved',{detail:saved}));queueSaveStatus.textContent='Saved to server · '+saved.vehicle+' · '+saved.date+' · Reference '+saved.id;showNonBlockingMessage('Arrival List truck saved.')}});
 }
 function editQueue(id){let x=get(STORE_QUEUE,[]).find(y=>y.id==id);if(!x)return;if(!stockScopeMatches(x))return alert('Open this truck’s physical mill before editing. The list filter does not change the entry location.');editingQueueId=x.id;editingQueueSnapshot=JSON.parse(JSON.stringify(x));queueViewDate.value=x.date;qVariety.value=x.sourceVariety||x.displayName||x.variety;qVehicle.value=x.vehicle;qBags.value=x.bags;qWeight.value=x.weight;qParty.value=x.party;qBroker.value=x.broker;qStation.value=x.station;qBroken.value=x.broken;qBrokenKat.value=x.brokenKat;qMoisture.value=x.moisture;qMoistureKat.value=x.moistureKatKg??'';qDamage.value=x.damage;qDamageKat.value=x.damageKat||'';qChalky.value=x.chalky;qChalkyKat.value=x.chalkyKat||'';qPaddy.value=x.paddy;qPaddyKat.value=x.paddyKat||'';qOtherIssues.value=x.other||'No Issues';qRejected.checked=!!x.rejected;queueSaveBtn.textContent='Update Truck';toggleArrivalKats();scrollTo(0,0)}
-function arrivalQualityCell(value,kat,unit){
- return escHtml(value)+(kat===undefined||kat===null||kat===''?'':`<div class="sub">KAT ${escHtml(kat)} ${unit}</div>`);
-}
 function renderQueue(){
+ const arrivalQualityCell=(value,kat,unit)=>escHtml(value)+(kat===undefined||kat===null||kat===''?'':`<div class="sub">KAT ${escHtml(kat)} ${unit}</div>`);
  window.TT_ARRIVAL_VIEW?.mount();
  const range=window.TT_ARRIVAL_VIEW?.range?.()||{from:document.getElementById('queueViewDate')?.value||today(),to:document.getElementById('queueViewDate')?.value||today(),report:false,ready:true};
  if(!range.ready){queueTable.innerHTML='';window.TT_ARRIVAL_VIEW?.summarize([]);return;}
