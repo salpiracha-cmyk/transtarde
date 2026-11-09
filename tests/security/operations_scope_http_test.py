@@ -29,7 +29,7 @@ with tempfile.TemporaryDirectory(prefix='tti-operation-scope-') as folder:
  'accountsReceipts':[{'id':'R','amount':999,'bank':'PRIVATE_RECEIPT'}],'settings':{'private':'PRIVATE_SETTINGS'},'alerts':[],'audits':[]}
  queue=[{'id':'A','entity':'TTI','millName':'TTI Rice Mills','truck':'OWN_TRUCK'},{'id':'B','entity':'BRM','millName':'TTI Rice Mills','truck':'FOREIGN_TRUCK'},{'id':'C','entity':'TTI','millName':'Other Mill','truck':'OTHER_LOCATION_TRUCK'}]
  initial={k:json.dumps(export),'tt30queue':json.dumps(queue),'tt39salarymaster':json.dumps([{'id':'SAL','person':'PRIVATE_SALARY','amount':999}]),'tt99private':json.dumps({'secret':'PRIVATE_UNKNOWN'})}
- user={'id':1,'username':'fixture','full_name':'Scope Fixture','role':'Staff','location':'TTI Rice Mills','active':True,'session_version':1,'master_access':True,'master_permissions':{}}
+ user={'id':1,'username':'fixture','full_name':'Scope Fixture','role':'Staff','location':'TTI Rice Mill','active':True,'session_version':1,'master_access':True,'master_permissions':{}}
  def grant(module,icon,rights=('View','Create','Edit')):
   user['permissions']={module:{icon:list(rights)},'Accounts':{'entity-tti':list(rights),'entity-brm':[],'entity-tg':[]}}
   auth.write_text(json.dumps({'users':[user],'masters':{},'audit':[],'settings':{'master_permission_schema':2,'qa_account_seeded':True}}))

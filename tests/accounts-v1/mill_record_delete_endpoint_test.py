@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory(prefix='mill-delete-') as tmp:
         shutil.copy(ROOT / name, root / name)
     (root / 'auth_store.php').write_text("""<?php
 define('TT_DATA_DIR',__DIR__.'/data');
-function tt_require_login(){return ['id'=>7,'full_name'=>'Mill operator','role'=>'Staff','permissions'=>['Mill'=>['production'=>['View','Create','Edit']]],'location'=>($_GET['mode']??'')==='location'?'Other Mill':'TTI Rice Mills'];}
+function tt_require_login(){return ['id'=>7,'full_name'=>'Mill operator','role'=>'Staff','permissions'=>['Mill'=>['production'=>['View','Create','Edit']]],'location'=>($_GET['mode']??'')==='location'?'Other Mill':'TTI Rice Mill'];}
 function tt_user_can_open_module($u,$m){return true;}
 function tt_user_business_entity($u,$e,$a){return $e==='TTI';}
 function tt_user_can_module_action($u,$m,$i,$a){return ($_GET['mode']??'')!=='read'||$a==='View';}

@@ -95,15 +95,24 @@ function extractFunction(source,name){
   }
   throw new Error(`Unterminated ${name}`);
 }
-const katProfile=['RICE','IRRI-6','White','RAW','IRRI-6 White Raw KAT','','','Draft – review required','',JSON.stringify([{name:'Broken',ranges:[{from:'20',to:'30',value:'1'},{from:'30',to:'35',value:'3'}]}])];
+const katProfile=['RICE','IRRI-6','White','RAW','IRRI-6 White Raw KAT','','','Draft – review required','',JSON.stringify([{name:'Broken',ranges:[{from:'20',to:'30',value:'1'},{from:'30',to:'35',value:'3'}]},{name:'Moisture',unit:'weight %',ranges:[{from:'14',to:'14.5',value:'0.5'},{from:'14.5',to:'15',value:'1'},{from:'15',to:'16',value:'2'}]}])];
 const product=['RICE','IRRI-6','White','RAW','KG','','','','Active',''];
 const readyProduct=['RICE','PK-386','White','READY','KG','','','','Active','','100% Broken'];
 const readyKat=['RICE','PK-386','White','READY','PK-386 White Ready KAT','','','Active','',katProfile[9]];
 const katContext={qVariety:{value:'IRRI-6 White Raw Rice'},window:{},purchaseSodaFeed:[],sodaForCurrentMill:()=>true,ttMasterValues:type=>type==='purchase_products'?[product,readyProduct]:type==='purchase_kat'?[katProfile,readyKat]:[]};
 katContext.window.qVariety=katContext.qVariety;
 vm.createContext(katContext);
-vm.runInContext(['selectedPurchaseProduct','arrivalUsesApprovedKat','millRiceType','millBaseVariety','millProductIdentity','katRuleForProduct','katRuleFromMaster','katParameterKey','katAmountForRule','katFromMaster'].map(name=>extractFunction(mill,name)).join('\n'),katContext);
+vm.runInContext(['selectedPurchaseProduct','arrivalUsesApprovedKat','millRiceType','millBaseVariety','millProductIdentity','katRuleForProduct','katRuleFromMaster','katParameterKey','katAmountForRule','katFromMaster','moistureKatWeightPercent','moistureKatKg','savedMoistureKatKg'].map(name=>extractFunction(mill,name)).join('\n'),katContext);
 assert.equal(katContext.katFromMaster('broken',30),10,'Broken KAT must update from the configured IRRI-6 master bands');
+const legacyReceipt={variety:'IRRI-6 White Raw Rice',loadingWeight:10000,moisture:16,moistureKat:'2.75',printed:true};
+assert.equal(katContext.savedMoistureKatKg(legacyReceipt),275,'A historical printed slip can recover a confirmed weight percentage in kg');
+assert.equal(katContext.savedMoistureKatKg({...legacyReceipt,moistureKat:'2.5'}),'','An unmatched legacy deduction must not be guessed');
+assert.equal(katContext.savedMoistureKatKg({...legacyReceipt,moistureKatKg:'38.5'}),'38.5','A saved kg override takes precedence');
+assert.equal(katContext.savedMoistureKatKg({...legacyReceipt,moistureKatKg:''}),'','An explicitly blank kg value stays blank');
+const weightProfile=katProfile[9];
+katProfile[9]=weightProfile.replace('weight %','paisa per %');
+assert.equal(katContext.savedMoistureKatKg(legacyReceipt),'','Monetary moisture KAT must never be converted as a weight percentage');
+katProfile[9]=weightProfile;
 katContext.qVariety.value='PK-386 White 100% Broken Ready Rice';
 katContext.purchaseSodaFeed=[{baseVariety:'PK-386',riceType:'White',brokenGrade:'100% Broken',readyRoute:'EX_MILL'}];
 assert.equal(katContext.katFromMaster('broken',30),0,'Ex-Mill quality is accepted at specification without KAT');

@@ -318,7 +318,11 @@ function operations_pohanch_arrival_effect(array $user,array $before,array $next
     $queue=tt_inv_rows($before,'tt30queue');
     foreach($queue as $index=>$row){
         if((string)($row['id']??'')!==$id)continue;
-        if(!os_scope($user,$row,os_root($before))||!tt_inv_same_scope(tt_inv_scope($row),$slip)||!empty($row['rejected']))
+        $rowScope=tt_inv_scope($row);
+        $slipScope=tt_inv_scope($slip);
+        $sameMill=tt_inv_same_scope($rowScope,$slipScope)||
+            ($rowScope['entity']===$slipScope['entity']&&os_location_name($rowScope['millName'])==='tti rice mills'&&os_location_name($slipScope['millName'])==='tti rice mills');
+        if(!os_scope($user,$row,os_root($before))||!$sameMill||!empty($row['rejected']))
             throw new DomainException('The linked truck is unavailable for this company and mill.');
         if(!operations_same_value($row,$expected))throw new DomainException('This truck changed in the Arrival List. Reopen it before saving the Pohanch.');
         $fields=['broken','brokenKat','moistureKatKg','damageKat','chalkyKat','paddyKat'];
