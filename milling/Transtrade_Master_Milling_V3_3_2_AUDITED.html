@@ -118,8 +118,8 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px;borde
 </section>
 
 <section id="arrival" class="panel">
-<div class="section-head" id="arrivalHead"><button class="back" onclick="goHome()">← Go Back to Main</button><h2>Arrival / Pohanch</h2><button type="button" class="sec" style="margin-left:auto" aria-expanded="false" aria-controls="pohanchSearch" onclick="togglePohanchSearch(this)">Search / Reprint Pohanch</button></div>
-<div id="pohanchSearch" class="card hidden"><form id="pohanchSearchForm" onsubmit="event.preventDefault();searchPohanch()">
+<div class="section-head" id="arrivalHead"><button class="back" onclick="goHome()">← Go Back to Main</button><h2>Arrival / Pohanch</h2></div>
+<div id="pohanchSearch" class="card"><h3>Search / Reprint Pohanch</h3><form id="pohanchSearchForm" onsubmit="event.preventDefault();searchPohanch()">
 <div class="row"><div><label for="searchPohValue">Truck, Pohanch, Broker or SODA</label><input id="searchPohValue" autocomplete="off"></div><div><label for="searchPohDate">Unloading Date (optional)</label><input id="searchPohDate" type="date" data-optional-date></div><div style="align-self:end"><button class="sec" type="submit">Search</button></div></div>
 </form><div id="searchPohResults" role="status" aria-live="polite" style="margin-top:10px"></div></div>
 <div class="card">
@@ -147,7 +147,10 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px;borde
 </div>
 <div class="actions"><button id="savePohanchButton" class="ok" onclick="saveSlip()">Save Pohanch</button><button onclick="printCurrentSlip()">Print Pohanch</button></div><div id="pohanchFeedback" class="note hidden" role="status" aria-live="polite" style="margin-top:10px"></div>
 </div>
-<div class="card"><h3>Saved but Not Printed</h3><table><thead><tr><th>Pohanch #</th><th>Truck</th><th>Broker</th><th>Unloading Date</th><th>Soda</th><th>Action</th></tr></thead><tbody id="unprintedSlips"></tbody></table></div>
+<div class="card"><h3>Saved but Not Printed</h3>
+<p class="sub">If you already printed a slip, choose Mark as printed here.</p>
+<div id="pohanchPendingStatus" role="status" aria-live="polite"></div>
+<div style="overflow-x:auto"><table><thead><tr><th>Pohanch #</th><th>Truck</th><th>Broker</th><th>Unloading Date</th><th>Soda</th><th>Action</th></tr></thead><tbody id="unprintedSlips"></tbody></table></div></div>
 </section>
 
 <section id="instructions" class="panel">
@@ -1179,6 +1182,32 @@ function pohanchPrintHtml(s){
   <button type="button" id="pohanchConfirmPrinted">Mark as printed</button><span id="pohanchPrintStatus" role="status"></span></div>
   <main class="sheet">${copy(false)}${copy(true)}</main></body></html>`;
 }
+function canConfirmPohanchPrint(){
+  const access=window.TT_MODULE_ACCESS||{};
+  const grants=access.permissions;
+  const actions=Array.isArray(grants)?grants:(grants?.arrival||[]);
+  return access.super||access.role==='Director'||grants==='all'||actions.includes('Create')||actions.includes('Edit');
+}
+async function confirmPohanchPrint(slip){
+  await window.TT_SHARED_SYNC.commitMillAction(STORE_SLIPS,{...slip,printed:true},slip);
+  renderUnprinted();
+}
+async function confirmPendingPohanchPrint(id,button){
+  const slip=get(STORE_SLIPS,[]).find(row=>String(row.id)===String(id));
+  const status=document.getElementById('pohanchPendingStatus');
+  if(!slip||!canConfirmPohanchPrint())return;
+  status.textContent='';
+  button.disabled=true;
+  try{
+    await confirmPohanchPrint(slip);
+    status.style.color='';
+    status.textContent=slip.slip+' marked as printed. It is available under Search / Reprint Pohanch.';
+  }catch(error){
+    status.style.color='#b42318';
+    status.textContent=error.message||'Print status could not be saved. Search again before retrying.';
+    button.disabled=false;
+  }
+}
 function markPrinted(id){
   const slip=get(STORE_SLIPS,[]).find(row=>String(row.id)===String(id));
   if(!slip)return showPohanchFeedback('This Pohanch is unavailable. Search again for the saved copy.');
@@ -1190,17 +1219,13 @@ function markPrinted(id){
   const button=preview.document.getElementById('pohanchConfirmPrinted');
   const status=preview.document.getElementById('pohanchPrintStatus');
   preview.document.getElementById('pohanchPrintAgain').onclick=print;
-  const access=window.TT_MODULE_ACCESS||{};
-  const grants=access.permissions;
-  const actions=Array.isArray(grants)?grants:(grants?.arrival||[]);
-  button.hidden=!!slip.printed||!(access.super||access.role==='Director'||grants==='all'||actions.includes('Create')||actions.includes('Edit'));
+  button.hidden=!!slip.printed||!canConfirmPohanchPrint();
   if(slip.printed)status.textContent='Already marked as printed.';
   else if(!button.hidden)status.textContent='After printing or saving the PDF, mark the Pohanch as printed.';
   button.onclick=async()=>{
     button.disabled=true;
     try{
-      await window.TT_SHARED_SYNC.commitMillAction(STORE_SLIPS,{...slip,printed:true},slip);
-      renderUnprinted();
+      await confirmPohanchPrint(slip);
       status.textContent='Marked as printed. You can reprint it from Search.';
       button.hidden=true;
     }catch(error){
@@ -1210,11 +1235,13 @@ function markPrinted(id){
   };
   preview.requestAnimationFrame(()=>preview.requestAnimationFrame(print));
 }
-function renderUnprinted(){let a=get(STORE_SLIPS,[]).filter(x=>stockScopeMatches(x)&&!x.printed);unprintedSlips.innerHTML=a.length?a.map(x=>`<tr><td>${escHtml(x.slip)}</td><td>${escHtml(x.truck)}</td><td>${escHtml(x.broker)}</td><td>${escHtml(x.unloadingDate||'')}</td><td>${escHtml(x.soda)}</td><td><button class="sec" onclick="editSlip(${Number(x.id)||0})">Edit</button> <button onclick="markPrinted(${Number(x.id)||0})">Print Pohanch</button></td></tr>`).join(''):'<tr><td colspan="6">No saved unprinted Pohanch.</td></tr>'}
-function togglePohanchSearch(button){
-  const opening=pohanchSearch.classList.toggle('hidden')===false;
-  button.setAttribute('aria-expanded',String(opening));
-  if(opening)searchPohValue.focus();
+function renderUnprinted(){
+  const slips=get(STORE_SLIPS,[]).filter(row=>stockScopeMatches(row)&&!row.printed);
+  const canConfirm=canConfirmPohanchPrint();
+  unprintedSlips.innerHTML=slips.length?slips.map(row=>{
+    const id=Number(row.id)||0;
+    return `<tr><td>${escHtml(row.slip)}</td><td>${escHtml(row.truck)}</td><td>${escHtml(row.broker)}</td><td>${escHtml(row.unloadingDate||'')}</td><td>${escHtml(row.soda)}</td><td><div style="display:flex;flex-wrap:wrap;gap:6px"><button type="button" class="sec" onclick="editSlip(${id})">Edit</button><button type="button" onclick="markPrinted(${id})">Print Pohanch</button>${canConfirm?`<button type="button" class="sec" onclick="confirmPendingPohanchPrint(${id},this)">Mark as printed</button>`:''}</div></td></tr>`;
+  }).join(''):'<tr><td colspan="6">No saved unprinted Pohanch.</td></tr>';
 }
 async function searchPohanch(){
   const submit=document.querySelector('#pohanchSearchForm button[type="submit"]');
