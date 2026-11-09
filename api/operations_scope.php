@@ -10,11 +10,15 @@ function os_owner(array $u): bool { return in_array($u['role']??'',['Super Admin
 function os_entity(array $u,string $entity): bool {
     return tt_user_business_entity($u,$entity,'View');
 }
+function os_location_name(string $name): string {
+    $name=strtolower(trim((string)preg_replace('/\s+/',' ',$name)));
+    // The original user-location picker stored the singular name for this mill.
+    return $name==='tti rice mill'?'tti rice mills':$name;
+}
 function os_location(array $u,string $location): bool {
     if(os_owner($u))return true;
-    $norm=static fn($s)=>strtolower(trim((string)preg_replace('/\s+/',' ',(string)$s)));
-    $assigned=$norm($u['location']??'');
-    return in_array($assigned,['','all locations','all authorized locations'],true)||$assigned===$norm($location);
+    $assigned=os_location_name((string)($u['location']??''));
+    return in_array($assigned,['','all locations','all authorized locations'],true)||$assigned===os_location_name($location);
 }
 function os_root(array $values): array {
     $v=json_decode((string)($values['transtrade_export_v3_operational']??'{}'),true);
