@@ -21,7 +21,8 @@ $masters['business_parties']=array_values(array_filter($masters['business_partie
 $masters['business_parties'][]=['id'=>'QA-EXPORTER','values'=>['Fixture fellow exporter','','Fellow Exporter','','','','','','','','Active']];
 $masters['business_parties'][]=['id'=>'QA-KE','values'=>['K-Electric','','Service Provider','','','','','','','','Active']];
 $user=['id'=>1000,'username'=>'qaowner','full_name'=>'QA Mill Handoff','role'=>'Super Admin','permissions'=>['Mill'=>'all','Accounts'=>'all','Directors'=>'all','Exports'=>'all'],'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($password,PASSWORD_DEFAULT),'master_access'=>true];
-tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>[$user],'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]]));
+$operator=array_replace($user,['id'=>1001,'username'=>'qaoperator','role'=>'Mill Manager','location'=>'TTI Rice Mills','permissions'=>['Mill'=>['arrival'=>['View','Create']]],'master_access'=>false]);
+tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>[$user,$operator],'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]]));
 file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>['tt32stockadj'=>json_encode([['id'=>'fixture-raw-opening','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','date'=>'2026-07-01','openingStock'=>true,'readyRiceKg'=>10000,'brand'=>'IRRI-6 White Raw Rice','stockName'=>'IRRI-6 White Raw Rice'],['id'=>'fixture-opening','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','openingStock'=>true,'readyRiceKg'=>1000,'brand'=>'IRRI-6 White Rice — SOURCE','stockName'=>'IRRI-6 White Rice — SOURCE'],['id'=>'fixture-exporter-opening','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','openingStock'=>true,'readyRiceKg'=>1000,'brand'=>'QA BRAND','stockName'=>'QA BRAND']]),'tt30mills'=>json_encode([['id'=>1,'name'=>'TTI Rice Mills','entity'=>'TTI','type'=>'Own / Default'],['id'=>2,'name'=>'QA Receiving Mill','entity'=>'TTI','type'=>'Own']]),'tt30bags'=>json_encode([['id'=>100,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'QA PRODUCTION','size'=>'50 kg','bagType'=>'PP','ordered'=>100,'received'=>100,'poNo'=>'QA-PO','poLineKey'=>'L1']]),'tt33bagreceipts'=>json_encode([['id'=>101,'bagId'=>100,'date'=>'2026-10-01','qty'=>100]])],'meta'=>[]]));
 file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['revision'=>0,'journals'=>['FIXTURE-MILL-FUND'=>['id'=>'FIXTURE-MILL-FUND','entity'=>'TTI','date'=>'2026-07-01','status'=>'Posted','sourceType'=>'JV','lines'=>[['account'=>'1120','millLocationId'=>'mills-1','debit'=>1000,'credit'=>0],['account'=>'3400','debit'=>0,'credit'=>1000]]]],'supplierBills'=>new stdClass()]));
 file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$password,'dataDir'=>TT_DATA_DIR]));
@@ -155,10 +156,59 @@ def run():
             mill.locator('#savePohanchButton').click();mill.locator('#pohanchFeedback').filter(has_text='Pohanch saved').wait_for()
             op=context.request.get(base+'/api/operations.mysql.php').json();slips=json.loads(op['values']['tt30slips']);assert len(slips)==1 and slips[0]['payableWeight']==990
             mill.locator('#unprintedSlips').get_by_role('button',name='Edit',exact=True).click();assert mill.locator('#arrivalQueue').input_value()==str(queue[0]['id']);assert mill.locator('#karachiWeight').input_value()=='990'
-            mill.locator('#karachiWeight').fill('985');mill.locator('#savePohanchButton').click();mill.locator('#pohanchFeedback').filter(has_text='Pohanch amended').wait_for()
+            mill.locator('#karachiWeight').fill('985')
+            for field,value in {'Broken':'37.5','MoistureKat':'4.25','DamageKat':'3','ChalkyKat':'5','PaddyKat':'2'}.items():
+                mill.locator('#arrival'+field).fill(value)
+            mill.locator('#savePohanchButton').click();mill.locator('#pohanchFeedback').filter(has_text='Pohanch amended').wait_for()
             amended=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30slips']);assert len(amended)==1 and amended[0]['id']==slips[0]['id'] and amended[0]['payableWeight']==985
-            with context.expect_page() as printed:mill.get_by_role('button',name='Print Pohanch',exact=True).first.click()
-            popup=printed.value;popup.locator('.pohanch').wait_for();assert popup.locator('.pohanch').evaluate('e=>e.getBoundingClientRect().height*25.4/96')<140;body=popup.locator('body').inner_text();assert '985 kg' in body and re.search(r'\d{2}-\d{2}-\d{4}',body) and not re.search(r'\d{4}-\d{2}-\d{2}',body);popup.close()
+            arrival=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30queue'])[0]
+            assert [float(arrival[k]) for k in ('broken','moistureKatKg','damageKat','chalkyKat','paddyKat')]==[37.5,4.25,3,5,2]
+            assert [float(amended[0][k]) for k in ('broken','moistureKatKg','damageKat','chalkyKat','paddyKat')]==[37.5,4.25,3,5,2]
+            # A Create-only Mill operator can search saved data and confirm printing,
+            # while the canonical Pohanch stays available for authorized reprints.
+            staff=browser.new_context()
+            operator=staff.new_page()
+            operator.goto(base+'/login.php')
+            operator.locator('[name="username"]').fill('qaoperator')
+            operator.locator('[name="password"]').fill(credentials['password'])
+            operator.locator('button[type="submit"]').click()
+            operator.goto(base+'/module.php?id=milling')
+            operator.locator('.mill-card[onclick="chooseMill(1)"]').click()
+            operator.locator('#home [onclick="openPanel(\'arrival\')"]').first.click()
+            operator.get_by_role('button',name='Search / Reprint Pohanch',exact=True).click()
+            for query in ('QA 101',amended[0]['slip'],amended[0]['soda']):
+                operator.locator('#searchPohValue').fill(query)
+                operator.locator('#searchPohValue').press('Enter')
+                operator.locator('#searchPohResults').get_by_role('cell',name='QA-101',exact=True).wait_for()
+            before_print=books.read_bytes()
+            before_operations=context.request.get(base+'/api/operations.mysql.php').json()['values']
+            with staff.expect_page() as printed:
+                operator.locator('#searchPohResults').get_by_role('button',name='Reprint').click()
+            popup=printed.value
+            popup.locator('.pohanch').first.wait_for()
+            assert popup.locator('.pohanch').count()==2
+            body=popup.locator('.sheet').text_content()
+            assert body.count('985 kg')>=2 and body.count('Unloading Date')==2
+            assert body.count('Moisture KAT (kg)4.25')==2
+            assert body.count('ORIGINAL')==1 and body.count('OFFICE COPY')==1
+            assert len(re.findall(r'\d{2}-\d{2}-\d{4}',body))==4 and not re.search(r'\d{4}-\d{2}-\d{2}',body)
+            assert not json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30slips'])[0]['printed']
+            popup.get_by_role('button',name='Mark as printed').click()
+            popup.locator('#pohanchPrintStatus').filter(has_text='Marked as printed').wait_for(state='attached')
+            operator.locator('#unprintedSlips').filter(has_text='No saved unprinted Pohanch').wait_for()
+            after_operations=context.request.get(base+'/api/operations.mysql.php').json()['values']
+            assert json.loads(after_operations['tt30slips'])==[{**amended[0],'printed':True}]
+            assert {k:v for k,v in after_operations.items() if k!='tt30slips'}=={k:v for k,v in before_operations.items() if k!='tt30slips'}
+            assert books.read_bytes()==before_print
+            operator.reload()
+            operator.locator('.mill-card[onclick="chooseMill(1)"]').click()
+            operator.locator('#home [onclick="openPanel(\'arrival\')"]').first.click()
+            operator.locator('#unprintedSlips').filter(has_text='No saved unprinted Pohanch').wait_for()
+            operator.get_by_role('button',name='Search / Reprint Pohanch',exact=True).click()
+            operator.locator('#searchPohValue').fill('QA101')
+            operator.locator('#searchPohValue').press('Enter')
+            operator.locator('#searchPohResults').get_by_role('button',name='Reprint').wait_for()
+            staff.close()
             # Output-accounted shift: actual native Save, lost acknowledgement,
             # progress replacement and completion all retain one stock source.
             production_books=books.read_bytes();production=context.new_page();production.on('pageerror',lambda e:errors.append(str(e)));production.on('dialog',lambda d:d.accept())

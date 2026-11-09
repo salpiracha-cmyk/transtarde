@@ -110,7 +110,7 @@ assert.equal(katContext.katFromMaster('broken',30),0,'Ex-Mill quality is accepte
 katContext.purchaseSodaFeed[0].readyRoute='DELIVER_TO_STOCK';
 assert.equal(katContext.katFromMaster('broken',30),10,'Ready rice received at our location uses its approved KAT profile');
 assert.match(mill,/ready=identity\.productStage==='READY'/);
-assert.match(mill,/brokenKat:katValue\('broken'/);
+assert.match(mill,/const brokenKat=applyReadyKat\?katAmountForRule\(readyKatRule,'broken',quality\.broken\)/);
 assert.match(mill,/applyReadyKat=ready&&linked\.readyRoute==='DELIVER_TO_STOCK'/);
 assert.match(fs.readFileSync('api/operations_policy.php','utf8'),/completedHistoryPreserved'\s*=>true/);
 assert.match(mill,/_ttPurchaseSodaId/);
