@@ -26,6 +26,17 @@ $deals=['D1'=>$deal];
 $assign=['lotId'=>'L1','version'=>0,'action'=>'assign','dealId'=>'D1'];
 $actual=['lotId'=>'L1','version'=>1,'action'=>'container','date'=>'2026-10-05','number'=>'MSCU1234567','seal'=>'S1','truck'=>'ABC-123','bags'=>1080,'netKg'=>27000,'grossKg'=>27108,'evidence'=>'Loading sheet 18 / weighbridge 20'];
 $today='2026-10-10';
+$eligible=array_replace($deal,['outsideMillId'=>'M1','reference'=>'SODA-1','quantityMT'=>54]);
+$choices=oel_deal_choices($root,['D1'=>$eligible,'D2'=>array_replace($eligible,['status'=>'Closed']),'D3'=>array_replace($eligible,['contractRef'=>'OTHER'])],['M1'=>'Khan Rice Mills, Punjab'],'TTI','AMT',$today);
+ok(count($choices)===1&&$choices[0]['id']==='D1'&&$choices[0]['remainingMT']===54.,'Other Mill shows only eligible SODAs for this contract and company');
+$reserved=$root;
+$reserved['shipments'][0]['loadingPlan']['outsideDealId']='D1';
+$reserved['shipments'][0]['loadingPlan']['outsideMillId']='M1';
+$reserved['shipments'][0]['plannedQty']=27;
+ok(oel_deal_remaining($eligible,$reserved)===27.&&oel_deal_remaining($eligible,$reserved,'L1')===54.,'Reservations reduce the dropdown balance without counting the lot being assigned');
+ok(oel_deal_choices($reserved,['D1'=>array_replace($eligible,['quantityMT'=>27])],['M1'=>'Khan Rice Mills, Punjab'],'TTI','AMT',$today)===[],'Fully reserved SODAs are excluded');
+reject(fn()=>oel_change($reserved,$export,'Exports',$assign+['route'=>'EXPORTS'],['D1'=>array_replace($eligible,['outsideMillId'=>'M2'])],$today),'The lot cannot substitute a different mill at assignment');
+
 $automatic=oel_change($root,$export,'Exports',array_replace($actual,['version'=>0,'dealId'=>'D1','confirmComplete'=>'yes']),$deals,$today);
 ok($automatic['shipments'][0]['outsideLoading']['assigneeId']===1&&count($automatic['shipments'][0]['millActuals'])===1&&$automatic['shipments'][0]['millLoadingCompleted'],'Saving the final Exports container links the SODA and confirms loading in one mutation');
 $draft=dt_confirmed_outside_contributions($deal,dt_lots($automatic,'TTI'),$today);

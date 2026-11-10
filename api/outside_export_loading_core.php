@@ -18,6 +18,55 @@ function oel_company(array $lot,array $contract):string {
     return $seller==='TG'?(string)($lot['customs']['exporter']??$contract['customsExporter']??''):(string)$seller;
 }
 
+function oel_mill_choices(array $masters):array {
+    $mills=[];
+    foreach($masters['mills']??[] as $row){
+        $v=$row['values']??[];
+        $id=(string)($row['id']??'');
+        $name=trim((string)($v[0]??''));
+        if($id!==''&&$name!==''&&strcasecmp(trim((string)($v[2]??'')),'External Mill')===0&&strcasecmp(trim((string)($v[5]??'')),'Inactive')!==0)$mills[$id]=$name;
+    }
+    natcasesort($mills);
+    return $mills;
+}
+
+function oel_open_deal(array $deal,string $entity,string $contract):bool {
+    return ($deal['entity']??'')===$entity&&($deal['contractRef']??'')===$contract&&($deal['direction']??'')==='PURCHASE'
+        &&!in_array(strtolower(trim((string)($deal['status']??''))),['deleted','cancelled','closed','completed','short closed','manual closed'],true);
+}
+
+function oel_deal_remaining(array $deal,array $root,string $excludeLot=''):float {
+    $used=[];
+    foreach($deal['loadings']??[] as $loading){
+        $id=(string)($loading['shipmentId']??'');
+        if($id!==''&&$id!==$excludeLot)$used[$id]=($used[$id]??0)+(float)($loading['quantityMT']??0);
+    }
+    foreach($root['shipments']??[] as $lot){
+        $id=(string)($lot['id']??'');
+        if($id===''||$id===$excludeLot)continue;
+        $dealId=$lot['outsideLoading']['dealId']??$lot['loadingPlan']['outsideDealId']??'';
+        if($dealId!==($deal['id']??null))continue;
+        if(!empty($lot['cancelled'])){unset($used[$id]);continue;}
+        $actual=array_sum(array_column($lot['millActuals']??[],'netKg'))/1000;
+        $planned=empty($lot['millLoadingCompleted'])?(float)($lot['plannedQty']??0):0;
+        $used[$id]=max($used[$id]??0,$actual,$planned);
+    }
+    return max(0,round((float)($deal['quantityMT']??0)-array_sum($used),6));
+}
+
+function oel_deal_choices(array $root,array $deals,array $mills,string $entity,string $contract,string $today):array {
+    $choices=[];
+    foreach($deals as $id=>$deal){
+        $mill=(string)($deal['outsideMillId']??'');
+        if(!isset($mills[$mill])||!oel_open_deal($deal,$entity,$contract)||($deal['date']??'')>$today)continue;
+        $remaining=oel_deal_remaining($deal,$root);
+        if($remaining<=0)continue;
+        $choices[]=['id'=>(string)$id,'millId'=>$mill,'millName'=>$mills[$mill],
+            'label'=>($deal['reference']??'')?:((string)($deal['party']??'').' · '.$id),'remainingMT'=>$remaining];
+    }
+    return $choices;
+}
+
 function oel_rows(array $root,array $user,string $module):array {
     $contracts=array_column($root['contracts']??[],null,'ref');
     $rows=[];
@@ -32,6 +81,7 @@ function oel_rows(array $root,array $user,string $module):array {
         if(count($allocations)!==1||($allocations[0]['type']??'')!=='Ex-Mill'||trim((string)($allocations[0]['name']??''))==='')continue;
         $pack=$contract['packings'][$allocations[0]['packIndex']??-1]??[];
         $rows[]=['id'=>$lot['id'],'contract'=>$lot['contractRef'],'lot'=>$lot['lotId'],'entity'=>$entity,
+            'plannedDealId'=>$lot['loadingPlan']['outsideDealId']??'','plannedMillId'=>$lot['loadingPlan']['outsideMillId']??'',
             'site'=>$allocations[0]['name']??'','plannedDate'=>$lot['loadingPlan']['loadingDate']??'',
             'expected'=>(int)($lot['containers']??0),'brand'=>$pack['brand']??'','packing'=>($pack['size']??'').' '.($contract['packingUnit']??'KG'),
             'quality'=>$contract['quality']??'','specifications'=>array_values(array_map(static fn($spec)=>['name'=>$spec['name']??'','value'=>$spec['value']??''],array_filter((array)($contract['specRows']??$contract['specifications']??[]),'is_array'))),
@@ -69,8 +119,9 @@ function oel_change(array $root,array $user,string $module,array $body,array $de
         if($module!=='Exports'||!empty($lot['millActuals']))throw new DomainException('Exports can assign a lot before any containers are saved.');
         $dealId=oel_text($body['dealId']??'',160);
         $deal=$deals[$dealId]??null;
-        if(!$deal||($deal['entity']??'')!==$row['entity']||($deal['direction']??'')!=='PURCHASE'||($deal['contractRef']??'')!==$row['contract']||
-            in_array(strtolower((string)($deal['status']??'')),['deleted','cancelled','closed','completed'],true))throw new DomainException('Choose an active purchase SODA linked to this sales contract.');
+        if(!$deal||!oel_open_deal($deal,$row['entity'],$row['contract']))throw new DomainException('Choose an active purchase SODA linked to this sales contract.');
+        if($row['plannedDealId']!==''&&($row['plannedDealId']!==$dealId||$row['plannedMillId']!==($deal['outsideMillId']??'')))throw new DomainException('Use the SODA and mill selected in Loading Instructions.');
+        if($row['plannedDealId']!==''&&oel_deal_remaining($deal,$root,$lotId)+.000001<(float)($lot['plannedQty']??0))throw new DomainException('The SODA no longer covers the planned tonnes.');
         $route=$body['route']??'';
         if(!in_array($route,['EXPORTS','MILL'],true))throw new DomainException('Choose who enters the containers.');
         $assignee=$route==='MILL'?tt_find_user_by_id((int)($body['assigneeId']??0)):$user;
@@ -113,6 +164,8 @@ function oel_change(array $root,array $user,string $module,array $body,array $de
         foreach($root['shipments'] as $other)if(empty($other['cancelled']))foreach($other['millActuals']??[] as $i=>$actual){
             if(($actual['outsideDealId']??'')===$old['dealId']&&($other['id']!==$lotId||$i!==$existing))$dealKg+=(float)$actual['netKg'];
         }
+        if($row['plannedDealId']!==''&&$net+array_sum(array_column($actuals,'netKg'))-(float)($actuals[$existing]['netKg']??0)>
+            oel_deal_remaining($deal,$root,$lotId)*1000+.001)throw new DomainException('Actual weights exceed the remaining tonnes after other loading reservations.');
         if($dealKg>(float)$deal['quantityMT']*1000+.0001)throw new DomainException('Actual weights exceed this SODA’s agreed tonnes.');
         $actual=['number'=>$number,'seal'=>$seal,'truck'=>$truck,'bags'=>$bags,'netKg'=>$net,'grossKg'=>$gross,'tareKg'=>round($gross-$net,3),
             'packIndex'=>(int)$lot['loadingPlan']['allocations'][0]['packIndex'],'brand'=>$row['brand'],'packing'=>$row['packing'],'location'=>$row['site'],
