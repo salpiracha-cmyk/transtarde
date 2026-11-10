@@ -317,7 +317,7 @@ function dt_validate_coverage(array $s,array $d,array $root):void {
 }
 /** Exports-only staff retain their existing operational company scope, not Accounts access. */
 function dt_entity_permission(array $u,string $entity,string $action,bool $loadingOnly=false,string $module='Exports'):bool {
-    if(!$loadingOnly)return tt_user_can_access_entity($u,$entity,$action);
+    if(!$loadingOnly)return $module==='Accounts'?tt_user_can_access_entity($u,$entity,$action):tt_user_business_entity($u,$entity,$action);
     if(!tt_user_can_module_action($u,$module,$module==='Mill'?'local':'loading',$action)||!in_array($entity,['TTI','BRM'],true))return false;
     $p=$u['permissions']['Accounts']??[];$explicit=false;if(is_array($p))foreach(['entity-tti','entity-brm','entity-tg'] as $key)if(array_key_exists($key,$p))$explicit=true;
     // An existing Accounts company matrix still restricts this user. Without one,

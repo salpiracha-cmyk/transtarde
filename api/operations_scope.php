@@ -121,7 +121,8 @@ function os_actual_projection(array $u,array $row,bool $allocated,bool $corn): ?
 }
 function os_corn(array $contract): bool { return preg_match('/\b(?:CORN|MAIZE|MAKAI)\b/i',implode(' ',array_map(static fn($f)=>(string)($contract[$f]??''),['commodity','product','variety','baseVariety'])))===1; }
 function os_activity_icon(string $area): string {
-    $v=strtolower($area);
+    $v=strtolower(trim($area));
+    if(in_array($v,['fi register','fi allocation','fi transfer'],true))return 'fi';
     foreach(['production'=>'production','loading'=>'loading','bag'=>'bags','sales contract'=>'contracts','custom'=>'customs','commercial'=>'commercial','b/l'=>'bl','bl'=>'bl','origin'=>'coo','coo'=>'coo','cover'=>'cover','dispatch'=>'cover','l/c'=>'lcdraft','lc'=>'lcdraft','tg'=>'tg','cert'=>'certs','upload'=>'print'] as $term=>$icon)if($v===$term||str_contains($v,$term))return $icon;
     return 'history';
 }

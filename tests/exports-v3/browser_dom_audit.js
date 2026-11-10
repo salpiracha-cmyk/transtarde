@@ -111,6 +111,7 @@ w.TT_SHARED_SYNC={
   for(const {action,path,value} of customsChanges){
    const [collection,selector,field]=path;
    if(action==='prepend')next[collection].unshift(...value);
+   else if(action==='append')next[collection].push(...value);
    else next[collection].find(row=>row.id===selector.id)[field]=value;
   }
   customsBaseline=JSON.stringify(next);
@@ -161,12 +162,15 @@ assert.equal(d.querySelector('#mFICur').value,'AED','Customs +FI inherits the cu
 assert.equal(d.querySelector('#mFIType').value,'CAD','Customs +FI defaults its type from the current TG Customs payment terms');
 set(d.querySelector('#mFINo'),'FI-TG-CUSTOMS-ADD');set(d.querySelector('#mFIValue'),'25000');
 d.querySelector('#mFIBank').add(new w.Option('TTI AED BANK','TTI AED BANK'));set(d.querySelector('#mFIBank'),'TTI AED BANK','change');
+customsBaseline=JSON.stringify(t.state);
 useCustomsBaseline=false;
 d.querySelector('#saveFI').click();
 await new Promise(resolve=>setTimeout(resolve,0));
 useCustomsBaseline=true;
 const createdCustomsFI=t.state.fi.find(row=>row.number==='FI-TG-CUSTOMS-ADD');
 assert.ok(createdCustomsFI,'Customs +FI saves the new FI');
+assert.deepEqual(customsChanges.map(change=>change.path),[['fi',null],['audits',null]]);
+assert.equal(customsChanges[1].value[0].entity,'TTI');
 assert.equal(d.querySelector('#cuFISelect').value,createdCustomsFI.id,'new Customs FI returns to the same lot and is selected immediately');
 assert.equal(d.querySelector('#cuFIAvailable').value,'25000.00','new Customs FI immediately exposes its available balance');
 set(d.querySelector('#cuCurrency'),'USD','change');

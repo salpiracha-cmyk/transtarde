@@ -101,6 +101,20 @@ with tempfile.TemporaryDirectory(prefix='tti-operation-scope-') as folder:
  confirmed=json.loads(data['value']);assert confirmed['shipments'][0]['customs']==invoice and confirmed['audits']==[audit]
  saved=json.loads(stored()[k]);assert saved['shipments'][0]['commercial']==export['shipments'][0]['commercial']
  assert 'lc' not in saved['shipments'][0] and saved['accountsReceipts']==copy_receipts and saved['contracts']==export['contracts']
+ # An FI Register action is authorized by its company and own workflow.
+ seed();grant('Exports','fi');before=stored()
+ fi={'id':'FI-OWN','number':'FIXTURE-FI','exporter':'TTI','currency':'USD','value':100,'allocations':[]}
+ event={'id':'AUD-FI-OWN','area':'FI Register','action':'FI generated','entity':'TTI'}
+ fi_changes=[{'action':'append','path':['fi',None],'value':[fi]},{'action':'prepend','path':['audits',None],'value':[event]}]
+ body={'csrf':'fixture','sourceModule':'Exports','key':k,'baseVersion':1}
+ status,data=request(body={**body,'contractChanges':json.dumps(fi_changes)})
+ assert status==200,(status,data)
+ confirmed=json.loads(data['value']);assert confirmed['fi']==[fi] and confirmed['audits']==[event]
+ assert json.loads(stored()[k])['shipments']==export['shipments']
+ seed()
+ fi['exporter']=event['entity']='BRM'
+ status,data=request(body={**body,'contractChanges':json.dumps(fi_changes)})
+ assert status==403 and stored()==before,(status,data)
  # Exact workflow View plus company/location restriction applies to root and its ACK.
  seed();grant('Exports','loading')
  status,data=request();assert status==200;visible=json.loads(data['values'][k])

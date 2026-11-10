@@ -8,6 +8,7 @@ define('TT_DATA_DIR',__DIR__.'/data');define('TT_DB_HOST','');
 function tt_require_login(){return ['id'=>1,'username'=>'Fixture','role'=>($_GET['mode']??'')==='super'?'Super Admin':'Staff'];}
 function tt_user_can_module_action($u,$m,$i,$a){$mode=$_GET['mode']??'all';return $mode==='create'?$a!=='Edit':($mode==='read'?$a==='View':true);}
 function tt_user_can_access_entity($u,$e,$a){return ($_GET['mode']??'')!=='limited'||$e!=='TG';}
+function tt_user_business_entity($u,$e,$a='View'){return tt_user_can_access_entity($u,$e,$a);}
 function tt_release_read_session(){}function tt_verify_csrf($v){return $v==='fixture';}function tt_accounts_input(){return $GLOBALS['fixtureBody'];}
 ''')
  books={'revision':7,'journals':{'BOOK1':{'id':'BOOK1','entity':'TTI','status':'Posted','date':'2026-10-01','lines':[{'account':'1110','debit':100,'credit':0}]}}};path=root/'data/accounts.json';path.write_text(json.dumps(books));before=path.read_bytes()
