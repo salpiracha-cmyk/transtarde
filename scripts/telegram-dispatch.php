@@ -14,10 +14,10 @@ require_once $root.'/auth_store.php';
 require_once dirname(__DIR__).'/inventory_reconciliation.php';
 require_once dirname(__DIR__).'/api/telegram_dispatch_core.php';
 try {
-    $result=tg_dispatch(in_array('--initialize',$argv,true));
+    $result=tt_social_dispatch_all(in_array('--initialize',$argv,true));
     echo json_encode($result,JSON_THROW_ON_ERROR)."\n";
     exit(empty($result['errors'])?0:1);
 } catch(Throwable) {
-    fwrite(STDERR,"Telegram automatic delivery failed. Check Telegram Alerts in Super Admin.\n");
+    fwrite(STDERR,"Social media delivery failed. Check Social Media Settings in Super Admin.\n");
     exit(1);
 }
