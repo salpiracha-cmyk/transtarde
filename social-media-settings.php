@@ -28,6 +28,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
                 if ($telegram) tt_telegram_save(trim((string)($_POST['token']??'')),trim((string)($_POST['chatId']??'')));
                 else tt_discord_save(trim((string)($_POST['webhook']??'')));
                 break;
+            case 'reports':
+                $selected=$_POST['reports']??[];
+                if(!is_array($selected)||tt_social_config($platform)===[])throw new DomainException('Save the connection before choosing reports.');
+                tt_social_update_config($platform,['reports'=>tt_social_report_choices($selected)]);
+                break;
             case 'enable':
             case 'disable':
                 if (!$telegram && $action==='enable' && ($_POST['privateChannel']??'')!=='yes') {
@@ -84,6 +89,7 @@ $notice=match ($_GET['result']??'') {
     'run'=>'Checked for due '.$label.' updates.',
     'test'=>$label.' confirmed delivery of the test message.',
     'recovery'=>'Telegram confirmed delivery of the TTI Recovery PDF.',
+    'reports'=>$label.' report selections saved.',
     default=>'',
 };
 ?>
@@ -98,6 +104,10 @@ $notice=match ($_GET['result']??'') {
 .platform-nav{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}
 .platform-nav a{padding:8px 14px;border:1px solid #aab8c0;border-radius:8px;text-decoration:none}
 .platform-nav a[aria-current]{background:#17364b;color:white;font-weight:700;border-color:#17364b}
+.report-module{border:1px solid #ced8dc;border-radius:8px;padding:10px 12px}
+.report-module summary{font-weight:700;cursor:pointer}
+.report-module label{margin:10px 0 0}
+.report-module input[type=checkbox]{width:auto;margin-right:6px}
 </style>
 </head>
 <body>
@@ -149,6 +159,24 @@ $notice=match ($_GET['result']??'') {
 <?php if($telegram): ?><button type="submit" name="action" value="recovery" <?=$enabled?'':'disabled'?>>Send TTI Recovery PDF · previous 7 days</button><?php endif; ?>
 </form>
 <?php else: ?><p>Save a connection to enable this platform.</p><?php endif; ?>
+</section>
+<section>
+<h2>Optional <?=$h($label)?> reports</h2>
+<p>Tick the extra PDFs you want at 11 a.m. Pakistan time. Standard alerts keep their existing schedule.</p>
+<?php if($connected): ?>
+<form method="post" action="<?=$h($return)?>">
+<input type="hidden" name="csrf" value="<?=$csrf?>">
+<?php $selected=$config['reports']??[]; foreach(tt_social_report_catalog() as $module=>$reports): ?>
+<details class="report-module">
+<summary><?=$h($module)?> · <?=count(array_intersect(array_keys($reports),$selected))?> selected</summary>
+<?php foreach($reports as $id=>$title): ?>
+<label><input type="checkbox" name="reports[]" value="<?=$h($id)?>" <?=in_array($id,$selected,true)?'checked':''?>> <?=$h($title)?></label>
+<?php endforeach; ?>
+</details>
+<?php endforeach; ?>
+<button type="submit" name="action" value="reports">Save report selections</button>
+</form>
+<?php else: ?><p>Save a connection to choose optional reports.</p><?php endif; ?>
 </section>
 </main>
 </body>

@@ -24,6 +24,20 @@ try {
  tt_social_update_config('discord',['enabled'=>false]);
  check(tt_social_config('discord')['webhook']===$secret,'Turning off Discord must retain the webhook.');
  check(tt_social_file('telegram','dispatch')!==tt_social_file('discord','dispatch'),'Delivery receipts need independent storage.');
+ $before=new DateTimeImmutable('2026-11-10 10:59:59',new DateTimeZone('Asia/Karachi'));
+ $due=$before->modify('+1 second');
+ check(iterator_to_array(tt_social_optional_jobs(['exports-loading'],$before))===[],'Optional PDFs must wait until 11 a.m.');
+ check(iterator_to_array(tt_social_optional_jobs([],$due))===[],'Unchecked reports must not be sent.');
+ $jobs=iterator_to_array(tt_social_optional_jobs(['exports-loading','exports-loading'],$due));
+ check(count($jobs)===1&&$jobs[0]['key']==='optional-report|exports-loading|2026-11-10','Selected reports need a stable, deduplicated daily identity.');
+ try{tt_social_report_choices(['unknown-report']);throw new RuntimeException('Accepted unknown report.');}catch(DomainException){}
+ tt_social_update_config('discord',['reports'=>['exports-loading']]);
+ check(tt_social_config('discord')['reports']===['exports-loading']&&!isset(tt_social_config('telegram')['reports']),'Report selections must be independent.');
+ $morning=['tables'=>[tt_social_report_table('Shipments being loaded',['Contract'],[['C1']]),tt_social_report_table('Bank balances',['Bank'],[['Private fixture']])]];
+ $report=tt_social_optional_report('exports-loading',$due,[],$morning);
+ check(count($report['tables'])===1&&$report['tables'][0]['rows']===[['C1']],'Loading PDF must include only its selected section.');
+ $recovery=tt_social_optional_report('mill-daily-recovery',$due,['values'=>['tt30prod'=>'[]']],$morning);
+ check($recovery['filters']['from']==='2026-11-09'&&count($recovery['tables'])===2,'Daily recovery needs the previous Pakistan calendar day for both mills.');
  echo "PASS backward-compatible Telegram defaults, independent settings and receipts, disabled worker, private credential files and restricted Discord URL\n";
 } finally {
  foreach(glob(TT_DATA_DIR.'/*')?:[] as $file) unlink($file);

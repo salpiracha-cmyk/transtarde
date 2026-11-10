@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__.'/mill_recovery_core.php';
 require_once __DIR__.'/telegram_alerts_core.php';
 require_once __DIR__.'/discord_alerts_core.php';
+require_once __DIR__.'/social_alerts_reports.php';
 require_once __DIR__.'/telegram_report_files.php';
 require_once __DIR__.'/telegram_production_reports.php';
 require_once dirname(__DIR__).'/document_filenames.php';
@@ -241,10 +242,14 @@ function tg_dispatch(bool $initialize=false,string $platform='telegram'): array 
             $state['summaryRows']=[$today=>array_values(array_filter(tg_rows($ops,'tt30queue'),static fn($r)=>($r['date']??'')===$today&&empty($r['deleted'])))];
             tg_state_save($path,$state);
         }
-        $delivered=0;$errors=0;
-        foreach(tg_notification_jobs($ops,$state,$now) as $job) {
+        $delivered=0;$errors=0;$morning=null;
+        $jobs=(static function()use($ops,$state,$now,$config): iterable {
+            yield from tg_notification_jobs($ops,$state,$now);
+            yield from tt_social_optional_jobs($config['reports']??[],$now);
+        })();
+        foreach($jobs as $job) {
             if(($state['sent'][$job['key']]['hash']??null)===$job['hash'])continue;
-            if($delivered>=20||!tt_social_enabled($platform,tt_social_config($platform)))break;
+            if($delivered>=20||tt_social_config($platform)!==$config)break;
             if(isset($state['pending'][$job['key']])) {
                 if(str_starts_with($job['key'],'arrivals-summary|'))break;
                 continue;
@@ -256,7 +261,11 @@ function tg_dispatch(bool $initialize=false,string $platform='telegram'): array 
                     $state['pending'][$job['key']]=['hash'=>$job['hash'],'at'=>$now->format(DATE_ATOM)];
                     tg_state_save($path,$state);
                 }
-                if(isset($job['morning'])){$job['report']=tg_morning_pdf($job['morning']);$job['caption']='Directors Morning Update | '.$job['morning'];}
+                if(isset($job['morning'])){$morning??=tg_morning_pdf($job['morning']);$job['report']=$morning;$job['caption']='Directors Morning Update | '.$job['morning'];}
+                if(isset($job['optionalReport'])) {
+                    $job['report']=tt_social_optional_report($job['optionalReport'],$now,$ops,$morning);
+                    $job['caption']=$job['report']['title'].' | '.$job['report']['reference'];
+                }
                 if(isset($job['report'])) {
                     $r=$job['report'];$name=tt_document_name(['company'=>$r['entity'],'title'=>$r['title']??'Production Recovery','reference'=>$r['reference']??'','from'=>$r['filters']['from']??'','to'=>$r['filters']['to']??'','extension'=>'pdf']);
                     if($platform==='discord')tt_discord_send_pdf($r,$name,$job['caption'],$destination);
