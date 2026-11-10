@@ -2673,7 +2673,7 @@ function persistContractStepDraft(){
  }
  save();const confirmation=window.TT_SHARED_SYNC?.saveNow?.();return confirmation?confirmation.then(()=>true):Promise.resolve(true)
 }
-function restoreContractCheckpoint(){try{const saved=JSON.parse(localStorage.getItem(CONTRACT_DRAFT_STORE)||'null');if(!saved?.draft||saved.user!==currentUser())return;const age=Date.now()-Date.parse(saved.at||0);if(!Number.isFinite(age)||age>7*24*60*60*1000){clearContractCheckpoint();return}const serverDraft=state.contracts.find(x=>x.id===saved.draft.id&&!x.issued&&x.status==='Draft');if(!serverDraft||String(serverDraft.customerId||'')!==String(saved.draft.customerId||'')||String(serverDraft.ref||'')!==String(saved.draft.ref||'')){clearContractCheckpoint();return}contractDraft=structuredClone(serverDraft);contractStep=Math.min(8,Math.max(1,num(saved.step)||1));activePackingIndex=-1;packingDraft=null;view='contracts';renderContractEditor()}catch{clearContractCheckpoint()}}
+function restoreContractCheckpoint(){if(view==='reports')return;try{const saved=JSON.parse(localStorage.getItem(CONTRACT_DRAFT_STORE)||'null');if(!saved?.draft||saved.user!==currentUser())return;const age=Date.now()-Date.parse(saved.at||0);if(!Number.isFinite(age)||age>7*24*60*60*1000){clearContractCheckpoint();return}const serverDraft=state.contracts.find(x=>x.id===saved.draft.id&&!x.issued&&x.status==='Draft');if(!serverDraft||String(serverDraft.customerId||'')!==String(saved.draft.customerId||'')||String(serverDraft.ref||'')!==String(saved.draft.ref||'')){clearContractCheckpoint();return}contractDraft=structuredClone(serverDraft);contractStep=Math.min(8,Math.max(1,num(saved.step)||1));activePackingIndex=-1;packingDraft=null;view='contracts';renderContractEditor()}catch{clearContractCheckpoint()}}
 
 /* 2026-09-15 TG direct-shipment Customs payment authority. */
 function ttDirectCustomsPaymentCode(x){
@@ -3003,12 +3003,8 @@ window.addEventListener('tt:shared-updated',()=>{
 if(window.TT_EXPORT_TAX_SOURCE){window.TT_TAX_INVOICE_HTML=()=>{const s=structuredClone(state.shipments[0]),c=structuredClone(state.contracts[0]);return (s.seller||c.seller)==='TG'?tgInternalCommercialInvoiceDoc(s,c):commercialCopyLabel(commercialInvoiceDoc(s,c,false),'ORIGINAL');};}
 else if(!window.TT_EXPORTS_LOAD_ERROR){
  const report=window.TT_MODULE_ACCESS?.initialReport;
- if(REPORT_DEFS.some(([key])=>key===report)){
-  view='reports';
-  mount();
-  document.querySelector(`[data-report="${report}"]`)?.click();
- }else{
-  mount();restoreContractCheckpoint();
- }
+ if(REPORT_DEFS.some(([key])=>key===report))view='reports';
+ mount();restoreContractCheckpoint();
+ if(view==='reports')document.querySelector(`[data-report="${report}"]`)?.click();
 }
 })();
