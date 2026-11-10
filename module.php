@@ -105,6 +105,7 @@ $access = [
     'workspaces'=>tt_user_workspaces($user),
     'super'=>(($user['role'] ?? '')==='Super Admin'), 'csrf'=>tt_csrf(),
     'masterAccess'=>tt_user_can_access_masters($user), 'masterPermissions'=>$user['master_permissions'] ?? [],
+    'workflowSelectors'=>os_workflow_selectors($user,$permissionName),
     'masters'=>os_bootstrap_masters($user), 'masterOptions'=>(tt_user_can_master($user,'reference_lists','Use')||tt_user_can_master($user,'reference_lists','View')?tt_master_options():tt_default_master_options()),
 ];
 // Realization taxes/charges belong to Accounts setup, not the operational

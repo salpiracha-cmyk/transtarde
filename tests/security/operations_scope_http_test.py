@@ -180,6 +180,21 @@ with tempfile.TemporaryDirectory(prefix='tti-operation-scope-') as folder:
  status,data=request('scope-masters-fixture.php');assert status==200 and 'PRIVATE_' not in json.dumps(data) and data['banks'][0]['values'][4]=='BANK',(status,data)
  credentials['users'][0]['master_permissions']={'banks':['View']};auth.write_text(json.dumps(credentials))
  status,data=request('scope-masters-fixture.php');assert status==200 and 'PRIVATE_ACCOUNT' in json.dumps(data),(status,data)
+ # Form-specific bank choices use the document company's scope, without a Bank Master grant.
+ (app/'api'/'scope-selectors-fixture.php').write_text("<?php $_GET['entity']='TTI';require __DIR__.'/../auth_store.php';require __DIR__.'/operations_scope.php';echo json_encode(os_workflow_selectors(tt_require_login(),'Exports'));")
+ grant('Exports','customs')
+ settings=json.loads(auth.read_text())
+ brm=['BRM COMPANY','BRM','Pakistan']+['']*11
+ brm[13]=json.dumps([{'id':'B-BRM','bankName':'Foreign scope bank','iban':'OUT_OF_SCOPE_IBAN','status':'Active'}])
+ settings['masters']={'companies':[{'id':'C','values':cv},{'id':'BRM','values':brm}]}
+ auth.write_text(json.dumps(settings))
+ status,data=request('scope-selectors-fixture.php')
+ assert status==200 and [(r['entity'],r['values'][9]) for r in data['documentBanks']]==[('TTI','PRIVATE_IBAN')],(status,data)
+ status,data=request('scope-masters-fixture.php')
+ assert status==200 and 'banks' not in data and 'PRIVATE_IBAN' not in json.dumps(data),(status,data)
+ settings['users'][0]['permissions']['Exports']['customs']=['View']
+ auth.write_text(json.dumps(settings))
+ assert not request('scope-selectors-fixture.php')[1]
  grant('Directors','home');status,data=request();assert k not in data['values'] and 'PRIVATE_' not in json.dumps(data)
  for role in ['Director','Super Admin']:
   user['role']=role;grant('Mill','queue');status,data=request();assert status==200 and 'PRIVATE_EXPORT_PRICE' in data['values'][k]

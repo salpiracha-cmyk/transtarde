@@ -815,7 +815,11 @@ paymentTypeChanged();render();
 <script>
 const STORE_MILLS='tt30mills',STORE_QUEUE='tt30queue',STORE_SLIPS='tt30slips',STORE_BAGS='tt30bags',STORE_SHIP='tt30ship',STORE_PRODINST='tt30prodinst',STORE_PROD='tt30prod',STORE_PRODAUDIT='tt30prodaudit',STORE_LEDGER='tt30petty',STORE_RECON='tt32processingrecon',STORE_EXPORTSYNC='tt32exportsync',STORE_LABOURFEED='tt32labourfeed',STORE_STOCKADJ='tt32stockadj',STORE_PETTYEXP='tt33pettyexp',STORE_BAGRECEIPTS='tt33bagreceipts',STORE_GHATI='tt34ghati',STORE_NILQUEUE='tt34nilqueue',STORE_EXMILL='tt35exmill',STORE_EXLOAD='tt35exload',STORE_EXPORTERSALE='tt35exportersale',STORE_BRANDMETA='tt35brandmeta',STORE_LOCALSALES='tt35localsales',STORE_BAGISSUES='tt36bagissues',STORE_USEDBAGS='tt37usedbags',STORE_EXPENSES='tt37processingexpenses',STORE_USERS='tt37users',STORE_ARRIVALAUDIT='tt37arrivalaudit',STORE_LABOURRATES='tt38labourrates',STORE_KEBILLS='tt38kebills',STORE_LABOURBILLS='tt38labourbills',STORE_COSTMASTER='tt38costmaster',STORE_ACCOUNTSFEED='tt38accountsfeed',STORE_REPROCESSBILLS='tt38reprocessbills',STORE_RENTMASTER='tt39rentmaster',STORE_RENTPAYMENTS='tt39rentpayments',STORE_SALARYMASTER='tt39salarymaster',STORE_SALARYADVANCES='tt39salaryadvances',STORE_EXINSTR='tt40exinstructions',STORE_INSTRUCTION_SEEN='tt40instructionseen';
 const TT_MASTER_DATA=window.TT_MODULE_ACCESS?.masters||{};
-const ttMasterValues=type=>(Array.isArray(TT_MASTER_DATA[type])?TT_MASTER_DATA[type]:[]).map(row=>Array.isArray(row?.values)?row.values:[]);
+const ttMasterValues=type=>{
+ const selector=type==='mills'?'locations':type;
+ const rows=TT_MASTER_DATA[type]??window.TT_MODULE_ACCESS?.workflowSelectors?.[selector];
+ return (Array.isArray(rows)?rows:[]).map(row=>Array.isArray(row?.values)?row.values:[]);
+};
 function escHtml(value){return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
 function safeJsToken(value){return encodeURIComponent(String(value??'')).replace(/'/g,'%27')}
 // Final Transtrade backend must inject authoritative Pakistan server time in window.TRANSTRADE_SERVER_NOW_ISO.

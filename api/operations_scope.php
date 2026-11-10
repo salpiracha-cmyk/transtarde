@@ -140,6 +140,95 @@ function os_mill_sync(string $field,array $row): array {
     }else{$out['production']=os_fields((array)($row['production']??[]),'qualityNotes dryOn craftPaper inspection dpp requiredBy');$out['plan']['allocations']=array_map(static fn($a)=>os_fields((array)$a,'type name packIndex containers weightPer dryOn craftPaper inspection dpp emptyBags _ttAllocationIndex'),(array)($row['plan']['allocations']??[]));}
     return $out;
 }
+/** The destination form grants use of its listed dependencies. */
+function os_workflow_selector_allowed(array $user,string $module,string $selector): bool {
+    $icons=match($module.'|'.$selector){
+        'Exports|documentBanks'=>['contract','contracts','fi','customs','commercial','tg'],
+        'Exports|locations'=>['loading','bags'],
+        'Mill|locations'=>['queue','arrival','export','production','newbags'],
+        'Accounts|locations'=>['purchases','expenses'],
+        'Exports|bagSuppliers'=>['bags'],
+        'Exports|indentors'=>['contract','contracts'],
+        'Mill|brokers'=>['queue','arrival'],
+        'Mill|purchaseProducts'=>['queue','arrival'],
+        default=>[],
+    };
+    if(!$icons||!tt_user_can_open_module($user,$module))return false;
+    return os_any($user,$module,$icons,'Create')||os_any($user,$module,$icons,'Edit');
+}
+
+function os_workflow_location_rows(array $user,array $rows): array {
+    $options=[];
+    foreach($rows as $row){
+        $values=(array)($row['values']??[]);
+        $name=trim((string)($values[0]??''));
+        if($name===''||strcasecmp((string)($values[5]??''),'Inactive')===0||!os_location($user,$name))continue;
+        $options[]=['id'=>$row['id']??'','values'=>[$name,$values[1]??'',$values[2]??'']];
+    }
+    return $options;
+}
+
+/** Document selectors carry payment instructions and company identity only. */
+function os_export_document_bank_rows(array $user,array $rows): array {
+    $options=[];
+    foreach($rows as $row){
+        $values=array_values((array)($row['values']??[]));
+        $linked=strtoupper(trim((string)($values[1]??'')));
+        $entity=match(true){
+            preg_match('/^(?:TTI\b|TRANSTRADE INTERNATIONAL\b)/',$linked)===1=>'TTI',
+            preg_match('/^(?:BRM\b|BUKSH RICE\b)/',$linked)===1=>'BRM',
+            preg_match('/^(?:TG\b|TRANS GRAINS\b)/',$linked)===1=>'TG',
+            default=>'',
+        };
+        if($entity===''||!os_entity($user,$entity)||!tt_bank_is_operational_account_type((string)($values[0]??''))
+            ||!empty($row['linkedRetentionAccount'])||trim((string)($values[4]??''))===''
+            ||(trim((string)($values[8]??''))===''&&trim((string)($values[9]??''))==='')
+            ||!in_array(strtolower(trim((string)($values[13]??''))),['','active'],true))continue;
+        $option=array_fill(0,14,'');
+        foreach([0,1,2,3,4,5,6,7,8,9,10,13] as $field)$option[$field]=(string)($values[$field]??'');
+        $options[]=['entity'=>$entity,'values'=>$option];
+    }
+    return $options;
+}
+
+function os_workflow_selectors(array $user,string $module): array {
+    $options=[];
+    $locations=os_workflow_selector_allowed($user,$module,'locations')
+        && !tt_user_can_master($user,'mills','View')&&!tt_user_can_master($user,'mills','Use');
+    $banks=os_workflow_selector_allowed($user,$module,'documentBanks');
+    $partyRoles=[];
+    if(!tt_user_can_master($user,'business_parties','View')&&!tt_user_can_master($user,'business_parties','Use')){
+        foreach(['bagSuppliers'=>'bag supplier','indentors'=>'indentor','brokers'=>'broker'] as $selector=>$role)
+            if(os_workflow_selector_allowed($user,$module,$selector))$partyRoles[]=$role;
+    }
+    $products=os_workflow_selector_allowed($user,$module,'purchaseProducts')
+        && !tt_user_can_master($user,'purchase_products','View')&&!tt_user_can_master($user,'purchase_products','Use');
+    if(!$locations&&!$banks&&!$partyRoles&&!$products)return $options;
+    $masters=tt_list_masters();
+    if($locations)$options['locations']=os_workflow_location_rows($user,(array)($masters['mills']??[]));
+    if($banks)$options['documentBanks']=os_export_document_bank_rows($user,(array)($masters['banks']??[]));
+    if($partyRoles){
+        $options['business_parties']=[];
+        foreach((array)($masters['business_parties']??[]) as $row){
+            $values=(array)($row['values']??[]);
+            $roles=preg_split('/\s*[;,]\s*/',strtolower(trim((string)($values[2]??''))))?:[];
+            if(!array_intersect($roles,$partyRoles)||stripos((string)($values[10]??''),'inactive')!==false)continue;
+            $options['business_parties'][]=['id'=>$row['id']??'','values'=>[$values[0]??'',$values[1]??'',$values[2]??'']];
+        }
+    }
+    if($products){
+        $options['purchase_products']=[];
+        foreach((array)($masters['purchase_products']??[]) as $row){
+            $values=(array)($row['values']??[]);
+            if(stripos((string)($values[8]??''),'inactive')!==false)continue;
+            $choice=array_fill(0,11,'');
+            foreach([0,1,2,3,8,10] as $field)$choice[$field]=$values[$field]??'';
+            $options['purchase_products'][]=['id'=>$row['id']??'','values'=>$choice];
+        }
+    }
+    return $options;
+}
+
 /** Selector Use does not expose an unrelated payroll or banking Master record. */
 function os_bootstrap_masters(array $u): array {
     $out=[];

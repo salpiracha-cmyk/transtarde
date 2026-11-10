@@ -6,7 +6,7 @@ app=app.replace('mount();',`window.__DOM_AUDIT__={openFI:openFIModal,state,makeS
 const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');
 const html=`<!doctype html><html><head><style>${css}</style></head><body><div id="app"></div><div id="printRoot"></div></body></html>`;
 const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));
-const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'https://exports.audit.local/',virtualConsole:vc,beforeParse(w){w.TT_MODULE_ACCESS={user:'Jazib',module:'Exports',masters:{mills:[{values:['DOM External Mill','','External Mill']}]}};w.alert=m=>{throw Error(String(m))};w.confirm=()=>true;w.print=()=>{};w.scrollTo=()=>{};w.setInterval=()=>0;w.structuredClone=value=>JSON.parse(JSON.stringify(value));w.FileReader=class{};w.fetch=async url=>String(url).includes('outside_export_loading.php')?{ok:true,json:async()=>({ok:true,choices:[{id:'S-1',millId:'M-1',millName:'SODA-only Loading Mill',label:'SODA 1',remainingMT:54}]})}:String(url).includes('milling_purchase_sodas.php')?{ok:true,json:async()=>({ok:true,sodas:[{id:'S-DOM',entity:'TTI',readyRoute:'EX_MILL',locationName:'DOM External Mill',baseVariety:'IRRI-6',riceType:'',brokenGrade:'5%',qtyToKg:54000}]})}:{ok:true,json:async()=>({ok:true})};w.HTMLElement.prototype.scrollIntoView=()=>{};}});
+const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'https://exports.audit.local/',virtualConsole:vc,beforeParse(w){w.TT_MODULE_ACCESS={user:'Jazib',module:'Exports',masters:{},workflowSelectors:{locations:[{values:['DOM External Mill','','External Mill']}],documentBanks:[{entity:'TTI',values:['Company Account','TTI','','TTI','Fixture TTI Bank','','Pakistan','USD','','TTI-FIXTURE-IBAN']},{entity:'BRM',values:['Company Account','BRM','','BRM','Fixture BRM Bank','','Pakistan','USD','','BRM-FIXTURE-IBAN']},{entity:'TG',values:['Company Account','TG','','TG','Fixture TG Bank','','UAE','AED','','TG-FIXTURE-IBAN']}]}};w.alert=m=>{throw Error(String(m))};w.confirm=()=>true;w.print=()=>{};w.scrollTo=()=>{};w.setInterval=()=>0;w.structuredClone=value=>JSON.parse(JSON.stringify(value));w.FileReader=class{};w.fetch=async url=>String(url).includes('outside_export_loading.php')?{ok:true,json:async()=>({ok:true,choices:[{id:'S-1',millId:'M-1',millName:'SODA-only Loading Mill',label:'SODA 1',remainingMT:54}]})}:String(url).includes('milling_purchase_sodas.php')?{ok:true,json:async()=>({ok:true,sodas:[{id:'S-DOM',entity:'TTI',readyRoute:'EX_MILL',locationName:'DOM External Mill',baseVariety:'IRRI-6',riceType:'',brokenGrade:'5%',qtyToKg:54000}]})}:{ok:true,json:async()=>({ok:true})};w.HTMLElement.prototype.scrollIntoView=()=>{};}});
 dom.window.eval(app);
 const w=dom.window,d=w.document,t=w.__DOM_AUDIT__;
 (async()=>{
@@ -125,6 +125,10 @@ const tgProcess=t.makeShipment(tgContract);t.state.shipments.push(tgProcess);
 const tgLot=t.makeLotRecord(tgProcess,{lotId:'TG/DOM/01/L01',physicalContainers:4,allocations:[{name:'TTI Rice Mills',type:'TTI',packIndex:0,containers:4,weightPer:27}]});t.state.shipments.push(tgLot);
 t.state.fi.push({id:'DOM-FI-AED',number:'FI-AED',type:'TG Unallocated',customer:'',currency:'AED',value:50000,bank:'AED Bank',allocations:[]},{id:'DOM-FI-USD',number:'FI-USD',type:'TG Unallocated',customer:'',currency:'USD',value:50000,bank:'USD Bank',allocations:[]});
 t.openShipment(tgLot.id);d.querySelector('[data-workspace="customs"]').click();
+assert.deepEqual([...d.querySelector('#cuBank').options].map(option=>option.value),['','Fixture TTI Bank']);
+set(d.querySelector('#cuBank'),'Fixture TTI Bank','change');
+assert.equal(d.querySelector('#cuIBAN').value,'TTI-FIXTURE-IBAN','Jazib can select TTI shipper bank without Bank Master access');
+
 assert.equal(d.querySelector('#cuCurrency').tagName,'SELECT','TG Customs currency uses the managed dropdown');
 assert.equal(d.querySelector('#cuCurrency').value,'AED','TG Customs initially retains its own saved/default currency');
 assert.ok([...d.querySelectorAll('#cuFISelect option')].some(option=>option.textContent.includes('FI-AED')),'FI selection initially follows the TG Customs currency');
@@ -147,12 +151,19 @@ assert.ok([...d.querySelectorAll('#cuFISelect option')].some(option=>option.text
 assert.ok(![...d.querySelectorAll('#cuFISelect option')].some(option=>option.textContent.includes('FI-AED')),'changing TG Customs currency removes non-matching FIs');
 set(d.querySelector('#cuRate'),'300');
 set(d.querySelector('#cuExporter'),'BRM','change');
+assert.deepEqual([...d.querySelector('#cuBank').options].map(option=>option.value),['','Fixture BRM Bank']);
+assert.equal(d.querySelector('#cuIBAN').value,'','The prior exporter IBAN clears when the exporter changes');
+set(d.querySelector('#cuBank'),'Fixture BRM Bank','change');
+assert.equal(d.querySelector('#cuIBAN').value,'BRM-FIXTURE-IBAN');
+
 assert.equal(d.querySelector('#cuRate').value,'300','changing the Pakistan exporter never resets the typed Customs rate');
 assert.match(d.querySelector('.lotPreviewPaper').innerHTML,/BRM_header\.png/,'changing the Pakistan exporter refreshes the live Customs letterhead');
 set(d.querySelector('#cuImporterChoice'),'BUYER','change');
 assert.match(d.querySelector('.lotPreviewPaper').textContent,/Dom Buyer/i,'changing the importer refreshes the live Customs drawee details');
 await d.querySelector('#saveCustoms').onclick();
 assert.equal(tgLot.customs.currency,'USD','TG Customs saves the separate currency');
+assert.equal(tgLot.customs.bank,'Fixture BRM Bank');
+assert.equal(tgLot.customs.iban,'BRM-FIXTURE-IBAN');
 assert.equal(tgContract.currency,'AED','TG Customs currency never rewrites the customer Sales Contract currency');
 t.openFIAllocation('DOM-FI-USD');assert.equal(d.querySelector('#faLot').value,tgLot.id,'FI Register allocation follows the TG Customs currency, not the customer Sales Contract currency');d.querySelector('[data-modal-close]').click();
 d.querySelector('[data-workspace="tg"]').click();const tgRateField=[...d.querySelectorAll('.field')].find(field=>field.querySelector('label')?.textContent.includes('Customs Invoice Price'));assert.match(tgRateField.querySelector('input').value,/USD/,'TG internal-document screen displays the separate Customs currency, not the customer contract currency');
