@@ -3,6 +3,8 @@ declare(strict_types=1);
 require __DIR__.'/../../api/outside_export_loading_core.php';
 require __DIR__.'/../../api/directors_trading_core.php';
 require __DIR__.'/../../api/bank_entries_core.php';
+require __DIR__.'/../../api/export_permission_policy.php';
+function tt_list_masters():array{return ['mills'=>[['id'=>'M1','values'=>['Khan Rice Mills, Punjab','','External Mill','','','Active']]]];}
 function tt_user_can_open_module(array $u,string $m):bool{return $u['module']===$m;}
 function tt_user_can_module_action(array $u,string $m,string $i,string $a):bool{return $u['module']===$m;}
 function tt_user_business_entity(array $u,string $e,string $a):bool{return $e==='TTI';}
@@ -15,7 +17,7 @@ $export=['id'=>1,'module'=>'Exports','full_name'=>'Jazib','active'=>true];
 $mill=tt_find_user_by_id(2);
 $terms=['entity'=>'TTI','date'=>'2026-10-01','direction'=>'PURCHASE','arrangement'=>'PARTNERSHIP_MARGIN','partyId'=>'KHAN','currency'=>'USD','price'=>590,'quantityMT'=>27,'incoterm'=>'CNF','fx'=>280,'contractRef'=>'AMT','freightEstimateUSDPerMT'=>0,'fobEstimateUSDPerMT'=>0,'bankEstimatePct'=>0,'privateMarginUSDPerMT'=>20,'partnerSharePct'=>50];
 $deal=dt_deal($terms,[['id'=>'KHAN','name'=>'Khan Rice Mills']])+['id'=>'D1','loadings'=>[],'settlementPosts'=>[],'payments'=>[]];
-$contract=['ref'=>'AMT','seller'=>'TG','customsExporter'=>'TTI','currency'=>'USD','quality'=>'Maximum 5% broken','packings'=>[['brand'=>'AMT','size'=>25,'contractRate'=>610]]];
+$contract=['id'=>'C1','ref'=>'AMT','seller'=>'TG','customsExporter'=>'TTI','currency'=>'USD','quality'=>'Maximum 5% broken','packings'=>[['brand'=>'AMT','size'=>25,'contractRate'=>610]]];
 $lot=['id'=>'L1','kind'=>'lot','seller'=>'TG','customs'=>['exporter'=>'TTI'],'contractRef'=>'AMT','lotId'=>'AMT/L1','containers'=>1,'millActuals'=>[],'loadingPlan'=>['outsideDirect'=>true,'loadingDate'=>'2026-10-05','allocations'=>[['name'=>'Khan Rice Mills, Punjab','type'=>'Ex-Mill','packIndex'=>0,'containers'=>1]]]];
 $root=['contracts'=>[$contract],'shipments'=>[$lot]];
 $preLotContract=array_replace($contract,['ref'=>'AMT14','customsExporter'=>'']);
@@ -41,6 +43,22 @@ $reserved['shipments'][0]['loadingPlan']['outsideDealId']='D1';
 $reserved['shipments'][0]['loadingPlan']['outsideMillId']='M1';
 $reserved['shipments'][0]['plannedQty']=27;
 ok(oel_deal_remaining($eligible,$reserved)===27.&&oel_deal_remaining($eligible,$reserved,'L1')===54.,'Reservations reduce the dropdown balance without counting the lot being assigned');
+$fixtureDir=sys_get_temp_dir().'/outside-lot-policy-'.bin2hex(random_bytes(8));
+mkdir($fixtureDir);
+define('TT_DATA_DIR',$fixtureDir);
+try{
+    file_put_contents($fixtureDir.'/accounts.json',json_encode(['exporterDeals'=>['D1'=>$eligible]],JSON_THROW_ON_ERROR));
+    $before=json_encode(['contracts'=>[$contract],'shipments'=>[]],JSON_THROW_ON_ERROR);
+    $reserved['shipments'][0]['loadingPlan']['allocations'][0]['weightPer']=27;
+    operations_validate_export_permissions($export,'Exports',$before,json_encode($reserved,JSON_THROW_ON_ERROR));
+    $wrongMill=$reserved;
+    $wrongMill['shipments'][0]['loadingPlan']['allocations'][0]['name']='Different mill';
+    reject(fn()=>operations_validate_export_permissions($export,'Exports',$before,json_encode($wrongMill,JSON_THROW_ON_ERROR)),'The server still rejects a mill that does not match the chosen SODA');
+}finally{
+    unlink($fixtureDir.'/accounts.json');
+    rmdir($fixtureDir);
+}
+
 ok(oel_deal_choices($reserved,['D1'=>array_replace($eligible,['quantityMT'=>27])],['M1'=>'Khan Rice Mills, Punjab'],'TTI','AMT',$today)===[],'Fully reserved SODAs are excluded');
 reject(fn()=>oel_change($reserved,$export,'Exports',$assign+['route'=>'EXPORTS'],['D1'=>array_replace($eligible,['outsideMillId'=>'M2'])],$today),'The lot cannot substitute a different mill at assignment');
 

@@ -6,7 +6,7 @@ app=app.replace('mount();',`window.__DOM_AUDIT__={openFI:openFIModal,state,makeS
 const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');
 const html=`<!doctype html><html><head><style>${css}</style></head><body><div id="app"></div><div id="printRoot"></div></body></html>`;
 const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));
-const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'https://exports.audit.local/',virtualConsole:vc,beforeParse(w){w.TT_MODULE_ACCESS={user:'Jazib',module:'Exports',masters:{mills:[{values:['DOM External Mill','','External Mill']}]}};w.alert=m=>{throw Error(String(m))};w.confirm=()=>true;w.print=()=>{};w.scrollTo=()=>{};w.setInterval=()=>0;w.structuredClone=value=>JSON.parse(JSON.stringify(value));w.FileReader=class{};w.fetch=async url=>String(url).includes('outside_export_loading.php')?{ok:true,json:async()=>({ok:true,choices:[{id:'S-1',millId:'M-1',millName:'DOM External Mill',label:'SODA 1',remainingMT:54}]})}:String(url).includes('milling_purchase_sodas.php')?{ok:true,json:async()=>({ok:true,sodas:[{id:'S-DOM',entity:'TTI',readyRoute:'EX_MILL',locationName:'DOM External Mill',baseVariety:'IRRI-6',riceType:'',brokenGrade:'5%',qtyToKg:54000}]})}:{ok:true,json:async()=>({ok:true})};w.HTMLElement.prototype.scrollIntoView=()=>{};}});
+const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'https://exports.audit.local/',virtualConsole:vc,beforeParse(w){w.TT_MODULE_ACCESS={user:'Jazib',module:'Exports',masters:{mills:[{values:['DOM External Mill','','External Mill']}]}};w.alert=m=>{throw Error(String(m))};w.confirm=()=>true;w.print=()=>{};w.scrollTo=()=>{};w.setInterval=()=>0;w.structuredClone=value=>JSON.parse(JSON.stringify(value));w.FileReader=class{};w.fetch=async url=>String(url).includes('outside_export_loading.php')?{ok:true,json:async()=>({ok:true,choices:[{id:'S-1',millId:'M-1',millName:'SODA-only Loading Mill',label:'SODA 1',remainingMT:54}]})}:String(url).includes('milling_purchase_sodas.php')?{ok:true,json:async()=>({ok:true,sodas:[{id:'S-DOM',entity:'TTI',readyRoute:'EX_MILL',locationName:'DOM External Mill',baseVariety:'IRRI-6',riceType:'',brokenGrade:'5%',qtyToKg:54000}]})}:{ok:true,json:async()=>({ok:true})};w.HTMLElement.prototype.scrollIntoView=()=>{};}});
 dom.window.eval(app);
 const w=dom.window,d=w.document,t=w.__DOM_AUDIT__;
 (async()=>{
@@ -156,6 +156,31 @@ assert.equal(tgLot.customs.currency,'USD','TG Customs saves the separate currenc
 assert.equal(tgContract.currency,'AED','TG Customs currency never rewrites the customer Sales Contract currency');
 t.openFIAllocation('DOM-FI-USD');assert.equal(d.querySelector('#faLot').value,tgLot.id,'FI Register allocation follows the TG Customs currency, not the customer Sales Contract currency');d.querySelector('[data-modal-close]').click();
 d.querySelector('[data-workspace="tg"]').click();const tgRateField=[...d.querySelectorAll('.field')].find(field=>field.querySelector('label')?.textContent.includes('Customs Invoice Price'));assert.match(tgRateField.querySelector('input').value,/USD/,'TG internal-document screen displays the separate Customs currency, not the customer contract currency');
+const outsideContract={...contract,id:'DOM-OUTSIDE',ref:'TTI/DOM/OUTSIDE',containers:2,qty:54,packings:[{...contract.packings[0],containers:2}]};
+t.state.contracts.push(outsideContract);
+const outsideProcess=t.makeShipment(outsideContract);
+t.state.shipments.push(outsideProcess);
+t.showHome();
+d.querySelector(`[data-open-process="${outsideProcess.id}"]`).click();
+d.querySelector('[data-workspace="loading"]').click();
+set(d.querySelector('#liProgramme'),'LP-OUTSIDE');
+set(d.querySelector('#liDate'),'2026-09-09','change');
+set(d.querySelector('#liIntendedVessel'),'MV OUTSIDE');
+set(d.querySelector('#liShippingLine'),'DOM SHIPPING LINE');
+set(d.querySelector('[data-li-name="0"]'),'__other__','change');
+await new Promise(resolve=>setImmediate(resolve));
+set(d.querySelector('[aria-label="Other Mill"]'),'M-1','change');
+assert.ok(!t.millLocations().some(location=>location.name==='SODA-only Loading Mill'),'Restricted Exports masters omit the SODA loading location');
+let outsideSaves=0;
+w.TT_SHARED_SYNC={saveNow:async()=>{outsideSaves++;return {ok:true};},flush(){}};
+w.TT_OUTSIDE_LOADING_VIEW={mount(){}};
+await d.querySelector('#sendLoading').onclick();
+const outsideLot=t.state.shipments.find(row=>row.kind==='lot'&&row.contractRef===outsideContract.ref);
+assert.equal(outsideSaves,1,'Create Outside Loading Lot reaches the save path');
+assert.equal(outsideLot?.loadingPlan.outsideDealId,'S-1','The created lot retains the authorized SODA');
+assert.equal(outsideLot.loadingPlan.allocations[0].name,'SODA-only Loading Mill');
+assert.equal(outsideLot.loadingPlan.allocations[0].type,'Ex-Mill');
+assert.ok(!t.state.millSync.exportLoading.some(row=>row.shipmentId===outsideLot.id),'Outside lots do not create a normal mill handoff');
 assert.equal(errors.length,0,errors.join('\n'));
 console.log('PASS browser DOM audit: clean home, hover summary, accordion, every process/lot tile, Production and multi-source Loading');
 
