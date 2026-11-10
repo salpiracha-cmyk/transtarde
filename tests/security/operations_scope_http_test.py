@@ -79,6 +79,28 @@ with tempfile.TemporaryDirectory(prefix='tti-operation-scope-') as folder:
  seed();grant('Exports','commercial');status,data=request();projected=json.loads(data['values'][k])
  projected['accountsReceipts']=[{**copy_receipts[0],'amount':1}];before=stored()
  status,data=write(k,projected,module='Exports');assert status==403 and stored()==before,(status,data)
+ # The Customs editor may initialize other document forms in memory. The
+ # unscoped write reproduces the staff error; the actual lot patch saves.
+ seed();grant('Exports','customs');status,data=request();assert status==200
+ visible=json.loads(data['values'][k])
+ invoice={**visible['shipments'][0]['customs'],'invoiceNo':'CU-NEW','bank':'Fixture Bank','iban':'FIXTURE-IBAN'}
+ activity=[{'document':'Customs','action':'Customs master saved','completed':True}]
+ audit={'id':'AUD-CUSTOMS','area':'Customs','action':'Customs master saved','contractRef':'TTI-C'}
+ visible['shipments'][0].update(customs=invoice,documentActivity=activity,lc={'saved':False,'conditions':['Display default']})
+ visible['audits']=[audit]
+ before=stored()
+ status,data=write(k,visible,module='Exports')
+ assert status==403 and 'unauthorized facts' in data['error'] and stored()==before,(status,data)
+ changes=[
+  {'action':'set','path':['shipments',{'id':'L1'},'customs'],'value':invoice},
+  {'action':'set','path':['shipments',{'id':'L1'},'documentActivity'],'value':activity},
+  {'action':'prepend','path':['audits',None],'value':[audit]},
+ ]
+ status,data=request(body={'csrf':'fixture','sourceModule':'Exports','key':k,'contractChanges':json.dumps(changes),'baseVersion':1})
+ assert status==200,(status,data)
+ confirmed=json.loads(data['value']);assert confirmed['shipments'][0]['customs']==invoice and confirmed['audits']==[audit]
+ saved=json.loads(stored()[k]);assert saved['shipments'][0]['commercial']==export['shipments'][0]['commercial']
+ assert 'lc' not in saved['shipments'][0] and saved['accountsReceipts']==copy_receipts and saved['contracts']==export['contracts']
  # Exact workflow View plus company/location restriction applies to root and its ACK.
  seed();grant('Exports','loading')
  status,data=request();assert status==200;visible=json.loads(data['values'][k])

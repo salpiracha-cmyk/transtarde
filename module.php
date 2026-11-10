@@ -430,8 +430,8 @@ $sharedBootstrap = <<<'HTML'
     keys.forEach(k=>inFlight.add(k));saveHolds++;waiting();
     try{return await window.TT_MILL_SETTINGS_SAVE.commit({endpoint,access,entries,onConfirmed:row=>{directSet(row.key,row.value);committedValues.set(row.key,row.value);receipts.set(row.key,row.value);keyVersions.set(row.key,row.version);remoteKeys.add(row.key);}});}finally{keys.forEach(k=>inFlight.delete(k));saveHolds--;waiting();}
   }
-  async function commitContractChanges(changes,matches,identity){
-    const key=EXPORT_STORE,baseVersion=keyVersions.get(key)??0,label=identity?.kind==='bagOrder'?'Bag Order':'sales contract';
+  async function commitContractChanges(changes,matches,identity,description){
+    const key=EXPORT_STORE,baseVersion=keyVersions.get(key)??0,label=description||(identity?.kind==='bagOrder'?'Bag Order':'sales contract');
     if(access.moduleId!=='exports'||!allowed(key)||inFlight.has(key))throw new Error(`Finish the existing Exports save before saving this ${label}.`);
     const queued=pending.get(key);
     if(queued!==undefined&&queuedBase.get(key)!==baseVersion)throw new Error(`Reload Exports before saving this ${label}.`);

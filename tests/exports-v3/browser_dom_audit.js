@@ -98,7 +98,29 @@ assert.ok(d.querySelector('#closeLotEditor'),'split editor has a top-right close
 lot.lc={saved:true,lcNo:'LC-DOM',lcDate:'2026-09-08',documents:['Commercial Invoice'],conditions:[]};lot.millActuals=[{number:'MSCU123456-7',seal:'S1',bags:1080,netKg:27000,tareKg:86.4,grossKg:27086.4,brand:'DOM BRAND',packing:'25 KG',location:'TTI Rice Mills'}];d.querySelector('[data-workspace="customs"]').click();d.querySelector('[data-workspace="customs"]').click();
 const balancingOpenAccount=d.querySelector('#cuOpenAccount').value;
 assert.equal(d.querySelector('#cuOpenAccount').readOnly,true,'Open Account is calculated from invoice less FI allocation');
-w.TT_SHARED_SYNC={saveNow:()=>Promise.resolve({ok:true}),flush(){}};await d.querySelector('#saveCustoms').onclick();
+let customsBaseline=JSON.stringify(t.state);
+let customsChanges, rejectCustoms=false, useCustomsBaseline=true;
+w.TT_SHARED_SYNC={
+ readCommitted:()=>useCustomsBaseline?customsBaseline:null,
+ saveNow:()=>Promise.resolve({ok:true}),
+ flush(){},
+ async commitContractChanges(changes,matches){
+  customsChanges=JSON.parse(JSON.stringify(changes));
+  if(rejectCustoms)throw new Error('Fixture rejection');
+  const next=JSON.parse(customsBaseline);
+  for(const {action,path,value} of customsChanges){
+   const [collection,selector,field]=path;
+   if(action==='prepend')next[collection].unshift(...value);
+   else next[collection].find(row=>row.id===selector.id)[field]=value;
+  }
+  customsBaseline=JSON.stringify(next);
+  assert.ok(matches(customsBaseline),'the saved lot audit must be in the acknowledgement');
+ }
+};
+await d.querySelector('#saveCustoms').onclick();
+assert.deepEqual(customsChanges.map(change=>change.path),[
+ ['shipments',{id:lot.id},'customs'],['shipments',{id:lot.id},'documentActivity'],['audits',null]
+]);
 assert.equal(lot.customs.saved,true,'calculated FI plus open-account split saves Customs master');
 assert.equal(Number(lot.customs.openAccount),Number(balancingOpenAccount),'saved Open Account matches the displayed calculated balance');
 assert.equal(d.querySelector('.lotEditorShell'),null,'successful save returns to the Lot icon screen');
@@ -139,8 +161,10 @@ assert.equal(d.querySelector('#mFICur').value,'AED','Customs +FI inherits the cu
 assert.equal(d.querySelector('#mFIType').value,'CAD','Customs +FI defaults its type from the current TG Customs payment terms');
 set(d.querySelector('#mFINo'),'FI-TG-CUSTOMS-ADD');set(d.querySelector('#mFIValue'),'25000');
 d.querySelector('#mFIBank').add(new w.Option('TTI AED BANK','TTI AED BANK'));set(d.querySelector('#mFIBank'),'TTI AED BANK','change');
+useCustomsBaseline=false;
 d.querySelector('#saveFI').click();
 await new Promise(resolve=>setTimeout(resolve,0));
+useCustomsBaseline=true;
 const createdCustomsFI=t.state.fi.find(row=>row.number==='FI-TG-CUSTOMS-ADD');
 assert.ok(createdCustomsFI,'Customs +FI saves the new FI');
 assert.equal(d.querySelector('#cuFISelect').value,createdCustomsFI.id,'new Customs FI returns to the same lot and is selected immediately');
@@ -160,7 +184,17 @@ assert.equal(d.querySelector('#cuRate').value,'300','changing the Pakistan expor
 assert.match(d.querySelector('.lotPreviewPaper').innerHTML,/BRM_header\.png/,'changing the Pakistan exporter refreshes the live Customs letterhead');
 set(d.querySelector('#cuImporterChoice'),'BUYER','change');
 assert.match(d.querySelector('.lotPreviewPaper').textContent,/Dom Buyer/i,'changing the importer refreshes the live Customs drawee details');
+customsBaseline=JSON.stringify(t.state);
+const auditCountBeforeRetry=t.state.audits.length;
+rejectCustoms=true;
 await d.querySelector('#saveCustoms').onclick();
+assert.equal(d.querySelector('#customsInlineError').textContent,'Fixture rejection');
+assert.equal(d.querySelector('#cuBank').value,'Fixture BRM Bank');
+assert.equal(d.querySelector('#cuRate').value,'300');
+assert.equal(t.state.audits.length,auditCountBeforeRetry);
+rejectCustoms=false;
+await d.querySelector('#saveCustoms').onclick();
+assert.equal(d.querySelector('#customsInlineError')?.textContent||'','');
 assert.equal(tgLot.customs.currency,'USD','TG Customs saves the separate currency');
 assert.equal(tgLot.customs.bank,'Fixture BRM Bank');
 assert.equal(tgLot.customs.iban,'BRM-FIXTURE-IBAN');
