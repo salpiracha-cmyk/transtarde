@@ -22,11 +22,14 @@ try {
     $user=tt_require_login();
     if ($_SERVER['REQUEST_METHOD']==='GET') {
         $view=tt_user_can_master($user,'mills','View');
-        if(!$view&&!tt_user_can_master($user,'mills','Use'))location_respond(['ok'=>false,'error'=>'Location Master View or Use permission required.'],403);
+        $workflow=os_workflow_selector_allowed($user,'Exports','locations')
+            ||os_workflow_selector_allowed($user,'Mill','locations')
+            ||os_workflow_selector_allowed($user,'Accounts','locations');
+        if(!$view&&!tt_user_can_master($user,'mills','Use')&&!$workflow)location_respond(['ok'=>false,'error'=>'Location selector or Location Master permission required.'],403);
         $entity=strtoupper(trim((string)($_GET['entity']??'')));
         if($entity!==''&&!tt_user_business_entity($user,$entity))location_respond(['ok'=>false,'error'=>'Company access required.'],403);
         $rows=array_values(array_filter(location_rows_for_entity($entity),static fn($r)=>os_location($user,(string)($r['values'][0]??''))));
-        if(!$view)foreach($rows as &$row){$v=(array)$row['values'];$row=['id'=>$row['id'],'values'=>[$v[0]??'',$v[1]??'',$v[2]??'']];}unset($row);
+        if(!$view)$rows=os_workflow_location_rows($user,$rows);
         location_respond(['ok'=>true,'locations'=>$rows]);
     }
     if ($_SERVER['REQUEST_METHOD']!=='POST') location_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
