@@ -24,7 +24,7 @@ function operations_restore_write_artwork(string $key,string $value,array $value
 }
 
 function operations_respond(array $data, int $status = 200): never {
-    operations_telegram_after_save($data,$status);
+    operations_social_after_save($data,$status);
     if(($_GET['asset_refs']??'')==='1'){
         if(isset($data['values']))foreach($data['values']as$key=>$json)if(is_string($json))$data['values'][$key]=tt_inv_artwork_json($json);
         if(isset($data['value'])&&is_string($data['value']))$data['value']=tt_inv_artwork_json($data['value']);
@@ -58,9 +58,9 @@ function operations_public_value(string $key,string $value,array $actor=[],array
     return (string)$visible['values'][$key];
 }
 
-function operations_telegram_after_save(array $data, int $status): void {
+function operations_social_after_save(array $data, int $status): void {
     if($status>=300||empty($data['ok'])||($_SERVER['REQUEST_METHOD']??'GET')!=='POST'||!isset($data['revision']))return;
-    if(!is_file(TT_DATA_DIR.'/telegram-dispatch.json'))return;
+    if(!is_file(TT_DATA_DIR.'/telegram-dispatch.json')&&!is_file(TT_DATA_DIR.'/discord-alerts.json'))return;
     if(!function_exists('fastcgi_finish_request')&&!function_exists('litespeed_finish_request'))return;
     register_shutdown_function(static function(): void {
         if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
@@ -68,8 +68,8 @@ function operations_telegram_after_save(array $data, int $status): void {
         elseif(function_exists('litespeed_finish_request'))litespeed_finish_request();
         try {
             require_once __DIR__.'/telegram_dispatch_core.php';
-            tg_dispatch();
-        } catch(Throwable) { error_log('Telegram background delivery requires retry.'); }
+            if(!empty(tt_social_dispatch_all()['errors']))error_log('Social media background delivery requires retry.');
+        } catch(Throwable) { error_log('Social media background delivery requires retry.'); }
     });
 }
 

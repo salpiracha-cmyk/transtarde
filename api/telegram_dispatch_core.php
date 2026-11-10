@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/mill_recovery_core.php';
 require_once __DIR__.'/telegram_alerts_core.php';
+require_once __DIR__.'/discord_alerts_core.php';
 require_once __DIR__.'/telegram_report_files.php';
 require_once __DIR__.'/telegram_production_reports.php';
 require_once dirname(__DIR__).'/document_filenames.php';
@@ -204,9 +205,10 @@ function tg_state_save(string $path,array $state): void {
     } finally { if(is_file($temp))unlink($temp); }
 }
 
-function tg_dispatch(bool $initialize=false): array {
-    if(!is_file(TT_DATA_DIR.'/telegram-alerts.json'))throw new RuntimeException('Save the Telegram connection first.');
-    $path=TT_DATA_DIR.'/telegram-dispatch.json';$lock=fopen($path.'.lock','c');
+function tg_dispatch(bool $initialize=false,string $platform='telegram'): array {
+    $config=tt_social_config($platform);
+    if(!tt_social_enabled($platform,$config))return ['disabled'=>true];
+    $path=tt_social_file($platform,'dispatch');$lock=fopen($path.'.lock','c');
     if(!$lock)throw new RuntimeException('Alert lock unavailable.');
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);return ['busy'=>true];}
     try {
@@ -214,9 +216,11 @@ function tg_dispatch(bool $initialize=false): array {
         $ops=mr_read_operations_source(TT_DATA_DIR.'/operations.json',array_merge(['tt30queue','tt30prod','tt30ship','tt35exload','tt40exinstructions','tt35exportersale','transtrade_export_v3_operational'],array_keys(tg_mill_event_sources())));
         if(!isset($ops['values']['transtrade_export_v3_operational']))throw new RuntimeException('Committed Exports source unavailable.');
         $state=is_file($path)?json_decode((string)file_get_contents($path),true,512,JSON_THROW_ON_ERROR):null;
-        if(!$state) {
+        $destination=$platform==='discord'?(string)$config['channelId']:null;
+        if(!$state || ($destination!==null && ($state['destination']??null)!==$destination)) {
             if(!$initialize)throw new RuntimeException('Activate the automatic alerts first.');
-            $state=['since'=>$now->setTime(0,0)->getTimestamp(),'sent'=>[],'observed'=>[],'enabled'=>true,'repairRecoveryDownload'=>true];
+            $state=['since'=>($platform==='telegram'?$now->setTime(0,0):$now)->getTimestamp(),'sent'=>[],'observed'=>[],'enabled'=>true,'repairRecoveryDownload'=>$platform==='telegram'];
+            if($destination!==null)$state['destination']=$destination;
             foreach(tg_rows($ops,'tt30prod') as $run)$state['observed']['production|'.($run['entity']??'TTI').'|'.$run['id']]=tg_hash($run);
             foreach(tg_mill_event_sources() as $source=>$label)foreach(tg_rows($ops,$source) as $record)if(!empty($record['id']))$state['observed']['mill-entry|'.$source.'|'.$record['id']]=tg_hash($record);
             // Loading history becomes the baseline. Upcoming saved containers still produce alerts.
@@ -228,6 +232,8 @@ function tg_dispatch(bool $initialize=false): array {
             }
             tg_state_save($path,$state);
         }
+        if(($state['retryAfter']??0)>time())return ['rateLimited'=>true];
+        unset($state['retryAfter']);
         if(isset($state['sourceBackend'])&&$state['sourceBackend']!==($ops['sourceBackend']??'file'))throw new RuntimeException('The worker source backend differs from the activated source.');
         $state['sourceBackend']=$ops['sourceBackend']??'file';
         $today=$now->format('Y-m-d');
@@ -238,7 +244,7 @@ function tg_dispatch(bool $initialize=false): array {
         $delivered=0;$errors=0;
         foreach(tg_notification_jobs($ops,$state,$now) as $job) {
             if(($state['sent'][$job['key']]['hash']??null)===$job['hash'])continue;
-            if($delivered>=20)break;
+            if($delivered>=20||!tt_social_enabled($platform,tt_social_config($platform)))break;
             if(isset($state['pending'][$job['key']])) {
                 if(str_starts_with($job['key'],'arrivals-summary|'))break;
                 continue;
@@ -253,10 +259,14 @@ function tg_dispatch(bool $initialize=false): array {
                 if(isset($job['morning'])){$job['report']=tg_morning_pdf($job['morning']);$job['caption']='Directors Morning Update | '.$job['morning'];}
                 if(isset($job['report'])) {
                     $r=$job['report'];$name=tt_document_name(['company'=>$r['entity'],'title'=>$r['title']??'Production Recovery','reference'=>$r['reference']??'','from'=>$r['filters']['from']??'','to'=>$r['filters']['to']??'','extension'=>'pdf']);
-                    tt_telegram_send_pdf($r,$name,$job['caption']);$delivered++;
+                    if($platform==='discord')tt_discord_send_pdf($r,$name,$job['caption'],$destination);
+                    else tt_telegram_send_pdf($r,$name,$job['caption']);
+                    $delivered++;
                 } elseif(isset($job['text'])) {
                     $text=mb_substr($job['text'],0,4000);
-                    tt_telegram_deliver('sendMessage',['text'=>$text]);$delivered++;
+                    if($platform==='discord')tt_discord_deliver($job['text'],expectedChannel:$destination);
+                    else tt_telegram_deliver('sendMessage',['text'=>$text]);
+                    $delivered++;
                 }
                 unset($state['pending'][$job['key']]);
                 $state['sent'][$job['key']]=['hash'=>$job['hash'],'at'=>$now->format(DATE_ATOM)];
@@ -265,15 +275,32 @@ function tg_dispatch(bool $initialize=false): array {
                 $state['lastSuccess']=$now->format(DATE_ATOM);
                 tg_state_save($path,$state);
             } catch(Throwable $error) {
-                if(!$error instanceof TelegramDeliveryUncertain)unset($state['pending'][$job['key']]);
-                $state['lastError']='A Telegram delivery could not be confirmed.';
-                $state['lastErrorAt']=$now->format(DATE_ATOM);tg_state_save($path,$state);$errors++;
+                if(!$error instanceof TelegramDeliveryUncertain && !$error instanceof DiscordDeliveryUncertain)unset($state['pending'][$job['key']]);
+                $state['lastError']='A '.tt_social_platforms()[$platform].' delivery could not be confirmed.';
+                $state['lastErrorAt']=$now->format(DATE_ATOM);
+                if($error instanceof DiscordDeliveryRateLimited)$state['retryAfter']=time()+$error->seconds;
+                tg_state_save($path,$state);$errors++;
                 // Keep a multi-part arrival summary pending until every part is confirmed.
-                if(str_starts_with($job['key'],'arrivals-summary|'))break;
+                if($error instanceof DiscordDeliveryRateLimited || str_starts_with($job['key'],'arrivals-summary|'))break;
             }
         }
         if(isset($state['sent']['arrivals-summary|'.$today]))unset($state['summaryRows'][$today]);
         $state['lastRun']=$now->format(DATE_ATOM);$state['lastRunErrors']=$errors;tg_state_save($path,$state);
         return ['delivered'=>$delivered,'errors'=>$errors,'sourceBackend'=>$ops['sourceBackend']??'file','at'=>$state['lastRun']];
     } finally { flock($lock,LOCK_UN);fclose($lock); }
+}
+
+
+function tt_social_dispatch_all(bool $initialize=false): array {
+    $results=[];$errors=0;
+    foreach(tt_social_platforms() as $platform=>$label) {
+        try {
+            $results[$platform]=tg_dispatch($initialize||$platform==='discord',$platform);
+            $errors+=(int)($results[$platform]['errors']??0);
+        } catch(Throwable) {
+            $results[$platform]=['errors'=>1];
+            $errors++;
+        }
+    }
+    return ['platforms'=>$results,'errors'=>$errors];
 }

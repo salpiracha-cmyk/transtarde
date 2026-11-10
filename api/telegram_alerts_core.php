@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/social_alerts_settings.php';
 
 class TelegramDeliveryUncertain extends RuntimeException {}
 
@@ -54,27 +55,17 @@ function tt_telegram_save(string $token, string $chatId): void {
     if (strcasecmp((string)($bot['username'] ?? ''), 'TranstradeOperationsAlertsBot') !== 0) {
         throw new DomainException('Use the token for @TranstradeOperationsAlertsBot.');
     }
-    tt_ensure_data_dir();
-    $temp = tempnam(TT_DATA_DIR, '.telegram-');
-    if ($temp === false) throw new RuntimeException('Could not save the Telegram connection.');
-    try {
-        $data = json_encode(['token' => $token, 'chatId' => $chatId], JSON_THROW_ON_ERROR);
-        if (!chmod($temp, 0600) || file_put_contents($temp, $data) !== strlen($data)
-            || !rename($temp, TT_DATA_DIR.'/telegram-alerts.json')) {
-            throw new RuntimeException('Could not save the Telegram connection.');
-        }
-    } finally {
-        if (is_file($temp)) unlink($temp);
-    }
+    tt_social_update_config('telegram',['token'=>$token,'chatId'=>$chatId]);
 }
 
 function tt_telegram_deliver(string $method, array $fields): void {
-    $path = TT_DATA_DIR.'/telegram-alerts.json';
-    if (!is_file($path)) throw new DomainException('Save the Telegram connection first.');
-    $settings = json_decode((string)file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+    $settings=tt_social_config('telegram');
+    if ($settings===[]) throw new DomainException('Save the Telegram connection first.');
+    if (!tt_social_enabled('telegram',$settings)) throw new DomainException('Telegram delivery is disabled.');
     $token = (string)($settings['token'] ?? '');
     $chatId = (string)($settings['chatId'] ?? '');
     tt_telegram_group($token, $chatId);
+    if (tt_social_config('telegram')!==$settings) throw new DomainException('Telegram settings changed before delivery.');
     $message = tt_telegram_request($token, $method, ['chat_id' => $chatId] + $fields);
     if (empty($message['message_id']) || (string)($message['chat']['id'] ?? '') !== $chatId) {
         throw new RuntimeException('Telegram did not confirm delivery.');
