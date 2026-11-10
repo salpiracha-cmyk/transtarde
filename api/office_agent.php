@@ -104,6 +104,8 @@ function office_agent_enqueue_shipment(): never {
     $manifest = json_decode($manifestRaw, true);
     if (!is_array($manifest) || ($manifest['type'] ?? '') !== 'shipment_archive') office_agent_error(422, 'Invalid shipment archive package.');
     $markingsOnly=($manifest['purpose']??'')==='bag-markings';
+    $customsOnly=($manifest['purpose']??'')==='customs-documents';
+    if($customsOnly&&(!empty($manifest['finalize'])||!empty($manifest['refreshExisting'])||!empty($manifest['cleanupFolders'])||empty($manifest['lot'])))office_agent_error(422,'A Customs archive can only copy documents for one shipment lot.');
     if($markingsOnly&&(($manifest['lot']??'')!=='PRE-SHIPMENT'||empty($manifest['shipmentId'])))office_agent_error(422,'Select the saved shipment for these bag markings.');
     ep_require_document_target($user,(string)($manifest['contract']??''),(string)($markingsOnly?$manifest['shipmentId']:($manifest['lot']??'')),$markingsOnly?'bag-marking':'custom-output','View');
     $files = $_FILES['files'] ?? null;
@@ -131,6 +133,7 @@ function office_agent_enqueue_shipment(): never {
             $stored='file-'.bin2hex(random_bytes(12)).'.'.strtolower(pathinfo($name,PATHINFO_EXTENSION));
             $folder = trim((string)($row['folder'] ?? ''));
             if ($folder !== '') office_document_name($folder);
+            if($customsOnly&&($folder!=='CUSTOM DOCUMENTS'||!in_array($name,['Customs Invoice.pdf','Customs Packing List.pdf','Phytosanitary Invoice.pdf'],true)))throw new InvalidArgumentException('A Customs archive accepts only the three generated Customs PDFs.');
             if($markingsOnly&&($folder!=='BAGS'||!preg_match('/\.(png|jpe?g|webp)$/iD',$name)))throw new InvalidArgumentException('The Bag Order archive accepts only marking images in BAGS.');
             $destination=($folder!==''?office_document_name($folder).'/':'').office_document_name($name);if(isset($destinations[$destination]))throw new InvalidArgumentException('Archive repeats a Windows document destination.');$destinations[$destination]=true;
             $tmp = (string)$files['tmp_name'][$index];
@@ -162,6 +165,7 @@ function office_agent_enqueue_shipment(): never {
             'refreshExisting' => !empty($manifest['refreshExisting']),
         ];
         if($markingsOnly)$job['purpose']='bag-markings';
+        if($customsOnly)$job['purpose']='customs-documents';
         office_agent_write_job($job);
         // A refreshed lot replaces pending generated packages; preserve their audit metadata.
         foreach(array_slice(glob(office_agent_root().'/*/job.json')?:[],0,1000) as $oldPath){if($oldPath===office_agent_manifest_path($id)||is_link($oldPath)||is_link(dirname($oldPath))||filesize($oldPath)>524288)continue;$older=json_decode((string)file_get_contents($oldPath),true);if(is_array($older)&&($older['id']??'')===basename(dirname($oldPath))&&($older['contract']??'')===$job['contract']&&($older['lot']??'')===$job['lot']&&($older['purpose']??'')===($job['purpose']??'')&&(!$markingsOnly||array_column($older['files']??[],'name')===array_column($jobFiles,'name'))&&in_array($older['status']??'',['PENDING','ERROR','COPIED_LAYOUT_PENDING'],true)){$older['status']='SUPERSEDED';$older['supersededBy']=$id;$older['updatedAt']=$now;try{office_agent_write_job($older);}catch(Throwable $e){error_log('Office queue supersession requires retry: '.$e->getMessage());}}}
@@ -240,6 +244,7 @@ function office_agent_shipment_status(): never {
             if(!is_file($path)||is_link($path)||is_link(dirname($path))||filesize($path)>524288||!preg_match('/^[a-f0-9]{32}$/D',basename(dirname($path))))continue;
             $job=json_decode((string)file_get_contents($path),true);
             if(!is_array($job)||($job['type']??'')!=='shipment_archive'||($job['id']??'')!==basename(dirname($path)))continue;
+            if($id===''&&(($job['purpose']??'')==='customs-documents'))continue;
             if($id===''&&(($job['contract']??'')!==$contract||($job['lot']??'')!==$lot))continue;
             if(!$found||strcmp((string)($job['createdAt']??''),(string)($found['createdAt']??''))>0)$found=$job;
         }
