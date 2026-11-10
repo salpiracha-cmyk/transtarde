@@ -13,8 +13,8 @@ stream_wrapper_unregister('php');stream_wrapper_register('php',FixtureGroupInput
  base={'id':1,'username':'fixture','full_name':'Fixture','role':'Staff','active':True,'session_version':1,'must_change_password':False};entities={f'entity-{e}':['View'] for e in ['tti','brm','tg']};env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
  def user(accounts=None,directors=None,role='Staff'):
   return {**base,'role':role,'permissions':{'Accounts':accounts or {},'Directors':directors or {}}}
- def request(u,path='api/group_management.php',origin='accounts',kind='DAILY',body=None):
-  (private/'auth.json').write_text(json.dumps({'users':[u],'masters':{},'audit':[]}));status_file=root/'status.txt';query={'kind':kind,'date':'2026-10-17','origin':origin};payload=None if body is None else {'csrf':'fixture','kind':kind,'date':'2026-10-17',**body}
+ def request(u,path='api/group_management.php',origin='accounts',kind='DAILY',body=None,**params):
+  (private/'auth.json').write_text(json.dumps({'users':[u],'masters':{},'audit':[]}));status_file=root/'status.txt';query={'kind':kind,'date':'2026-10-17','origin':origin,**params};payload=None if body is None else {'csrf':'fixture','kind':kind,'date':'2026-10-17',**body}
   result=subprocess.run(['php','-d',f'session.save_path={root}',str(harness),str(app/path),str(status_file),json.dumps(query),json.dumps(payload)],env=env,text=True,capture_output=True)
   assert result.returncode==0,result.stderr+result.stdout
   return int(status_file.read_text()),result.stdout
@@ -24,6 +24,15 @@ stream_wrapper_unregister('php');stream_wrapper_register('php',FixtureGroupInput
  assert not (private/'group-management.json').exists() and not (private/'group-management.json.lock').exists()
  status,text=request(viewer);assert status==200 and 'GROUP_PRIVATE_SENTINEL' in text,(status,text)
  assert request(director,origin='directors')[0]==200
+ # Full Directors access can open its own pages with no Accounts grant.
+ directors_only=user(directors='all')
+ assert request(directors_only,origin='directors')[0]==200
+ assert request(directors_only,origin='accounts')[0]==403
+ assert request(directors_only,'api/directors_trading.php',origin='directors',entity='TTI',asOf='2026-10-17')[0]==200
+ assert request(directors_only,'api/directors_trading.php',origin='accounts',entity='TTI',asOf='2026-10-17')[0]==403
+ restricted_director=user({'entity-tti':['View']},'all')
+ assert request(restricted_director,origin='directors')[0]==403
+ assert request(restricted_director,'api/directors_trading.php',origin='directors',entity='BRM',asOf='2026-10-17')[0]==403
  assert request(user(role='Super Admin'))[0]==200
  status,html=request(user(role='Super Admin'),'accounts/group-management.php');assert status==200 and '"allowed":["DAILY"]' in html and '<h1>Group Daily Position</h1>' in html,'Daily navigation exposed unrelated report drafts'
  assert request(viewer,kind='ZAKAT')[0]==403

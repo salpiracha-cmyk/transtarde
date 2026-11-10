@@ -101,8 +101,12 @@ function gm_permission(array $user,string $kind,string $action='View',string $or
     if(!in_array($origin,['Accounts','Directors'],true))return false;
     $icon=$kind==='ZAKAT'?'zakat':($kind==='COSTING'?'costing':'group-reports');
     if(!tt_user_can_module_action($user,$origin,$icon,$action))return false;
-    // Directors group permissions are explicit. Accounts also retains every company restriction.
-    foreach(['TTI','BRM','TG'] as $entity)if(!tt_user_can_access_entity($user,$entity,'View'))return false;
+    // The owning workflow grants access. Explicit company restrictions still
+    // apply to every company included in this consolidated report.
+    foreach(['TTI','BRM','TG'] as $entity){
+        $allowed=$origin==='Directors'?tt_user_business_entity($user,$entity):tt_user_can_access_entity($user,$entity,'View');
+        if(!$allowed)return false;
+    }
     return true;
 }
 /** Pending TG bank confirmations explain a timing hold, never another settled payment. */
