@@ -48,14 +48,16 @@ function tt_accounts_ledger_reference(array $store,array $journal): string {
         $bank=$bank||($line['account']??'')==='1110';
         $cash=$cash||($line['account']??'')==='1120'||!empty($line['cashAccountId']);
     }
-    if(!$bank&&($method==='CASH'||str_starts_with($first($sources,['paymentAccountId','cashAccountId']),'CASH|')||($cash&&$method==='')))return 'Cash';
+    if(!$bank&&(in_array($method,['CASH','PETTY_CASH'],true)||str_starts_with($first($sources,['paymentAccountId','cashAccountId']),'CASH|')||($cash&&$method==='')))return 'Cash';
     $reference=trim((string)($journal['reference']??''));
     $internal=$reference===(string)($journal['id']??'')||preg_match('/^(?:POST|AUTO|JV|JVD|RV)-\d{4}-\d+(?:-JV)?$/i',$reference);
     if(preg_match('/\b(?:online banking|bank transfer)\s*·\s*([a-z0-9\/-]+)\s*(?:·|$)/iu',$note,$match)&&preg_match('/[0-9]/',$match[1])&&!preg_match('/^\d{4}-\d{2}(?:-\d{2})?$/',$match[1]))return $match[1];
     if($bank||in_array($method,['CHEQUE','BANK','ONLINE_BANKING','BANK_TRANSFER'],true)){
         if(preg_match('/\b(?:bank\s+)?(?:ref(?:erence)?|transaction id)\s*[:#]?\s+([a-z0-9]+(?:[-\/][a-z0-9]+)*)\b/iu',$note,$match)&&preg_match('/[0-9]/',$match[1]))return $match[1];
-        // Salary and card journals may use a payroll month as their accounting reference.
-        return !$internal&&!preg_match('/^\d{4}-\d{2}(?:-\d{2})?$/',$reference)?$reference:'';
+        // Payroll and rent generate accounting references independently of the payment.
+        $generatedPaymentReference=preg_match('/^(?:SALPAY|RENTPAY)-/i',$reference)
+            ||(in_array($sourceType,['SALARY_ADVANCE','RENT_PREPAYMENT'],true)&&preg_match('/^(?:SADV|RPRE|RSA|RSP)-/i',$reference));
+        return !$internal&&!$generatedPaymentReference&&!preg_match('/^\d{4}-\d{2}(?:-\d{2})?$/',$reference)?$reference:'';
     }
     $bill=$first([$meta,$journal,...$linked,...array_map(static fn($row)=>(array)($row['sourceRecord']??[]),$linked)],['invoiceNo','billNo','sellerInvoice','invoiceRef']);
     if($bill!=='')return $bill;
