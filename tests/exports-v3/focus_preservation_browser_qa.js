@@ -94,9 +94,9 @@ async function check(name,fn){await fn();results.push(name);console.log('PASS '+
    assert.equal(out.same,true);assert.equal(out.text,'UNSAVED-CUSTOMS-987');assert.deepEqual(out.selection,[3,7]);assert.equal(out.scroll,true);assert.equal(out.state,true);assert.equal(out.posts,0);assert.equal(out.gets,0);assert.equal(out.route.activeWorkspace,'customs');assert.equal(out.route.currentShipmentId,'L-FOCUS');
   });
   await check('Explicit Customs save still persists entered number and returns to this lot',async()=>{
-   await page.locator('#saveCustoms').click();await page.evaluate(()=>TT_SHARED_SYNC.saveNow());
+   await page.locator('#saveCustoms').click();await page.locator('#saveCustoms').waitFor({state:'detached'});
    const out=await page.evaluate(STORE=>({saved:JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').customs.invoiceNo,posts:network.posts.filter(p=>p.key===STORE).length,route:__focusQA.snapshot()}),STORE);
-   assert.equal(out.saved,'UNSAVED-CUSTOMS-987');assert.ok(out.posts>0);assert.equal(out.route.currentShipmentId,'L-FOCUS');assert.equal(out.route.activeWorkspace,'');
+   assert.equal(out.saved,'UNSAVED-CUSTOMS-987');assert.equal(out.posts,1,'Customs uses one scoped request');assert.equal(out.route.currentShipmentId,'L-FOCUS');assert.equal(out.route.activeWorkspace,'');
   });
   for(const key of ['bl','commercial','coo','cover','uploads'])await check(key+' editor survives an incoming shared notification',async()=>{
    await page.evaluate(key=>{__focusQA.open('L-FOCUS',key);window.editor=document.getElementById('workspaceDetail');window.before=JSON.stringify(__focusQA.snapshot().state);dispatchEvent(new CustomEvent('tt:shared-updated'));focusReturn()},key);
