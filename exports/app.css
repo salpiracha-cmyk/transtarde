@@ -529,3 +529,12 @@
 .poMarkingsOne .poMarkingFigure img{max-width:176mm;max-height:112mm}
 .poMarkingsTwo .poMarkingFigure img{max-width:84mm;max-height:108mm}
 .poMarkingsMany .poMarkingFigure img{max-width:84mm;max-height:52mm}
+
+
+.outsideLoadingWorkspace form{margin:16px 0;padding:16px;border:1px solid #dce4ed;border-radius:10px}
+.outsideLoadingWorkspace .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:12px}
+.outsideLoadingWorkspace label{display:grid;gap:6px}
+.outsideLoadingWorkspace input:not([type=checkbox]),.outsideLoadingWorkspace select,.outsideLoadingWorkspace textarea{box-sizing:border-box;width:100%;padding:8px;font:inherit}
+.outsideLoadingWorkspace table{width:100%;border-collapse:collapse}
+.outsideLoadingWorkspace th,.outsideLoadingWorkspace td{padding:8px;text-align:left;border-bottom:1px solid #e2e8f0}
+.outsideLoadingWorkspace .dtError{color:#a21a1a}

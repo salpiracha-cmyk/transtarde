@@ -4,7 +4,8 @@ require __DIR__.'/auth_store.php';
 require_once __DIR__.'/runtime_html.php';
 $user=tt_require_login();
 $mill=($_GET['origin']??'')==='mill';
-$module=$mill?'Mill':'Exports';
+if(!$mill){header('Location: /module.php?id=exports');exit;}
+$module='Mill';
 if(!tt_user_can_open_module($user,$module)||!tt_user_can_module_action($user,$module,$mill?'export':'loading','View')){
     http_response_code(403);exit('Loading access is required.');
 }
