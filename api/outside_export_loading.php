@@ -3,6 +3,7 @@ declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/outside_export_loading_core.php';
 require_once __DIR__.'/shipment_profitability_core.php';
+require_once __DIR__.'/operations_scope.php';
 require_once dirname(__DIR__).'/upload_validation.php';
 
 header('Content-Type: application/json; charset=UTF-8');
@@ -22,6 +23,18 @@ try{
     if(!in_array($method,['GET','POST'],true))oel_out(['ok'=>false,'error'=>'Unsupported request.'],405);
     $today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
     $deals=sp_read_books(TT_DATA_DIR.'/accounts.json')['exporterDeals']??[];
+    if($method==='GET'&&isset($_GET['contract'])){
+        if($module!=='Exports')oel_out(['ok'=>false,'error'=>'Exports access is required.'],403);
+        $ref=oel_text($_GET['contract'],160);
+        $root=tt_accounts_exports_root();
+        $contract=array_column($root['contracts']??[],null,'ref')[$ref]??[];
+        $process=[];
+        foreach($root['shipments']??[] as $shipment)if(($shipment['contractRef']??'')===$ref&&($shipment['kind']??'')!=='lot'){$process=$shipment;break;}
+        $entity=oel_company($process,$contract);
+        if(!$contract||!in_array($entity,['TTI','BRM'],true)||!oel_right($user,'Exports',$entity,'View'))oel_out(['ok'=>false,'error'=>'This sales contract is unavailable.'],403);
+        $mills=array_filter(oel_mill_choices(tt_list_masters()),static fn($name)=>os_location($user,$name));
+        oel_out(['ok'=>true,'choices'=>oel_deal_choices($root,$deals,$mills,$entity,$ref,$today)]);
+    }
     if($method==='POST'){
         $multipart=str_starts_with((string)($_SERVER['CONTENT_TYPE']??''),'multipart/form-data');
         $body=$multipart?$_POST:json_decode((string)file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);
@@ -76,8 +89,8 @@ try{
     foreach($rows as &$row){
         $row['deals']=[];
         if($module!=='Exports')continue;
-        foreach($deals as $id=>$deal)if(($deal['entity']??'')===$row['entity']&&($deal['contractRef']??'')===$row['contract']&&($deal['direction']??'')==='PURCHASE'&&
-            !in_array(strtolower((string)($deal['status']??'')),['deleted','cancelled','closed','completed'],true)){
+        foreach($deals as $id=>$deal)if(oel_open_deal($deal,$row['entity'],$row['contract'])&&
+            ($row['plannedDealId']===''||($row['plannedDealId']===(string)$id&&$row['plannedMillId']===($deal['outsideMillId']??'')))){
             $row['deals'][]=['id'=>(string)$id,'label'=>$deal['party'].' · '.(($deal['reference']??'')?:$row['contract'])];
         }
     }

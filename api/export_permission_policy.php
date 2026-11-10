@@ -136,6 +136,7 @@ function operations_validate_export_permissions(array $user,string $module,strin
     if(!is_array($old)||!is_array($next))throw new DomainException('Export records must be an object.');
     $outsidePrior=ep_index((array)($old['shipments']??[]));
     $outsideLots=[];
+    $outsideBooks=null;
     foreach((array)($next['shipments']??[]) as $lot){
         $id=(string)($lot['id']??'');
         $prior=$outsidePrior[$id]??null;
@@ -150,6 +151,23 @@ function operations_validate_export_permissions(array $user,string $module,strin
                 ($source['type']??'')!=='Ex-Mill'||trim((string)($source['name']??''))===''||
                 (float)($source['containers']??0)!==(float)($lot['containers']??0)||(int)($lot['containers']??0)<1||
                 !empty($lot['outsideLoading'])||!empty($lot['millActuals'])||!empty($lot['millLoadingCompleted']))throw new DomainException('Create a single-site outside lot before recording its loading.');
+            $plan=$lot['loadingPlan'];
+            if(isset($plan['outsideDealId'])||isset($plan['outsideMillId'])){
+                require_once __DIR__.'/outside_export_loading_core.php';
+                require_once __DIR__.'/shipment_profitability_core.php';
+                $outsideBooks??=sp_read_books(TT_DATA_DIR.'/accounts.json');
+                $dealId=oel_text($plan['outsideDealId']??'',160);
+                $millId=oel_text($plan['outsideMillId']??'',160);
+                $deal=$outsideBooks['exporterDeals'][$dealId]??[];
+                $ref=(string)($lot['contractRef']??'');
+                $contract=array_column($next['contracts']??[],null,'ref')[$ref]??[];
+                $mill=oel_mill_choices(tt_list_masters())[$millId]??'';
+                $planned=(float)($source['weightPer']??0)*(float)($source['containers']??0);
+                if(!$contract||!oel_right($user,'Exports',oel_company($lot,$contract),'Edit')||
+                    !oel_open_deal($deal,oel_company($lot,$contract),$ref)||$mill===''||$source['name']!==$mill||
+                    $millId!==($deal['outsideMillId']??'')||$planned<=0||abs($planned-(float)($lot['plannedQty']??0))>.000001||
+                    $planned>oel_deal_remaining($deal,$next,$id)+.000001)throw new DomainException('Select an open purchase SODA with enough remaining tonnes at this mill.');
+            }
             continue;
         }
         if(in_array($module,['Exports','Super Admin'],true)){
@@ -157,6 +175,8 @@ function operations_validate_export_permissions(array $user,string $module,strin
                 !ep_equal($prior['millActuals']??[],$lot['millActuals']??[])||
                 !ep_equal($prior['millLoadingCompleted']??false,$lot['millLoadingCompleted']??false)||
                 !ep_equal($prior['loadingPlan']['allocations']??[],$lot['loadingPlan']['allocations']??[])||
+                ($prior['loadingPlan']['outsideDealId']??'')!==($lot['loadingPlan']['outsideDealId']??'')||
+                ($prior['loadingPlan']['outsideMillId']??'')!==($lot['loadingPlan']['outsideMillId']??'')||
                 ($prior['containers']??null)!==($lot['containers']??null)||
                 ($prior['contractRef']??'')!==($lot['contractRef']??''))throw new DomainException('Use Outside Mill Inspection & Loading to change this loading.');
             if((!empty($lot['completed'])||!empty($lot['commercial']['saved'])||!empty($lot['bl']['draftSaved']))&&empty($prior['millLoadingCompleted']))throw new DomainException('Confirm outside loading before completing its documents.');

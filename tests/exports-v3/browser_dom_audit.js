@@ -6,7 +6,7 @@ app=app.replace('mount();',`window.__DOM_AUDIT__={openFI:openFIModal,state,makeS
 const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');
 const html=`<!doctype html><html><head><style>${css}</style></head><body><div id="app"></div><div id="printRoot"></div></body></html>`;
 const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));
-const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'https://exports.audit.local/',virtualConsole:vc,beforeParse(w){w.TT_MODULE_ACCESS={user:'Jazib',module:'Exports',masters:{mills:[{values:['DOM External Mill','','External Mill']}]}};w.alert=m=>{throw Error(String(m))};w.confirm=()=>true;w.print=()=>{};w.scrollTo=()=>{};w.setInterval=()=>0;w.structuredClone=value=>JSON.parse(JSON.stringify(value));w.FileReader=class{};w.fetch=async url=>String(url).includes('milling_purchase_sodas.php')?{ok:true,json:async()=>({ok:true,sodas:[{id:'S-DOM',entity:'TTI',readyRoute:'EX_MILL',locationName:'DOM External Mill',baseVariety:'IRRI-6',riceType:'',brokenGrade:'5%',qtyToKg:54000}]})}:{ok:true,json:async()=>({ok:true})};w.HTMLElement.prototype.scrollIntoView=()=>{};}});
+const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'https://exports.audit.local/',virtualConsole:vc,beforeParse(w){w.TT_MODULE_ACCESS={user:'Jazib',module:'Exports',masters:{mills:[{values:['DOM External Mill','','External Mill']}]}};w.alert=m=>{throw Error(String(m))};w.confirm=()=>true;w.print=()=>{};w.scrollTo=()=>{};w.setInterval=()=>0;w.structuredClone=value=>JSON.parse(JSON.stringify(value));w.FileReader=class{};w.fetch=async url=>String(url).includes('outside_export_loading.php')?{ok:true,json:async()=>({ok:true,choices:[{id:'S-1',millId:'M-1',millName:'DOM External Mill',label:'SODA 1',remainingMT:54}]})}:String(url).includes('milling_purchase_sodas.php')?{ok:true,json:async()=>({ok:true,sodas:[{id:'S-DOM',entity:'TTI',readyRoute:'EX_MILL',locationName:'DOM External Mill',baseVariety:'IRRI-6',riceType:'',brokenGrade:'5%',qtyToKg:54000}]})}:{ok:true,json:async()=>({ok:true})};w.HTMLElement.prototype.scrollIntoView=()=>{};}});
 dom.window.eval(app);
 const w=dom.window,d=w.document,t=w.__DOM_AUDIT__;
 (async()=>{
@@ -66,10 +66,16 @@ set(d.querySelector('#liShippingLine'),'DOM SHIPPING LINE');
 set(d.querySelector('[data-li-name="0"]'),'TTI Rice Mills','change');
 set(d.querySelector('[data-li-cont="0"]'),'2');
 set(d.querySelector('[data-li-name="1"]'),'DOM External Mill','change');
-assert.ok(d.querySelector('#liOutsideRoute'),'A saved external mill shows the loading responsibility choice');
+assert.equal(d.querySelector('#liOutsideRoute'),null,'Normal mill handoff keeps its existing route');
 set(d.querySelector('[data-li-name="1"]'),'__other__','change');
-assert.equal(d.querySelector('#liOutsideRoute'),null,'An ad-hoc source retains the normal Mill handoff');
-set(d.querySelector('[data-li-custom]'),'DOM External Mill');
+await new Promise(resolve=>setImmediate(resolve));
+assert.ok(d.querySelector('#liOutsideRoute'),'Other Mill shows the loading responsibility choice');
+const other=d.querySelector('[aria-label="Other Mill"]');
+assert.deepEqual([...other.options].map(o=>o.value),['','M-1']);
+set(other,'M-1','change');
+assert.equal(d.querySelector('[aria-label="Open purchase SODA"]').value,'S-1','Single eligible SODA is selected automatically');
+assert.equal(d.querySelector('[data-li-custom]'),null,'Other Mill does not accept typed names');
+set(d.querySelector('[data-li-name="1"]'),'DOM External Mill','change');
 set(d.querySelector('[data-li-cont="1"]'),'2');
 await d.querySelector('#sendLoading').onclick();
 assert.equal(t.state.shipments.filter(x=>x.kind==='lot').length,1,'Loading action creates one separate lot record');
