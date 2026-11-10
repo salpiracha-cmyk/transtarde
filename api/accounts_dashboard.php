@@ -66,6 +66,16 @@ try{
    $attentionIcons=['LATE'=>['purchases'],'SODA'=>['purchases'],'HOLD'=>['supplier'],'FREIGHT'=>['freight'],'SALE'=>['customer'],'PAYMENT'=>['customer'],'REMITTANCE'=>['cashbank'],'REMINDER'=>['expenses']];
    $attention=array_values(array_filter($attention,static fn($item)=>acr_icon($u,$attentionIcons[$item['kind']??'']??[])));
  }
+ $lateApproval=ar_late_pohanch_can_approve($u,$e);
+ foreach($attention as &$item){
+   $item['canApprove']=match($item['kind']){
+     'LATE'=>$lateApproval&&!empty($item['approval']),
+     'SALE','PAYMENT'=>($item['details']['Payment type']??'')!=='Third-Party Account'&&(tt_user_can_access_entity($u,$e,'Edit')||tt_user_can_access_entity($u,$e,'Approve'))&&
+        (tt_user_can_module_action($u,'Accounts','customer','Edit')||tt_user_can_module_action($u,'Accounts','customer','Approve')||tt_user_can_module_action($u,'Accounts','customer','Create')),
+     default=>false,
+   };
+ }
+ unset($item);
  ad_out(['ok'=>true,'entity'=>$e,'summaries'=>$sets,'customerReceivables'=>$receivables,'attention'=>$attention,'serverNow'=>gmdate('c')]);
 }catch(Throwable $x){error_log('Accounts dashboard: '.$x->getMessage());ad_out(['ok'=>false,'error'=>'Accounts summary is temporarily unavailable.'],500);}
 

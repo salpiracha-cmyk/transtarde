@@ -179,6 +179,11 @@
       .tt-home-activity .tt-recent-row{grid-template-columns:78px 116px minmax(90px,1fr) 110px;height:66px;gap:8px;padding:8px;font-size:12px}
       .tt-home-activity .tt-queue-row{grid-template-columns:72px minmax(0,1fr) auto;gap:8px}
       .tt-home-activity .tt-queue-row b,.tt-home-activity .tt-queue-row span{font-size:13px;overflow-wrap:anywhere}
+      .tt-attention-actions{display:flex;gap:5px;flex-wrap:wrap}
+      .tt-queue-row [data-attention-approve]{background:#e0f2e8;color:#105d40}
+      .tt-queue-row button:disabled{opacity:.55;cursor:wait}
+      .tt-attention-details{display:grid;grid-template-columns:max-content 1fr;gap:6px 12px}
+      .tt-attention-details dd{margin:0}
       .tt-inside-area .tt-home-activity{display:none}
       @media(max-width:1000px){.tt-home-activity .tt-recent-row{grid-template-columns:78px minmax(0,1fr);height:auto;min-height:86px}.tt-home-activity .tt-recent-row>b:last-child{text-align:left}}
       @media(max-width:700px){.tt-home-activity{grid-template-columns:1fr}#ttAccountingDesk .tt-area-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#ttAccountingDesk .tt-area-card{padding:10px;gap:8px}#ttAccountingDesk .tt-area-card b{font-size:14px}.tt-home-activity .tt-recent-scroll,.tt-home-activity .tt-queue{height:240px}}
@@ -363,7 +368,7 @@
           <div class="tt-position" id="ttSummaryCards"><button class="tt-summary"><small>Bank Balance</small><b>Loading…</b></button><button class="tt-summary"><small>Commodity Bills Due</small><b>Loading…</b></button><button class="tt-summary"><small>Local Receivables</small><b>Loading…</b></button><button class="tt-summary"><small>Customer / Export Receivables</small><b>Loading…</b></button></div>
         </section>
         <section id="ttDeskWork"></section>
-        <div class="tt-home-activity"><section id="ttRecentSection"><div class="tt-work-head"><h2>Recent Transactions</h2><button type="button" class="btn" id="ttRecentRefresh">Refresh</button></div><div id="ttRecentTransactions" class="tt-recent-scroll" role="region" aria-label="Recent transactions" tabindex="0">Loading transactions…</div></section><section id="ttPendingWork"><div class="tt-work-head"><h2 id="ttPendingCount">Pending Work</h2></div><div class="tt-queue" id="ttAttentionQueue" role="region" aria-label="Pending work" tabindex="0"></div></section></div>
+        <div class="tt-home-activity"><section id="ttRecentSection"><div class="tt-work-head"><h2>Recent Transactions</h2><button type="button" class="btn" id="ttRecentRefresh">Refresh</button></div><div id="ttRecentTransactions" class="tt-recent-scroll" role="region" aria-label="Recent transactions" tabindex="0">Loading transactions…</div></section><section id="ttPendingWork"><div class="tt-work-head"><h2 id="ttPendingCount">Pending Work</h2><button type="button" class="btn" id="ttPendingRefresh" aria-label="Refresh pending work">Refresh</button></div><p id="ttPendingError" role="alert" hidden></p><div class="tt-queue" id="ttAttentionQueue" role="region" aria-label="Pending work" tabindex="0"></div></section></div>
       </div>
     </div>`;
 
@@ -456,6 +461,7 @@
     if (!home || q('#ttAccountingDesk')) return;
     home.insertAdjacentHTML('afterbegin', deskMarkup());
     q('#ttRecentRefresh').onclick=loadRecentTransactions;
+    q('#ttPendingRefresh').onclick=loadDashboardSummary;
     q('.tt-search-main').addEventListener('keydown', event => { if (event.key === 'Enter') openSearch(event.currentTarget.value); });
     showAreasHome();
     refreshEntityLabels();
@@ -490,7 +496,30 @@
         return `<button type="button" class="tt-summary ${def.key==='due'&&first&&first.date<=today()?'tt-due-alert':''}" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><span class="tt-summary-pop">${detail}</span></button>`;
       }).join('');
        qa('[data-summary]',host).forEach(button=>button.onclick=()=>{const key=button.dataset.summary;if(key==='bank')launch({native:'bank'});else if(key==='due')showArea('routine');else if(key==='commodity'){if(entity()!=='TG')window.TT_PAYMENT_PLANS?.choose?.();else launch({native:'payables'});}else if(key==='export')openCustomerReceivables(data.customerReceivables);else launch({native:'receivables'});});
-      if(queue){const rows=data.attention||[];q('#ttPendingWork').hidden=false;q('#ttPendingCount').textContent='Pending Work ('+rows.length+')';queue.innerHTML=rows.length?rows.map((row,i)=>`<div class="tt-queue-row"><span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b><button type="button" data-attention-review="${i}">Review</button></div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';qa('[data-attention-review]',queue).forEach(button=>button.onclick=()=>reviewAttention(rows[Number(button.dataset.attentionReview)]));}
+      if(queue){
+        const rows=data.attention||[],error=q('#ttPendingError');
+        q('#ttPendingWork').hidden=false;
+        q('#ttPendingCount').textContent='Pending Work ('+rows.length+')';
+        error.hidden=true;
+        queue.innerHTML=rows.length?rows.map((row,i)=>`<div class="tt-queue-row">
+          <span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b>
+          <div class="tt-attention-actions"><button type="button" data-attention-review="${i}">Review</button>${row.canApprove?`<button type="button" data-attention-approve="${i}"${row.kind==='LATE'?' title="Approve late Pohanch and release its automatic late-delivery hold, if present"':''}>Approve</button>`:''}</div>
+        </div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';
+        qa('[data-attention-review]',queue).forEach(button=>button.onclick=()=>reviewAttention(rows[Number(button.dataset.attentionReview)]));
+        qa('[data-attention-approve]',queue).forEach(button=>button.onclick=async()=>{
+          const row=rows[Number(button.dataset.attentionApprove)];
+          if(company!==entity())return;
+          button.disabled=true;error.hidden=true;
+          try{
+            if(row.kind==='LATE')await updateAttention(row,company,'approve_late_pohanch');
+            else if(row.kind==='SALE')await window.TT_LOCAL_SALES_CONTROL_UI.review(row.target.candidateId);
+            else if(row.kind==='PAYMENT')return await window.TT_LOCAL_SALES_PAYMENT_UI.review(row.target.paymentId);
+            if(company===entity())await loadDashboardSummary();
+          }catch(e){
+            if(request===dashboardLoad&&company===entity()){error.textContent=e.message;error.hidden=false;}
+          }finally{button.disabled=false;}
+        });
+      }
     }catch(error){if(request!==dashboardLoad||company!==entity())return;qa('.tt-summary b',host).forEach(node=>node.textContent='Unavailable');if(queue){q('#ttPendingWork').hidden=false;q('#ttPendingCount').textContent='Pending Work · unavailable';queue.innerHTML='<div class="tt-queue-row" role="alert"><b>Refresh to load pending work.</b></div>';}console.warn('Accounts dashboard summary',error);}
   }
 
@@ -515,20 +544,54 @@
     q('#ttReceivableRecognition',body).onclick=()=>{q('.tt-window-close',host).click();launch({native:'receivables'});};
   }
 
+  function updateAttention(row,company,action) {
+    return json('../api/accounts_reviews.php',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action,entity:company,csrf:access.csrf,id:row.id,fingerprint:row.fingerprint})});
+  }
+
   function reviewAttention(row) {
     if(row.kind==='REMINDER')return launch({native:'expenses',then:'[data-expense="'+row.target.expense+'"]'});
     if(row.kind==='REMITTANCE')return window.TT_TG_REMITTANCES.open(row.target.remittanceId);
     const company=entity(),host=layer('ttReviewLayer','Review · '+row.type),body=q('.tt-window-body',host);
-    body.innerHTML=`<div class="tt-form"><h3>${esc(row.reference||row.type)}</h3><p>${esc(row.message)}</p><p>Discard removes this review from the list. Approve opens the approval or correction form.</p><p id="ttReviewError"></p><button class="btn" id="ttReviewDiscard">Discard</button> <button class="btn green" id="ttReviewApprove">Approve</button></div>`;
-    const action=async task=>{const buttons=qa('button',body);buttons.forEach(b=>b.disabled=true);try{if(company!==entity())throw Error('Company changed. Reopen the review.');await task();q('.tt-window-close',host).click();await loadDashboardSummary()}catch(e){q('#ttReviewError',body).textContent=e.message}finally{buttons.forEach(b=>b.disabled=false)}};
-    q('#ttReviewDiscard',body).onclick=()=>action(()=>json('../api/accounts_reviews.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'discard',entity:company,csrf:access.csrf,id:row.id,fingerprint:row.fingerprint})}));
-    q('#ttReviewApprove',body).onclick=()=>action(async()=>{
-      if(row.kind==='SALE')return window.TT_LOCAL_SALES_CONTROL_UI.review(row.target.candidateId);
-      if(row.kind==='PAYMENT')return window.TT_LOCAL_SALES_PAYMENT_UI.review(row.target.paymentId);
+    const details=Object.entries(row.details||{}).filter(([,value])=>value!=='').map(([label,value])=>
+      `<dt>${esc(label)}</dt><dd>${esc(label.endsWith('date')?(window.TT_DATE?.display(value)||value):value)}</dd>`).join('');
+    const openLabel=row.kind==='HOLD'?'Open payment hold':row.kind==='FREIGHT'?'Open freight bill':
+      row.kind==='PAYMENT'&&row.details?.['Payment type']==='Third-Party Account'?'Open payment details':row.target?.sodaNo?'Open SODA':'';
+    body.innerHTML=`<div class="tt-form"><h3>${esc(row.reference||row.type)}</h3><p>${esc(row.message)}</p>
+      ${details?`<dl class="tt-attention-details">${details}</dl>`:''}${row.approval?.releaseHold?'<p>Approving releases the automatic late-delivery hold.</p>':''}<p id="ttReviewError" role="alert"></p>
+      ${openLabel?`<button type="button" class="btn" id="ttReviewOpen">${openLabel}</button>`:''}
+      <button type="button" class="btn" id="ttReviewDiscard">Discard notice</button></div>`;
+    const action=async task=>{
+      const buttons=qa('button',body);
+      buttons.forEach(b=>b.disabled=true);
+      try{
+        if(company!==entity())throw Error('Company changed. Reopen the review.');
+        await task();
+        q('.tt-window-close',host).click();
+      }catch(e){q('#ttReviewError',body).textContent=e.message}
+      finally{buttons.forEach(b=>b.disabled=false)}
+    };
+    q('#ttReviewDiscard',body).onclick=()=>action(async()=>{
+      await updateAttention(row,company,'discard');
+      await loadDashboardSummary();
+    });
+    const open=q('#ttReviewOpen',body);
+    if(open)open.onclick=()=>action(async()=>{
       if(row.kind==='HOLD')return openHeldReview(row);
-      if(row.kind==='FREIGHT'){const state=await json('../api/accounts_workflows_v1.php?entity='+encodeURIComponent(company)+'&section=freight'),bill=(state.bills||[]).find(x=>x.id===row.target.billId);if(!bill)throw Error('Bill no longer available. Refresh the list.');return bill.shipmentId||bill.shipmentIds?.length?openSavedBill(bill):window.TT_ACCOUNTS_V1_WORKFLOW.reviewFreight(bill.id);}
-      if(row.target.sodaNo){const sodaHost=layer('ttSodaLayer','Amend Soda');await loadSodas();const soda=(sodaData.sodas||[]).find(x=>x.sodaNo===row.target.sodaNo);if(!soda)throw Error('Soda no longer available. Refresh the list.');activeSoda=soda;q('.tt-window-body',sodaHost).innerHTML=sodaForm(soda);bindSodaForm(sodaHost,soda);return;}
-      window.TT_ACCOUNTS_V1_WORKFLOW.open('due');
+      if(row.kind==='PAYMENT')return window.TT_LOCAL_SALES_PAYMENT_UI.review(row.target.paymentId);
+      if(row.kind==='FREIGHT'){
+        const state=await json('../api/accounts_workflows_v1.php?entity='+encodeURIComponent(company)+'&section=freight');
+        const bill=(state.bills||[]).find(x=>x.id===row.target.billId);
+        if(company!==entity()||!bill)throw Error('Bill no longer available. Refresh the list.');
+        return bill.shipmentId||bill.shipmentIds?.length?openSavedBill(bill):window.TT_ACCOUNTS_V1_WORKFLOW.reviewFreight(bill.id);
+      }
+      await loadSodas();
+      const soda=(sodaData.sodas||[]).find(x=>x.sodaNo===row.target.sodaNo);
+      if(company!==entity()||!soda)throw Error('SODA no longer available. Refresh the list.');
+      const sodaHost=layer('ttSodaLayer','Amend Soda');
+      activeSoda=soda;
+      q('.tt-window-body',sodaHost).innerHTML=sodaForm(soda);
+      bindSodaForm(sodaHost,soda);
     });
   }
 
