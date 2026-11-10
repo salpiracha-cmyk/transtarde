@@ -38,7 +38,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         'POST-2026-00001': journal('POST-2026-00001','2026-06-30',[
             line('2110',credit=100,counterparty='ACME Rice'),line('1310',debit=100)],meta={'supplier':'ACME Rice'}),
         'POST-2026-00002': journal('POST-2026-00002','2026-07-01',[
-            line('2110',debit=40,counterparty='P1'),line('1110',credit=40)],meta={'supplier':'ACME Rice'}),
+            line('2110',debit=40,counterparty='P1'),line('1110',credit=40)],meta={'supplier':'ACME Rice','chequeNo':'A-58129043','bankPaymentMethod':'CHEQUE'}),
         'POST-2026-00003': journal('POST-2026-00003','2026-07-02',[
             line('1210',debit=30,subledger='ACME Rice'),line('4100',credit=30)]),
         'POST-2026-00004': journal('POST-2026-00004','2026-07-03',[
@@ -131,8 +131,10 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         assert get(party='ACME Rice',account='2110')[0]==422
         assert get(from_='2026-08-01',to='2026-07-01')[0]==422
         assert get(category='other',account='1110')[1]['rows'], 'Existing account-head ledger remains available'
+        status,reference_search=get(party='ACME Rice',q='58129043')
+        assert status==200 and len(reference_search['rows'])==1 and reference_search['rows'][0]['displayReference']=='Cheque A-58129043',reference_search
         status,csv=get(party='ACME Rice',format='csv')
-        assert status==200 and 'ACME Rice' in csv and 'SECRET BRM' not in csv
+        assert status==200 and 'ACME Rice' in csv and 'SECRET BRM' not in csv and 'Cheque A-58129043' in csv
         status,tg=get(entity='TG',party='TTI',currency='USD')
         assert status==200 and tg['balanceUnavailable'] and tg['closing'] is None, tg
         assert all(r['balance'] is None for r in tg['rows'])

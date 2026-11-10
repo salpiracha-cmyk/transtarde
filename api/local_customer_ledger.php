@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__.'/accounts_ledger_visibility.php';
+require_once __DIR__.'/accounts_reference.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 const TT_LCL_FILE = TT_DATA_DIR . '/accounts.json';
@@ -24,7 +25,7 @@ try{
   if(!is_array($x)||($x['entity']??'')!==$entity||empty($x['journalId']))continue;
   if(!in_array((string)($x['status']??''),['Approved / Posted','Posted','Approved'],true))continue;
   $p=trim((string)($x['party']??''));if($p==='')continue;$parties[$p]=true;if($party!==''&&strcasecmp($p,$party)!==0)continue;
-  $rows[]=['date'=>(string)($x['paymentDate']??''),'sort'=>(string)($x['reviewedAt']??$x['createdAt']??''),'party'=>$p,'soda'=>(string)($x['soda']??''),'product'=>(string)($x['product']??''),'type'=>(string)($x['paymentType']??'Payment'),'reference'=>(string)($x['reference']??$x['sourceKey']??''),'debit'=>0.0,'credit'=>round((float)($x['amount']??0),2)];
+  $rows[]=['date'=>(string)($x['paymentDate']??''),'sort'=>(string)($x['reviewedAt']??$x['createdAt']??''),'party'=>$p,'soda'=>(string)($x['soda']??''),'product'=>(string)($x['product']??''),'type'=>(string)($x['paymentType']??'Payment'),'reference'=>(string)($x['reference']??$x['sourceKey']??''),'displayReference'=>tt_accounts_ledger_reference($s,$s['journals'][$x['journalId']]??['entity'=>$entity,'meta'=>$x,'reference'=>$x['reference']??'']),'debit'=>0.0,'credit'=>round((float)($x['amount']??0),2)];
  }
  usort($rows,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?:strcmp((string)$a['sort'],(string)$b['sort']));$bal=0.0;foreach($rows as &$r){$bal=round($bal+(float)$r['debit']-(float)$r['credit'],2);$r['balance']=$bal;$r['position']=$bal>0.005?'Receivable':($bal<-.005?'Customer Advance':'Nil');}unset($r);
  // Chronological display keeps the latest entry at the end.

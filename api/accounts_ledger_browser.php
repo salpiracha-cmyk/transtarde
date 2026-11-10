@@ -337,7 +337,14 @@ if($homeLedger||($category==='party'&&$party!==''&&isset($historyOnly[sac_normal
  $rows[]=['publicPostId'=>tt_accounts_public_post($store,$store['journals'][$activity['voucher']]??[]),'amendmentNote'=>tt_accounts_amendment_note($store['journals'][$activity['voucher']]??[],$store),'date'=>$activity['date'],'voucher'=>$activity['voucher'],'account'=>$activity['account'],'accountName'=>$activity['accountName'],'reference'=>$activity['reference'],'narration'=>$activity['accountName'].' · '.$activity['purpose'].' · Paid to '.$activity['recipient'].' · For '.($activity['expenseForName']??'Shared–Common').($activity['assetName']!==''?' · '.$activity['assetName'].' '.$activity['registrationNo']:''),'party'=>$activity['recipient'],'debit'=>0,'credit'=>0,'balance'=>null,'activityOnly'=>true,'expenseAmount'=>$activity['amount'],'chequeNo'=>'','bankReference'=>''];
 }
 if($familyStatement){$family=sac_family_statement($store,$entity,$account,$from,$to);$rows=$family['rows'];$opening=$family['opening'];$closing=$family['closing'];$balanceUnavailable=$family['balanceUnavailable'];}
-if($query!=='')$rows=array_values(array_filter($rows,static fn($row)=>(!preg_match('/^(?:\d{4}-)?\d+$/',$query)&&str_contains(strtolower(implode(' ',array_map('strval',$row))),$query))||tt_accounts_reference_matches($query,$row['voucher'])||tt_accounts_reference_matches($query,$row['publicPostId']??'')||tt_accounts_reference_matches($query,$row['reference'])||($row['chequeNo']!==''&&str_contains(strtolower($row['chequeNo']),$query))||($row['bankReference']!==''&&str_contains(strtolower($row['bankReference']),$query))||(preg_match('/^(?:\d{4}-)?\d+$/',$query)&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',$row['reference'])&&str_contains(strtolower($row['reference']),$query))));
+$ledgerReferences=[];
+foreach($rows as &$row){
+    $voucher=(string)$row['voucher'];
+    $journal=$store['journals'][$voucher]??null;
+    $row['displayReference']=is_array($journal)?($ledgerReferences[$voucher]??=tt_accounts_ledger_reference($store,$journal)):(string)($row['reference']??'');
+}
+unset($row);
+if($query!=='')$rows=array_values(array_filter($rows,static fn($row)=>($row['displayReference']!==''&&str_contains(strtolower($row['displayReference']),$query))||(!preg_match('/^(?:\d{4}-)?\d+$/',$query)&&str_contains(strtolower(implode(' ',array_map('strval',$row))),$query))||tt_accounts_reference_matches($query,$row['voucher'])||tt_accounts_reference_matches($query,$row['publicPostId']??'')||tt_accounts_reference_matches($query,$row['reference'])||($row['chequeNo']!==''&&str_contains(strtolower($row['chequeNo']),$query))||($row['bankReference']!==''&&str_contains(strtolower($row['bankReference']),$query))||(preg_match('/^(?:\d{4}-)?\d+$/',$query)&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',$row['reference'])&&str_contains(strtolower($row['reference']),$query))));
 // Ordinary ledgers are chronological. The Post ID Register keeps latest first.
 usort($rows,static function(array $a,array $b)use($postEntries):int{
  $parts=static function(string $id):array{return preg_match('/^[A-Z]+-(\d{4})-(\d+)$/i',$id,$m)?[(int)$m[1],(int)$m[2]]:[0,0];};
@@ -354,7 +361,7 @@ if(($_GET['format']??'')==='csv'){
     if($postEntries){
         fputcsv($out,[$workflowRegister?'Post ID Register · Permitted workflows':'Post ID Register',$registerEntity?:'All authorised companies','From',$from,'To',$to]);
         fputcsv($out,['Date','Post ID','Company','Book currency','Reference','Narration','Party','Debit','Credit']);
-        $subtotals=[];foreach($rows as $row){fputcsv($out,array_map('alb_cell',[preg_replace('/^(\d{4})-(\d{2})-(\d{2})$/','$3-$2-$1',$row['date']),$row['publicPostId']??$row['voucher'],$row['entity'],$row['bookCurrency'],$row['reference'],$row['narration'],$row['party'],$row['debit'],$row['credit']]));$key=$row['entity'].'|'.$row['bookCurrency'];$subtotals[$key]??=['entity'=>$row['entity'],'currency'=>$row['bookCurrency'],'debit'=>0,'credit'=>0];$subtotals[$key]['debit']+=(int)round(100*$row['debit']);$subtotals[$key]['credit']+=(int)round(100*$row['credit']);}
+        $subtotals=[];foreach($rows as $row){fputcsv($out,array_map('alb_cell',[preg_replace('/^(\d{4})-(\d{2})-(\d{2})$/','$3-$2-$1',$row['date']),$row['publicPostId']??$row['voucher'],$row['entity'],$row['bookCurrency'],$row['displayReference'],$row['narration'],$row['party'],$row['debit'],$row['credit']]));$key=$row['entity'].'|'.$row['bookCurrency'];$subtotals[$key]??=['entity'=>$row['entity'],'currency'=>$row['bookCurrency'],'debit'=>0,'credit'=>0];$subtotals[$key]['debit']+=(int)round(100*$row['debit']);$subtotals[$key]['credit']+=(int)round(100*$row['credit']);}
         foreach($subtotals as $total)fputcsv($out,['Subtotal','',$total['entity'],$total['currency'],'','','',$total['debit']/100,$total['credit']/100]);
         fclose($out);exit;
     }
@@ -362,7 +369,7 @@ if(($_GET['format']??'')==='csv'){
     if($workflowRegister)fputcsv($out,['Scope','Amounts and balances include permitted workflows only']);
     fputcsv($out,['Opening Balance','','','','','','','','',($account!==''||$party!=='')?($opening===null?'Unavailable':round($opening,2)):'']);
     fputcsv($out,['Date','Post ID','Account','Account Name','Reference','Narration','Party',$familyStatement?(str_ends_with($account,'|REMUNERATION')?'Used / paid':'Expense'):'Debit',$familyStatement?(str_ends_with($account,'|REMUNERATION')?'Entitlement / credit':'Reversal'):'Credit','Balance','Expense paid']);
-    foreach($rows as $row)fputcsv($out,array_map('alb_cell',[preg_replace('/^(\d{4})-(\d{2})-(\d{2})$/','$3-$2-$1',$row['date']),$row['publicPostId']??$row['voucher'],$row['account'],$row['accountName'],$row['reference'],$row['narration'],$row['party'],$row['debit'],$row['credit'],$row['balance']??'',$row['expenseAmount']??'']));
+    foreach($rows as $row)fputcsv($out,array_map('alb_cell',[preg_replace('/^(\d{4})-(\d{2})-(\d{2})$/','$3-$2-$1',$row['date']),$row['publicPostId']??$row['voucher'],$row['account'],$row['accountName'],$row['displayReference'],$row['narration'],$row['party'],$row['debit'],$row['credit'],$row['balance']??'',$row['expenseAmount']??'']));
     if($familyStatement)fputcsv($out,['Balance meaning',$family['balanceMeaning']]);
     if($category==='party'||$familyStatement)fputcsv($out,['Closing Balance','','','','','','','','',$balanceUnavailable?'Unavailable':$closing]);
     if($partyInvoices){fputcsv($out,[]);fputcsv($out,['Buyer invoice balances — original currency']);fputcsv($out,['Date','Invoice','Contract','Currency','Invoice amount','Received','Outstanding','Status']);foreach($partyInvoices as $i)fputcsv($out,array_map('alb_cell',[$i['date'],$i['reference'],$i['contractRef'],$i['currency'],$i['invoiceAmount'],$i['received'],$i['amount'],$i['status']]));}

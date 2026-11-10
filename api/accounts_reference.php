@@ -12,6 +12,58 @@ function tt_accounts_reference_matches(string $query, mixed $reference): bool {
     return false;
 }
 
+/** Read the reference from the original posting and its source, including older records. */
+function tt_accounts_ledger_reference(array $store,array $journal): string {
+    $meta=(array)($journal['meta']??[]);
+    $entity=(string)($journal['entity']??'');
+    $sourceType=(string)($meta['originalSourceType']??$journal['sourceType']??'');
+    $linked=[];
+    foreach(['settlementId'=>'supplierSettlements','receiptId'=>'exportReceipts','remittanceId'=>'tgRemittances','tgRemittanceId'=>'tgRemittances','supplierBillId'=>'supplierBills','bagBillId'=>'bagSupplierBills'] as $field=>$collection){
+        $row=$store[$collection][(string)($meta[$field]??'')]??null;
+        if(is_array($row)&&($row['entity']??$entity)===$entity)$linked[]=$row;
+    }
+    $lines=(array)($journal['lines']??[]);
+    $sources=[$meta,$journal,...$linked,...$lines];
+    $first=static function(array $records,array $fields):string{
+        foreach($records as $record)foreach($fields as $field){
+            $value=$record[$field]??null;
+            if(is_scalar($value)&&trim((string)$value)!=='')return trim((string)$value);
+        }
+        return '';
+    };
+    $method=strtoupper(str_replace(' ','_',$first($sources,['bankPaymentMethod','paymentMode','paymentMethod','receiptMethod','paymentType'])));
+    $cheque=$first($sources,['chequeNo','chequeNumber','checkNumber']);
+    $bankRef=$first($sources,['bankReference','bankTransactionReference','transactionReference','paymentReference']);
+    $note=(string)($journal['narration']??'');
+    if($cheque===''&&in_array($method,['','CHEQUE','BANK'],true)){
+        // Historical bank narration used either “Cheque A-123” or “Cheque · A-123”.
+        if(preg_match('/\bcheque(?:\s+no\.?)?\s*(?:[·:#]\s*)?([a-z0-9]+(?:[-\/][a-z0-9]+)*)\b/iu',$note,$match)&&preg_match('/[0-9]/',$match[1]))$cheque=$match[1];
+    }
+    if($cheque!==''&&in_array($method,['','CHEQUE','BANK'],true))return preg_match('/^cheque\b/i',$cheque)?$cheque:'Cheque '.$cheque;
+    if($method==='CHEQUE'&&$bankRef!=='')return preg_match('/^cheque\b/i',$bankRef)?$bankRef:'Cheque '.$bankRef;
+    if($bankRef!=='')return $bankRef;
+
+    $bank=false;$cash=false;
+    foreach($lines as $line){
+        $bank=$bank||($line['account']??'')==='1110';
+        $cash=$cash||($line['account']??'')==='1120'||!empty($line['cashAccountId']);
+    }
+    if(!$bank&&($method==='CASH'||str_starts_with($first($sources,['paymentAccountId','cashAccountId']),'CASH|')||($cash&&$method==='')))return 'Cash';
+    $reference=trim((string)($journal['reference']??''));
+    $internal=$reference===(string)($journal['id']??'')||preg_match('/^(?:POST|AUTO|JV|JVD|RV)-\d{4}-\d+(?:-JV)?$/i',$reference);
+    if(preg_match('/\b(?:online banking|bank transfer)\s*·\s*([a-z0-9\/-]+)\s*(?:·|$)/iu',$note,$match)&&preg_match('/[0-9]/',$match[1])&&!preg_match('/^\d{4}-\d{2}(?:-\d{2})?$/',$match[1]))return $match[1];
+    if($bank||in_array($method,['CHEQUE','BANK','ONLINE_BANKING','BANK_TRANSFER'],true)){
+        if(preg_match('/\b(?:bank\s+)?(?:ref(?:erence)?|transaction id)\s*[:#]?\s+([a-z0-9]+(?:[-\/][a-z0-9]+)*)\b/iu',$note,$match)&&preg_match('/[0-9]/',$match[1]))return $match[1];
+        // Salary and card journals may use a payroll month as their accounting reference.
+        return !$internal&&!preg_match('/^\d{4}-\d{2}(?:-\d{2})?$/',$reference)?$reference:'';
+    }
+    $bill=$first([$meta,$journal,...$linked,...array_map(static fn($row)=>(array)($row['sourceRecord']??[]),$linked)],['invoiceNo','billNo','sellerInvoice','invoiceRef']);
+    if($bill!=='')return $bill;
+    if(!$internal&&$reference!=='')return $reference;
+    if(!empty($journal['reversalOf'])||str_ends_with($sourceType,'_REVERSAL'))return $reference;
+    return '';
+}
+
 /** Resolve current correction without changing the public ID or source history. */
 function tt_accounts_current_journal(array $store,string $id):array {
     $seen=[];$journal=$store['journals'][$id]??[];

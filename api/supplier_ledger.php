@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__.'/accounts_ledger_visibility.php';
+require_once __DIR__.'/accounts_reference.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -28,7 +29,7 @@ try{
     if(alv_record_hidden((array)$a,$hidden))continue;
     if(!is_array($a)||($a['entity']??'')!==$entity)continue; $b=trim((string)($a['supplier']??'')); if($b==='')continue; $brokers[$b]=true; if($broker!==''&&strcasecmp($broker,$b)!==0)continue;
     $amt=round((float)($a['amount']??0),2); if($amt<=0)continue;
-    $rows[]=['date'=>(string)($a['date']??''),'sort'=>20,'type'=>'SUPPLIER_ADVANCE','description'=>'Supplier Advance','broker'=>$b,'commodity'=>'','soda'=>(string)($a['soda']??''),'billNo'=>'','reference'=>(string)($a['id']??''),'charge'=>0.0,'payment'=>$amt,'advance'=>$amt];
+    $rows[]=['date'=>(string)($a['date']??''),'sort'=>20,'type'=>'SUPPLIER_ADVANCE','description'=>'Supplier Advance','broker'=>$b,'commodity'=>'','soda'=>(string)($a['soda']??''),'billNo'=>'','reference'=>(string)($a['id']??''),'displayReference'=>tt_accounts_ledger_reference($s,$s['journals'][(string)($a['journalId']??'')]??['entity'=>$entity,'meta'=>$a,'reference'=>$a['reference']??'','id'=>$a['id']??'']),'charge'=>0.0,'payment'=>$amt,'advance'=>$amt];
   }
   foreach((array)($s['supplierSettlements']??[]) as $st){
     if(alv_record_hidden((array)$st,$hidden))continue;
@@ -42,7 +43,7 @@ try{
     $amt=round((float)($st['amount']??0),2); if($amt<=0)continue;
     $sodas=[];$bills=[];$commodity='';
     foreach((array)($st['allocations']??[]) as $al){ if(!is_array($al))continue; if(($al['soda']??'')!=='')$sodas[(string)$al['soda']]=true; if(($al['billNo']??'')!=='')$bills[(string)$al['billNo']]=true; $billId=(string)($al['billId']??''); $bill=$s['commodityBills'][$billId]??null; if(is_array($bill))$commodity=sl_commodity($bill); }
-    $rows[]=['date'=>(string)($st['date']??''),'sort'=>40,'type'=>'PAYMENT','description'=>'Supplier Payment','broker'=>$b,'commodity'=>$commodity,'soda'=>implode(', ',array_keys($sodas)),'billNo'=>implode(', ',array_keys($bills)),'reference'=>(string)($st['reference']??$st['id']??''),'charge'=>0.0,'payment'=>$amt,'advance'=>0.0];
+    $rows[]=['date'=>(string)($st['date']??''),'sort'=>40,'type'=>'PAYMENT','description'=>'Supplier Payment','broker'=>$b,'commodity'=>$commodity,'soda'=>implode(', ',array_keys($sodas)),'billNo'=>implode(', ',array_keys($bills)),'reference'=>(string)($st['reference']??$st['id']??''),'displayReference'=>tt_accounts_ledger_reference($s,$s['journals'][(string)($st['journalId']??'')]??['entity'=>$entity,'meta'=>$st,'reference'=>$st['reference']??'','id'=>$st['id']??'']),'charge'=>0.0,'payment'=>$amt,'advance'=>0.0];
   }
   usort($rows,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?:((int)$a['sort']<=> (int)$b['sort'])?:strcmp((string)$a['reference'],(string)$b['reference']));
   $balance=0.0; foreach($rows as &$r){ $balance=round($balance+(float)$r['charge']-(float)$r['payment'],2); $r['balance']=$balance; $r['position']=$balance>0.005?'Payable':($balance<-.005?'Advance':'Nil'); } unset($r);
