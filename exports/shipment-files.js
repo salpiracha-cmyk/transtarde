@@ -235,7 +235,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 }
 	 return out
 	}
-	async function save({customer,contract,lot,rows,uploads,fit,optional=false,committedSnapshot=null,strictFinal=false,onProgress=null,bankDocumentRows=null,refreshExisting=false}){
+	async function save({customer,contract,lot,rows,uploads,fit,optional=false,committedSnapshot=null,strictFinal=false,onProgress=null,bankDocumentRows=null,refreshExisting=false,customsOnly=false}){
 	 if(busy&&!legacyQa())throw new Error('Shipment files are already being prepared.');
 	 if(busy&&legacyQa())busy=false;
 	 busy=true;
@@ -319,7 +319,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
   if(!optional)({files:archiveFiles,cleanupFolders}=await finalizeFolderZips(files));
   const used=new Set();for(const file of archiveFiles){const base=file.name;let index=2;while(used.has(file.folder+'/'+file.name)){const at=base.lastIndexOf('.');file.name=base.slice(0,at)+' ('+index+++')'+base.slice(at)}used.add(file.folder+'/'+file.name)}
   archiveFiles.forEach((file,index)=>file.storedName=String(index).padStart(3,'0')+'-'+file.name.replace(/[^A-Za-z0-9._-]+/g,'-'));
-  const manifest={layoutVersion:2,refreshExisting:!!refreshExisting,type:'shipment_archive',customer,contract,lot,folderParts:parts,createdAt:new Date().toISOString(),finalize:!optional,cleanupFolders,files:archiveFiles.map(file=>({folder:file.folder||'',name:file.name,storedName:file.storedName,size:file.blob.size,type:file.blob.type||'application/octet-stream'}))};
+  const manifest={layoutVersion:2,refreshExisting:!!refreshExisting,type:'shipment_archive',...(customsOnly?{purpose:'customs-documents'}:{}),customer,contract,lot,folderParts:parts,createdAt:new Date().toISOString(),finalize:!optional,cleanupFolders,files:archiveFiles.map(file=>({folder:file.folder||'',name:file.name,storedName:file.storedName,size:file.blob.size,type:file.blob.type||'application/octet-stream'}))};
   if(legacyQa()&&legacyRoot&&!window.TT_MODULE_ACCESS?.csrf){
    let saved=0;try{saved=await legacyWrite(legacyRoot,parts,archiveFiles)}catch(error){throw new Error(saved+' of '+archiveFiles.length+' files saved. '+error.message)}
    return{count:archiveFiles.length,path:parts.join(' / '),status:'SAVED',warnings,bankPdf:files.find(file=>file.name.startsWith('Bank Shipment Documents '))?.blob,bankFilename:files.find(file=>file.name.startsWith('Bank Shipment Documents '))?.name}

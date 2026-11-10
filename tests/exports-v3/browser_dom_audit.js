@@ -118,7 +118,30 @@ w.TT_SHARED_SYNC={
   assert.ok(matches(customsBaseline),'the saved lot audit must be in the acknowledgement');
  }
 };
+const customsArchives=[];
+let archiveFails=true;
+w.TT_SHIPMENT_FILES={async save(options){
+ customsArchives.push(options);
+ if(archiveFails)throw new Error('Fixture Office Agent unavailable');
+ return {count:options.rows.length};
+}};
 await d.querySelector('#saveCustoms').onclick();
+await Promise.resolve();
+assert.match(d.getElementById('customsSaveResult').textContent,/Customs saved\. Office copy failed/);
+const retryArchive=d.querySelector('#customsSaveResult button');
+assert.equal(retryArchive.hidden,false);
+archiveFails=false;
+await retryArchive.onclick();
+assert.match(d.getElementById('customsSaveResult').textContent,/3 Customs PDFs queued/);
+assert.equal(customsArchives.length,2);
+for(const archive of customsArchives){
+ assert.equal(archive.customsOnly,true);
+ assert.deepEqual(Array.from(archive.rows,row=>row.key),['customInvoice','customPacking','phytoInvoice']);
+ assert.ok(archive.rows.every(row=>row.ready));
+ assert.equal(archive.uploads.length,0);
+ assert.equal(archive.bankDocumentRows,null);
+}
+delete w.TT_SHIPMENT_FILES;
 assert.deepEqual(customsChanges.map(change=>change.path),[
  ['shipments',{id:lot.id},'customs'],['shipments',{id:lot.id},'documentActivity'],['audits',null]
 ]);
@@ -126,6 +149,19 @@ assert.equal(lot.customs.saved,true,'calculated FI plus open-account split saves
 assert.equal(Number(lot.customs.openAccount),Number(balancingOpenAccount),'saved Open Account matches the displayed calculated balance');
 assert.equal(d.querySelector('.lotEditorShell'),null,'successful save returns to the Lot icon screen');
 d.querySelector('[data-workspace="customs"]').click();
+const savedCustomsPrints=[];
+const originalSaveNow=w.TT_SHARED_SYNC.saveNow;
+w.TT_SHARED_SYNC.saveNow=()=>{throw new Error('Printing must never save the Exports workspace')};
+Object.defineProperties(w.HTMLImageElement.prototype,{complete:{configurable:true,get:()=>true},naturalWidth:{configurable:true,get:()=>100}});
+w.print=()=>savedCustomsPrints.push(d.getElementById('printRoot').textContent);
+d.querySelector('#cuNo').value='UNSAVED-INVOICE-NUMBER';
+for(const [button,title] of [['printCustomPacking','CUSTOM PACKING LIST'],['printCustomInvoice','CUSTOMS INVOICE'],['printPhyto','PHYTOSANITARY INVOICE']]){
+ assert.equal(await d.getElementById(button).onclick(),true);
+ assert.ok(savedCustomsPrints.at(-1).includes(title));
+ assert.ok(savedCustomsPrints.at(-1).includes(lot.customs.invoiceNo));
+ assert.ok(!savedCustomsPrints.at(-1).includes('UNSAVED-INVOICE-NUMBER'));
+}
+w.TT_SHARED_SYNC.saveNow=originalSaveNow;
 d.querySelector('[data-workspace="bl"]').click();
 assert.equal(d.querySelector('.lotFormPane input[readonly]').value,lot.loadingProgrammeNo,'B/L form displays the carried loading programme number');
 assert.equal(d.querySelector('.lotPreviewPaper .docBrand img'),null,'B/L Draft preview excludes bag artwork');

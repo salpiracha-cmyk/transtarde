@@ -1650,17 +1650,18 @@ function shipmentUploadedFiles(s){return[
  ...(s.certs||[]).filter(row=>row.finalDocument).map(row=>({...row.finalDocument,type:row.type})),
  ...(s.uploadedDocuments||[]).filter(row=>row.finalDocument).map(row=>({...row.finalDocument,type:row.name}))].filter(Boolean)}
 
-async function saveShipmentFolder(s,c,optional=false,onProgress=null,refreshExisting=false){
+async function saveShipmentFolder(s,c,optional=false,onProgress=null,refreshExisting=false,customsOnly=false){
  const payload=window.TT_SHARED_SYNC?.readCommitted?.(STORE);if(!payload)throw new Error('A confirmed server save is required before copying shipment files.');
  const saved=normalize(JSON.parse(payload)),lot=saved.shipments.find(row=>row.id===s.id),contract=saved.contracts.find(row=>row.ref===s.contractRef);
  if(!lot||!contract)throw new Error('Save this lot in Transtrade before copying its files.');
  const live=state;let rows,name;try{state=saved;rows=shipmentFolderDocuments(lot,contract);name=buyerOf(shipmentDocumentContext(lot,contract)).name||lot.buyer}finally{state=live}
+ if(customsOnly)rows=rows.filter(row=>row.folder==='Custom documents');
  for(const row of rows)if(row.render){const render=row.render;row.render=()=>{const live=state;try{state=saved;return render()}finally{state=live}}}
- return window.TT_SHIPMENT_FILES.save({customer:name,contract:lot.contractRef,lot:lot.lotId,rows,uploads:shipmentUploadedFiles(lot),fit:fitTGProformaPages,optional,committedSnapshot:saved,strictFinal:true,onProgress,refreshExisting,bankDocumentRows:coveringDocumentRows(lot,contract,lot.seller==='TG'?(lot.tgdocs?.covering||lot.covering):lot.covering,lot.seller==='TG')});
+ return window.TT_SHIPMENT_FILES.save({customer:name,contract:lot.contractRef,lot:lot.lotId,rows,uploads:customsOnly?[]:shipmentUploadedFiles(lot),fit:fitTGProformaPages,optional,committedSnapshot:saved,strictFinal:true,onProgress,refreshExisting,customsOnly,bankDocumentRows:customsOnly?null:coveringDocumentRows(lot,contract,lot.seller==='TG'?(lot.tgdocs?.covering||lot.covering):lot.covering,lot.seller==='TG')});
 }
-async function copyCommittedShipmentFiles(s,c,{alreadySaved=false}={}){
+async function copyCommittedShipmentFiles(s,c){
  if(!window.TT_SHIPMENT_FILES)return;
- try{if(!alreadySaved){if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow()}const result=await saveShipmentFolder(s,c,true);if(result.skipped)return;const host=document.getElementById('workspaceDetail')||document.getElementById('lotEditorForm');host?.insertAdjacentHTML('afterbegin',`<div class="notice" role="status">${esc(result.count)} shipment files queued for the Office Agent at ${esc(result.path)}.${result.warnings?.length?`<p class="notice danger">${result.warnings.map(esc).join('<br>')}</p>`:''}</div>`)}
+ try{if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow();const result=await saveShipmentFolder(s,c,true);if(result.skipped)return;const host=document.getElementById('workspaceDetail')||document.getElementById('lotEditorForm');host?.insertAdjacentHTML('afterbegin',`<div class="notice" role="status">${esc(result.count)} shipment files queued for the Office Agent at ${esc(result.path)}.${result.warnings?.length?`<p class="notice danger">${result.warnings.map(esc).join('<br>')}</p>`:''}</div>`)}
  catch(error){const host=document.getElementById('workspaceDetail')||document.getElementById('lotEditorForm');host?.insertAdjacentHTML('afterbegin',`<div class="notice warn" role="status">Office archive was not queued. Retry the document Save action or LOT COMPLETE. ${esc(error.message)}</div>`)}
 }
 async function checkCompletedOfficeDelivery(button,s){
@@ -2263,7 +2264,7 @@ function waitForPrintImages(root,timeoutMs=30000){
  })))
 }
 async function directPrint(title,html,mode='with',readOnly=false,downloadMeta={}){
- // Completed VIEW routes render committed snapshots and must never resave the workspace.
+ // Read-only outputs render committed records and never resave the workspace.
  if(!readOnly)try{if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow()}catch(error){showExportSaveError(error.message);return false}
  const template=document.createElement('template');template.innerHTML=html;
  if(template.content.querySelector('.bankCoveringPage:not([data-tg-cover="true"])')&&!window.confirm('Did you put the original letterhead in the printer?'))return Promise.resolve(false);
@@ -2789,6 +2790,44 @@ function ttSetCustomsInlineError(d,message){
  box.textContent=message||'';box.classList.toggle('hidden',!message);
  if(message)box.scrollIntoView({block:'nearest',behavior:'smooth'})
 }
+function showCustomsOfficeCopy(s,c,host){
+ if(!window.TT_SHIPMENT_FILES||!host)return;
+ const status=document.createElement('div'),retry=document.createElement('button');
+ status.setAttribute('role','status');retry.type='button';retry.className='btn small soft';
+ retry.textContent='Retry Customs office copy';retry.hidden=true;
+ host.append(status,retry);
+ retry.onclick=async()=>{
+  retry.hidden=true;status.textContent='Preparing the Customs PDFs for the office folder…';
+  try{
+   const result=await saveShipmentFolder(s,c,true,null,false,true);
+   status.textContent=result.skipped?'Customs office copy was skipped.':`${result.count} Customs PDFs queued for the Office Agent.`;
+   retry.hidden=!result.skipped;
+  }catch(error){
+   status.textContent='Customs saved. Office copy failed: '+error.message;
+   retry.hidden=false;
+  }
+ };
+ void retry.onclick();
+}
+function printSavedCustoms(d,lotId,title,render){
+ const saved=committedExportSnapshot();
+ const lot=saved?.shipments?.find(row=>row.id===lotId);
+ const contract=saved?.contracts?.find(row=>row.ref===lot?.contractRef);
+ if(!lot||!contract||!customsBalanced(lot,contract))return ttSetCustomsInlineError(d,'Save the balanced Customs master before printing this document.');
+ ttSetCustomsInlineError(d,'');
+ let html,context;
+ const live=state;
+ try{
+  state=normalize(saved);
+  context=customsDocumentContext(lot,shipmentDocumentContext(lot,contract));
+  html=render(lot,contract);
+ }catch(error){
+  return ttSetCustomsInlineError(d,error.message||'The saved Customs document could not be prepared.');
+ }finally{state=live}
+ return directPrint(title,html,'with',true,{
+  party:buyerOf(context).name,reference:lot.customs.invoiceNo||contract.ref,company:context.seller
+ });
+}
 // Send only this lot's document and the FI allocation changed by this action.
 async function commitCustomsEdit(s,action,detail,fi){
  const sync=window.TT_SHARED_SYNC,baseline=committedExportSnapshot();
@@ -2892,9 +2931,12 @@ function renderCustoms(d){
  d.querySelector('#addCustomsFI').onclick=async()=>{const row=eligible().find(item=>item.id===fiSelect.value),amount=num(fiUse.value),available=row?num(row.value)-fiUsed(row):0,invoice=customsInvoiceValue(s,c,num(rateInput.value)),allocated=x.fiAllocations.reduce((sum,item)=>sum+num(item.amount),0);if(!row)return alert('Select an FI matching the Customs currency.');if(amount<=0||amount>available+.001)return alert('Amount to utilise must be positive and cannot exceed the FI available balance.');if(allocated+amount>invoice+.01)return alert(`Total FI allocation cannot exceed the Customs Invoice value of ${money(invoice,selectedCurrency())}.`);const previous=structuredClone(x),allocations=row.allocations.slice();const allocation={id:uid('FIA'),lotId:s.id,contractRef:s.contractRef,lotRef:s.lotId,amount,at:new Date().toISOString(),by:currentUser()},ref=fiReference(row);row.allocations.push(allocation);Object.assign(ref,{amount,allocationId:allocation.id});x.fiAllocations.push(ref);x.bank=x.bank||row.bank;x.openAccount=Math.max(0,invoice-allocated-amount);x.saved=false;try{await commitCustomsEdit(s,'FI allocated',`${row.number} · ${s.contractRef} · ${s.lotId} · ${money(amount,row.currency)}`,row);renderShipmentWorkspace()}catch(error){Object.assign(x,previous);row.allocations=allocations;ttSetCustomsInlineError(d,error.message)}};
  d.querySelectorAll('[data-customs-fi-reverse]').forEach(button=>button.onclick=async()=>{const allocationId=button.dataset.customsFiReverse,ref=x.fiAllocations.find(row=>row.allocationId===allocationId),fi=state.fi.find(row=>row.id===ref?.fiId);if(!ref||!fi)return;const previous=structuredClone(x),allocations=fi.allocations;fi.allocations=allocations.filter(row=>row.id!==allocationId);x.fiAllocations=x.fiAllocations.filter(row=>row.allocationId!==allocationId);x.openAccount=null;x.saved=false;try{await commitCustomsEdit(s,'FI allocation reversed',`${fi.number} · ${s.contractRef} · ${s.lotId}`,fi);renderShipmentWorkspace()}catch(error){Object.assign(x,previous);fi.allocations=allocations;ttSetCustomsInlineError(d,error.message)}});
  d.querySelector('#saveCustoms').onclick=async()=>{const invoiceNo=d.querySelector('#cuNo').value.trim(),currency=selectedCurrency(),rate=num(rateInput.value),value=customsInvoiceValue(s,c,rate),allocated=x.fiAllocations.reduce((sum,row)=>sum+num(row.amount),0),incompatible=x.fiAllocations.filter(row=>String(row.currency||currency).toUpperCase()!==currency),code=isTG?(payment.selectedOptions[0]?.dataset.code||'CAD100'):'',openAccount=Math.max(0,value-allocated),description=d.querySelector('#cuDesc').value.trim();if(!invoiceNo)return ttSetCustomsInlineError(d,'Invoice No. is required.');if(isTG&&!/^[A-Z]{3}$/.test(currency))return ttSetCustomsInlineError(d,'Enter a valid three-letter Customs currency code, for example USD, AED or PKR.');if(incompatible.length)return ttSetCustomsInlineError(d,'Reverse FI allocations in the previous currency before saving the new Customs currency.');if(isTG&&rate<=0)return ttSetCustomsInlineError(d,'Enter the Pakistan Exporter to Trans Grains Customs rate.');if(allocated>value+.01)return ttSetCustomsInlineError(d,`FI allocation cannot exceed the Customs Invoice value of ${money(value,currency)}.`);if(isTG&&code==='ADV100'&&Math.abs(allocated-value)>.01)return ttSetCustomsInlineError(d,`100% Advance requires FI allocation equal to the full Customs Invoice value of ${money(value,currency)}.`);if(isTG&&code==='ADV_CAD'&&(allocated<=.01||allocated>=value-.01))return ttSetCustomsInlineError(d,'Advance + Cash Against Documents requires an FI advance above zero and below the full invoice value.');let reason='';if(description!==contractDescription&&description!==x.description){reason=requiredReason('Reason for Customs-specific description amendment:');if(!reason)return}const previous=structuredClone(x);if(reason)x.descriptionVersions=[...(x.descriptionVersions||[]),{at:new Date().toISOString(),by:currentUser(),reason,previous:x.description||contractDescription,next:description}];Object.assign(x,{invoiceNo,date:d.querySelector('#cuDate').value,currency:isTG?currency:c.currency,rate,openAccount,paymentTerms:isTG?ttDirectCustomsPaymentLabel(code):paymentText(c),customsPaymentCode:isTG?code:'',hsCode:d.querySelector('#cuHS').value.trim(),bank:d.querySelector('#cuBank').value,iban:d.querySelector('#cuIBAN').value.trim(),description:description||contractDescription,descriptionSource:description&&description!==contractDescription?'amended':'contract',descriptionAmended:!!(description&&description!==contractDescription),descriptionAmendmentReason:reason||x.descriptionAmendmentReason||'',importerChoice:d.querySelector('#cuImporterChoice').value,exporter:isTG?d.querySelector('#cuExporter').value:x.exporter,saved:true,invoiceValue:value});ttSetCustomsInlineError(d,'');try{await commitCustomsEdit(s,'Customs master saved',`${x.invoiceNo} · ${x.currency}`)}catch(error){for(const key of Object.keys(x))delete x[key];Object.assign(x,previous);return ttSetCustomsInlineError(d,error.message)}closeLotEditor();
- document.querySelector('.workspacePanel')?.insertAdjacentHTML('beforebegin','<div class="notice green" role="status">Customs master saved successfully.</div>');
- void copyCommittedShipmentFiles(s,c,{alreadySaved:true})};
- const print=(title,html)=>customsBalanced(s,c)?directPrint(title,html,'with'):alert('Customs values changed or do not balance. Re-save the balanced Customs master before generating documents.');d.querySelector('#printCustomInvoice').onclick=()=>print('CUSTOM INVOICE',commercialInvoiceDoc(s,c,true));d.querySelector('#printCustomPacking').onclick=()=>print('CUSTOM PACKING LIST',packingListDoc(s,c,true));d.querySelector('#printPhyto').onclick=()=>print('PHYTOSANITARY INVOICE',phytoInvoiceDoc(s,c));
+ const panel=document.querySelector('.workspacePanel');
+ panel?.insertAdjacentHTML('beforebegin','<div id="customsSaveResult" class="notice green" role="status">Customs master saved successfully.</div>');
+ showCustomsOfficeCopy(s,c,document.getElementById('customsSaveResult'))};
+ d.querySelector('#printCustomInvoice').onclick=()=>printSavedCustoms(d,s.id,'CUSTOM INVOICE',(lot,contract)=>commercialInvoiceDoc(lot,contract,true));
+ d.querySelector('#printCustomPacking').onclick=()=>printSavedCustoms(d,s.id,'CUSTOM PACKING LIST',(lot,contract)=>packingListDoc(lot,contract,true));
+ d.querySelector('#printPhyto').onclick=()=>printSavedCustoms(d,s.id,'PHYTOSANITARY INVOICE',phytoInvoiceDoc);
  splitLotDocumentWorkspace(d,'customs','Customs Invoice')
 }
 function customsBalanced(s,c){
