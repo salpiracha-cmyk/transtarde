@@ -52,6 +52,15 @@ function oel_change(array $root,array $user,string $module,array $body,array $de
     if($index===false||($root['shipments'][$index]['id']??'')!==$lotId)throw new DomainException('Shipment identity is unavailable.');
     $lot=&$root['shipments'][$index];
     $action=$body['action']??'';
+    if($action==='container'&&$module==='Exports'&&empty($lot['outsideLoading'])&&isset($body['dealId'])){
+        $root=oel_change($root,$user,$module,[
+            'action'=>'assign','lotId'=>$lotId,'version'=>$body['version']??-1,
+            'dealId'=>$body['dealId'],'route'=>'EXPORTS',
+        ],$deals,$today);
+        $body['version']=$root['shipments'][$index]['outsideLoading']['version'];
+        unset($body['dealId']);
+        return oel_change($root,$user,$module,$body,$deals,$today,$file);
+    }
     $old=$lot['outsideLoading']??[];
     if((int)($body['version']??-1)!==(int)($old['version']??0))throw new DomainException('This loading changed. Refresh and review the saved record.');
     $by=(string)($user['full_name']??$user['username']??'');

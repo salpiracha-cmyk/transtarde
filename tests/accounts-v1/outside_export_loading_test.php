@@ -22,6 +22,10 @@ $deals=['D1'=>$deal];
 $assign=['lotId'=>'L1','version'=>0,'action'=>'assign','dealId'=>'D1'];
 $actual=['lotId'=>'L1','version'=>1,'action'=>'container','date'=>'2026-10-05','number'=>'MSCU1234567','seal'=>'S1','truck'=>'ABC-123','bags'=>1080,'netKg'=>27000,'grossKg'=>27108,'evidence'=>'Loading sheet 18 / weighbridge 20'];
 $today='2026-10-10';
+$automatic=oel_change($root,$export,'Exports',array_replace($actual,['version'=>0,'dealId'=>'D1']),$deals,$today);
+ok($automatic['shipments'][0]['outsideLoading']['assigneeId']===1&&count($automatic['shipments'][0]['millActuals'])===1,'First Exports container links the matching SODA and saves the actual in one mutation');
+reject(fn()=>oel_change($root,$export,'Exports',array_replace($actual,['version'=>0,'dealId'=>'wrong']),$deals,$today),'First Exports container still requires a matching SODA');
+
 $onSite=oel_change($root,$export,'Exports',$assign+['route'=>'MILL','assigneeId'=>2],$deals,$today);
 ok(oel_rows($onSite,array_replace($mill,['id'=>3]),'Mill')===[],'Unassigned Mill users have no access');
 reject(fn()=>oel_change($onSite,$export,'Exports',$actual,$deals,$today),'Exports cannot write the assigned Mill load');
