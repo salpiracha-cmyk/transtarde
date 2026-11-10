@@ -50,24 +50,30 @@ function tt_accounts_freight_metadata(array $root,array $agreement,array $user):
     return $root;
 }
 function tt_accounts_sync_freight(array $agreement,array $user):void{
+    tt_mutate_exports_root(static fn(array $root)=>tt_accounts_freight_metadata($root,$agreement,$user),$user,'Accounts');
+}
+
+/** Commit a narrow server-side transformation against the latest shipment version. */
+function tt_mutate_exports_root(Closure $mutate,array $user,string $module):array{
     $key='transtrade_export_v3_operational';$db=tt_accounts_exports_db();
     if($db){
         $db->beginTransaction();
         try{
             $stmt=$db->prepare('SELECT payload,version FROM tt_operation_records WHERE storage_key=? FOR UPDATE');$stmt->execute([$key]);$record=$stmt->fetch();
             if(!$record)throw new RuntimeException('Exports record unavailable.');
-            $root=json_decode((string)$record['payload'],true,512,JSON_THROW_ON_ERROR);$next=tt_accounts_freight_metadata($root,$agreement,$user);
+            $root=json_decode((string)$record['payload'],true,512,JSON_THROW_ON_ERROR);$next=($mutate)($root);
             if($next!==$root){$raw=json_encode($next,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);$version=(int)$record['version']+1;$at=gmdate('Y-m-d H:i:s');$by=(string)($user['full_name']??$user['username']??'Accounts');$uid=(int)($user['id']??0);
-                $stmt=$db->prepare('UPDATE tt_operation_records SET payload=?,version=?,updated_at=?,updated_by=?,updated_by_user=?,updated_by_module=? WHERE storage_key=?');$stmt->execute([$raw,$version,$at,$by,$uid,'Accounts',$key]);
-                $stmt=$db->prepare('INSERT INTO tt_operation_history (storage_key,version,payload_sha256,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?)');$stmt->execute([$key,$version,hash('sha256',$raw),$at,$by,$uid,'Accounts']);
+                $stmt=$db->prepare('UPDATE tt_operation_records SET payload=?,version=?,updated_at=?,updated_by=?,updated_by_user=?,updated_by_module=? WHERE storage_key=?');$stmt->execute([$raw,$version,$at,$by,$uid,$module,$key]);
+                $stmt=$db->prepare('INSERT INTO tt_operation_history (storage_key,version,payload_sha256,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?)');$stmt->execute([$key,$version,hash('sha256',$raw),$at,$by,$uid,$module]);
             }$db->commit();
         }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
     }else{
         $h=fopen(TT_DATA_DIR.'/operations.json','c+');if(!$h||!flock($h,LOCK_EX))throw new RuntimeException('Exports storage unavailable.');
-        try{$store=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);$root=json_decode((string)($store['values'][$key]??''),true,512,JSON_THROW_ON_ERROR);$next=tt_accounts_freight_metadata($root,$agreement,$user);
-            if($next!==$root){$store['values'][$key]=json_encode($next,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);$store['revision']=(int)($store['revision']??0)+1;$store['meta'][$key]=['updatedAt'=>gmdate('c'),'updatedBy'=>(string)($user['full_name']??$user['username']??'Accounts'),'userId'=>(int)($user['id']??0)];$raw=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$raw)!==strlen($raw)||!fflush($h))throw new RuntimeException('Could not save Exports metadata.');}
+        try{$store=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);$root=json_decode((string)($store['values'][$key]??''),true,512,JSON_THROW_ON_ERROR);$next=($mutate)($root);
+            if($next!==$root){$store['values'][$key]=json_encode($next,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);$store['revision']=(int)($store['revision']??0)+1;$store['meta'][$key]=['version'=>(int)($store['meta'][$key]['version']??0)+1,'module'=>$module,'updatedAt'=>gmdate('c'),'updatedBy'=>(string)($user['full_name']??$user['username']??'Accounts'),'userId'=>(int)($user['id']??0)];$raw=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$raw)!==strlen($raw)||!fflush($h))throw new RuntimeException('Could not save Exports metadata.');}
         }finally{flock($h,LOCK_UN);fclose($h);}
     }
+    return $next;
 }
 function tt_accounts_shipment_rows(array $root,string $entity,array $store=[]):array{
     $contracts=[];$customers=[];$rows=[];

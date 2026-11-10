@@ -2,7 +2,7 @@
 declare(strict_types=1);
 /** Additional arrangements retain the existing agreement, journal and stock identities. */
 function dt_validate_arrangement(array &$d,array $b):void {
-    $local=$d['arrangement']==='EX_MILL';$partnership=$d['arrangement']==='PARTNERSHIP';
+    $local=$d['arrangement']==='EX_MILL';$private=$d['arrangement']==='PARTNERSHIP_MARGIN';$partnership=$private||$d['arrangement']==='PARTNERSHIP';
     if($local&&($d['direction']!=='SALE'||$d['currency']!=='PKR'||$d['incoterm']!=='EX_MILL'))throw new DomainException('Local ex-mill requires a PKR sale on an ex-mill basis.');
     if(!$local&&$d['incoterm']==='EX_MILL')throw new DomainException('Ex-mill is available for local ex-mill sales only.');
     if(($partnership||$d['arrangement']==='MARGIN')&&trim((string)($b['contractRef']??''))==='')throw new DomainException('Link the partnership to our existing sales contract.');
@@ -16,6 +16,11 @@ function dt_validate_arrangement(array &$d,array $b):void {
     if(($d['recoveryPct']??0)>100)throw new DomainException('Final-rice recovery cannot exceed 100%.');
     $d['goodsEstimatePKRPerMT']=$partnership?gm_number($b['goodsEstimatePKRPerMT']??0,'supplier goods cost estimate per MT'):0.;
     $share=$b['partnerSharePct']??null;$d['partnerSharePct']=$partnership?($share===null||$share===''?null:gm_number($share,'fellow exporter share')):0.;
+    if($private){
+        if($d['direction']!=='PURCHASE'||$d['currency']!=='USD')throw new DomainException('Private-margin partnership requires a USD purchase linked to our shipment.');
+        $d['privateMarginUSDPerMT']=dt_positive($b['privateMarginUSDPerMT']??null,'private USD margin per MT');
+        $d['lossAllocation']=dt_enum(($b['lossAllocation']??'')?:'PENDING',['PENDING','SHARED','TTI'],'loss allocation');
+    }
     if($d['partnerSharePct']>100)throw new DomainException('Partner share cannot exceed 100%.');
 }
 function dt_local_review_hash(array $s,array $d,array $native):string {
@@ -67,7 +72,7 @@ function dt_raw_cover(array $s,string $date):array {
 /** Add only loaded, unposted estimates; book receipts/payables already belong to the source. */
 function dt_loaded_cashflow(array $source,array $s,array $root,array $values,string $date):array {
     $native=se_rows($values,'tt35exportersale');
-    foreach(['TTI','BRM'] as $entity){$lots=dt_lots($root,$entity);foreach(dt_cashflow($s,$lots,$entity,$date,$native) as $f){$d=$s['exporterDeals'][$f['id']]??null;if(!$d||!in_array($d['arrangement'],['EX_MILL','PARTNERSHIP','MARGIN'],true))continue;
+    foreach(['TTI','BRM'] as $entity){$lots=dt_lots($root,$entity);foreach(dt_cashflow($s,$lots,$entity,$date,$native) as $f){$d=$s['exporterDeals'][$f['id']]??null;if(!$d||!in_array($d['arrangement'],['EX_MILL','PARTNERSHIP','PARTNERSHIP_MARGIN','MARGIN'],true))continue;
         $n=$f['loadedForecastOnlyPKR'];$missing=empty($f['estimateComplete']);if(abs($n)<.005&&!$missing)continue;$row=se_row('SODA|'.$d['id'],$entity,$d['party'],$d['party'].' — SODA '.($d['reference']?:$d['id']).' · ESTIMATE · '.($f['remainingMT']>0?'partial loading ':'loaded ').$f['loadedMT'].' / '.$d['quantityMT'].' MT','PKR',abs($n),$date,'Loaded quantity estimate less posted settlement; receipts and payments remain in the original party balance.',['account'=>$d['direction']==='SALE'?'1230':'2140','exporterDealId'=>$d['id'],'estimateStatus'=>'ESTIMATE','narration'=>'Estimated net '.($d['direction']==='SALE'?'receipt':'payment').' for saved loading; posted settlements replace this estimate.']);$row['amount']=$row['originalAmount']=$missing?null:$n;$source['rows'][]=$row;
         foreach($f['warnings'] as $warning)$source['warnings'][]=$d['party'].' — '.$warning;
     }}return $source;

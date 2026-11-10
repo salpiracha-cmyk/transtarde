@@ -192,6 +192,7 @@ function os_root_projection(array $u,array $root): ?array {
     $documentFields=['bagOrders'=>'bags','production'=>'production','loading'=>'loading','loadingPlan'=>'loading','loadingProgrammeNo'=>'loading','customs'=>'customs','bl'=>'bl','commercial'=>'commercial','coo'=>'coo','certs'=>'certs','covering'=>'cover','tgdocs'=>'tg','lc'=>'lcdraft','lcId'=>'lcdraft','tg'=>'tg','tgDocs'=>'tg','tgInvoice'=>'tg','tgPacking'=>'tg','tgRelationship'=>'tg'];
     foreach((array)($root['shipments']??[]) as $row){
         if(!is_array($row)||!isset($refs[(string)($row['contractRef']??'')]))continue;
+        if(!$exports&&!empty($row['loadingPlan']['outsideDirect']))continue;
         if($full){$shipments[]=$row;continue;}
         $clean=os_fields($row,'id kind contractRef parentProcessId lotId status completed cancelled seller buyer containers plannedQty shipmentMode lotDate shipmentDate millLoadingCompleted millLoadingCompletedAt');
         foreach($documentFields as $field=>$icon)if($exports&&os_any($u,'Exports',[$icon,'print'])&&array_key_exists($field,$row))$clean[$field]=$row[$field];
