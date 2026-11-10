@@ -121,6 +121,11 @@ function oel_change(array $root,array $user,string $module,array $body,array $de
         $attachment=$file?:($actuals[$existing]['evidenceFile']??[]);
         if($attachment)$actual['evidenceFile']=$attachment;
         $lot['millActuals'][$existing??count($actuals)]=$actual;
+        if($module==='Exports'&&($body['confirmComplete']??'')==='yes'){
+            if($row['expected']<1||count($lot['millActuals'])!==$row['expected'])throw new DomainException('Save every planned container before confirming loading.');
+            $lot['millLoadingCompleted']=true;
+            $lot['outsideLoading']['completedAt']=gmdate('c');
+        }
     }elseif($action==='complete'){
         if(!$old||($old['route']??'')!==strtoupper($module)||(int)$old['assigneeId']!==(int)$user['id']||$row['complete']||
             $row['expected']<1||count($row['actuals'])!==$row['expected'])throw new DomainException('The assigned user must save all planned containers before completing this loading.');
@@ -131,6 +136,6 @@ function oel_change(array $root,array $user,string $module,array $body,array $de
     $root['audits'][]=['id'=>'AUD-OUTSIDE-'.bin2hex(random_bytes(12)),'contractRef'=>$row['contract'],'area'=>'OUTSIDE LOADING',
         'at'=>gmdate('c'),'by'=>$by,'type'=>'OUTSIDE LOADING','action'=>$action,'detail'=>$row['lot'].' · '.$row['site'],
         'before'=>$action==='container'&&$existing!==null?$actuals[$existing]:$old,
-        'after'=>$action==='container'?$actual:$lot['outsideLoading']];
+        'after'=>$action==='container'?$actual+['loadingComplete'=>!empty($lot['millLoadingCompleted'])]:$lot['outsideLoading']];
     return $root;
 }
