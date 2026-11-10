@@ -134,6 +134,39 @@ function ep_customer_master_projection(array $old,array $next): array {
 function operations_validate_export_permissions(array $user,string $module,string $oldJson,string $incomingJson): void {
     $old=$oldJson===''?[]:json_decode($oldJson,true,512,JSON_THROW_ON_ERROR);$next=json_decode($incomingJson,true,512,JSON_THROW_ON_ERROR);
     if(!is_array($old)||!is_array($next))throw new DomainException('Export records must be an object.');
+    $outsidePrior=ep_index((array)($old['shipments']??[]));
+    $outsideLots=[];
+    foreach((array)($next['shipments']??[]) as $lot){
+        $id=(string)($lot['id']??'');
+        $prior=$outsidePrior[$id]??null;
+        $wasOutside=!empty($prior['loadingPlan']['outsideDirect']);
+        $outside=!empty($lot['loadingPlan']['outsideDirect']);
+        if(!$outside&&!$wasOutside&&empty($lot['outsideLoading']))continue;
+        if($outside||$wasOutside)$outsideLots[$id]=true;
+        if(!$prior){
+            $allocations=(array)($lot['loadingPlan']['allocations']??[]);
+            $source=$allocations[0]??[];
+            if(!$outside||!in_array($module,['Exports','Super Admin'],true)||($lot['kind']??'')!=='lot'||count($allocations)!==1||
+                ($source['type']??'')!=='Ex-Mill'||trim((string)($source['name']??''))===''||
+                (float)($source['containers']??0)!==(float)($lot['containers']??0)||(int)($lot['containers']??0)<1||
+                !empty($lot['outsideLoading'])||!empty($lot['millActuals'])||!empty($lot['millLoadingCompleted']))throw new DomainException('Create a single-site outside lot before recording its loading.');
+            continue;
+        }
+        if(in_array($module,['Exports','Super Admin'],true)){
+            if($wasOutside!==$outside||!ep_equal($prior['outsideLoading']??null,$lot['outsideLoading']??null)||
+                !ep_equal($prior['millActuals']??[],$lot['millActuals']??[])||
+                !ep_equal($prior['millLoadingCompleted']??false,$lot['millLoadingCompleted']??false)||
+                !ep_equal($prior['loadingPlan']['allocations']??[],$lot['loadingPlan']['allocations']??[])||
+                ($prior['containers']??null)!==($lot['containers']??null)||
+                ($prior['contractRef']??'')!==($lot['contractRef']??''))throw new DomainException('Use Outside Mill Inspection & Loading to change this loading.');
+            if((!empty($lot['completed'])||!empty($lot['commercial']['saved'])||!empty($lot['bl']['draftSaved']))&&empty($prior['millLoadingCompleted']))throw new DomainException('Confirm outside loading before completing its documents.');
+        }elseif(!empty($lot['millActuals'])&&!ep_equal($prior['millActuals']??[],$lot['millActuals'])){
+            throw new DomainException('Record outside loading from the assigned inspection page.');
+        }
+    }
+    foreach((array)($next['millSync']['exportLoading']??[]) as $handoff){
+        if(isset($outsideLots[(string)($handoff['shipmentId']??'')]))throw new DomainException('Outside fellow-exporter loading uses its own assignment.');
+    }
     if(($user['role']??'')==='Super Admin'){if(in_array($module,['Exports','Super Admin'],true)){$closed=ep_index((array)($old['shipments']??[]));foreach((array)($next['shipments']??[]) as $lot){$prior=$closed[(string)($lot['id']??'')]??null;if($prior&&($prior['kind']??'')==='lot'&&!empty($prior['completed'])&&!empty($lot['completed'])&&ep_record_changed($prior,$lot))throw new DomainException('Reopen the completed lot before changing its documents.');}}return;}
     if(in_array($module,['Mill','Milling'],true)){
         $lots=ep_index((array)($old['shipments']??[]));foreach((array)($next['shipments']??[]) as $lot){$prior=$lots[(string)($lot['id']??'')]??null;if($prior&&!ep_equal($prior['millActuals']??[],$lot['millActuals']??[])){if(!tt_user_can_module_action($user,'Mill','export','Create')&&!tt_user_can_module_action($user,'Mill','export','Edit'))throw new DomainException('Mill Export Loading write permission is required.');}}return;
