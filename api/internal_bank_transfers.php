@@ -23,14 +23,17 @@ function ibt_payload(array $store,string $entity,array $user):array{
     foreach($accounts as $row){
         $sameCompany=$row['entity']===$entity;
         $isCompany=$sameCompany&&$row['type']==='Company Account';
+        $crossPakistan=!$sameCompany&&in_array($entity,['TTI','BRM'],true)&&in_array($row['entity'],['TTI','BRM'],true)
+            &&$row['currency']==='PKR'&&ibt_can_post_entity($user,$row['entity']);
+        $isLinkedCompany=$crossPakistan&&$row['type']==='Company Account';
         $isPersonal=in_array($row['entity'],['TTI','BRM','TG'],true)
             &&in_array($row['type'],['Personal Account','Proprietor / Owner Account'],true)
             &&$row['owner']!==''
-            &&($sameCompany||($entity!=='TG'&&$row['entity']!=='TG'&&$row['currency']==='PKR'&&ibt_can_post_entity($user,$row['entity'])));
-        if(!$isCompany&&!$isPersonal)continue;
+            &&($sameCompany||$crossPakistan);
+        if(!$isCompany&&!$isLinkedCompany&&!$isPersonal)continue;
         if(strcasecmp($row['status'],'Active')!==0||($row['number']===''&&$row['iban']===''))continue;
         if($entity!=='TG'&&$row['currency']!=='PKR')continue;
-        if($isPersonal&&!$sameCompany&&!tt_bank_can_transact($row['id']))continue;
+        if(!$sameCompany&&!tt_bank_can_transact($row['id']))continue;
         $safe=['id'=>$row['id'],'type'=>$row['type'],'entity'=>$row['entity'],'owner'=>$row['owner'],'title'=>$row['title'],'bank'=>$row['bank'],'number'=>$row['number'],'iban'=>$row['iban'],'currency'=>$row['currency']];
         if($isCompany){
             if(!tt_bank_can_transact($row['id']))continue;
@@ -55,7 +58,7 @@ try{
  $date=trim((string)($body['date']??''));if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))ibt_out(['ok'=>false,'error'=>'Transfer date required.'],422);$sourceId=trim((string)($body['sourceBankId']??''));$destinationId=trim((string)($body['destinationBankId']??''));$reference=trim((string)($body['reference']??''));try{$tracking=tt_accounts_bank_payment_details($body+['paymentAccountId'=>$sourceId]);}catch(DomainException $e){ibt_out(['ok'=>false,'error'=>$e->getMessage()],422);}$narration=trim((string)($body['narration']??''));$amount=round((float)($body['amount']??0),2);if($sourceId===$destinationId||$sourceId===''||$destinationId==='')ibt_out(['ok'=>false,'error'=>'Choose different source and destination accounts.'],422);if($reference==='')$reference='IBT-'.bin2hex(random_bytes(12));if($narration===''||$amount<=0)ibt_out(['ok'=>false,'error'=>'Amount and why the transfer is happening are required.'],422);
  tt_ensure_data_dir();$h=fopen(TT_INTERNAL_BANK_FILE,'c+');if(!$h||!flock($h,LOCK_EX))throw new RuntimeException('Accounts unavailable.');try{rewind($h);$raw=stream_get_contents($h);$store=array_replace_recursive(['revision'=>0,'journals'=>[],'internalBankTransfers'=>[]],(array)json_decode($raw?:'{}',true));$previewBefore=array_map('strval',array_keys((array)($store['journals']??[])));$eligible=ibt_payload($store,$entity,$user);$source=null;$destination=null;foreach($eligible['sources'] as $x)if($x['id']===$sourceId)$source=$x;foreach($eligible['destinations'] as $x)if($x['id']===$destinationId)$destination=$x;if(!$source||!$destination)ibt_out(['ok'=>false,'error'=>'Choose an active company source and an authorised destination account.'],422);if($source['currency']!==$destination['currency'])ibt_out(['ok'=>false,'error'=>'Choose a destination in the same currency. Use the approved FX workflow for conversion.'],422);foreach((array)$store['internalBankTransfers'] as $x)if(is_array($x)&&($x['entity']??'')===$entity&&$x['sourceBankId']===$sourceId&&strcasecmp((string)$x['reference'],$reference)===0)ibt_out(['ok'=>false,'error'=>'This source bank reference has already been posted.'],409);
  $crossEntity=$destination['entity']!==$entity;
- if($crossEntity&&($destination['type']==='Company Account'||$source['currency']!=='PKR'))ibt_out(['ok'=>false,'error'=>'Cross-company transfers here require a PKR company source and a linked personal destination.'],422);
+ if($crossEntity&&($source['currency']!=='PKR'||!in_array($entity,['TTI','BRM'],true)||!in_array($destination['entity'],['TTI','BRM'],true)))ibt_out(['ok'=>false,'error'=>'Intercompany transfers here require PKR accounts in TTI and BRM.'],422);
  // A same-book bank destination is a tracked account, including owner/personal banks.
  $kind=$crossEntity?'INTERCOMPANY_ADVANCE':'INTERNAL_BANK_TRANSFER';
  $rate=(float)$source['balance']['carryingRate'];if($rate<=0)$rate=(float)(tt_company_fx_rate($entity,$source['currency'],'AED')??0);if($rate<=0)ibt_out(['ok'=>false,'error'=>'Configure a valid company exchange rate for this currency.'],422);
