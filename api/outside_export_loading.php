@@ -32,8 +32,9 @@ try{
         foreach($root['shipments']??[] as $shipment)if(($shipment['contractRef']??'')===$ref&&($shipment['kind']??'')!=='lot'){$process=$shipment;break;}
         $entity=oel_company($process,$contract);
         if(!$contract||!in_array($entity,['TTI','BRM'],true)||!oel_right($user,'Exports',$entity,'View'))oel_out(['ok'=>false,'error'=>'This sales contract is unavailable.'],403);
-        $mills=array_filter(oel_mill_choices(tt_list_masters()),static fn($name)=>os_location($user,$name));
-        oel_out(['ok'=>true,'choices'=>oel_deal_choices($root,$deals,$mills,$entity,$ref,$today)]);
+        $mills=oel_mill_choices(tt_list_masters());
+        $choices=oel_deal_choices($root,$deals,$mills,$entity,$ref,$today);
+        oel_out(['ok'=>true,'choices'=>array_values(array_filter($choices,static fn($choice)=>os_location($user,$choice['millName'])))]);
     }
     if($method==='POST'){
         $multipart=str_starts_with((string)($_SERVER['CONTENT_TYPE']??''),'multipart/form-data');
@@ -90,7 +91,7 @@ try{
         $row['deals']=[];
         if($module!=='Exports')continue;
         foreach($deals as $id=>$deal)if(oel_open_deal($deal,$row['entity'],$row['contract'])&&
-            ($row['plannedDealId']===''||($row['plannedDealId']===(string)$id&&$row['plannedMillId']===($deal['outsideMillId']??'')))){
+            ($row['plannedDealId']===''||($row['plannedDealId']===(string)$id&&(empty($deal['outsideMillId'])||$row['plannedMillId']===$deal['outsideMillId'])))){
             $row['deals'][]=['id'=>(string)$id,'label'=>$deal['party'].' · '.(($deal['reference']??'')?:$row['contract'])];
         }
     }
