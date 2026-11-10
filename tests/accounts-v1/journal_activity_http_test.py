@@ -10,6 +10,8 @@ with tempfile.TemporaryDirectory(prefix='journal-activity-') as tmp:
     def line(account,debit=0,credit=0):return dict(account=account,debit=debit,credit=credit)
     def journal(id,source,lines,narration):return dict(id=id,entity='TTI',status='Posted',date='2026-10-31',sourceType=source,lines=lines,narration=narration,totalDebit=sum(l['debit'] for l in lines),totalCredit=sum(l['credit'] for l in lines))
     journals={j['id']:j for j in [journal('PAYROLL-INTERNAL','SALARY_MONTH_COMPLETED',[line('2230',100),line('1230',credit=100)],'Salary completed — 2026-10'),journal('RENT-RELEASE','JV',[line('6300',500),line('1400',credit=500)],'Monthly release prepaid rent'),journal('REAL-PAYMENT','SALARY_ALLOCATED_PAYMENT',[line('2230',300),line('1120',credit=300)],'Actual salary payment'),journal('OWNER-JV','JV',[line('1230',50),line('3200',credit=50)],'Owner journal')]}
+    mill_line={**line('1120',credit=40),'cashAccountId':'CASH|TTI|MILL|M1'}
+    journals['MILL-CASH']=journal('MILL-CASH','DIRECT_EXPENSE_PAYMENT',[line('6300',40),mill_line],'Paid repair at mill')
     books=private/'accounts.json';books.write_text(json.dumps(dict(revision=1,journals=journals)))
     (private/'operations.json').write_text(json.dumps(dict(values={},meta={})))
     (app/'fixture-session.php').write_text("<?php require __DIR__.'/auth_store.php';$_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];echo 'ready';")
@@ -31,6 +33,6 @@ with tempfile.TemporaryDirectory(prefix='journal-activity-') as tmp:
         detail=read('&postId=PAYROLL-INTERNAL')['post'];assert detail['id']=='PAYROLL-INTERNAL' and detail['narration']=='Salary completed — 2026-10'
         assert detail['accountingEvent']['cashMovement'] is False and detail['accountingEvent']['documentTitle']=='Accounting Journal'
         rent_data=json.load(client.open(base+'/api/rent_salary_v2.php?entity=TTI&month=2026-10'));assert len(rent_data['rentJournalReleases'])==1 and rent_data['rentJournalReleases'][0]['postId']=='RENT-RELEASE' and rent_data['rentMasters']==[],'Manual release must be visible without creating a new rent master'
-        assert sum(r['debit'] for r in all_posts['rows'])==950 and books.read_bytes()==original,'Classification changed financial records'
+        assert sum(r['debit'] for r in all_posts['rows'])==990 and books.read_bytes()==original,'Classification changed financial records'
         print('PASS actual activity API: Recent filters noncash payroll/prepaid release; full register, original Post IDs, detail narration and financial totals remain intact; zero writes')
     finally:server.terminate();server.wait(timeout=5);log.close()

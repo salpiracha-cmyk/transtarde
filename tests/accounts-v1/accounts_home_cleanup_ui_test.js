@@ -14,6 +14,31 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require
  await w.__home.showArea('reports');assert(q('#ttDeskWork').textContent.includes('CHANGE LOGS'));
  await w.__home.openChangeLogs();assert(q('[data-log-admin]'));assert(q('[data-log-sodas]'));assert(q('[data-log-posts]'));q('#ttChangeLogs .tt-window-close').click();
  await w.__home.showArea('routine');assert(q('#ttAccountingDesk').classList.contains('tt-inside-area'));assert(q('.tt-search-main'));w.__home.showAreasHome();assert(!q('#ttAccountingDesk').classList.contains('tt-inside-area'));attention=[{type:'Held bill',message:'Missing original invoice',reference:'B1'}];await w.__home.loadDashboardSummary();assert(!q('#ttPendingWork').hidden);assert.equal(q('#ttPendingCount').textContent,'Pending Work (1)');assert(q('#ttAttentionQueue').textContent.includes('Missing original invoice'));assert.equal(q('#ttPendingWork').tagName,'SECTION');
+ let approvalPosts=[];
+ const currentFetch=w.fetch;
+ w.fetch=async(url,options)=>{
+   if(options?.method==='POST'){
+     approvalPosts.push(JSON.parse(options.body));attention=[];
+     return {ok:true,json:async()=>({ok:true})};
+   }
+   return currentFetch(url);
+ };
+ attention=[{kind:'LATE',type:'Late arrival',message:'Late delivery',reference:'P1',details:{Pohanch:'P1',Truck:'ABC-123'},approval:{releaseHold:true},canApprove:true,id:'L1',fingerprint:'version1',target:{sodaNo:'S1'}},
+   {kind:'SODA',type:'Overdue Soda',message:'Quantity outstanding',target:{sodaNo:'S1'}}];
+ await w.__home.loadDashboardSummary();
+ assert.equal(w.document.querySelectorAll('[data-attention-review]').length,2);
+ assert.equal(w.document.querySelectorAll('[data-attention-approve]').length,1);
+ q('[data-attention-review="0"]').click();
+ assert(q('#ttReviewLayer').textContent.includes('ABC-123'));
+ assert(q('#ttReviewOpen').textContent.includes('Open SODA'));
+ assert.equal(approvalPosts.length,0);
+ q('#ttReviewLayer .tt-window-close').click();
+ await q('[data-attention-approve="0"]').onclick();
+ assert.equal(approvalPosts.length,1);
+ assert.equal(approvalPosts[0].action,'approve_late_pohanch');
+ assert.equal(approvalPosts[0].fingerprint,'version1');
+ assert.equal(q('#ttPendingCount').textContent,'Pending Work (0)');
+ w.fetch=currentFetch;
  w.eval(fs.readFileSync('accounts/bank-payment-details.js','utf8'));const accounts=[{id:'small',bookBalance:10},{id:'default',bookBalance:0,isDefault:2},{id:'large',bookBalance:500},{id:'zero',bookBalance:0},{id:'overdraft',bookBalance:-20}];q('#pay').value='small';w.TT_BANK_PAYMENT_DETAILS.orderChoices(q('#pay'),accounts);assert.equal(q('#pay').value,'small','Ordering never changes a saved selection');assert.deepEqual([...q('#pay').options].map(o=>o.value),['','default','large','small','zero','overdraft']);assert.equal(q('#pay option[value=zero]').dataset.bankBalance,'0');assert.equal(q('#pay option[value=default]').dataset.bankDefault,'true');
  const deferred=[];w.fetch=(url,opts={})=>{assert.notEqual(opts.method,'POST');return new Promise((resolve,reject)=>deferred.push({url,resolve,reject}))};
  const pendingBank=w.__home.showArea('bank'),palette=q('[data-area-palette="bank"]');assert(palette,'Bank actions render before any metadata request finishes');assert(palette.textContent.includes('BANK ENTRY'));assert(palette.textContent.includes('PAY WHT'),'The direct WHT shortcut must survive Bank menu normalization');assert(!palette.textContent.includes('BANK FINANCING'),'Conditional finance must stay hidden until eligibility is known');assert.equal(deferred.length,3);
