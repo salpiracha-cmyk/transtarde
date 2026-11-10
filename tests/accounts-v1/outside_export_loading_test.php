@@ -18,12 +18,19 @@ $deal=dt_deal($terms,[['id'=>'KHAN','name'=>'Khan Rice Mills']])+['id'=>'D1','lo
 $contract=['ref'=>'AMT','seller'=>'TG','customsExporter'=>'TTI','currency'=>'USD','quality'=>'Maximum 5% broken','packings'=>[['brand'=>'AMT','size'=>25,'contractRate'=>610]]];
 $lot=['id'=>'L1','kind'=>'lot','seller'=>'TG','customs'=>['exporter'=>'TTI'],'contractRef'=>'AMT','lotId'=>'AMT/L1','containers'=>1,'millActuals'=>[],'loadingPlan'=>['outsideDirect'=>true,'loadingDate'=>'2026-10-05','allocations'=>[['name'=>'Khan Rice Mills, Punjab','type'=>'Ex-Mill','packIndex'=>0,'containers'=>1]]]];
 $root=['contracts'=>[$contract],'shipments'=>[$lot]];
+$preLotContract=array_replace($contract,['ref'=>'AMT14','customsExporter'=>'']);
+$preLotRoot=['contracts'=>[$preLotContract],'shipments'=>[['id'=>'P14','contractRef'=>'AMT14','customs'=>['exporter'=>'TTI']]]];
+ok(count(dt_contracts($preLotRoot,[],'TTI'))===1&&dt_contracts($preLotRoot,[],'BRM')===[],'A TG process exposes its saved Pakistani exporter’s contract before the first lot');
+
 $deals=['D1'=>$deal];
 $assign=['lotId'=>'L1','version'=>0,'action'=>'assign','dealId'=>'D1'];
 $actual=['lotId'=>'L1','version'=>1,'action'=>'container','date'=>'2026-10-05','number'=>'MSCU1234567','seal'=>'S1','truck'=>'ABC-123','bags'=>1080,'netKg'=>27000,'grossKg'=>27108,'evidence'=>'Loading sheet 18 / weighbridge 20'];
 $today='2026-10-10';
-$automatic=oel_change($root,$export,'Exports',array_replace($actual,['version'=>0,'dealId'=>'D1']),$deals,$today);
-ok($automatic['shipments'][0]['outsideLoading']['assigneeId']===1&&count($automatic['shipments'][0]['millActuals'])===1,'First Exports container links the matching SODA and saves the actual in one mutation');
+$automatic=oel_change($root,$export,'Exports',array_replace($actual,['version'=>0,'dealId'=>'D1','confirmComplete'=>'yes']),$deals,$today);
+ok($automatic['shipments'][0]['outsideLoading']['assigneeId']===1&&count($automatic['shipments'][0]['millActuals'])===1&&$automatic['shipments'][0]['millLoadingCompleted'],'Saving the final Exports container links the SODA and confirms loading in one mutation');
+$draft=dt_confirmed_outside_contributions($deal,dt_lots($automatic,'TTI'),$today);
+ok(count($draft['loadings'])===1&&$draft['loadings'][0]['quantityMT']===27.&&$draft['loadings'][0]['supplierGoodsCostPKR']===null,'Confirmed B/L weights create one draft liability without guessing rice cost');
+ok(count(dt_confirmed_outside_contributions($draft,dt_lots($automatic,'TTI'),$today)['loadings'])===1,'Repeated views keep one draft liability');
 reject(fn()=>oel_change($root,$export,'Exports',array_replace($actual,['version'=>0,'dealId'=>'wrong']),$deals,$today),'First Exports container still requires a matching SODA');
 
 $onSite=oel_change($root,$export,'Exports',$assign+['route'=>'MILL','assigneeId'=>2],$deals,$today);

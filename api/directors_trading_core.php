@@ -107,7 +107,39 @@ function dt_advice(array $s,array $lot,string $date):array {
         if($matched<=0||$all<=0)continue;$ded=(float)($r['correspondentPkrAmount']??0);foreach((array)($r['deductions']??[]) as $d)$ded+=(float)($d['amount']??0);$out[]=['id'=>$r['id'],'date'=>$r['date'],'reference'=>$r['bankAdviceRef']??'','amountPKR'=>round($ded*$matched/$all,4),'invoiceAllocation'=>$matched/$all,'invoiceFraction'=>$invoiceFraction,'realizationRate'=>dt_positive($r['realizationRate']??null,'original credit advice exchange rate')];
     }return $out;
 }
+/** Confirmed outside loading is the original quantity source for private partnerships. */
+function dt_confirmed_outside_contributions(array $deal,array $lots,string $date):array {
+    if(($deal['arrangement']??'')!=='PARTNERSHIP_MARGIN'||($deal['direction']??'')!=='PURCHASE')return $deal;
+    $loadings=$deal['loadings']??[];
+    $byShipment=array_column($loadings,null,'shipmentId');
+    foreach($lots as $lot){
+        $outside=$lot['outsideLoading']??[];
+        $on=$outside['date']??'';
+        if(empty($outside['complete'])||($outside['dealId']??'')!==$deal['id']||($lot['contract']??'')!==$deal['contractRef']||
+            $on===''||$on<$deal['date']||$on>$date||($outside['quantityMT']??0)<=0)continue;
+        $shipmentId=$lot['id'];
+        $prior=$byShipment[$shipmentId]??null;
+        if($prior&&empty($prior['automaticOutside']))continue;
+        $actual=[
+            'invoiceRef'=>!empty($lot['invoiceSaved'])&&$lot['invoice']!==''?$lot['invoice']:$lot['lot'],
+            'date'=>$on,'quantityMT'=>$outside['quantityMT'],'totalInvoiceMT'=>$outside['quantityMT'],
+            'contractPrice'=>$lot['contractPrice']??$deal['price'],'contractCurrency'=>$lot['currency'],'sourceSnapshot'=>$lot,
+        ];
+        $row=array_replace($prior??[
+            'id'=>'LOAD-OUTSIDE-'.substr(hash('sha256',$deal['id'].'|'.$shipmentId),0,24),
+            'shipmentId'=>$shipmentId,'expensesComplete'=>false,'adjustments'=>[],'supplierGoodsCostPKR'=>null,
+            'stockEffect'=>'NONE_EXTERNAL','automaticOutside'=>true,
+        ],$actual);
+        if($prior){
+            foreach($loadings as &$saved)if(($saved['shipmentId']??'')===$shipmentId){$saved=$row;break;}
+            unset($saved);
+        }else $loadings[]=$row;
+    }
+    $deal['loadings']=$loadings;
+    return $deal;
+}
 function dt_working(array $s,array $d,array $lots,string $date,array $nativeSales=[]):array {
+    $d=dt_confirmed_outside_contributions($d,$lots,$date);
     if(($d['arrangement']??'')==='EX_MILL')return dt_local_working($s,$d,$date,$nativeSales);
     $profitTotal=0.;$privateTotal=0.;$goodsComplete=true;$private=$d['arrangement']==='PARTNERSHIP_MARGIN';
     $rows=[];$total=0.;$loaded=0.;$warnings=[];$native=$d['direction']==='SALE'?dt_native_state($d,$nativeSales,$date):null;
@@ -122,6 +154,9 @@ function dt_working(array $s,array $d,array $lots,string $date,array $nativeSale
         if($d['arrangement']==='PARTNERSHIP'){ $goods=$load['supplierGoodsCostPKR']??null;$goodsComplete=$goodsComplete&&$goods!==null;$profit=$goods===null?null:round($amount-$goods,2);if($profit!==null)$profitTotal+=$profit;$amount=$goods??($qty*($d['goodsEstimatePKRPerMT']??0));if($goods===null&&($d['goodsEstimatePKRPerMT']??0)<=0)$warnings[]=$load['invoiceRef'].': supplier goods cost estimate is missing; cash flow is incomplete.';if($goods===null)$warnings[]=$load['invoiceRef'].': enter the supplier goods cost; profit remains unconfirmed.'; }
         if($private){
             $outside=$lot['outsideLoading']??[];
+            if(empty($lot['invoiceSaved'])||($lot['invoice']??'')===''){
+                $sourceReady=false;$warnings[]=$load['invoiceRef'].': supplier settlement awaits the commercial invoice.';
+            }
             if(empty($outside['complete'])||($outside['dealId']??'')!==$d['id']||
                 abs($qty-($outside['quantityMT']??0))>.000001||$load['date']!==($outside['date']??'')){
                 $sourceReady=false;$warnings[]=$load['invoiceRef'].': reconcile confirmed outside containers before settling.';
@@ -249,10 +284,25 @@ function dt_refresh_budget_alerts(array &$s,string $entity,string $date,array $l
         if($total>$budget+.005){$alert=['id'=>$id,'entity'=>$entity,'dealId'=>$d['id'],'party'=>$d['party'],'invoice'=>$load['invoiceRef'],'actualPKR'=>round($total,2),'allowancePKR'=>round($budget,2),'status'=>'Review required','firstObservedAt'=>$old['firstObservedAt']??gmdate('c')];$s['directorTradingAlerts'][$id]=$alert;$active[]=$alert;}elseif($old){$s['directorTradingAlerts'][$id]['status']='Within allowance';}
     }}return $active;
 }
+function dt_contract_in_entity(array $contract,array $root,array $lotRefs,string $entity):bool {
+    $seller=$contract['seller']??'';
+    if($seller===$entity)return true;
+    if($seller!=='TG')return false;
+    $ref=$contract['ref']??'';
+    if(in_array($ref,$lotRefs,true))return true;
+    if(!empty($contract['customsExporter']))return $contract['customsExporter']===$entity;
+    $process=null;
+    foreach($root['shipments']??[] as $shipment){
+        if(($shipment['contractRef']??'')!==$ref||!empty($shipment['cancelled']))continue;
+        if(($shipment['kind']??'')==='lot')return false;
+        $process=$shipment;
+    }
+    return ($process['customs']['exporter']??'')===$entity;
+}
 function dt_contracts(array $root,array $lots,string $entity):array {
     $out=[];$refs=array_column($lots,'contract');
     foreach((array)($root['contracts']??[])as$c){
-        if(!(($c['seller']??'')===$entity||(($c['seller']??'')==='TG'&&(($c['customsExporter']??'')===$entity||in_array($c['ref']??'',$refs,true)))))continue;
+        if(!dt_contract_in_entity($c,$root,$refs,$entity))continue;
         $brands=[];$packing=[];foreach((array)($c['packings']??[])as$p){$brand=trim((string)($p['brand']??''));if($brand!=='')$brands[$brand]=true;$label=trim(implode(' ',array_filter([(string)($p['size']??''),(string)($p['unit']??'KG'),(string)($p['type']??'')] )));if($label!=='')$packing[$label]=true;}
         $spec=[];foreach((array)($c['specRows']??$c['specifications']??[])as$key=>$value){if(is_scalar($value)&&trim((string)$value)!=='')$spec[]=is_string($key)?$key.': '.$value:(string)$value;elseif(is_array($value))$spec[]=implode(' ',array_filter(array_map(static fn($v)=>is_scalar($v)?(string)$v:'',$value)));}
         $quality=implode("\n",array_filter([(string)($c['quality']??''),(string)($c['additionalQuality']??'')]));if($quality!=='')array_unshift($spec,$quality);

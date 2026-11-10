@@ -58,19 +58,20 @@ function render(){
  }
  if(edit){
   function container(a={}){
-   const editing=!!a.number;
+   const editing=!!a.number,finalContainer=cfg.origin==='exports'&&!editing&&row.actuals.length+1===row.expected;
    q('oelContainer').innerHTML=`<form id="oelActual"><h3>${editing?'Correct container details':'Add container'}</h3><div class="grid">
-    ${field('date','Actual loading date',a.loadingDate||data.today,'date','required')}
     ${field('number','Container number',a.number,'text',editing?'readonly':'required maxlength="16"')}
     ${field('seal','Seal',a.seal,'text','required maxlength="40"')}
-    ${field('truck','Truck',a.truck,'text','required maxlength="40"')}
+    ${field('site','Loading location',row.site,'text','readonly')}
     ${field('bags','Bags',a.bags,'number','required min="1" step="1"')}
     ${field('netKg','Net kg',a.netKg,'number','required min=".001" step=".001"')}
     ${field('grossKg','Gross kg',a.grossKg,'number','required min=".001" step=".001"')}
+    ${field('date','Actual loading date',a.loadingDate||data.today,'date','required')}
+    ${field('truck','Truck',a.truck,'text','required maxlength="40"')}
     <label>Loading sheet / weighbridge / gate-pass reference<textarea name="evidence" maxlength="500" required>${esc(a.evidence)}</textarea></label><label>Attach evidence (PDF or image)<input type="file" name="evidenceUpload" accept="application/pdf,image/png,image/jpeg,image/webp"></label>
     ${cfg.origin==='mill'?`<label>Measured quality and inspection findings<textarea name="inspection" maxlength="2000" required>${esc(a.inspection)}</textarea></label><label><input type="checkbox" name="qualityAccepted" value="yes" required> Quality meets the lot specification</label>`:''}
-    </div><button>Save container</button></form>`;
-   const form=q('oelActual');form.onsubmit=e=>{e.preventDefault();const values=new FormData(form);if(automaticDeal)values.set('dealId',automaticDeal.id);save(row,'container',values,form.querySelector('button'));};
+    </div><button>${finalContainer?'Save last container &amp; confirm loading':'Save container'}</button></form>`;
+   const form=q('oelActual');form.onsubmit=e=>{e.preventDefault();const values=new FormData(form);values.delete('site');if(automaticDeal)values.set('dealId',automaticDeal.id);if(finalContainer)values.set('confirmComplete','yes');save(row,'container',values,form.querySelector('button'));};
   }
   if(row.actuals.length<row.expected)container();
   root.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>container(row.actuals[Number(b.dataset.edit)]));
