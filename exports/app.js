@@ -2417,8 +2417,6 @@ function renderLoading(d){
  l.lotId=l.lotId||nextLotReference(p);l.loadingProgrammeNo=l.loadingProgrammeNo||l.bookingNumber||'';l.portOfLoading=TT_PORTS.slice(0,2).includes(l.portOfLoading)?l.portOfLoading:TT_PORTS[0];l.physicalContainers=num(l.physicalContainers)||Math.ceil(l.allocations.reduce((sum,row)=>sum+num(row.containers),0));l.intendedVessel=l.intendedVessel||'';l.voyage=l.voyage||'';l.shippingLine=l.shippingLine||'';l.bookingNumber=l.loadingProgrammeNo;
  for(const allocation of l.allocations){allocation.type=locationType(allocation.name);allocation.dryOn=p.production.dryOn||'Yes';allocation.craftPaper=p.production.craftPaper||'Yes';allocation.dpp=p.production.dpp||'Yes';allocation.inspection=p.production.inspection||'No'}ttProportionalEmptyBags(p,c,l);
  const locations=millLocations();
- const outsideMills=locations.filter(row=>/^external mill$/i.test(row.type.trim()));
- const outsideSite=name=>outsideMills.some(row=>row.name.toLowerCase()===String(name||'').trim().toLowerCase());
  const canChooseRoute=!reissuing&&!cornContract(c);
  const showRoute=canChooseRoute&&l.allocations.some(row=>row.customLocation);
  if(!showRoute){l.outsideDirect=false;l.outsideRoute='';}
@@ -2463,14 +2461,15 @@ function renderLoading(d){
   }
  }).catch(error=>otherRows.forEach(box=>{box.querySelector('[role=status]').textContent=error.message;}));
  const send=d.querySelector('#sendLoading');send.onclick=async()=>{setLoadingFeedback('loadingFeedback','');readHeader();for(const allocation of l.allocations)allocation.type=locationType(allocation.name);const normalized=normalizeLoadingAllocations(l.allocations.map(({customLocation,...row})=>row)),liveTotal=normalized.reduce((sum,row)=>sum+num(row.containers)*num(row.weightPer),0);
-  if(!l.loadingProgrammeNo)return setLoadingFeedback('loadingFeedback','Enter Loading Programme No.');if(!l.loadingDate)return setLoadingFeedback('loadingFeedback','Enter Loading Date.');if(!l.intendedVessel||!l.shippingLine)return setLoadingFeedback('loadingFeedback','Enter Intended Vessel and Shipping Line before sending Loading Instructions.');if(l.physicalContainers<=0||!Number.isInteger(l.physicalContainers))return setLoadingFeedback('loadingFeedback','Physical Containers must be a positive whole number. Use fractional shares only in the loading-source rows.');if(l.outsideDirect&&normalized.some(row=>!outsideSite(row.name)))return setLoadingFeedback('loadingFeedback','Select an active outside mill from the list.');
+  if(!l.loadingProgrammeNo)return setLoadingFeedback('loadingFeedback','Enter Loading Programme No.');if(!l.loadingDate)return setLoadingFeedback('loadingFeedback','Enter Loading Date.');if(!l.intendedVessel||!l.shippingLine)return setLoadingFeedback('loadingFeedback','Enter Intended Vessel and Shipping Line before sending Loading Instructions.');if(l.physicalContainers<=0||!Number.isInteger(l.physicalContainers))return setLoadingFeedback('loadingFeedback','Physical Containers must be a positive whole number. Use fractional shares only in the loading-source rows.');
   if(normalized.some(row=>!row.name||row.containers<=0||row.weightPer<=0))return setLoadingFeedback('loadingFeedback','Complete every loading source.');
-  if(l.outsideDirect&&(normalized.length!==1||!exMillAllocation(normalized[0])||num(normalized[0].containers)!==l.physicalContainers))return setLoadingFeedback('loadingFeedback','Use one outside loading site and one packing for this lot. Create separate lots for other sources.');
+  if(l.outsideDirect&&(normalized.length!==1||!l.allocations.every(row=>row.customLocation)||num(normalized[0].containers)!==l.physicalContainers))return setLoadingFeedback('loadingFeedback','Use one outside loading site and one packing for this lot. Create separate lots for other sources.');
   if(l.outsideDirect&&!send.dataset.pendingLotId){
    try{
     const row=normalized[0],choices=await readOutsideChoices();
-    const match=choices.find(choice=>choice.id===row.outsideDealId&&choice.millId===row.outsideMillId&&choice.millName===row.name);
+    const match=choices.find(choice=>choice.id===row.outsideDealId&&choice.millId===row.outsideMillId);
     if(!match||num(match.remainingMT)+.000001<liveTotal)return setLoadingFeedback('loadingFeedback','Choose an open purchase SODA with enough remaining tonnes for this lot.');
+    row.name=match.millName;row.type='Ex-Mill';
    }catch(error){return setLoadingFeedback('loadingFeedback',error.message);}
   }
   const sodaIssue=l.outsideDirect?'':await validateExMillSodaCapacity(normalized,c,reissuing?l._reissueLotId:'');if(sodaIssue)return setLoadingFeedback('loadingFeedback',sodaIssue);
