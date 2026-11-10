@@ -3008,8 +3008,7 @@ else if(!window.TT_EXPORTS_LOAD_ERROR){
   mount();
   document.querySelector(`[data-report="${report}"]`)?.click();
  }else{
-  mount();
-  restoreContractCheckpoint();
+  mount();restoreContractCheckpoint();
  }
 }
 })();
