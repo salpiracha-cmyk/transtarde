@@ -33,3 +33,13 @@ check(tt_accounts_reference_matches('1239','POST-2026-11239-JV'),'Four digit suf
 check(!tt_accounts_reference_matches('1240','POST-2026-01239'),'Different suffix must not match');
 check(!tt_accounts_reference_matches('2026','POST-2026-01239'),'A bare year must not match a serial suffix');
 echo "PASS zero-padded Post IDs and three/four digit suffix search\n";
+
+$legacyJournal=['id'=>'POST-2026-00001','reference'=>'POST-2026-00001','entity'=>'TTI','lines'=>[['account'=>'1110']]];
+check(tt_accounts_ledger_reference([],$legacyJournal+['narration'=>'Petty cash · Cheque A-58129057'])==='Cheque A-58129057','Legacy cheque labels populate the reference.');
+check(tt_accounts_ledger_reference([],$legacyJournal+['narration'=>'Payment · Online Banking · 0005219 · Supplier'])==='0005219','Saved legacy bank references retain their leading zeroes.');
+check(tt_accounts_ledger_reference([],array_replace($legacyJournal,['reference'=>'2026-10','narration'=>'Salary / home payment']))==='','A payroll month is not a bank reference.');
+check(tt_accounts_ledger_reference([],array_replace($legacyJournal,['lines'=>[['account'=>'1120']]]))==='Cash','A saved cash leg identifies a cash payment.');
+$books=['supplierBills'=>['B1'=>['entity'=>'TTI','billNo'=>'EFU-123']]];
+check(tt_accounts_ledger_reference($books,array_replace($legacyJournal,['lines'=>[],'meta'=>['supplierBillId'=>'B1']]))==='EFU-123','Use the original number on a linked bill.');
+check(tt_accounts_ledger_reference($books,$legacyJournal+['meta'=>['supplierBillId'=>'B1','bankReference'=>'TRX-172']])==='TRX-172','A payment reference takes priority over the bill it settles.');
+echo "PASS historical ledger references from saved payment and document data\n";

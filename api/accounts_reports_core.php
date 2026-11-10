@@ -69,6 +69,7 @@ function ar_build_report(array $sourceStore,array $sourceMaster,string $entity,s
     $ledger = [];
     $skippedMalformedLines = 0;
     foreach ($journals as $journal) {
+        $displayReference=tt_accounts_ledger_reference($store,$journal);
         foreach ((array)($journal['lines'] ?? []) as $line) {
             if (!ar_valid_line($line)) {
                 $skippedMalformedLines++;
@@ -86,6 +87,7 @@ function ar_build_report(array $sourceStore,array $sourceMaster,string $entity,s
                 'publicPostId' => tt_accounts_public_post($store,$journal),
                 'sourceType' => (string)($journal['sourceType'] ?? ''),
                 'reference' => (string)($journal['reference'] ?? ''),
+                'displayReference' => $displayReference,
                 'narration' => sac_journal_narration($store,$journal),
                 'account' => $code,
                 'accountName' => (string)($line['accountName'] ?? ($catalog[$code]['name'] ?? $code)),
