@@ -30,6 +30,25 @@ function oel_mill_choices(array $masters):array {
     return $mills;
 }
 
+function oel_default_mill_id(string $party,array $mills):string {
+    $key=static fn(string $name):string=>preg_replace('/[^\p{L}\p{N}]+/u','',mb_strtolower($name))??'';
+    $partyKey=$key($party);
+    if($partyKey==='')return '';
+    $exact=array_filter($mills,static fn($name)=>$key($name)===$partyKey);
+    if($exact)return count($exact)===1?(string)array_key_first($exact):'';
+    $branch=array_filter($mills,static fn($name)=>$key(explode(',',$name,2)[0])===$partyKey);
+    return count($branch)===1?(string)array_key_first($branch):'';
+}
+
+function oel_mill_defaults(array $parties,array $mills):array {
+    $defaults=[];
+    foreach($parties as $party){
+        $id=oel_default_mill_id((string)($party['name']??''),$mills);
+        if($id!=='')$defaults[$party['id']]=$id;
+    }
+    return $defaults;
+}
+
 function oel_open_deal(array $deal,string $entity,string $contract):bool {
     return ($deal['entity']??'')===$entity&&($deal['contractRef']??'')===$contract&&($deal['direction']??'')==='PURCHASE'
         &&!in_array(strtolower(trim((string)($deal['status']??''))),['deleted','cancelled','closed','completed','short closed','manual closed'],true);
@@ -57,7 +76,7 @@ function oel_deal_remaining(array $deal,array $root,string $excludeLot=''):float
 function oel_deal_choices(array $root,array $deals,array $mills,string $entity,string $contract,string $today):array {
     $choices=[];
     foreach($deals as $id=>$deal){
-        $mill=(string)($deal['outsideMillId']??'');
+        $mill=(string)(($deal['outsideMillId']??'')?:oel_default_mill_id((string)($deal['party']??''),$mills));
         if(!isset($mills[$mill])||!oel_open_deal($deal,$entity,$contract)||($deal['date']??'')>$today)continue;
         $remaining=oel_deal_remaining($deal,$root);
         if($remaining<=0)continue;
@@ -120,7 +139,7 @@ function oel_change(array $root,array $user,string $module,array $body,array $de
         $dealId=oel_text($body['dealId']??'',160);
         $deal=$deals[$dealId]??null;
         if(!$deal||!oel_open_deal($deal,$row['entity'],$row['contract']))throw new DomainException('Choose an active purchase SODA linked to this sales contract.');
-        if($row['plannedDealId']!==''&&($row['plannedDealId']!==$dealId||$row['plannedMillId']!==($deal['outsideMillId']??'')))throw new DomainException('Use the SODA and mill selected in Loading Instructions.');
+        if($row['plannedDealId']!==''&&($row['plannedDealId']!==$dealId||(!empty($deal['outsideMillId'])&&$row['plannedMillId']!==$deal['outsideMillId'])))throw new DomainException('Use the SODA and mill selected in Loading Instructions.');
         if($row['plannedDealId']!==''&&oel_deal_remaining($deal,$root,$lotId)+.000001<(float)($lot['plannedQty']??0))throw new DomainException('The SODA no longer covers the planned tonnes.');
         $route=$body['route']??'';
         if(!in_array($route,['EXPORTS','MILL'],true))throw new DomainException('Choose who enters the containers.');

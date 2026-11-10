@@ -161,11 +161,13 @@ function operations_validate_export_permissions(array $user,string $module,strin
                 $deal=$outsideBooks['exporterDeals'][$dealId]??[];
                 $ref=(string)($lot['contractRef']??'');
                 $contract=array_column($next['contracts']??[],null,'ref')[$ref]??[];
-                $mill=oel_mill_choices(tt_list_masters())[$millId]??'';
+                $mills=oel_mill_choices(tt_list_masters());
+                $mill=$mills[$millId]??'';
+                $dealMill=($deal['outsideMillId']??'')?:oel_default_mill_id((string)($deal['party']??''),$mills);
                 $planned=(float)($source['weightPer']??0)*(float)($source['containers']??0);
                 if(!$contract||!oel_right($user,'Exports',oel_company($lot,$contract),'Edit')||
                     !oel_open_deal($deal,oel_company($lot,$contract),$ref)||$mill===''||$source['name']!==$mill||
-                    $millId!==($deal['outsideMillId']??'')||$planned<=0||abs($planned-(float)($lot['plannedQty']??0))>.000001||
+                    $millId!==$dealMill||$planned<=0||abs($planned-(float)($lot['plannedQty']??0))>.000001||
                     $planned>oel_deal_remaining($deal,$next,$id)+.000001)throw new DomainException('Select an open purchase SODA with enough remaining tonnes at this mill.');
             }
             continue;

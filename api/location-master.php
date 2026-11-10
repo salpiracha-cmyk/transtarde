@@ -30,10 +30,21 @@ try {
         location_respond(['ok'=>true,'locations'=>$rows]);
     }
     if ($_SERVER['REQUEST_METHOD']!=='POST') location_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
-    if (!location_can_write($user)) location_respond(['ok'=>false,'error'=>'Create or Edit permission is required.'],403);
+    if (!location_can_write($user)&&($user['role']??'')!=='Director') location_respond(['ok'=>false,'error'=>'Create or Edit permission is required.'],403);
     $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input')) ?: '{}',true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) location_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $action=strtolower(trim((string)($body['action']??'add')));
+    if($action==='add_soda_mill'){
+        if(!in_array($user['role']??'',['Director','Super Admin'],true)||!tt_user_can_master($user,'mills','Create'))location_respond(['ok'=>false,'error'=>'Director location creation access is required.'],403);
+        $entity=strtoupper(trim((string)($body['entity']??'')));
+        if(!in_array($entity,['TTI','BRM'],true)||!tt_user_business_entity($user,$entity,'Edit'))location_respond(['ok'=>false,'error'=>'Company access required.'],403);
+        $name=trim((string)($body['name']??''));
+        $row=tt_upsert_location_master($name,'External Mill','Fellow-exporter SODA','',true);
+        $v=$row['values']??[];
+        if(strcasecmp((string)($v[2]??''),'External Mill')!==0||strcasecmp((string)($v[5]??''),'Inactive')===0)throw new InvalidArgumentException('This name belongs to an inactive or different location. Choose an active outside mill.');
+        tt_audit((int)($user['id']??0),(string)($user['username']??''),'Selected or added outside mill '.$v[0].' from fellow-exporter SODA');
+        location_respond(['ok'=>true,'location'=>['id'=>$row['id'],'name'=>$v[0]]]);
+    }
     if($action==='deactivate'){
         if(!tt_user_can_master($user,'mills','Deactivate'))location_respond(['ok'=>false,'error'=>'Location Master Deactivate permission is required.'],403);
         $row=tt_deactivate_location_master(trim((string)($body['id']??'')));

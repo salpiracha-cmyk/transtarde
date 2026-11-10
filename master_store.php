@@ -944,12 +944,12 @@ function tt_find_location_duplicate(string $name,?array $rows=null): ?array {
     return null;
 }
 
-function tt_upsert_location_master(string $name,string $type,string $source='System',string $notes=''): array {
+function tt_upsert_location_master(string $name,string $type,string $source='System',string $notes='',bool $preserveExisting=false): array {
     $name=trim(preg_replace('/\\s+/',' ',$name) ?? '');
     if ($name==='' || strlen($name)>160) throw new InvalidArgumentException('Enter a valid mill / location name.');
     $type=tt_normalize_location_type($type);
     $source=trim($source) ?: 'System';
-    return tt_mutate_store(function (&$data) use ($name,$type,$source,$notes): array {
+    return tt_mutate_store(function (&$data) use ($name,$type,$source,$notes,$preserveExisting): array {
         if (!isset($data['masters']['mills']) || !is_array($data['masters']['mills'])) $data['masters']['mills']=[];
         $identity=static fn(string $value): string=>tt_location_identity($value);
         $near=tt_find_location_duplicate($name,(array)$data['masters']['mills']);
@@ -959,6 +959,7 @@ function tt_upsert_location_master(string $name,string $type,string $source='Sys
             if(count($values)<=4)$values=[$values[0]??'',$values[1]??'',$values[2]??'','','','Active',$values[3]??''];
             while (count($values)<7) $values[]='';
             if ($identity((string)$values[0])!==$identity($name)) continue;
+            if($preserveExisting)return $row;
             if (($values[2] ?? '')==='' || strcasecmp((string)$values[2],'Other')===0) $values[2]=$type;
             $values[5]='Active';
             $autoNote='Linked automatically from '.$source.'.';
