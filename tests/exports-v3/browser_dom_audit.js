@@ -156,6 +156,8 @@ assert.equal(d.querySelector('#cuCurrency').tagName,'SELECT','TG Customs currenc
 assert.equal(d.querySelector('#cuCurrency').value,'AED','TG Customs initially retains its own saved/default currency');
 assert.ok([...d.querySelectorAll('#cuFISelect option')].some(option=>option.textContent.includes('FI-AED')),'FI selection initially follows the TG Customs currency');
 assert.ok(![...d.querySelectorAll('#cuFISelect option')].some(option=>option.textContent.includes('FI-USD')),'FI selection excludes other currencies');
+set(d.querySelector('#cuRate'),'318');
+set(d.querySelector('#cuDesc'),'Unsaved Customs draft text');
 set(d.querySelector('#cuFISelect'),'__ADD_FI__','change');
 assert.equal(d.querySelector('#mFICustomer').value,'TRANS GRAINS FOODSTUFF TRADING L.L.C','Customs +FI links the FI to TG');
 assert.equal(d.querySelector('#mFICur').value,'AED','Customs +FI inherits the current Customs currency');
@@ -173,6 +175,11 @@ assert.deepEqual(customsChanges.map(change=>change.path),[['fi',null],['audits',
 assert.equal(customsChanges[1].value[0].entity,'TTI');
 assert.equal(d.querySelector('#cuFISelect').value,createdCustomsFI.id,'new Customs FI returns to the same lot and is selected immediately');
 assert.equal(d.querySelector('#cuFIAvailable').value,'25000.00','new Customs FI immediately exposes its available balance');
+assert.equal(d.querySelector('#cuRate').value,'318','opening the FI register preserves the unsaved rate');
+assert.equal(d.querySelector('#cuDesc').value,'Unsaved Customs draft text');
+assert.equal(d.querySelector('#cuIBAN').value,'TTI-FIXTURE-IBAN');
+assert.ok(!customsChanges.some(change=>change.path[0]==='shipments'),'adding an FI leaves the Customs draft unposted');
+d.querySelector('#cuDesc').value=tgLot.customs.description;
 set(d.querySelector('#cuCurrency'),'USD','change');
 assert.equal(d.querySelector('#cuCurrency').value,'USD','TG Customs currency normalizes independently from the contract');
 assert.ok([...d.querySelectorAll('#cuFISelect option')].some(option=>option.textContent.includes('FI-USD')),'changing TG Customs currency refreshes matching FIs');
