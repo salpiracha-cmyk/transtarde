@@ -69,15 +69,25 @@ const app=source.replace('mount();restoreContractCheckpoint();',hook),STORE='tra
    },{action,fault,STORE});
    await page.evaluate(()=>window.before=JSON.stringify(__focusQA.getState()));
    await page.locator('#'+button).click();
+   const scopedFI=!action.startsWith('cancel');
+   const confirmed=fault==='delayed'||(scopedFI&&fault==='lost-ack');
    if(fault==='delayed'){
     await page.waitForFunction(()=>typeof releaseSave==='function');assert.equal(await page.locator('#'+button).count(),1,'Action stays in place before acknowledgement');assert.equal(await page.locator('#'+button).isDisabled(),true);
     await page.evaluate(()=>releaseSave());await page.waitForFunction(id=>!document.getElementById(id),button);
+   }else if(confirmed){
+    await page.waitForFunction(id=>!document.getElementById(id),button);
+    assert.equal(await page.evaluate(()=>posts.length),1,'A confirmed FI retry reads the committed audit without repeating the write');
    }else{
     await page.waitForFunction(()=>document.getElementById('exportSaveError')?.textContent.includes('Reload and review'));
     assert.equal(await page.locator('#'+button).isDisabled(),true,'Uncertain actions cannot be replayed blindly');
     assert.equal(await page.evaluate(()=>posts.length),1,'No automatic retry or rollback POST');
     assert.equal(await page.evaluate(STORE=>localStorage.getItem(STORE)===before,STORE),true,'Only local staged state is restored');
     if(action==='edit')assert.equal(await page.locator('#efReason').inputValue(),'Fixture correction','Entered reason survives failure');
+   }
+   if(scopedFI){
+    const changes=await page.evaluate(()=>JSON.parse(posts[0].contractChanges));
+    assert.ok(changes.every(({path})=>['fi','shipments','audits'].includes(path[0])));
+    assert.equal(changes.find(({path})=>path[0]==='audits').value[0].entity,'TTI');
    }
    const result=await page.evaluate(STORE=>JSON.parse(server.values[STORE]),STORE);
    if(fault!=='rejected'){
@@ -96,8 +106,8 @@ const app=source.replace('mount();restoreContractCheckpoint();',hook),STORE='tra
     }
     if(action==='cancel'){assert.equal(result.contracts.length,0);assert.equal(result.cancelledContracts[0].reason,'Fixture correction')}
    }
-   if(action==='create')assert.equal(await page.evaluate(()=>callbackCount),fault==='delayed'?1:0,'Linked Customs flow resumes only after acknowledgement');
-   if(fault!=='delayed'){
+   if(action==='create')assert.equal(await page.evaluate(()=>callbackCount),confirmed?1:0,'Linked Customs flow resumes only after acknowledgement');
+   if(!confirmed){
     await page.evaluate(()=>{__focusQA.closeModal();__focusQA.openFITransfer('F1');document.getElementById('tfAmount').value='100';document.getElementById('tfReason').value='Second action without review';});
     await page.locator('#saveTransfer').click();assert.equal(await page.evaluate(()=>posts.length),1,'Reopening a different form cannot bypass uncertain-save review');
    }
