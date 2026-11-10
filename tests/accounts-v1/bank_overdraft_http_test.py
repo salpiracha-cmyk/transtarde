@@ -10,18 +10,18 @@ with tempfile.TemporaryDirectory(prefix='bank-overdraft-qa-') as temp:
     proprietor=bank('owner','TG','USD');proprietor['values'][0]='Proprietor / Owner Account';proprietor['values'][2]='Fixture Owner'
     tti_personal=bank('tti-owner','TTI','PKR');tti_personal['values'][0]='Personal Account';tti_personal['values'][2]='TTI Owner'
     unassigned=bank('unassigned','','USD');unassigned['values'][0]='Personal Account';unassigned['values'][2]='Unassigned Owner'
-    masters={'banks':[bank('usd','TG','USD'),bank('usd2','TG','USD'),bank('aed','TG','AED'),bank('ret','TTI','USD'),bank('brm','BRM','PKR'),proprietor,tti_personal,unassigned]}
+    masters={'banks':[bank('usd','TG','USD'),bank('usd2','TG','USD'),bank('aed','TG','AED'),bank('ret','TTI','USD'),bank('brm','BRM','PKR'),bank('tti','TTI','PKR'),proprietor,tti_personal,unassigned]}
     (root/'masters.json').write_text(json.dumps(masters));(root/'data/accounts.json').write_text(json.dumps({'journals':{}}))
     (root/'auth_store.php').write_text('''<?php
     define('TT_DATA_DIR',__DIR__.'/data');
     function tt_ensure_data_dir(){}
     function tt_list_masters(){return json_decode(file_get_contents(__DIR__.'/masters.json'),true);}
     function tt_read_store(){return ['masters'=>tt_list_masters()];}
-    function tt_require_login(){$scope=(string)($_GET['scope']??'');return $scope!==''?['role'=>'Accountant','id'=>2,'username'=>'Scoped','scope'=>$scope,'permissions'=>['Accounts'=>['entity-'.strtolower($scope)=>['Create']]]]:['role'=>'Super Admin','id'=>1,'username'=>'Fixture'];}
+    function tt_require_login(){$scope=(string)($_GET['scope']??'');return $scope!==''?['role'=>'Accountant','id'=>2,'username'=>'Scoped','scope'=>$scope,'permissions'=>['Accounts'=>array_fill_keys(array_map(static fn($e)=>'entity-'.strtolower($e),explode(',',$scope)),['Create'])]]:['role'=>'Super Admin','id'=>1,'username'=>'Fixture'];}
     function tt_user_can_open_module($user,$module){return true;}
-    function tt_user_can_access_entity($user,$entity,$action){return ($user['role']??'')==='Super Admin'||($user['scope']??'')===$entity;}
+    function tt_user_can_access_entity($user,$entity,$action){return ($user['role']??'')==='Super Admin'||in_array($entity,explode(',',(string)($user['scope']??'')),true);}
     function tt_verify_csrf($csrf){return $csrf==='fixture';}
-    function tt_bank_can_transact($id){return in_array($id,['usd','usd2','aed','ret','brm','tti-owner']);}
+    function tt_bank_can_transact($id){return in_array($id,['usd','usd2','aed','ret','brm','tti','tti-owner']);}
     function tt_bank_is_retention($id,$store){return $id==='ret';}
     function tt_master_options(){return ['currencies'=>['USD','AED','PKR']];}
     function tt_company_fx_rate($entity,$from,$to){return $from===$to?1:($from==='AED'?1/3.67:3.67);}
@@ -59,6 +59,12 @@ with tempfile.TemporaryDirectory(prefix='bank-overdraft-qa-') as temp:
         assert 'tti-owner' in destinations('BRM')
         assert 'unassigned' not in destinations('BRM')
         assert 'tti-owner' not in destinations('BRM','BRM')
+        assert 'brm' in destinations('TTI','TTI,BRM')
+        assert 'tti' in destinations('BRM','TTI,BRM')
+        assert 'brm' not in destinations('TTI','TTI')
+        assert 'brm' not in destinations('TG')
+        assert post('internal_bank_transfers',scope='TTI',entity='TTI',action='post_transfer',sourceBankId='tti',destinationBankId='brm',amount=10,narration='Unauthorised company bank destination')[0]==422
+
         assert post('internal_bank_transfers',scope='BRM',entity='BRM',action='post_transfer',sourceBankId='brm',destinationBankId='tti-owner',amount=10,narration='Unauthorised cross-company')[0]==422
         # Guided party settlement: discount does not increase bank debit, and native/AED ledgers balance.
         books=root/'data/accounts.json'
@@ -96,12 +102,18 @@ with tempfile.TemporaryDirectory(prefix='bank-overdraft-qa-') as temp:
         assert next(row for row in json.load(urllib.request.urlopen(f'http://127.0.0.1:{port}/api/internal_bank_transfers.php?entity=TTI'))['destinations'] if row['id']=='tti-owner')['entity']=='TTI'
         assert post('internal_bank_transfers',entity='BRM',action='post_transfer',sourceBankId='brm',destinationBankId='tti-owner',amount=100,reference='BRM-X-1',narration='Duplicate advance')[0]==409
         assert post('internal_bank_transfers',entity='BRM',action='post_transfer',sourceBankId='tti-owner',destinationBankId='brm',amount=10,narration='Wrong source')[0]==422
+        company=assert_post('internal_bank_transfers',scope='TTI,BRM',entity='TTI',action='post_transfer',sourceBankId='tti',destinationBankId='brm',amount=40,reference='TTI-BRM-1',narration='Company bank transfer')
+        assert company['journal']['entity']=='TTI' and company['mirrorJournal']['entity']=='BRM'
+        assert [(line['account'],line['debit'],line['credit']) for line in company['journal']['lines']]==[('1240',40,0),('1110',0,40)]
+        assert [(line['account'],line['debit'],line['credit']) for line in company['mirrorJournal']['lines']]==[('1110',40,0),('2500',0,40)]
+        assert company['transfer']['mirrorJournalId']==company['mirrorJournal']['id']
+        assert company['mirrorJournal']['lines'][0]['bankAccountId']=='brm'
         assert_post('retention_remittances',entity='TTI',action='post_remittance',bankAccountId='ret',payee='Supplier',purpose='Supplies',foreignAmount=200,transactionRate=280,settlementType='SUPPLIER_ADVANCE')
-        store=json.loads((root/'data/accounts.json').read_text());assert len(store['journals'])==8
+        store=json.loads((root/'data/accounts.json').read_text());assert len(store['journals'])==10
         assert store['internalBankTransfers'][cross['transfer']['id']]['mirrorJournalId']==mirror['id']
         assert sum(l['debit']-l['credit'] for j in store['journals'].values() if j['entity']=='TTI' for l in j['lines'] if l.get('bankAccountId')=='tti-owner')==100
         assert not any(l.get('bankAccountId')=='tti-owner' for j in store['journals'].values() if j['entity']=='BRM' for l in j['lines'])
         assert sum(l.get('bankDebit',0)-l.get('bankCredit',0) for j in store['journals'].values() for l in j['lines'] if l.get('bankAccountId')=='usd')==-1075
         assert all(j['totalDebit']==j['totalCredit'] for j in store['journals'].values())
-        print('TG banking and retention, BRM-to-TTI intercompany advance, and mirrored company books post balanced journals')
+        print('TG banking and retention and linked TTI-BRM bank transfers post balanced journals')
     finally:server.terminate();server.wait(timeout=5)
