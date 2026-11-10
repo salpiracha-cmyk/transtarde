@@ -37,7 +37,18 @@ try {
  $report=tt_social_optional_report('exports-loading',$due,[],$morning);
  check(count($report['tables'])===1&&$report['tables'][0]['rows']===[['C1']],'Loading PDF must include only its selected section.');
  $recovery=tt_social_optional_report('mill-daily-recovery',$due,['values'=>['tt30prod'=>'[]']],$morning);
- check($recovery['filters']['from']==='2026-11-09'&&count($recovery['tables'])===2,'Daily recovery needs the previous Pakistan calendar day for both mills.');
+ check($recovery['filters']['from']==='2026-11-09'&&array_column($recovery['recoveryReports'],'entity')===['TTI','BRM'],'Daily recovery needs the previous Pakistan calendar day for both mills.');
+ require_once dirname(__DIR__,2).'/api/mill_recovery_pdf.php';
+ foreach(tt_social_report_catalog()['Mill'] as $id=>[$title,,,$mode]) {
+  $report=tt_social_optional_report($id,$due,['values'=>['tt30prod'=>'[]']],$morning);
+  check($report['recoveryReports'][0]['mode']===$mode&&str_contains(mr_pdf_render($report),'TRANSTRADE INTERNATIONAL'),'Mill delivery must use the selected source mode and company PDF.');
+ }
+ $root=['contracts'=>[],'shipments'=>[
+  ['kind'=>'lot','contractRef'=>'C1','lotId'=>'L1','bl'=>['blNo'=>'BL-1','finalDocument'=>true]],
+  ['kind'=>'lot','contractRef'=>'C2','cancelled'=>true],
+ ]];
+ $report=tt_social_optional_report('exports-bl-register',$due,['values'=>['transtrade_export_v3_operational'=>json_encode($root)]],$morning);
+ check($report['tables'][0]['rows']===[['C1','L1','BL-1','','','Yes']],'B/L Register must use original non-cancelled lots.');
  echo "PASS backward-compatible Telegram defaults, independent settings and receipts, disabled worker, private credential files and restricted Discord URL\n";
 } finally {
  foreach(glob(TT_DATA_DIR.'/*')?:[] as $file) unlink($file);

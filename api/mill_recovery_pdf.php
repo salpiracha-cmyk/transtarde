@@ -72,29 +72,42 @@ function mr_pdf_render(array $report): string {
         foreach ($report['tables'] as $section) {
             $table($section['title'], $section['headers'], $section['widths'], $section['rows']);
         }
-    } else {
-    $totals = static fn(array $g): array => array_map('mr_pdf_number', [$g['inputKg'], $g['readyKg'], $g['byProductKg'], $g['outputKg'], $g['recoveryPct'], $g['differenceKg']]);
-    $summaryHeaders = ['Date', 'Input kg', 'Ready kg', 'By-products kg', 'Output kg', 'Recovery %', 'Difference kg'];
-    $summaryWidths = [110,110,110,110,110,100,120];
-    $table('Recovery summary', $summaryHeaders, $summaryWidths, [
-        ...array_map(static fn($g) => [$g['key'], ...$totals($g)], $report['groups']),
-        ['Total', ...$totals($report['totals'])],
-    ]);
-    foreach ($report['groups'] as $group) {
-        $table($group['key'].' | Shift details', ['Shift / status','Mill / variety','Start / end','Hours','Downtime / notes'], [120,185,105,65,295],
-            array_map(static fn($r) => [
-                $r['shift'].' / '.($r['shiftComplete'] ? 'Complete' : 'In progress'),
-                $r['mill'].' / '.$r['variety'], implode(' - ', array_filter([$r['start'], $r['end']])),
-                mr_pdf_number($r['hours']), implode(' / ', array_filter([$r['downtimeReason'], $r['reason'], $r['varianceReason']])),
-            ], $group['runs']));
-        foreach (['raw'=>'Raw rice input / stock consumption','finished'=>'Ready rice','byproducts'=>'By-products'] as $section => $label) {
-            $table($group['key'].' | '.$label, ['Shift / lot','Product','Brand / order','Bags','Pack kg','Gross kg','Less kg','Net kg','Ratio %'], [105,130,130,55,60,75,70,75,70],
-                array_map(static fn($r) => [
-                    trim($r['shift'].' '.$r['lotRef']), $r['product'], implode(' / ', array_filter([$r['brand'], $r['contractRef']])),
-                    ...array_map('mr_pdf_number', [$r['bags'], $r['bagWeight'] ?? null, $r['grossKg'], $r['lessKg'], $r['kg'], $r['recoveryPct']]),
-                ], $group[$section]));
-        }
     }
+    foreach ($report['recoveryReports'] ?? (isset($report['tables']) ? [] : [$report]) as $recovery) {
+        $labelPrefix=isset($report['recoveryReports'])?$recovery['entity'].' | ':'';
+        $totals = static fn(array $g): array => array_map('mr_pdf_number', [!empty($g['inputComplete'])?$g['inputKg']:null, $g['readyKg'], $g['byProductKg'], $g['outputKg'], $g['recoveryPct'], $g['differenceKg']]);
+        $summaryHeaders = [match($recovery['mode']??'daily'){'brand'=>'Brand','contract'=>'Contract',default=>'Date'}, 'Input kg', 'Ready kg', 'By-products kg', 'Output kg', 'Recovery %', 'Difference kg'];
+        $summaryWidths = [110,110,110,110,110,100,120];
+        $table($labelPrefix.'Recovery summary', $summaryHeaders, $summaryWidths, [
+            ...array_map(static fn($g) => [$g['key'], ...$totals($g)], $recovery['groups']),
+            [$recovery['groups']?'Total':'No matching records', ...$totals($recovery['totals'])],
+        ]);
+        if(!empty($recovery['performance'])) {
+            $rows=[];
+            foreach($recovery['performance'] as $shift) {
+                foreach(['Current shift'=>$shift,'Previous shift'=>$shift['previous']] as $label=>$r) {
+                    $rows[]=[$label,$shift['mill'],$r['date'].' / '.$r['shift'],mr_pdf_number($r['inputKg']),
+                        mr_pdf_number($r['hours']),mr_pdf_number($r['tonsPerHour']),
+                        implode(' / ',array_filter([!empty($r['provisional'])?'Provisional':'',...($r['downtimeReasons']??[])]))];
+                }
+            }
+            $table($labelPrefix.'Shift production throughput',['Comparison','Mill','Date / shift','Input kg','Operating hours','Tons / hr','Notes'],[95,130,105,85,90,75,190],$rows);
+        }
+        foreach ($recovery['groups'] as $group) {
+            $table($labelPrefix.$group['key'].' | Shift details', ['Shift / status','Mill / variety','Start / end','Hours','Downtime / notes'], [120,185,105,65,295],
+                array_map(static fn($r) => [
+                    $r['shift'].' / '.($r['shiftComplete'] ? 'Complete' : 'In progress'),
+                    $r['mill'].' / '.$r['variety'], implode(' - ', array_filter([$r['start'], $r['end']])),
+                    mr_pdf_number($r['hours']), implode(' / ', array_filter([$r['downtimeReason'], $r['reason'], $r['varianceReason']])),
+                ], $group['runs']));
+            foreach (['raw'=>'Raw rice input / stock consumption','finished'=>'Ready rice','byproducts'=>'By-products'] as $section => $label) {
+                $table($labelPrefix.$group['key'].' | '.$label, ['Shift / lot','Product','Brand / order','Bags','Pack kg','Gross kg','Less kg','Net kg','Ratio %'], [105,130,130,55,60,75,70,75,70],
+                    array_map(static fn($r) => [
+                        trim($r['shift'].' '.$r['lotRef']), $r['product'], implode(' / ', array_filter([$r['brand'], $r['contractRef']])),
+                        ...array_map('mr_pdf_number', [$r['bags'], $r['bagWeight'] ?? null, $r['grossKg'], $r['lessKg'], $r['kg'], $r['recoveryPct']]),
+                    ], $group[$section]));
+            }
+        }
     }
     $pages[] = $stream;
     $objects = ['', '', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>'];
