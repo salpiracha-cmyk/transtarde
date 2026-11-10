@@ -1043,7 +1043,13 @@
     buildTopbar();
     buildDesk();
     const bagReturn=new URLSearchParams(location.search).get('return');if(['bag-report','bag-master','production-report'].includes(bagReturn)){const key=bagReturn==='production-report'?'tt_accounts_production_report_return':bagReturn==='bag-master'?'tt_accounts_bag_master_return':'tt_accounts_bag_report_return';try{const saved=JSON.parse(sessionStorage.getItem(key)||'null');sessionStorage.removeItem(key);if(saved?.company===entity()){if(saved.area&&currentAreas().some(area=>area.key===saved.area))await showArea(saved.area);window.scrollTo(0,Number(saved.scroll)||0);if(bagReturn==='bag-master')q('#ttMasterTop')?.click();}}catch{}}
-    if(new URLSearchParams(location.search).get('area')==='reports')await showArea('reports');
+    const reportLink=new URLSearchParams(location.search);
+    if(reportLink.get('area')==='reports'){
+      await showArea('reports');
+      const statement={tb:'Trial Balance',pl:'Profit',bs:'Balance Sheet'}[reportLink.get('statement')];
+      const action=currentAreas().find(area=>area.key==='reports')?.actions.find(item=>item.native==='reports'&&item.find===statement);
+      if(action)await launch(action);
+    }
     if(new URLSearchParams(location.search).get('return')==='carry-forward'){try{const saved=JSON.parse(sessionStorage.getItem('tt_accounts_carry_return')||'null');sessionStorage.removeItem('tt_accounts_carry_return');if(saved?.company===entity()&&currentAreas().some(area=>area.key===saved.area)){await showArea(saved.area);window.scrollTo(0,Number(saved.scroll)||0);}}catch{}}
     installPreviousSearch();
     ensureLiveTreatments();

@@ -3001,5 +3001,15 @@ window.addEventListener('tt:shared-updated',()=>{
  window.scrollTo(scrollX,scrollY)
 });
 if(window.TT_EXPORT_TAX_SOURCE){window.TT_TAX_INVOICE_HTML=()=>{const s=structuredClone(state.shipments[0]),c=structuredClone(state.contracts[0]);return (s.seller||c.seller)==='TG'?tgInternalCommercialInvoiceDoc(s,c):commercialCopyLabel(commercialInvoiceDoc(s,c,false),'ORIGINAL');};}
-else if(!window.TT_EXPORTS_LOAD_ERROR){mount();restoreContractCheckpoint();}
+else if(!window.TT_EXPORTS_LOAD_ERROR){
+ const report=window.TT_MODULE_ACCESS?.initialReport;
+ if(REPORT_DEFS.some(([key])=>key===report)){
+  view='reports';
+  mount();
+  document.querySelector(`[data-report="${report}"]`)?.click();
+ }else{
+  mount();
+  restoreContractCheckpoint();
+ }
+}
 })();

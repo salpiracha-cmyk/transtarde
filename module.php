@@ -13,6 +13,8 @@ $permissionName = $id === 'milling' ? 'Mill' : 'Exports';
 if (!tt_user_can_open_module($user, $permissionName)) { http_response_code(403); exit('You do not have permission to open this module.'); }
 $localSalesView=$id==='milling'&&($_GET['view']??'')==='local-sales';
 if($localSalesView&&(!tt_user_can_module_action($user,'Mill','local','View')||!tt_user_can_module_action($user,'Accounts','customer','View'))){http_response_code(403);exit('Local Sales permission for Mill and Accounts is required.');}
+$exportsReport=$id==='exports'&&($_GET['report']??'')==='bl'?'bl':null;
+if($exportsReport!==null&&!tt_user_can_module_action($user,'Exports','reports','View')){http_response_code(403);exit('Exports Reports View permission required.');}
 tt_release_read_session();
 header('Content-Type: text/html; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -97,7 +99,7 @@ if ($id === 'exports') {
 require_once __DIR__.'/api/operations_read_policy.php';
 $modulePermissions = $user['permissions'][$permissionName] ?? [];
 $access = [
-    'module'=>$permissionName, 'moduleId'=>$id, 'userId'=>(int)$user['id'], 'user'=>(string)$user['full_name'],
+    'module'=>$permissionName, 'moduleId'=>$id, 'initialReport'=>$exportsReport, 'userId'=>(int)$user['id'], 'user'=>(string)$user['full_name'],
     'clientBuild'=>is_file(__DIR__.'/.transtrade-release')?trim((string)file_get_contents(__DIR__.'/.transtrade-release')):hash_file('sha256',__FILE__),
     'role'=>(string)$user['role'], 'permissions'=>$modulePermissions,
     'workspaces'=>tt_user_workspaces($user),

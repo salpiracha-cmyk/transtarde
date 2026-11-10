@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require __DIR__.'/auth_store.php';
 require_once __DIR__.'/api/telegram_dispatch_core.php';
+require_once __DIR__.'/runtime_html.php';
 
 $user=tt_require_login();
 if (($user['role']??'')!=='Super Admin' || tt_managed_qa_write_blocked($user)) {
@@ -72,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 $h=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
 $csrf=$h(tt_csrf());
 $connected=$enabled=false;
+$config=[];
 $delivery=[];
 try {
     $config=tt_social_config($platform);
@@ -92,6 +94,18 @@ $notice=match ($_GET['result']??'') {
     'reports'=>$label.' report selections saved.',
     default=>'',
 };
+$selected=$config['reports']??[];
+$deliveryStatus=$enabled?'Enabled':($connected?'Disabled':'Not connected');
+$lastRun='Pending';
+if(!empty($delivery['lastRun'])) {
+    try {
+        $lastRun=(new DateTimeImmutable($delivery['lastRun']))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('d-m-Y, g:i a');
+    } catch (Exception) {
+        $lastRun='Unavailable';
+    }
+}
+if($_SERVER['REQUEST_METHOD']==='GET')tt_release_read_session();
+ob_start();
 ?>
 <!doctype html>
 <html lang="en">
@@ -100,84 +114,97 @@ $notice=match ($_GET['result']??'') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Social Media Settings | Transtrade</title>
 <link rel="stylesheet" href="admin/document-reader.css">
-<style>
-.platform-nav{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}
-.platform-nav a{padding:8px 14px;border:1px solid #aab8c0;border-radius:8px;text-decoration:none}
-.platform-nav a[aria-current]{background:#17364b;color:white;font-weight:700;border-color:#17364b}
-.report-module{border:1px solid #ced8dc;border-radius:8px;padding:10px 12px}
-.report-module summary{font-weight:700;cursor:pointer}
-.report-module label{margin:10px 0 0}
-.report-module input[type=checkbox]{width:auto;margin-right:6px}
-</style>
+<link rel="stylesheet" href="admin/social-media-settings.css">
 </head>
 <body>
-<header><a href="index.php">TT · TRANSTRADE</a><span>Super Admin</span></header>
+<header><a href="index.php">TT · TRANSTRADE</a><span>Super Admin <a class="power" href="logout.php" aria-label="Log out">⏻</a></span></header>
 <main>
-<a href="index.php">← Control Centre</a>
+<a class="back-link" href="index.php">← Control Centre</a>
 <h1>Social Media Settings</h1>
 <nav class="platform-nav" aria-label="Social platforms">
 <?php foreach ($platforms as $key=>$name): ?>
 <a href="?platform=<?=$h($key)?>" <?=$platform===$key?'aria-current="page"':''?>><?=$h($name)?></a>
 <?php endforeach; ?>
 </nav>
-<?php if ($error!==''): ?><p role="alert" class="error"><?=$h($error)?></p><?php elseif ($notice!==''): ?><p role="status"><?=$h($notice)?></p><?php endif; ?>
-<section>
-<h2><?=$h($label)?> connection</h2>
+<?php if ($error!==''): ?><p role="alert" class="notice error"><?=$h($error)?></p><?php elseif ($notice!==''): ?><p role="status" class="notice"><?=$h($notice)?></p><?php endif; ?>
+
+<div class="platform-status">
+<div><strong><?=$h($label)?> delivery</strong> <span class="pill <?=$enabled?'live':''?>"><?=$h($deliveryStatus)?></span></div>
+<?php if($connected): ?><span>Last server check · <?=$h($lastRun)?></span><?php endif; ?>
+</div>
+<?php if(!empty($delivery['lastRunErrors'])||!empty($delivery['pending'])): ?>
+<p role="alert" class="notice error">Some deliveries could not be confirmed. Check delivery controls below.</p>
+<?php endif; ?>
+
+<section aria-labelledby="reports-heading">
+<h2 id="reports-heading">Optional <?=$h($label)?> reports</h2>
+<p>Choose which PDFs to send daily at <strong>11:00 a.m. Pakistan time</strong>. Each report shows its date range and source.</p>
+<?php if(!$connected): ?><p>Save a connection below to choose reports for this platform.</p><?php endif; ?>
+<form method="post" action="<?=$h($return)?>">
+<input type="hidden" name="csrf" value="<?=$csrf?>">
+<?php foreach(tt_social_report_catalog() as $module=>$reports): ?>
+<?php $count=count(array_intersect(array_keys($reports),$selected)); ?>
+<details class="report-module" <?=($count>0||($selected===[]&&$module==='Mill'))?'open':''?>>
+<summary><span><?=$h($module)?></span><small><?=$count?> of <?=count($reports)?> saved</small></summary>
+<ul class="report-list">
+<?php foreach($reports as $id=>[$title,$source,$scope]): ?>
+<li class="report-row">
+<label>
+<input type="checkbox" name="reports[]" value="<?=$h($id)?>" <?=in_array($id,$selected,true)?'checked':''?> <?=$connected?'':'disabled'?>>
+<span><strong><?=$h($title)?></strong><small><?=$h($scope)?></small></span>
+</label>
+<a href="<?=$h($source)?>" target="_blank" rel="noopener" aria-label="Open source for <?=$h($title)?> in a new tab">Open source ↗</a>
+</li>
+<?php endforeach; ?>
+</ul>
+</details>
+<?php endforeach; ?>
+<div class="save-reports"><button type="submit" class="primary" name="action" value="reports" <?=$connected?'':'disabled'?>>Save report selections</button></div>
+</form>
+</section>
+
+<details class="settings-panel">
+<summary>Standard alerts and delivery controls</summary>
+<dl class="schedule">
+<dt>10:00 a.m.</dt><dd>Mill arrivals summary</dd>
+<dt>11:00 a.m.</dt><dd>Directors’ morning PDF</dd>
+<dt>On saved activity</dt><dd>Mill and Exports updates, including loading, production and completion reports</dd>
+</dl>
+<p>Scheduled times use Pakistan time.</p>
+<?php if($connected): ?>
+<form method="post" action="<?=$h($return)?>">
+<input type="hidden" name="csrf" value="<?=$csrf?>">
+<?php if(!$telegram&&!$enabled): ?>
+<label class="tick"><input type="checkbox" name="privateChannel" value="yes" required> I verified the channel is private and limited to approved recipients.</label>
+<?php endif; ?>
+<button type="submit" name="action" value="<?=$enabled?'disable':'enable'?>"><?=$enabled?'Disable':'Enable'?> <?=$h($label)?></button>
+</form>
+<form class="actions" method="post" action="<?=$h($return)?>">
+<input type="hidden" name="csrf" value="<?=$csrf?>">
+<button type="submit" name="action" value="test" <?=$enabled?'':'disabled'?>>Send test message</button>
+<button type="submit" name="action" value="run" <?=$enabled?'':'disabled'?>>Send due updates now</button>
+<?php if($telegram): ?><button type="submit" name="action" value="recovery" <?=$enabled?'':'disabled'?>>Send TTI Recovery PDF · previous 7 days</button><?php endif; ?>
+</form>
+<?php else: ?><p>Save a connection to enable this platform.</p><?php endif; ?>
+</details>
+
+<details class="settings-panel" <?=$connected?'':'open'?>>
+<summary><?=$h($label)?> connection</summary>
 <p><?=$connected?'Connection saved. Enter new details only to replace it.':'Connect a private destination for Transtrade alerts.'?></p>
 <form method="post" autocomplete="off" action="<?=$h($return)?>">
 <input type="hidden" name="csrf" value="<?=$csrf?>">
 <?php if ($telegram): ?>
-<label>BotFather token <input type="password" name="token" autocomplete="new-password" maxlength="121" required></label>
-<label>Telegram group ID <input name="chatId" placeholder="Include the minus sign" maxlength="17" required></label>
+<label class="key-label">BotFather token <input type="password" name="token" autocomplete="new-password" maxlength="121" required></label>
+<label class="key-label">Telegram group ID <input name="chatId" placeholder="Include the minus sign" maxlength="17" required></label>
 <?php else: ?>
-<label>Discord webhook URL <input type="password" name="webhook" autocomplete="new-password" maxlength="240" required></label>
-<p>In your private Discord text channel, open Edit Channel → Integrations → Webhooks and copy its webhook URL. A new or replacement connection starts disabled.</p>
+<label class="key-label">Discord webhook URL <input type="password" name="webhook" autocomplete="new-password" maxlength="240" required></label>
+<p>Copy the webhook URL from your private Discord channel under Edit Channel → Integrations → Webhooks. Saving a new connection disables delivery until you enable it.</p>
 <?php endif; ?>
 <button type="submit" class="primary" name="action" value="save">Save connection</button>
 </form>
-</section>
-<section>
-<h2><?=$h($label)?> delivery</h2>
-<p><strong><?=$enabled?'Enabled':'Disabled'?></strong></p>
-<?php if ($connected): ?>
-<form method="post" action="<?=$h($return)?>">
-<input type="hidden" name="csrf" value="<?=$csrf?>">
-<?php if (!$telegram && !$enabled): ?>
-<p>Alerts include operational entries and Directors reports. Only approved recipients should have access to the Discord channel.</p>
-<label><input type="checkbox" name="privateChannel" value="yes" required> I verified the channel is private and limited to approved recipients.</label>
-<?php endif; ?>
-<button type="submit" name="action" value="<?=$enabled?'disable':'enable'?>"><?=$enabled?'Disable':'Enable'?> <?=$h($label)?></button>
-</form>
-<p>Arrivals summary at 10 a.m. and Directors PDF at 11 a.m. Pakistan time. The server also checks for saved entries and due updates.</p>
-<p>Last server check <?=$h($delivery['lastRun']??'Pending')?></p>
-<?php if(!empty($delivery['lastRunErrors'])): ?><p role="alert" class="error">Some deliveries could not be confirmed.</p><?php endif; ?>
-<?php if(!empty($delivery['pending'])): ?><p role="alert" class="error">A delivery result needs verification before it can be sent again.</p><?php endif; ?>
-<form method="post" action="<?=$h($return)?>">
-<input type="hidden" name="csrf" value="<?=$csrf?>">
-<button type="submit" name="action" value="run" <?=$enabled?'':'disabled'?>>Send due updates now</button>
-<button type="submit" name="action" value="test" <?=$enabled?'':'disabled'?>>Send test message</button>
-<?php if($telegram): ?><button type="submit" name="action" value="recovery" <?=$enabled?'':'disabled'?>>Send TTI Recovery PDF · previous 7 days</button><?php endif; ?>
-</form>
-<?php else: ?><p>Save a connection to enable this platform.</p><?php endif; ?>
-</section>
-<section>
-<h2>Optional <?=$h($label)?> reports</h2>
-<p>Tick the extra PDFs you want at 11 a.m. Pakistan time. Standard alerts keep their existing schedule.</p>
-<?php if($connected): ?>
-<form method="post" action="<?=$h($return)?>">
-<input type="hidden" name="csrf" value="<?=$csrf?>">
-<?php $selected=$config['reports']??[]; foreach(tt_social_report_catalog() as $module=>$reports): ?>
-<details class="report-module">
-<summary><?=$h($module)?> · <?=count(array_intersect(array_keys($reports),$selected))?> selected</summary>
-<?php foreach($reports as $id=>$title): ?>
-<label><input type="checkbox" name="reports[]" value="<?=$h($id)?>" <?=in_array($id,$selected,true)?'checked':''?>> <?=$h($title)?></label>
-<?php endforeach; ?>
 </details>
-<?php endforeach; ?>
-<button type="submit" name="action" value="reports">Save report selections</button>
-</form>
-<?php else: ?><p>Save a connection to choose optional reports.</p><?php endif; ?>
-</section>
 </main>
+<script src="/session-activity.js"></script>
 </body>
 </html>
+<?php echo tt_version_local_assets((string)ob_get_clean(),'/');
