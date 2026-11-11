@@ -12,6 +12,7 @@ jobs:
     steps:
       - name: Check authenticated shell without uploading or changing files
         env:
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
           HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
           HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
           HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
@@ -19,16 +20,29 @@ jobs:
           HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
+          expected_target='/home/u831010370/domains/app.transtradeinternational.com/public_html'
+          test "$HOSTINGER_DEPLOY_PATH" = "$expected_target" || { echo 'Deployment path does not match the exact Hostinger-confirmed target.'; exit 1; }
           install -m 700 -d "$RUNNER_TEMP/ssh"
           trap 'rm -f "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts" "$RUNNER_TEMP/ssh/error"' EXIT
           printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
           printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
           chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
-          if ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" 'printf "SSH_SHELL_READY\n"' 2>"$RUNNER_TEMP/ssh/error"; then
+          if ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" 'printf "SSH_SHELL_READY\n"; test -d /home/u831010370/domains/app.transtradeinternational.com/public_html && test -f /home/u831010370/domains/app.transtradeinternational.com/public_html/login.php && printf "TARGET_VERIFIED\n"' 2>"$RUNNER_TEMP/ssh/error"; then
             echo 'Authenticated shell is available. No files were uploaded or changed.' | tee -a "$GITHUB_STEP_SUMMARY"
           else
+            echo 'SSH diagnostic (connection values redacted):'
+            python3 - <<'PYERROR'
+          import os,pathlib,re
+          message=pathlib.Path(os.environ['RUNNER_TEMP'],'ssh','error').read_text(errors='replace')
+          for name in ['HOSTINGER_HOST','HOSTINGER_USER','HOSTINGER_PORT','RUNNER_TEMP']:
+              value=os.environ.get(name,'')
+              if value: message=message.replace(value,'['+name+']')
+          message=re.sub(r'-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----','[REDACTED PRIVATE KEY]',message,flags=re.S)
+          for line in message.splitlines()[:20]:
+              print('SSH_ERROR: '+re.sub(r'[\x00-\x08\x0b-\x1f\x7f]','',line)[:1000])
+          PYERROR
             if grep -q '/sbin/nologin' "$RUNNER_TEMP/ssh/error"; then
-              echo 'Hostinger rejected the login shell (/sbin/nologin). Enable/provision shell access for the configured hosting account before deployment. Application code cannot repair the hosting login shell.' | tee -a "$GITHUB_STEP_SUMMARY"
+              echo 'The SSH error mentions /sbin/nologin. Check the shell assigned to the exact SSH account used by GitHub.' | tee -a "$GITHUB_STEP_SUMMARY"
             else
               echo 'SSH preflight failed. Review hosting access and the configured connection secrets. No files were uploaded or changed.' | tee -a "$GITHUB_STEP_SUMMARY"
             fi
