@@ -14,7 +14,7 @@ function tt_pending_director_rate_approvals(array $store): array {
             $assessment=bqa_assess($store,$bill);if(!$assessment['issues']||bqa_approved($bill,$assessment))continue;
             $requests[] = [
                 'kind' => $kind, 'billId' => (string)($bill['id'] ?? $key),
-                'entity' => (string)$bill['entity'], 'fingerprint'=>$assessment['fingerprint'], 'canDecide'=>strlen(trim((string)($bill['supplierSettlement']??'')))>=5,
+                'entity' => (string)$bill['entity'], 'fingerprint'=>$assessment['fingerprint'], 'canDecide'=>true,
                 'title' => ($kind === 'nonwoven' ? 'Non-Woven bag' : 'Bag') . ' quantity / specification / weight approval · ' . (string)($bill['sellerInvoice'] ?? $key),
                 'detail' => (string)$bill['entity'] . ' · ' . (string)($bill['supplier'] ?? '') . ' · PO ' . (string)($bill['poNo'] ?? '')
                     . ' · Invoice bags ' . (string)($bill['bags']??0) . ' · Invoice amount PKR ' . (string)($bill['totalAmount']??0) . ' · ' . implode('; ',$assessment['issues']) . ' · Supplier settlement: ' . (string)($bill['supplierSettlement']??'Not yet recorded')
