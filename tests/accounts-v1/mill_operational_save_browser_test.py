@@ -191,6 +191,8 @@ def run():
             body=popup.locator('.sheet').text_content()
             assert body.count('985 kg')>=2 and body.count('Unloading Date')==2
             assert body.count('Moisture KAT (kg)4.25')==2
+            assert popup.locator('.filling-charges').all_text_contents()==['Filling ChargesRs. 500']*2
+            assert body.count('Damage KAT')==2 and body.count('Chalky KAT')==2
             assert body.count('ORIGINAL')==1 and body.count('OFFICE COPY')==1
             assert len(re.findall(r'\d{2}-\d{2}-\d{4}',body))==4 and not re.search(r'\d{4}-\d{2}-\d{2}',body)
             assert operator.get_by_role('button',name='Mark as printed',exact=True).count()==0
