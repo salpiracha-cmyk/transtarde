@@ -14,3 +14,21 @@ orders.forEach(row=>row.keepReceiptOpen=true);assert.equal(context.bagReceiptClo
 orders.forEach(row=>row.keepReceiptOpen=false);assert.equal(context.bagReceiptClosure(orders[0]).closed,true);assert.equal(orders[0].received,85,'Changing status never invents a receipt');
 orders=[{id:1,poNo:'P',ordered:100,received:100},{id:2,poNo:'P',ordered:15,received:0}];assert.equal(context.bagReceiptClosure(orders[1]).closed,true,'Small unreceived packing line closes with the whole PO');
 console.log('PASS Mill PO short-close boundaries, whole-PO tolerance, explicit reopen choice and untouched received quantities');
+
+const nodes=Object.fromEntries(['completedBagOrders','completedBagOrdersBody'].map(id=>[id,{}]));
+Object.assign(context,{
+ document:{getElementById:id=>nodes[id]},bagOrdersBody:{},transferBrand:{},
+ STORE_MILLS:'mills',defaultMills:()=>[],millNames:{},bagIssuedQty:()=>0,bagTransferredQty:()=>0,bagAvailableQty:()=>0,bagArtworkSource:()=>'',escHtml:String,
+});
+vm.runInContext(html.slice(html.indexOf('function renderBagOrders('),html.indexOf('function bagTareGrams(')),context);
+orders=[
+ {id:1,poNo:'PO-260001',contractRef:'TG/AMT/13',brand:'GHAZAL',ordered:5508,received:5508},
+ {id:2,poNo:'PO-260005',contractRef:'TG/MGT/02',brand:'MEGA',ordered:5656,received:0},
+];
+context.currentBagOrder=null;
+context.renderBagOrders();
+assert.doesNotMatch(context.bagOrdersBody.innerHTML,/TG\/AMT\/13/);
+assert.match(context.bagOrdersBody.innerHTML,/bag-marking-box[^>]*><span>MEGA<\/span>/);
+assert.equal(nodes.completedBagOrders.hidden,false);
+assert.match(nodes.completedBagOrdersBody.innerHTML,/PO-260001 · TG\/AMT\/13 · GHAZAL/);
+console.log('PASS completed bag orders leave active receiving and retain receipt history');

@@ -205,6 +205,19 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
             foreach($candidates as $id=>$lot)bti_hold($lots[$id],'Historical production consumption requires an explicit original-PO allocation.');
         }
     }
+    foreach($state['transfers']??[] as $transfer)foreach($transfer['shipmentBagUsage']??[] as $usage){
+        $id='BT|'.$transfer['id'].'|'.$usage['lineId'];
+        if(!isset($lots[$id]))continue;
+        $lot=&$lots[$id];
+        foreach(['packedQty'=>'SHIPMENT_PACKED_BAGS','emptyQty'=>'SHIPMENT_EMPTY_BAGS'] as $field=>$type){
+            $qty=$usage[$field];
+            if(!$qty)continue;
+            if($usage['date']<=$asOf)$lot['issuedQty']+=$qty;
+            $movements[]=['date'=>$usage['date'],'lotId'=>$id,'entity'=>$lot['entity'],'locationId'=>$lot['locationId'],
+                'qty'=>-$qty,'type'=>$type,'reference'=>$usage['id'],'shipment'=>$usage['lotRef']];
+        }
+        unset($lot);
+    }
     $visible=[];foreach($lots as $id=>$lot){if($lot['entity']!==($scope['entity']??'')||$lot['locationId']!==($scope['locationId']??''))continue;
         $lot['balanceBeforeUnallocated']=$lot['receivedQty']+$lot['returnedQty']-$lot['issuedQty']-$lot['transferredOutQty']-$lot['supplierReturnedQty'];
         if($lot['balanceBeforeUnallocated']<0)bti_hold($lot,'Recorded physical movements exceed this source lot; negative balance retained.');

@@ -47,10 +47,13 @@ function br_commit(array &$values,array &$state,array $masters,array $body,array
     $orders=bti_rows($values,'tt30bags');$receipts=bti_rows($values,'tt33bagreceipts');$receipt=null;$disposition=null;
     if($action==='receive_supplier'){
         $qty=bt_qty($body['qty']??null);$date=bt_date((string)($body['date']??''),$now);$flags=br_flags($body);$quarantined=in_array(true,$flags,true);
-        if(($body['inspected']??null)!==true)throw new DomainException('Confirm these bags were physically counted and inspected.');
+        if(($source['order']['sourceKind']??'')==='OTHER_EXPORTER'&&($body['inspected']??null)!==true)throw new DomainException('Confirm these bags were physically counted and inspected.');
+        $remarks=$body['remarks']??'';
+        if(!is_string($remarks)||preg_match('/\A.{0,1000}\z/us',$remarks)!==1)throw new DomainException('Enter up to 1,000 characters for receipt remarks.');
+        $remarks=trim($remarks);
         $actual=$body['actualTareGrams']??null;if($actual!==null&&(!is_numeric($actual)||is_bool($actual)||!is_finite((float)$actual)||(float)$actual<=0))throw new DomainException('Enter the actual positive measured empty-bag weight.');
         if($flags['tareMismatch']&&$actual===null)throw new DomainException('Record the actual measured empty-bag weight for a tare discrepancy.');
-        $receipt=['id'=>'BR-'.substr(hash('sha256',$request['id']),0,24),'bagId'=>$source['order']['id'],'entity'=>$scope['entity'],'locationId'=>$scope['locationId'],'millName'=>$scope['millName'],'brand'=>$scope['brand'],'date'=>$date,'qty'=>$qty,'actualTareGrams'=>$actual===null?null:(float)$actual,'serverManaged'=>true,'bagReceiptVersion'=>1,'sourceSnapshot'=>$scope,'inspectionStatus'=>$quarantined?'Quarantined':'Accepted','acceptedQty'=>$quarantined?0:$qty,'quarantinedQty'=>$quarantined?$qty:0,'inspected'=>true,'at'=>$now]+$flags+bt_actor($user);
+        $receipt=['id'=>'BR-'.substr(hash('sha256',$request['id']),0,24),'bagId'=>$source['order']['id'],'entity'=>$scope['entity'],'locationId'=>$scope['locationId'],'millName'=>$scope['millName'],'brand'=>$scope['brand'],'date'=>$date,'qty'=>$qty,'actualTareGrams'=>$actual===null?null:(float)$actual,'serverManaged'=>true,'bagReceiptVersion'=>1,'sourceSnapshot'=>$scope,'inspectionStatus'=>$quarantined?'Quarantined':'Accepted','acceptedQty'=>$quarantined?0:$qty,'quarantinedQty'=>$quarantined?$qty:0,'inspected'=>true,'remarks'=>$remarks,'at'=>$now]+$flags+bt_actor($user);
         $receipts[]=$receipt;
     }
     if($dispositionAction){
