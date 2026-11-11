@@ -21,8 +21,8 @@ with tempfile.TemporaryDirectory(prefix='supplier-opening-') as tmp:
  books=root/'data/accounts.json';books.write_text(json.dumps(initial))
  with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
  server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
- def req(body=None,role='admin'):
-  request=urllib.request.Request(f'http://127.0.0.1:{port}/api/supplier_settlements.php?entity=TTI',data=None if body is None else json.dumps({'csrf':'fixture','entity':'TTI',**body}).encode(),headers={'Content-Type':'application/json','X-Role':role})
+ def req(body=None,role='admin',query=''):
+  request=urllib.request.Request(f'http://127.0.0.1:{port}/api/supplier_settlements.php?entity=TTI{query}',data=None if body is None else json.dumps({'csrf':'fixture','entity':'TTI',**body}).encode(),headers={'Content-Type':'application/json','X-Role':role})
   try:
    with urllib.request.urlopen(request,timeout=5) as response:return response.status,json.load(response)
   except urllib.error.HTTPError as error:return error.code,json.load(error)
@@ -33,6 +33,9 @@ with tempfile.TemporaryDirectory(prefix='supplier-opening-') as tmp:
    except urllib.error.URLError:time.sleep(.1)
   assert status==200,data
   assert {r['billId'] for r in data['payables']}=={'BILL','BF:OPEN:0','BF:OTHER:0'},data
+  status,scoped=req(query='&view=bill-payment&category=CLEARING');assert status==200 and {r['billId'] for r in scoped['payables']}=={'BILL','BF:OPEN:0'},scoped
+  status,scoped=req(query='&view=bill-payment&category=BAGS');assert status==200 and scoped['payables']==[] and scoped['settlements']==[] and scoped['advances']==[],scoped
+  status,scoped=req(query='&view=bill-payment&category=OTHER&supplier=LOCAL%20SUPPLIER');assert status==200 and {r['billId'] for r in scoped['payables']}=={'BF:OTHER:0'},scoped
   before=books.read_bytes()
   assert req({**payment,'includeOpeningBalance':False})[0]==409
   assert req({**payment,'date':'2026-06-30'})[0]==422

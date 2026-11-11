@@ -149,15 +149,18 @@ function ss_opening_bill(array $s,string $entity,string $id):?array {
     $o=sop_openings($s,$entity)[$id]??null;if(!$o)return null;
     return ['id'=>$id,'entity'=>$entity,'category'=>'OPENING','openingBalance'=>true,'journalId'=>$o['journalId'],'vendor'=>$o['party'],'broker'=>$o['party'],'billNo'=>'Balance B/F','billDate'=>$o['date'],'dueDate'=>$o['date'],'payableAccount'=>$o['account'],'supplierPayableTotal'=>$o['amount'],'receiptAllocations'=>[['sourceKey'=>$o['sourceKey'],'supplierPayableShare'=>$o['amount']]]];
 }
-function ss_simple_payables(array $s,string $entity):array {
+function ss_simple_payables(array $s,string $entity,string $category='',string $selectedSupplier=''):array {
     $rows=[];
     foreach(['supplierBills','bagSupplierBills','otherPurchases'] as $collection)foreach((array)($s[$collection]??[]) as $id=>$raw){
         if(!is_array($raw)||($raw['entity']??'')!==$entity)continue;
+        $kind=$collection==='bagSupplierBills'?'BAGS':($collection==='otherPurchases'?'OTHER':(string)($raw['category']??'SERVICE'));
+        if($category!==''&&$kind!==$category)continue;
         $bill=$collection==='supplierBills'?$raw:ss_external_bill($s,$entity,(string)$id);
         if(!$bill||empty($bill['payableAccount'])||(!empty($bill['expenseInvoice'])&&($bill['status']??'')!=='Posted'))continue;
         foreach((array)($bill['receiptAllocations']??[]) as $a){$cap=ss_component_capacity($s,$entity,$bill,$a);if($cap['total']<=.005)continue;$total=(float)$bill['supplierPayableTotal'];$rows[]=['billId'=>(string)$id,'sourceKey'=>(string)$a['sourceKey'],'supplier'=>(string)($bill['vendor']??$bill['broker']??''),'category'=>(string)($bill['category']??'SERVICE'),'billNo'=>(string)($bill['billNo']??''),'billDate'=>(string)($bill['billDate']??''),'total'=>$total,'paid'=>round($total-$cap['total'],2),'outstanding'=>$cap['total']];}
     }
-    foreach(sop_openings($s,$entity) as $id=>$o){$bill=ss_opening_bill($s,$entity,$id);$a=$bill['receiptAllocations'][0];$cap=ss_component_capacity($s,$entity,$bill,$a);if($cap['total']>.005)$rows[]=['billId'=>$id,'sourceKey'=>$o['sourceKey'],'supplier'=>$o['party'],'category'=>'OPENING','openingBalance'=>true,'billNo'=>'Balance B/F','billDate'=>$o['date'],'total'=>$o['amount'],'paid'=>round($o['amount']-$cap['total'],2),'outstanding'=>$cap['total'],'openingPostId'=>$o['journalId']];}
+    $openingParties=sop_payment_parties($category,array_column($rows,'supplier'),$selectedSupplier);
+    foreach(sop_openings($s,$entity) as $id=>$o){if($category!==''&&!isset($openingParties[$o['party']]))continue;$bill=ss_opening_bill($s,$entity,$id);$a=$bill['receiptAllocations'][0];$cap=ss_component_capacity($s,$entity,$bill,$a);if($cap['total']>.005)$rows[]=['billId'=>$id,'sourceKey'=>$o['sourceKey'],'supplier'=>$o['party'],'category'=>'OPENING','openingBalance'=>true,'billNo'=>'Balance B/F','billDate'=>$o['date'],'total'=>$o['amount'],'paid'=>round($o['amount']-$cap['total'],2),'outstanding'=>$cap['total'],'openingPostId'=>$o['journalId']];}
     usort($rows,static fn($a,$b)=>strcmp($a['billDate'],$b['billDate'])?:strcmp($a['billId'],$b['billId'])?:strcmp($a['sourceKey'],$b['sourceKey']));return $rows;
 }
 function ss_oldest_bill_allocations(array $s,string $entity,array &$body):array {
@@ -289,11 +292,11 @@ if(defined('TT_SETTLEMENTS_FUNCTIONS_ONLY'))return;
 try{
     $user=tt_require_login();if(!tt_user_can_open_module($user,'Accounts'))ss_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);
     if($_SERVER['REQUEST_METHOD']==='GET'){
-        $entity=ss_entity((string)($_GET['entity']??'TTI'));if(!tt_user_can_access_entity($user,$entity,'View'))ss_respond(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);$store=ss_read();$adv=[];
-        foreach((array)($store['supplierAdvances']??[]) as $a)if(is_array($a)&&($a['entity']??'')===$entity){$x=$a;$x['availableAmount']=max(0,round((float)($a['amount']??0)-(float)($a['allocatedAmount']??0),2));$adv[]=$x;}
-        usort($adv,static fn($a,$b)=>strcmp((string)($b['date']??''),(string)($a['date']??'')));$hist=[];foreach((array)($store['supplierSettlements']??[]) as $s)if(is_array($s)&&($s['entity']??'')===$entity)$hist[]=$s;usort($hist,static fn($a,$b)=>strcmp((string)($b['date']??''),(string)($a['date']??'')));
+        $entity=ss_entity((string)($_GET['entity']??'TTI'));if(!tt_user_can_access_entity($user,$entity,'View'))ss_respond(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);$store=ss_read();$adv=[];$paymentView=($_GET['view']??'')==='bill-payment';$category=$paymentView?strtoupper(trim((string)($_GET['category']??''))):'';
+        foreach($paymentView?[]:(array)($store['supplierAdvances']??[]) as $a)if(is_array($a)&&($a['entity']??'')===$entity){$x=$a;$x['availableAmount']=max(0,round((float)($a['amount']??0)-(float)($a['allocatedAmount']??0),2));$adv[]=$x;}
+        usort($adv,static fn($a,$b)=>strcmp((string)($b['date']??''),(string)($a['date']??'')));$hist=[];foreach($paymentView?[]:(array)($store['supplierSettlements']??[]) as $s)if(is_array($s)&&($s['entity']??'')===$entity)$hist[]=$s;usort($hist,static fn($a,$b)=>strcmp((string)($b['date']??''),(string)($a['date']??'')));
         $editingPayment=null;if(!empty($_GET['editPayment'])){$editingPayment=ss_payment_for_amend($store,$entity,(string)$_GET['editPayment']);$store['supplierSettlements'][$editingPayment['id']]['status']='Reversed';}
-        ss_respond(['ok'=>true,'editingPayment'=>$editingPayment,'payables'=>ss_simple_payables($store,$entity),'advances'=>$adv,'settlements'=>$hist,'policy'=>ss_json(TT_SETTLEMENT_POLICY),'serverNow'=>gmdate('c')]);
+        ss_respond(['ok'=>true,'editingPayment'=>$editingPayment,'payables'=>ss_simple_payables($store,$entity,$category,$paymentView?trim((string)($_GET['supplier']??'')):''),'advances'=>$adv,'settlements'=>$hist,'policy'=>ss_json(TT_SETTLEMENT_POLICY),'serverNow'=>gmdate('c')]);
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')ss_respond(['ok'=>false,'error'=>'Method not allowed.'],405);if(!ss_can_write($user))ss_respond(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);
     $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))ss_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);

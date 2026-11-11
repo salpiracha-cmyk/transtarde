@@ -2,7 +2,7 @@
 
 ## Demand-driven reads — 11 November 2026
 
-Reports and ledger detail load only for the open report, ledger or transaction form that needs them. Accounts and Directors home pages may request their displayed summaries and attention items, but must not preload unrelated reports. Hidden Accounts home panels defer their reads until home is reopened. A selected report must not build unrelated detailed ledger, expense or party lists; preserve complete financial totals and permission checks.
+Reports and ledger detail load only for the open report, ledger or transaction form that needs them. Accounts and Directors home pages may request their displayed summaries and attention items, but must not preload unrelated reports. Hidden Accounts home panels defer their reads until home is reopened. A selected report must not build unrelated detailed ledger, expense or party lists; preserve complete financial totals and permission checks. A Bags form loads bag suppliers/bills and required posting accounts; Transport and Clearing forms load their respective categories. Category filtering must happen on the server before calculating unrelated bill detail, not only in the dropdown. Preserve relevant party opening balances and payment-source choices.
 
 ## User-facing download filenames — 22 October 2026
 

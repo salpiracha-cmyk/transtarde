@@ -43,3 +43,12 @@ function sop_assert_unpaid(array $s,string $postId):void {
         foreach(array_merge((array)($pay['liabilityAllocations']??[]),[['id'=>$pay['sourceLiabilityId']??'']]) as $a)if(str_starts_with((string)($a['id']??''),$prefix))throw new DomainException('Reverse the linked TG payment before changing this opening balance.');
     }
 }
+
+/** Eligible party references for a category-specific payment form. */
+function sop_payment_parties(string $category,array $names,string $selectedSupplier=''):array {
+    $openingParties=array_fill_keys($names,true);
+    if($selectedSupplier!=='')$openingParties[$selectedSupplier]=true;
+    $roles=['BAGS'=>['Bag Supplier'],'LABOUR'=>['Labour Contractor'],'TRANSPORT'=>['Transporter'],'FREIGHT'=>['Freight Forwarder','Shipping Line / Carrier'],'CLEARING'=>['Clearing Agent'],'FUMIGATION'=>['Fumigation'],'INSPECTION'=>['Inspection'],'SERVICE'=>['Service Provider'],'UTILITIES'=>['Service Provider'],'OTHER'=>['Service Provider']];
+    if($category!==''&&function_exists('tt_list_masters')&&function_exists('tt_business_party_has_category'))foreach((array)(tt_list_masters()['business_parties']??[]) as $party){$v=(array)($party['values']??[]);if(strcasecmp((string)($v[10]??'Active'),'Inactive')===0)continue;foreach($roles[$category]??[] as $role)if(tt_business_party_has_category($v[2]??'',$role))$openingParties[(string)($v[0]??'')]=true;}
+    return $openingParties;
+}

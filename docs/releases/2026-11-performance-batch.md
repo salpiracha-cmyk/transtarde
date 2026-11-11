@@ -4,6 +4,8 @@ This branch is for review and testing. Do not deploy or merge it until the owner
 
 ## Changes
 
+- Supplier payment forms pass their category to the server. Pakistan payment reads skip unrelated bill capacities and unused settlement/advance history; TG payment reads skip unrelated customer invoices/contracts and bank transaction history. Relevant opening balances, bank choices, VAT settings and amendment validation remain available. The bag-bill entry already uses its dedicated bag endpoint.
+
 - Accounts home summaries/recent postings defer reads while an inner area or form is open. They refresh when home is reopened. Report loads require an active report screen, and selected reports request only their needed detailed ledger/expense/party collections; financial statement totals and legacy API defaults remain compatible. Directors report links already load on navigation; displayed home alerts remain available.
 - Compress software text (PHP, JavaScript, HTML, CSS and related text formats) before archive encryption, using the existing restore-compatible compressed chunk format. This reduces software archive bytes without dropping recovery files. It is not a changed-data-only backup protocol; the daily Data/Software split and existing retention remain in force.
 
