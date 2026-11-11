@@ -276,7 +276,8 @@ def run():
             assert mill.evaluate("""async()=>{const key='tt30ship',before=localStorage.getItem(key),attempted=JSON.stringify([...JSON.parse(before||'[]'),{id:'fixture-staged-bridge-only'}]);window.__arrivalOtherDraft={key,before,attempted};localStorage.setItem(key,attempted);try{await window.TT_SHARED_SYNC.refresh();return false}catch(error){return error.message==='Finish the current save before refreshing.'}}""")
             phone.locator('#qVehicle').fill('QA-909');phone.locator('#qBags').fill('12');phone.locator('#qWeight').fill('1200');phone.locator('#queueSaveBtn').click();phone.locator('[data-mill-action-recovery]').wait_for();assert phone.locator('#qVehicle').input_value()=='QA-909'
             phone.locator('#queueSaveBtn').click();phone.wait_for_function("document.querySelector('#qVehicle').value === ''");phone.locator('#queueSaveStatus').filter(has_text='Saved to server').wait_for()
-            mill.locator('#queueTable').filter(has_text='QA-909').wait_for(timeout=25000);assert mill.locator('#qVehicle').input_value()=='DRAFT-901'
+            # Allow one 30-second visible version-poll cycle plus response/render time.
+            mill.locator('#queueTable').filter(has_text='QA-909').wait_for(timeout=45000);assert mill.locator('#qVehicle').input_value()=='DRAFT-901'
             current=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30queue']);assert sum(r['vehicle']=='QA-909' for r in current)==1
             assert phone.locator('[data-arrival-recovery]').is_visible();phone.get_by_role('button',name='Recover phone entries',exact=True).click();phone.locator('#arrivalRecoveryReview').get_by_text('Confirmed on server',exact=True).first.wait_for()
             # Report mode hides entry controls and retains the PC's unfinished truck/date.
