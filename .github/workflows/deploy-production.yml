@@ -22,10 +22,10 @@ jobs:
     timeout-minutes: 20
     env:
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-      HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
-      HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
-      HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
-      HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+      HOSTINGER_HOST: 151.106.116.33
+      HOSTINGER_PORT: '65002'
+      HOSTINGER_USER: u831010370
+      HOSTINGER_DEPLOY_PATH: /home/u831010370/domains/app.transtradeinternational.com/public_html
       PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
 
     steps:
@@ -38,10 +38,9 @@ jobs:
       - name: Verify deployment secrets and target
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
-          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          for name in HOSTINGER_HOST HOSTINGER_PORT HOSTINGER_USER HOSTINGER_DEPLOY_PATH PRODUCTION_URL HOSTINGER_SSH_KEY HOSTINGER_KNOWN_HOSTS; do
+          for name in HOSTINGER_HOST HOSTINGER_PORT HOSTINGER_USER HOSTINGER_DEPLOY_PATH PRODUCTION_URL HOSTINGER_SSH_KEY; do
             test -n "${!name:-}" || { echo "Missing required secret: $name"; exit 1; }
           done
           case "$HOSTINGER_DEPLOY_PATH" in
@@ -111,12 +110,20 @@ jobs:
       - name: Configure verified SSH connection
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
-          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           install -m 700 -d "$RUNNER_TEMP/ssh"
           printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/deploy_key"
-          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          expected_fingerprint='SHA256:Bid0atNrqK2cVKyC84j8BnqToKfMokX5myGJkNCvBsg'
+          ssh-keyscan -T 15 -p "$HOSTINGER_PORT" -t ed25519 "$HOSTINGER_HOST" 2>/dev/null > "$RUNNER_TEMP/ssh/hostkey-candidate"
+          actual_fingerprint=$(ssh-keygen -lf "$RUNNER_TEMP/ssh/hostkey-candidate" -E sha256 | awk '{print $2}' | sort -u)
+          if [ "$actual_fingerprint" != "$expected_fingerprint" ]; then
+            echo "Hostinger ED25519 fingerprint mismatch. Expected $expected_fingerprint; received $actual_fingerprint"
+            rm -f "$RUNNER_TEMP/ssh/hostkey-candidate"
+            exit 1
+          fi
+          mv "$RUNNER_TEMP/ssh/hostkey-candidate" "$RUNNER_TEMP/ssh/known_hosts"
+          echo "HOSTINGER_ED25519_FINGERPRINT_VERIFIED=$actual_fingerprint"
           chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
           ssh-keygen -y -f "$RUNNER_TEMP/ssh/deploy_key" >/dev/null
 

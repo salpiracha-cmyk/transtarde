@@ -14,7 +14,14 @@ final class TT_SimpleZipWriter {
     private int $offset = 0;
     private bool $closed = false;
 
-    public function __construct(private string $path) {
+    public function __construct(private string $path, ?array $checkpoint = null) {
+        if($checkpoint!==null){
+            if(is_link($path)||!is_file($path))throw new RuntimeException('Backup checkpoint unavailable.');
+            $this->fh=fopen($path,'r+b');
+            $this->offset=(int)$checkpoint['offset'];$this->central=(array)$checkpoint['central'];
+            if(!$this->fh||$this->offset<0||filesize($path)<$this->offset||!ftruncate($this->fh,$this->offset)||fseek($this->fh,$this->offset)!==0)throw new RuntimeException('Backup checkpoint changed.');
+            return;
+        }
         $this->fh = fopen($path, 'wb');
         if ($this->fh === false) throw new RuntimeException('Backup ZIP could not be created.');
     }
@@ -60,7 +67,7 @@ final class TT_SimpleZipWriter {
         if ($source === false) throw new RuntimeException('A backup source file could not be read.');
         [$mtime, $mdate] = self::dosTime(filemtime($path) ?: null);
         $flags = 0x0808; // UTF-8 name plus a data descriptor after streamed contents.
-        $method = $compress && preg_match('/\.(json|txt|csv|log|sql)([.-]|$)/i', $name) ? 8 : 0;
+        $method = $compress && preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i', $name) ? 8 : 0;
         $deflater = $method === 8 ? deflate_init(ZLIB_ENCODING_RAW, ['level'=>6]) : null;
         if ($method === 8 && $deflater === false) { fclose($source); throw new RuntimeException('Backup compression could not start.'); }
         $offset = $this->offset;
@@ -96,6 +103,13 @@ final class TT_SimpleZipWriter {
         $this->write(pack('VVVV', 0x08074b50, $crc, $csize, $size));
         $this->central[] = ['name'=>$name,'flags'=>$flags,'method'=>$method,'mtime'=>$mtime,'mdate'=>$mdate,'crc'=>$crc,'csize'=>$csize,'usize'=>$size,'offset'=>$offset];
         return ['size'=>$size, 'sha256'=>$sha256];
+    }
+
+    public function suspend(): array {
+        if($this->closed||!fflush($this->fh))throw new RuntimeException('Cannot checkpoint backup ZIP.');
+        if(function_exists('fsync')&&!fsync($this->fh))throw new RuntimeException('Cannot synchronize backup ZIP.');
+        fclose($this->fh);$this->closed=true;
+        return ['offset'=>$this->offset,'central'=>$this->central];
     }
 
     public function close(): void {
@@ -624,12 +638,7 @@ function tt_backup_portable_database_files(array $private,array $tables,array &$
     return $private;
 }
 
-function tt_build_download_backup(bool $full,string $password='',string $scope='full'):array{
-    if(!in_array($scope,['full','data','software'],true))throw new InvalidArgumentException('Invalid backup scope.');
-    // Compression and encryption happen before streaming; allow the same bounded
-    // build time as the verified office preparation worker.
-    @set_time_limit(900);
-    $portableTemps=[];register_shutdown_function(static function()use(&$portableTemps):void{foreach($portableTemps as$temp)if(is_file($temp))@unlink($temp);});
+function tt_backup_download_sources(bool $full,string $scope,array &$portableTemps):array {
     [$business,$datasets]=$scope==='software'?[[],[]]:tt_backup_business_payloads();$private=tt_backup_portable_database_files(tt_backup_snapshot_private_files($portableTemps),tt_backup_database_rows(),$portableTemps);$appFiles=$full&&$scope!=='data'?tt_backup_app_files():[];$documents=[];
     if($scope==='software')$private=array_filter($private,static fn($path,$rel)=>$rel==='auth.json'||str_starts_with($rel,'master-documents/')||preg_match('/(^|[_.-])(settings|config|master)([_.-]|$)/i',$rel),ARRAY_FILTER_USE_BOTH);
     if($scope==='software'){
@@ -646,6 +655,16 @@ function tt_build_download_backup(bool $full,string $password='',string $scope='
         $business['System_Recovery/setup/Mill Settings.json']=json_encode($mill,JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR);
     }
     foreach($private as $rel=>$path)if(preg_match('#^(documents|uploads)/(.*)$#i',$rel,$m))$documents['Documents/'.$m[2]]=$path;
+    return [$business,$datasets,$private,$appFiles,$documents];
+}
+
+function tt_build_download_backup(bool $full,string $password='',string $scope='full'):array{
+    if(!in_array($scope,['full','data','software'],true))throw new InvalidArgumentException('Invalid backup scope.');
+    // Compression and encryption happen before streaming; allow the same bounded
+    // build time as the verified office preparation worker.
+    @set_time_limit(900);
+    $portableTemps=[];register_shutdown_function(static function()use(&$portableTemps):void{foreach($portableTemps as$temp)if(is_file($temp))@unlink($temp);});
+    [$business,$datasets,$private,$appFiles,$documents]=tt_backup_download_sources($full,$scope,$portableTemps);
     $estimate=0;foreach($private as $path)$estimate+=filesize($path)?:0;foreach($appFiles as $path)$estimate+=filesize($path)?:0;
     $tmp=tempnam(sys_get_temp_dir(),'tt-backup-');if($tmp===false)throw new RuntimeException('Temporary backup file could not be created.');
     @chmod($tmp,0600);
@@ -671,7 +690,7 @@ function tt_build_download_backup(bool $full,string $password='',string $scope='
     };
     $addEncryptedFile=function(string $logical,string $path)use($zip,$key,&$map,&$counter,&$encryptedFiles):void{
         if(isset($encryptedFiles[$path])){$map[$logical]=$encryptedFiles[$path];return;}
-        $compress=(bool)preg_match('/\.(json|txt|csv|log|sql)([.-]|$)/i',$path);
+        $compress=(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i',$path);
         $source=fopen($path,'rb');if($source===false)throw new RuntimeException('A recovery source file could not be read.');
         $chunks=[];$digest=hash_init('sha256');$size=0;
         try {
@@ -1011,4 +1030,89 @@ function tt_restore_server_snapshot(string $name):array{
         $safety=tt_create_server_snapshot('pre-restore');$restored=tt_backup_commit_staged($staged);return ['restoredFiles'=>$restored,'safetySnapshot'=>$safety];
     }finally{$zip->close();foreach($staged as $tmp)if(is_file($tmp))@unlink($tmp);}
 }
-?>
+
+
+/** Serialize expensive archive work across owner and PC backup scopes. */
+function tt_backup_work_lock() {
+    tt_backup_ensure_dirs();$path=tt_backup_dir().'/.archive-work.lock';
+    if(is_link($path))throw new RuntimeException('Unsafe archive work lock.');
+    $h=fopen($path,'c+b');if(!$h)throw new RuntimeException('Archive work lock unavailable.');chmod($path,0600);
+    if(!flock($h,LOCK_EX|LOCK_NB)){fclose($h);return null;}return $h;
+}
+function tt_backup_build_state(string $dir,?array $value=null):array {
+    $path=$dir.'/build-plan.json';if(is_link($path))throw new RuntimeException('Unsafe archive plan.');
+    if($value===null)return is_file($path)?json_decode((string)file_get_contents($path),true,512,JSON_THROW_ON_ERROR):[];
+    $tmp=tempnam($dir,'.build-plan-');if(!$tmp)throw new RuntimeException('Cannot stage archive plan.');
+    try{chmod($tmp,0600);$json=json_encode($value,JSON_THROW_ON_ERROR);if(file_put_contents($tmp,$json)!==strlen($json)||!rename($tmp,$path))throw new RuntimeException('Cannot save archive plan.');}finally{if(is_file($tmp))unlink($tmp);}return $value;
+}
+function tt_backup_build_cleanup(string $dir,array $plan):void {
+    foreach((array)($plan['owned']??[]) as $path){
+        if(dirname($path)!==$dir||!preg_match('/^build-source-[0-9]+$/D',basename($path))||is_link($path))throw new RuntimeException('Unsafe temporary archive source.');
+        if(is_file($path)){if((lstat($path)['nlink']??0)!==1||!unlink($path))throw new RuntimeException('Cannot remove temporary archive source.');}
+    }
+}
+function tt_backup_build_identity(string $path):array {
+    clearstatcache(true,$path);if(is_link($path)||!is_file($path))throw new RuntimeException('Archive source unavailable.');
+    return array_intersect_key(stat($path),array_flip(['dev','ino','size','mtime','ctime']));
+}
+/** Capture canonical inputs once, then encrypt at most 64 MiB per status request. No key is persisted. */
+function tt_backup_build_init(string $dir,string $scope,?callable $sources=null):void {
+    $old=tt_backup_build_state($dir);tt_backup_build_cleanup($dir,$old);
+    $plan=['owned'=>[],'files'=>[],'index'=>0,'offset'=>0,'chunks'=>[],'map'=>[],'counter'=>1,'salt'=>base64_encode(random_bytes(16)),'scope'=>$scope];
+    tt_backup_build_state($dir,$plan);$temps=[];
+    try{
+        [$business,$datasets,$private,$app,$documents]=$sources?$sources():tt_backup_download_sources(true,$scope,$temps);
+        $plan['sheets']=count($datasets);$files=[];
+        $own=function(?string $bytes,?string $original)use($dir,&$plan):string{
+            $path=$dir.'/build-source-'.count($plan['owned']);
+            if(is_link($path)||(is_file($path)&&(lstat($path)['nlink']??0)!==1))throw new RuntimeException('Unsafe temporary source.');
+            tt_backup_require_space($dir,($bytes!==null?strlen($bytes):(filesize($original)?:0))*2);
+            $plan['owned'][]=$path;tt_backup_build_state($dir,$plan);
+            if($bytes!==null){if(file_put_contents($path,$bytes)!==strlen($bytes))throw new RuntimeException('Cannot stage generated report.');}
+            elseif(!copy($original,$path))throw new RuntimeException('Cannot stage snapshot.');
+            chmod($path,0600);return $path;
+        };
+        foreach($business as $logical=>$bytes)$files[$logical]=[$own($bytes,null),true];
+        $snapshot=[];foreach($private as $logical=>$path){$snapshot[$path]=in_array($path,$temps,true)?$own(null,$path):$path;}
+        foreach($documents+tt_backup_module_documents($private) as $logical=>$path)$files[$logical]=[$snapshot[$path]??$path,(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i',$path)];
+        foreach($private as $logical=>$path)$files['System_Recovery/private/'.$logical]=[$snapshot[$path],(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i',$path)];
+        foreach($app as $logical=>$path)$files['Application_Code/'.$logical]=[$path,(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i',$path)];
+        $byPath=[];
+        foreach($files as $logical=>[$path,$compress]){
+            if(isset($byPath[$path])){$plan['files'][$byPath[$path]]['logical'][]=$logical;continue;}
+            $byPath[$path]=count($plan['files']);$plan['files'][]=['path'=>$path,'compress'=>$compress,'logical'=>[$logical],'identity'=>tt_backup_build_identity($path)];
+        }
+        $revision=trim((string)@file_get_contents(__DIR__.'/.transtrade-release'));
+        if(!preg_match('/^[a-f0-9]{40}$/D',$revision)){$code=[];foreach($app?:tt_backup_app_files() as $rel=>$path)$code[$rel]=hash_file('sha256',$path);ksort($code);$revision=hash('sha256',json_encode($code,JSON_THROW_ON_ERROR));}
+        $estimate=array_sum(array_map(static fn($f)=>(int)$f['identity']['size'],$plan['files']));tt_backup_require_space($dir,$estimate*2);
+        $plan['revision']=$revision;$path=$dir.'/build.zip';if(is_link($path))throw new RuntimeException('Unsafe archive stage.');
+        $zip=new TT_SimpleZipWriter($path);$plan['zip']=$zip->suspend();tt_backup_build_state($dir,$plan);
+    }finally{foreach($temps as $temp)if(is_file($temp))unlink($temp);}
+}
+function tt_backup_build_step(string $dir,string $password,int $maxBytes=67108864):?string {
+    $p=tt_backup_build_state($dir);if(!isset($p['zip']))throw new RuntimeException('Archive plan incomplete.');
+    $key=tt_backup_derive_key($password,base64_decode($p['salt'],true),200000);
+    $zip=new TT_SimpleZipWriter($dir.'/build.zip',$p['zip']);$bytes=0;$start=microtime(true);
+    try{
+        while($p['index']<count($p['files'])){
+            $f=$p['files'][$p['index']];$path=$f['path'];if(tt_backup_build_identity($path)!==$f['identity'])throw new RuntimeException('Archive source changed; request a fresh snapshot.');
+            $h=fopen($path,'rb');if(!$h)throw new RuntimeException('Archive source unavailable.');
+            try{if(fseek($h,$p['offset'])!==0)throw new RuntimeException('Invalid archive cursor.');$plain=fread($h,1048576);if($plain===false)throw new RuntimeException('Cannot read archive source.');}finally{fclose($h);}
+            $enc=tt_backup_encrypt($plain,$key,$f['compress']);$stored='Encrypted/'.str_pad((string)$p['counter']++,6,'0',STR_PAD_LEFT).'.bin';
+            $zip->addString($stored,$enc['cipher'],false);unset($enc['cipher']);$enc['stored']=$stored;$p['chunks'][]=$enc;
+            $n=strlen($plain);$p['offset']+=$n;$bytes+=$n;
+            if($p['offset']>=(int)$f['identity']['size']){
+                $sha=hash_file('sha256',$path);if(!$sha||tt_backup_build_identity($path)!==$f['identity'])throw new RuntimeException('Archive source changed.');
+                foreach($f['logical'] as $logical)$p['map'][$logical]=['size'=>$p['offset'],'sha256'=>$sha,'chunks'=>$p['chunks']];
+                $p['index']++;$p['offset']=0;$p['chunks']=[];
+            }
+            if($bytes>=max(1,$maxBytes)||microtime(true)-$start>=2)break;
+        }
+        if($p['index']<count($p['files'])){$p['zip']=$zip->suspend();tt_backup_build_state($dir,$p);return null;}
+        $private=$app=[];foreach($p['map'] as $logical=>$entry){$row=['path'=>'','size'=>$entry['size'],'sha256'=>$entry['sha256']];if(str_starts_with($logical,'System_Recovery/private/')){$row['path']=substr($logical,24);$private[]=$row;}elseif(str_starts_with($logical,'Application_Code/')){$row['path']=substr($logical,17);$app[]=$row;}}
+        $manifest=['schema'=>TT_BACKUP_SCHEMA,'application'=>'Transtrade','appVersion'=>TT_BACKUP_APP_VERSION,'type'=>'full_recovery','createdAt'=>gmdate('c'),'scope'=>$p['scope'],'softwareRevision'=>$p['revision'],'recoveryFileCount'=>count($private),'recoveryFiles'=>$private,'businessSheets'=>$p['sheets'],'containsTechnicalSecrets'=>true,'appFileCount'=>count($app),'applicationFiles'=>$app,'encryption'=>['algorithm'=>'AES-256-GCM','kdf'=>'PBKDF2-HMAC-SHA256','iterations'=>200000,'salt'=>$p['salt']],'encryptedEntries'=>$p['map']];
+        $zip->addString('README.txt',"TRANSTRADE COMPLETE RECOVERY BACKUP\nSensitive contents are encrypted. Restore through Super Admin > Backup & Data Export.\n");
+        $zip->addString('backup-manifest.json',json_encode($manifest,JSON_THROW_ON_ERROR));$zip->close();tt_backup_build_cleanup($dir,$p);
+        return $dir.'/build.zip';
+    }catch(Throwable $e){try{$zip->suspend();}catch(Throwable){}throw $e;}
+}

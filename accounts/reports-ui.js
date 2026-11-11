@@ -30,14 +30,15 @@
   function recordRow(record,postColumn=-1,id=''){return '<tr>'+record.map((value,column)=>'<td>'+(column===postColumn?postButton(value,id||value):esc(typeof value==='number'?fmt(value):value))+'</td>').join('')+'</tr>';}
 
   async function load(){
+    if(!q('#ws-reports.active'))return;
     data=null; // A failed explicit refresh must not export the previous report as its result.
     const sequence=++loadSequence,requestedEntity=entity(),requestedView=view;
     if(filterEntity!==requestedEntity){for(const id of ['ttReportAccount','ttReportSource','ttReportSearch','ttBalanceKind','ttExpenseFor','ttExpenseRecipient','ttExpenseAsset','ttCommodityProduct','ttCommodityBrand']){const control=q('#'+id);if(control)control.value='';}filterEntity=requestedEntity;}
 
     const asOf=q('#ttReportAsOf')?.value||today(),from=['tb','bs','balances'].includes(view)?asOf.slice(0,4)+'-01-01':q('#ttReportFrom')?.value||yearStart();
-    const url='../api/accounts_reports.php?'+new URLSearchParams({entity:requestedEntity,from,asOf,currency:q('#ttReportCurrency')?.value||'AED'});
+    const url='../api/accounts_reports.php?'+new URLSearchParams({entity:requestedEntity,view:requestedView,from,asOf,currency:q('#ttReportCurrency')?.value||'AED'});
     const response=await fetch(url,{credentials:'same-origin',headers:{Accept:'application/json'}}),result=await response.json();
-    if(sequence!==loadSequence||requestedEntity!==entity())return;
+    if(sequence!==loadSequence||requestedEntity!==entity()||requestedView!==view||!q('#ws-reports.active'))return;
     if(!response.ok||!result.ok)throw new Error(result.error||'Could not load reports.');
     if(requestedView==='shipment'){
       const response=await fetch('../api/shipment_profitability.php?entity='+encodeURIComponent(requestedEntity),{credentials:'same-origin',headers:{Accept:'application/json'}}),shipments=await response.json();

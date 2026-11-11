@@ -3,7 +3,7 @@
   if(window.TT_JV_NOTICES||window.TT_OPENING_ONLY)return;
   const access=window.TT_JV_NOTICE_ACCESS||window.TT_ACCOUNT_ACCESS||{},permissions=access.permissions;
   if(!access.super&&permissions!=='all'&&!(Array.isArray(permissions)?permissions:permissions?.jv||[]).includes('View'))return;
-  const queue=[],seen=new Set();let active,panel,pollTimer,busy=false,stopped=false,backoff=10000,dismissing=false;
+  const queue=[],seen=new Set();let active,panel,pollTimer,busy=false,stopped=false,backoff=60000,dismissing=false,lastPoll=0;
   function atHome(){
     const home=document.querySelector(access.homeSelector||'#entityHome');
     if(access.homeSelector&&!home)return false;
@@ -40,17 +40,17 @@
     }catch(e){panel.querySelector('[data-notice-error]').textContent=e.message||'Dismissal was not saved. Use X again.';}
     finally{button.disabled=false;dismissing=false;}
   }
-  async function poll(){
-    clearTimeout(pollTimer);if(stopped||busy)return;render();if(document.hidden||!atHome()){pollTimer=setTimeout(poll,backoff);return;}busy=true;
+  async function poll(force=false){
+    clearTimeout(pollTimer);if(stopped||busy)return;render();if(document.hidden||!atHome()){pollTimer=setTimeout(poll,backoff);return;}if(!force&&Date.now()-lastPoll<backoff){pollTimer=setTimeout(poll,backoff-(Date.now()-lastPoll));return;}busy=true;lastPoll=Date.now();
     try{
       const company=(access.entities||[])[0]||localStorage.getItem('tt_accounts_entity')||'TTI';
       const response=await fetch('/api/journal_vouchers.php?'+new URLSearchParams({entity:company,notices:'1',pending:'1'}),{credentials:'same-origin',cache:'no-store'});
       if([401,403].includes(response.status)){stopped=true;hide();return;}
       const body=await response.json();if(!response.ok||!body.ok)throw Error('Decision updates unavailable');
-      for(const item of body.notices||[])accept(item);backoff=10000;
-    }catch{backoff=Math.min(60000,backoff*2);}finally{busy=false;if(!stopped)pollTimer=setTimeout(poll,backoff);}
+      for(const item of body.notices||[])accept(item);backoff=60000;
+    }catch{backoff=Math.min(300000,backoff*2);}finally{busy=false;if(!stopped)pollTimer=setTimeout(poll,backoff);}
   }
-  window.TT_JV_NOTICES={accept,check:poll,stop(){stopped=true;clearTimeout(pollTimer);hide();}};
+  window.TT_JV_NOTICES={accept,check:()=>poll(true),stop(){stopped=true;clearTimeout(pollTimer);hide();}};
   // Reads only notification metadata. Never refresh transactions or rebuild an unfinished form.
   const home=document.querySelector(access.homeSelector||'#entityHome');if(home)new MutationObserver(()=>{render();if(atHome())void poll();}).observe(home,{attributes:true,attributeFilter:['class','style','hidden']});
   document.addEventListener('click',()=>setTimeout(render,0));

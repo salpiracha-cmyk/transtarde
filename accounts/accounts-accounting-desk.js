@@ -404,6 +404,7 @@
     qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>button.dataset.ttArea==='petty-cash'?launch({special:'petty-cash'}):button.dataset.ttArea==='assets'?window.TT_ASSETS_UI?.open?.():showArea(button.dataset.ttArea));
     window.TT_ACCOUNT_BADGE_REFRESH?.();
     void loadDashboardSummary();
+    void loadRecentTransactions();
   }
 
   let bankMenuGeneration=0;
@@ -471,12 +472,12 @@
     const name = q('.entityBtn.active strong')?.textContent || entity();
     qa('[data-tt-entity-name]').forEach(node => { node.textContent = name; });
     showAreasHome();
-    loadRecentTransactions();
   }
 
+  function homeDataNeeded(){return q('#entityHome')?.style.display!=='none'&&!q('#ttAccountingDesk')?.classList.contains('tt-inside-area');}
   let dashboardLoad=0;
   async function loadDashboardSummary() {
-    const host=q('#ttSummaryCards'), queue=q('#ttAttentionQueue'); if(!host)return;
+    const host=q('#ttSummaryCards'), queue=q('#ttAttentionQueue'); if(!host||!homeDataNeeded())return;
     const company=entity(),request=++dashboardLoad;
     host.innerHTML='<div class="tt-summary" role="status"><b>Loading company balances…</b></div>';
     if(queue)queue.innerHTML='<div class="tt-queue-row" role="status">Loading company attention items…</div>';
@@ -525,7 +526,7 @@
 
   let recentLoad=0;
   async function loadRecentTransactions(){
-    const box=q('#ttRecentTransactions');if(!box)return;
+    const box=q('#ttRecentTransactions');if(!box||!homeDataNeeded())return;
     const company=entity(),request=++recentLoad;box.textContent='Loading transactions…';
     try{
       const result=await json('../api/accounts_ledger_browser.php?'+new URLSearchParams({entity:company,account:'POSTS',activity:'vouchers',page:1,pageSize:50,from:'0001-01-01',to:today()}));

@@ -29,6 +29,7 @@ function tt_office_job_matches(array $m,string $id,string $client):bool {
 }
 function tt_office_job_public(array $m):array {
     $out=['ok'=>true,'protocol'=>2,'job'=>$m['id'],'state'=>$m['state'],'stage'=>$m['stage']??$m['state']];
+    if(!empty($m['batchBuild']))$out+=['pollAfterSeconds'=>1,'progressAt'=>(int)($m['progressAt']??$m['createdAt']??0)];
     if(($m['stage']??'')==='verifying')$out+=['verifiedFiles'=>(int)($m['verifiedFiles']??0),'totalFiles'=>(int)($m['totalFiles']??0)];
     if($m['state']==='ready')$out+=['length'=>$m['length'],'sha256'=>$m['sha256'],'chunkBytes'=>4194304];
     if($m['state']==='failed')$out['error']='Server backup preparation failed; previous completed backups were preserved. Reference: '.($m['errorCode']??'PREPARATION');
@@ -47,6 +48,7 @@ function tt_office_job_shutdown_guard(array $m,bool &$finished,string &$reserve)
     });
 }
 function tt_office_job_generate(array $m,string $password,?callable $build=null):array {
+    if($build===null){try{tt_backup_build_init(tt_office_job_dir(),(string)($GLOBALS['ttOfficeBackupScope']??'full'));$m['batchBuild']=true;$m['stage']='building';tt_office_job_write($m);return $m;}catch(Throwable $e){return tt_office_job_failure($m,$e);}}
     $path='';$stage=tt_office_job_dir().'/incoming.tmp';$finished=false;$reserve=str_repeat('x',262144);
     tt_office_job_shutdown_guard($m,$finished,$reserve);
     try{
@@ -99,4 +101,12 @@ function tt_office_job_chunk(array $m,int $offset,int $length):string {
     $h=fopen($p,'rb');if(!$h)throw new RuntimeException('Transfer unavailable');
     try{if(fseek($h,$offset)!==0)throw new RuntimeException('Invalid chunk offset');$data='';while(strlen($data)<$length){$b=fread($h,$length-strlen($data));if($b===false||$b==='')throw new RuntimeException('Transfer incomplete');$data.=$b;}}finally{fclose($h);}
     if(tt_office_job_identity($p)!==$m['identity'])throw new RuntimeException('Transfer changed');return $data;
+}
+
+function tt_office_job_build_step(array $m,string $password):array {
+    try{
+        $path=tt_backup_build_step(tt_office_job_dir(),$password);$m['progressAt']=time();
+        if($path!==null){$candidate=tt_office_job_dir().'/candidate.zip';if(is_link($candidate)||!rename($path,$candidate))throw new RuntimeException('Cannot stage archive.');$m['stage']='verifying';$m['verificationStartedAt']=time();$m['candidateIdentity']=tt_office_job_identity($candidate);$m['verifiedFiles']=0;}
+        tt_office_job_write($m);return $m;
+    }catch(Throwable $e){return tt_office_job_failure($m,$e);}
 }

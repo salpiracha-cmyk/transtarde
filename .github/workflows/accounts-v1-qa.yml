@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    paths: ['document-filenames.js','document_filenames.php','runtime_html.php','tests/document_filenames_test.js','tests/document_filenames_test.php','staff-home.php','jv_notice_ui.php','index.html','index.php','document-reader-settings.php','tests/document-ai/**','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','exporter-loading.php','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+    paths: ['shared-reads.js','document-filenames.js','document_filenames.php','runtime_html.php','tests/document_filenames_test.js','tests/document_filenames_test.php','staff-home.php','jv_notice_ui.php','index.html','index.php','document-reader-settings.php','tests/document-ai/**','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','exporter-loading.php','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
 
 permissions:
   contents: read
@@ -224,6 +224,7 @@ jobs:
           python3 tests/security/export_document_index_integrity_test.py
           php tests/security/pc_pairing_test.php
           php tests/security/owner_backup_jobs_test.php
+          php tests/security/backup_resumable_build_test.php
           php tests/security/office_backup_auth_test.php
           python3 tests/security/office_backup_agent_test.py
           python3 tests/security/office_backup_protocol_test.py
@@ -463,6 +464,7 @@ jobs:
           node tests/accounts-v1/review_receipt_ui_test.js
           node tests/accounts-v1/bag_report_modes_test.js
           node tests/accounts-v1/dashboard_request_sharing_test.js
+          node tests/accounts-v1/shared_reads_test.js
           node tests/accounts-v1/ledger_pagination_ui_test.js
           node tests/accounts-v1/accounts_home_cleanup_ui_test.js
           node tests/accounts-v1/bag_order_report_ui_test.js

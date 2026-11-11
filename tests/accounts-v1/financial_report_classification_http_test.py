@@ -12,15 +12,20 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
  path=root/'data/accounts.json';path.write_text(json.dumps(books));before=path.read_bytes()
  with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
  log=open(root/'server.log','w');server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=log,stderr=log)
- def req(from_date='2026-09-01',entity='TTI',currency='AED'):
+ def req(from_date='2026-09-01',entity='TTI',currency='AED',view='all'):
   try:
-   with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/accounts_reports.php?entity={entity}'+(f'&currency={currency}' if currency is not None else '')+f'&from={from_date}&asOf=2026-10-15') as r:return r.status,json.load(r)
+   with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/accounts_reports.php?entity={entity}'+(f'&currency={currency}' if currency is not None else '')+f'&from={from_date}&asOf=2026-10-15&view={view}') as r:return r.status,json.load(r)
   except urllib.error.HTTPError as e:return e.code,json.load(e)
  try:
   for _ in range(60):
    try:status,d=req();break
    except urllib.error.URLError:time.sleep(.05)
   assert status==200,d;assert d['revision']==7 and d['trialBalance']['balanced']
+  for view in ['tb','pl','bs','expenses','personal','vehicles','balances','shipment']:
+   code,selected=req(view=view);assert code==200 and selected['generalLedger']==[],view
+   assert selected['profitAndLoss']==d['profitAndLoss'] and selected['balanceSheet']==d['balanceSheet'],view
+   if view not in ['tb','balances']:assert selected['trialBalance']['partyRows']==[],view
+  code,selected=req(view='gl');assert code==200 and selected['generalLedger']==d['generalLedger']
   pl=d['profitAndLoss'];assert next(r for r in pl['income'] if str(r['account'])=='4450')['amount']==296258.91,pl
   assert next(r for r in pl['expenses'] if str(r['account'])=='7195')['amount']==.09
   assert next(r for r in pl['expenses'] if str(r['account'])=='7100')['amount']==-10

@@ -19,11 +19,12 @@ with tempfile.TemporaryDirectory(prefix='tg-customer-receipts-') as tmp:
   books['exportCandidates'][cid]={'id':cid,'entity':'TG','candidateType':'CUSTOMER_EXPORT_SALE','reference':ref,'counterparty':customer,'transactionCurrency':'USD','transactionAmount':amount,'functionalRate':3.67 if n<2 else 0,'currentCarryingRate':3.67 if n<2 else 0,'journalId':jid if n<2 else '', 'pendingValuation':n==2,'meta':{'contractRef':ref,'commercialInvoiceNo':ref,'commercialInvoiceDate':'2026-06-15','customer':customer,'carryForwardShipmentId':'CF-'+str(n)}}
   if n<2:books['journals'][jid]={'id':jid,'entity':'TG','date':'2026-07-01','sourceType':'CARRY_FORWARD_OPENING','status':'Posted','lines':[]}
  books['exportCandidates']['TTI-ONLY']={**books['exportCandidates']['CF-0|BUYER'],'id':'TTI-ONLY','entity':'TTI','counterparty':'PRIVATE TTI CUSTOMER'}
+ books['tgLiabilities']={kind:{'id':kind,'category':kind,'counterparty':kind+' SUPPLIER','currency':'USD','nativeAmount':100,'recognitionRate':3.67,'status':'Posted'} for kind in ['BAGS','TRANSPORT']}
  path=root/'data/accounts.json';path.write_text(json.dumps(books));before=path.read_bytes()
  with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
  log=open(root/'server.log','w');server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=log,stderr=log)
- def req(body=None):
-  r=urllib.request.Request(f'http://127.0.0.1:{port}/api/tg_bank_transactions.php?date=2026-10-02',data=json.dumps({'csrf':'fixture',**body}).encode() if body else None,headers={'Content-Type':'application/json'})
+ def req(body=None,query=''):
+  r=urllib.request.Request(f'http://127.0.0.1:{port}/api/tg_bank_transactions.php?date=2026-10-02{query}',data=json.dumps({'csrf':'fixture',**body}).encode() if body else None,headers={'Content-Type':'application/json'})
   try:
    with urllib.request.urlopen(r,timeout=5) as x:return x.status,json.load(x)
   except urllib.error.HTTPError as e:return e.code,json.load(e)
@@ -32,6 +33,10 @@ with tempfile.TemporaryDirectory(prefix='tg-customer-receipts-') as tmp:
    try:status,data=req();break
    except urllib.error.URLError:time.sleep(.05)
   assert status==200,(data,(root/'server.log').read_text())
+  code,payment=req(query='&view=bill-payment&category=BAGS');assert code==200 and [r['id'] for r in payment['openLiabilities']]==['BAGS'],payment
+  assert payment['banks']==data['banks'] and payment['vatRate']==7.5
+  assert not any(k in payment for k in ['contracts','invoices','history','openExportReceivables','openAdvances']),payment
+  assert path.read_bytes()==before
   assert {x['customer'] for x in data['contracts']}=={'AMT ENTERPRISE','EASTBOURNE MARITIME TRADING LTD.','GLOBAL TRANSIT'}
   assert len(data['invoices'])==len(data['openExportReceivables'])==3 and all(x['recognized'] for x in data['invoices'])
   assert path.read_bytes()==before,'Listing registered invoices must not write accounts'

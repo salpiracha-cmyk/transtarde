@@ -4,10 +4,11 @@
   // The Accounts ledger remains authoritative; no Exports record is written here.
   const key = 'tt40exportreceipts';
   localStorage.removeItem(key);
-  let loading = false;
+  let loading = false, lastRefresh = 0;
   async function refresh() {
-    if (loading) return;
+    if (loading || document.hidden || Date.now()-lastRefresh < 60000) return;
     loading = true;
+    lastRefresh = Date.now();
     try {
       const response = await fetch('../api/tg_export_accounts_receipts.php', {
         credentials: 'same-origin', headers: { Accept: 'application/json' }

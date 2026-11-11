@@ -1,0 +1,58 @@
+name: Release SSH connection preflight (read only)
+on:
+  pull_request:
+    paths: ['.github/workflows/release-connection-preflight.yml']
+permissions:
+  contents: read
+jobs:
+  connection:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Check authenticated shell without uploading or changing files
+        env:
+          HOSTINGER_DEPLOY_PATH: /home/u831010370/domains/app.transtradeinternational.com/public_html
+          HOSTINGER_HOST: 151.106.116.33
+          HOSTINGER_PORT: '65002'
+          HOSTINGER_USER: u831010370
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          expected_target='/home/u831010370/domains/app.transtradeinternational.com/public_html'
+          test "$HOSTINGER_DEPLOY_PATH" = "$expected_target" || { echo 'Deployment path does not match the exact Hostinger-confirmed target.'; exit 1; }
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          trap 'rm -f "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts" "$RUNNER_TEMP/ssh/error"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          expected_fingerprint='SHA256:Bid0atNrqK2cVKyC84j8BnqToKfMokX5myGJkNCvBsg'
+          ssh-keyscan -T 15 -p "$HOSTINGER_PORT" -t ed25519 "$HOSTINGER_HOST" 2>/dev/null > "$RUNNER_TEMP/ssh/hostkey-candidate"
+          actual_fingerprint=$(ssh-keygen -lf "$RUNNER_TEMP/ssh/hostkey-candidate" -E sha256 | awk '{print $2}' | sort -u)
+          if [ "$actual_fingerprint" != "$expected_fingerprint" ]; then
+            echo "Hostinger ED25519 fingerprint mismatch. Expected $expected_fingerprint; received $actual_fingerprint"
+            rm -f "$RUNNER_TEMP/ssh/hostkey-candidate"
+            exit 1
+          fi
+          mv "$RUNNER_TEMP/ssh/hostkey-candidate" "$RUNNER_TEMP/ssh/known_hosts"
+          echo "HOSTINGER_ED25519_FINGERPRINT_VERIFIED=$actual_fingerprint"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          if ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" 'printf "SSH_SHELL_READY\n"; test -d /home/u831010370/domains/app.transtradeinternational.com/public_html && test -f /home/u831010370/domains/app.transtradeinternational.com/public_html/login.php && printf "TARGET_VERIFIED\n"' 2>"$RUNNER_TEMP/ssh/error"; then
+            echo 'Authenticated shell is available. No files were uploaded or changed.' | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'SSH diagnostic (connection values redacted):'
+            python3 - <<'PYERROR'
+          import os,pathlib,re
+          message=pathlib.Path(os.environ['RUNNER_TEMP'],'ssh','error').read_text(errors='replace')
+          for name in ['HOSTINGER_HOST','HOSTINGER_USER','HOSTINGER_PORT','RUNNER_TEMP']:
+              value=os.environ.get(name,'')
+              if value: message=message.replace(value,'['+name+']')
+          message=re.sub(r'-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----','[REDACTED PRIVATE KEY]',message,flags=re.S)
+          for line in message.splitlines()[:20]:
+              print('SSH_ERROR: '+re.sub(r'[\x00-\x08\x0b-\x1f\x7f]','',line)[:1000])
+          PYERROR
+            if grep -q '/sbin/nologin' "$RUNNER_TEMP/ssh/error"; then
+              echo 'The SSH error mentions /sbin/nologin. Check the shell assigned to the exact SSH account used by GitHub.' | tee -a "$GITHUB_STEP_SUMMARY"
+            else
+              echo 'SSH preflight failed. Review hosting access and the configured connection secrets. No files were uploaded or changed.' | tee -a "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 1
+          fi
