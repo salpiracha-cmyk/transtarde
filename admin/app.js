@@ -1004,14 +1004,15 @@
       return Array.isArray(parsed)?parsed.filter(row=>row&&typeof row==="object"):[];
     } catch (_) { return []; }
   }
-  function katRangeRow(row = {}) {
+  function katRangeRow(row = {}, wholeBroken = false) {
     const units = ["paisa per %","rupees per %","weight %","kg per MT","manual / note only"];
     const unit = String(row.unit || "paisa per %");
-    return `<tr class="kat-range-row"><td><input data-kat-from inputmode="decimal" value="${escapeHtml(row.from || "")}" placeholder="e.g. 20"></td><td><input data-kat-to inputmode="decimal" value="${escapeHtml(row.to || "")}" placeholder="blank = and above"></td><td><input data-kat-value inputmode="decimal" value="${escapeHtml(row.value || "")}" placeholder="e.g. 1"></td><td><select data-kat-unit>${units.map(x => `<option ${x===unit?"selected":""}>${x}</option>`).join("")}</select></td><td><button class="row-action delete" type="button" data-remove-kat-range>Remove</button></td></tr>`;
+    const from = wholeBroken && row.from !== undefined && row.from !== "" ? Number(row.from)+1 : row.from;
+    return `<tr class="kat-range-row"><td><input data-kat-from inputmode="${wholeBroken?"numeric":"decimal"}" value="${escapeHtml(from ?? "")}" placeholder="${wholeBroken?"e.g. 21":"e.g. 20"}"></td><td><input data-kat-to inputmode="${wholeBroken?"numeric":"decimal"}" value="${escapeHtml(row.to || "")}" placeholder="blank = and above"></td><td><input data-kat-value inputmode="decimal" value="${escapeHtml(row.value || "")}" placeholder="e.g. 1"></td><td><select data-kat-unit>${units.map(x => `<option ${x===unit?"selected":""}>${x}</option>`).join("")}</select></td><td><button class="row-action delete" type="button" data-remove-kat-range>Remove</button></td></tr>`;
   }
-  function katParameterCard(parameter = {}, index = 0) {
+  function katParameterCard(parameter = {}, wholeBroken = false) {
     const ranges=Array.isArray(parameter.ranges)?parameter.ranges:[];
-    return `<article class="kat-parameter-card" data-kat-parameter><div class="kat-parameter-head"><label>Quality parameter<input data-kat-parameter-name value="${escapeHtml(parameter.name||"")}" placeholder="e.g. Broken" required></label><button class="row-action delete" type="button" data-remove-kat-parameter>− Remove Parameter</button></div><div class="master-form-grid"><label>Free / default allowance<input data-kat-free value="${escapeHtml(parameter.freeAllowance||"")}" placeholder="e.g. 20% free"></label><label>Default deduction unit<select data-kat-default-unit>${["paisa per %","rupees per %","weight %","kg per MT","manual / note only"].map(x=>`<option ${x===String(parameter.unit||"paisa per %")?"selected":""}>${x}</option>`).join("")}</select></label><label class="full-span">Staff instruction<input data-kat-instruction value="${escapeHtml(parameter.instruction||"")}" placeholder="Plain-language instruction shown during purchase checking"></label></div><div class="kat-range-wrap"><table class="kat-range-table"><thead><tr><th>Above</th><th>Up to</th><th>Deduction</th><th>Unit</th><th></th></tr></thead><tbody data-kat-range-list>${ranges.map(katRangeRow).join("")}</tbody></table></div><button class="button secondary add-spec-button" type="button" data-add-kat-range>+ Add Range</button></article>`;
+    return `<article class="kat-parameter-card" data-kat-parameter ${wholeBroken?"data-kat-whole-broken":""}><div class="kat-parameter-head"><label>Quality parameter<input data-kat-parameter-name value="${escapeHtml(parameter.name||"")}" placeholder="e.g. Broken" required></label><button class="row-action delete" type="button" data-remove-kat-parameter>− Remove Parameter</button></div><div class="master-form-grid"><label>Free / default allowance<input data-kat-free value="${escapeHtml(parameter.freeAllowance||"")}" placeholder="e.g. 20% free"></label><label>Default deduction unit<select data-kat-default-unit>${["paisa per %","rupees per %","weight %","kg per MT","manual / note only"].map(x=>`<option ${x===String(parameter.unit||"paisa per %")?"selected":""}>${x}</option>`).join("")}</select></label><label class="full-span">Staff instruction<input data-kat-instruction value="${escapeHtml(parameter.instruction||"")}" placeholder="Plain-language instruction shown during purchase checking"></label></div><div class="kat-range-wrap"><table class="kat-range-table"><thead><tr><th>${wholeBroken?"From (%)":"Above"}</th><th>${wholeBroken?"Through (%)":"Up to"}</th><th>Deduction</th><th>Unit</th><th></th></tr></thead><tbody data-kat-range-list>${ranges.map(row=>katRangeRow(row,wholeBroken)).join("")}</tbody></table></div><button class="button secondary add-spec-button" type="button" data-add-kat-range>+ Add Range</button></article>`;
   }
   function katMasterFieldsHtml(values = []) {
     if(!values.length&&pendingKatProductId){const product=(state.masters?.purchase_products||[]).find(row=>row.id===pendingKatProductId);if(product){const p=product.values||[];values=[p[0]||"",p[1]||"",p[2]||"",p[3]||"RAW",`${p[1]||p[0]} ${p[2]||""} ${String(p[3]||"RAW").toLowerCase()} KAT`.replace(/\s+/g," ").trim(),"","","Draft – review required","","[]"]}}
@@ -1027,7 +1028,7 @@
       <label>Effective to<input type="date" id="${masterInputId(6)}" data-master-field-index="6" value="${escapeHtml(values[6]||"")}"></label>
       <label>Rule status<select id="${masterInputId(7)}" data-master-field-index="7">${statusOptions.map(option => `<option ${option === String(values[7] || "") ? "selected" : ""}>${option}</option>`).join("")}</select></label>
     </div></section>
-    <section class="master-editor-section kat-calc-section"><div class="master-editor-heading"><div><h3>Quality parameters and ranges</h3><p>Add or remove parameters here. Each parameter keeps its own allowance, instruction and non-overlapping deduction ranges.</p></div><button class="button secondary" id="addKatParameter" type="button">+ Add Quality Parameter</button></div><div id="katParameterCards">${parameters.map(katParameterCard).join("")}</div></section>
+    <section class="master-editor-section kat-calc-section"><div class="master-editor-heading"><div><h3>Quality parameters and ranges</h3><p>Add or remove parameters here. Each parameter keeps its own allowance, instruction and non-overlapping deduction ranges.</p></div><button class="button secondary" id="addKatParameter" type="button">+ Add Quality Parameter</button></div><div id="katParameterCards">${parameters.map(parameter=>katParameterCard(parameter,/^IRRI[- ]?6$/i.test(values[1])&&/^white$/i.test(values[2])&&values[3]==="RAW"&&/^broken$/i.test(parameter.name))).join("")}</div></section>
     <section class="master-editor-section kat-message-section"><label class="full-span">Profile notes<textarea id="${masterInputId(8)}" data-master-field-index="8" rows="4">${escapeHtml(values[8] || "")}</textarea></label></section>`;
   }
 
@@ -1200,12 +1201,14 @@
           freeAllowance:card.querySelector("[data-kat-free]")?.value.trim()||"",
           unit:defaultUnit,
           instruction:card.querySelector("[data-kat-instruction]")?.value.trim()||"",
-          ranges:[...card.querySelectorAll(".kat-range-row")].map(row=>({
-            from:row.querySelector("[data-kat-from]")?.value.trim()||"",
+          ranges:[...card.querySelectorAll(".kat-range-row")].map(row=>{
+            const from=row.querySelector("[data-kat-from]")?.value.trim()||"";
+            return {
+            from:card.hasAttribute("data-kat-whole-broken")&&from!==""?String(Number(from)-1):from,
             to:row.querySelector("[data-kat-to]")?.value.trim()||"",
             value:row.querySelector("[data-kat-value]")?.value.trim()||"",
             unit:row.querySelector("[data-kat-unit]")?.value.trim()||defaultUnit
-          })).filter(row=>row.from||row.to||row.value)
+          }}).filter(row=>row.from||row.to||row.value)
         };
       }).filter(parameter=>parameter.name||parameter.ranges.length));
       return values;
@@ -2192,9 +2195,9 @@
     if (lockButton) toggleLock(lockButton.dataset.toggleLock);
     if (event.target.closest("#addProductSpecification")) document.getElementById("productSpecRows")?.insertAdjacentHTML("beforeend", productSpecRow("", "", true));
     if (removeProductSpec) removeProductSpec.closest("tr")?.remove();
-    if (event.target.closest("#addKatParameter")) document.getElementById("katParameterCards")?.insertAdjacentHTML("beforeend",katParameterCard({},document.querySelectorAll("[data-kat-parameter]").length));
+    if (event.target.closest("#addKatParameter")) document.getElementById("katParameterCards")?.insertAdjacentHTML("beforeend",katParameterCard());
     if (removeKatParameter) removeKatParameter.closest("[data-kat-parameter]")?.remove();
-    if (addKatRange) { const card=addKatRange.closest("[data-kat-parameter]"); card?.querySelector("[data-kat-range-list]")?.insertAdjacentHTML("beforeend",katRangeRow({unit:card.querySelector("[data-kat-default-unit]")?.value||"paisa per %"})); }
+    if (addKatRange) { const card=addKatRange.closest("[data-kat-parameter]"); card?.querySelector("[data-kat-range-list]")?.insertAdjacentHTML("beforeend",katRangeRow({unit:card.querySelector("[data-kat-default-unit]")?.value||"paisa per %"},card.hasAttribute("data-kat-whole-broken"))); }
     if (removeKatRange) removeKatRange.closest("tr")?.remove();
     if (closeDialog) { const id=closeDialog.dataset.closeDialog;if(dirtyDialogs.has(id)&&!window.confirm("Discard unsaved changes?"))return;dirtyDialogs.delete(id);document.getElementById(id)?.close(); if(id==="masterDialog"&&currentPurchaseSection==="KAT"){currentPurchaseSection="PRODUCTS";pendingKatProductId="";renderMasters();} }
     if (event.target.closest('[data-action="close-notifications"]')) openNotifications(false);
