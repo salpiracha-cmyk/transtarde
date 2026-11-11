@@ -261,8 +261,8 @@ function ep_operations_root(): array {
     return is_string($raw)&&$raw!==''?(array)json_decode($raw,true,512,JSON_THROW_ON_ERROR):[];
 }
 
-function ep_require_document_target(array $user,string $contractRef,string $lotRef,string $category,string $action): void {
-    $root=ep_operations_root();$contract=null;$lot=null;foreach((array)($root['contracts']??[]) as $row)if(($row['ref']??'')===$contractRef)$contract=$row;
+function ep_require_document_target(array $user,string $contractRef,string $lotRef,string $category,string $action,?array $root=null): void {
+    $root??=ep_operations_root();$contract=null;$lot=null;foreach((array)($root['contracts']??[]) as $row)if(($row['ref']??'')===$contractRef)$contract=$row;
     if(!$contract)throw new DomainException('Select an existing export contract.');
     if($lotRef!==''){foreach((array)($root['shipments']??[]) as $row)if(($row['contractRef']??'')===$contractRef&&(($row['lotId']??'')===$lotRef||($row['id']??'')===$lotRef))$lot=$row;if(!$lot)throw new DomainException('Select an existing shipment lot.');}
     if($action!=='View'&&($lot&&(!empty($lot['completed'])||!empty($lot['cancelled']))))throw new DomainException('Reopen this lot before changing its documents.');

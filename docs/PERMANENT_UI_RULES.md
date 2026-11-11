@@ -4,6 +4,10 @@
 
 Reports and ledger detail load only for the open report, ledger or transaction form that needs them. Accounts and Directors home pages may request their displayed summaries and attention items, but must not preload unrelated reports. Hidden Accounts home panels defer their reads until home is reopened. A selected report must not build unrelated detailed ledger, expense or party lists; preserve complete financial totals and permission checks. A Bags form loads bag suppliers/bills and required posting accounts; Transport and Clearing forms load their respective categories. Category filtering must happen on the server before calculating unrelated bill detail, not only in the dropdown. Preserve relevant party opening balances and payment-source choices.
 
+## Exports receipt reads — 11 November 2026
+
+Do not preload Accounts receipt summaries on Exports startup, focus or tab return. Request the selected contract receipts when opening a receipt-dependent invoice, bank-document or final-output view, and the selected Invoice report when requested. Preserve advances, invoice/lot links and currencies. Await needed data before presenting totals or enabling dependent actions; show failure and Retry instead of a false zero. A late response must not replace another page or clear typing, saved dropdown values, selection or scroll. Reopening reads current records. Keep independent print permissions and shared dropdown/master dependencies intact.
+
 ## Ledger dates and output — 11 November 2026
 
 Ledgers open with the latest 50 postings. Keep All dates / Date range and From / To controls at the top. Applying dates reloads page one; changing dates must not export the previously displayed range accidentally. Print and Excel use the applied range and include all matching entries, in ascending order, with the proper opening balance. Do not add a separate print-date popup or silently substitute a two-month range.
