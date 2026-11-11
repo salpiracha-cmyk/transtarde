@@ -155,12 +155,20 @@ w.TT_SHARED_SYNC.saveNow=()=>{throw new Error('Printing must never save the Expo
 Object.defineProperties(w.HTMLImageElement.prototype,{complete:{configurable:true,get:()=>true},naturalWidth:{configurable:true,get:()=>100}});
 w.print=()=>savedCustomsPrints.push(d.getElementById('printRoot').textContent);
 d.querySelector('#cuNo').value='UNSAVED-INVOICE-NUMBER';
+const originalTimeout=w.setTimeout, pendingCleanup=[];
+w.setTimeout=(callback,delay,...args)=>delay===250
+ ? pendingCleanup.push(()=>callback(...args))
+ : originalTimeout(callback,delay,...args);
 for(const [button,title] of [['printCustomPacking','CUSTOM PACKING LIST'],['printCustomInvoice','CUSTOMS INVOICE'],['printPhyto','PHYTOSANITARY INVOICE']]){
- assert.equal(await d.getElementById(button).onclick(),true);
+ const currentPrint=d.getElementById(button).onclick();
+ for(const cleanup of pendingCleanup.splice(0))cleanup();
+ assert.equal(await currentPrint,true);
  assert.ok(savedCustomsPrints.at(-1).includes(title));
  assert.ok(savedCustomsPrints.at(-1).includes(lot.customs.invoiceNo));
  assert.ok(!savedCustomsPrints.at(-1).includes('UNSAVED-INVOICE-NUMBER'));
 }
+w.setTimeout=originalTimeout;
+for(const cleanup of pendingCleanup)cleanup();
 w.TT_SHARED_SYNC.saveNow=originalSaveNow;
 d.querySelector('[data-workspace="bl"]').click();
 assert.equal(d.querySelector('.lotFormPane input[readonly]').value,lot.loadingProgrammeNo,'B/L form displays the carried loading programme number');
