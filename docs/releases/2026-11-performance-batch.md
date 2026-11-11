@@ -28,3 +28,5 @@ The last main deployment passed both QA workflows but failed before uploading an
 ## Acceptance
 
 Run the Accounts and Milling/Exports CI suites, including actual MySQL and headless browser tests. New focused checks cover simultaneous-read sharing, mutation freshness, source/permission validator invalidation, resumed archive decryption/hash integrity, source-change refusal and cross-scope work exclusion. After approved deployment, verify the installed revision, page 50 behavior, complete exports, Pohanch print, and a fresh PC backup. Compare hosting resource use over the subsequent operating period before claiming a measured CPU improvement.
+
+Ledger output: the screen keeps All dates / Date range and From / To controls above the latest 50 postings. Apply dates reloads page one. Direct print/Excel includes the complete applied range with opening balances; no second popup or automatic two-month cutoff.

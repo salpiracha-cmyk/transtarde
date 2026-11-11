@@ -4,6 +4,10 @@
 
 Reports and ledger detail load only for the open report, ledger or transaction form that needs them. Accounts and Directors home pages may request their displayed summaries and attention items, but must not preload unrelated reports. Hidden Accounts home panels defer their reads until home is reopened. A selected report must not build unrelated detailed ledger, expense or party lists; preserve complete financial totals and permission checks. A Bags form loads bag suppliers/bills and required posting accounts; Transport and Clearing forms load their respective categories. Category filtering must happen on the server before calculating unrelated bill detail, not only in the dropdown. Preserve relevant party opening balances and payment-source choices.
 
+## Ledger dates and output — 11 November 2026
+
+Ledgers open with the latest 50 postings. Keep All dates / Date range and From / To controls at the top. Applying dates reloads page one; changing dates must not export the previously displayed range accidentally. Print and Excel use the applied range and include all matching entries, in ascending order, with the proper opening balance. Do not add a separate print-date popup or silently substitute a two-month range.
+
 ## User-facing download filenames — 22 October 2026
 
 - Every document download and Print / Save PDF uses the actual party, document title, and saved invoice/SODA/bill/Post ID reference. Ledger and report filenames include their displayed date range and company/currency where needed to distinguish books. Example: `Shams Broker - SODA - SODA-2026-001 - TTI.pdf`.
