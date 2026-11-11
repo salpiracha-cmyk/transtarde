@@ -70,6 +70,35 @@ with tempfile.TemporaryDirectory(prefix='bag-multi-bill-') as tmp:
   ops['values']['tt30bags']=json.dumps([{'id':11,'entity':'TTI','_ttBridge':'exports','_ttBridgeId':'PO1|1|CONTRACT|BRAND|50|75','poNo':'PO1','ordered':3000,'received':2985,'tare':75,'keepReceiptOpen':True}])
   ops['values']['tt33bagreceipts']=json.dumps([{'id':1,'bagId':11,'qty':2985,'actualTareGrams':75}])
   (root/'data/operations.json').write_text(json.dumps(ops));assert not req()[1]['purchaseOrders'][0]['receiptClosure']['closed']
+  # A conflicting physical source must not take down unrelated bills or reports.
+  saved=json.loads(datafile.read_text())
+  saved['bagPurchaseOrders']['PO2']={**store['bagPurchaseOrders']['PO1'],'poNo':'PO2'}
+  saved['bagSupplierBills']['CONFLICT']={**a,'id':'CONFLICT','journalId':None,'sellerInvoice':'CONFLICT','status':'Ready to Post'}
+  datafile.write_text(json.dumps(saved))
+  receipts=json.loads(ops['values']['tt33bagreceipts']);receipts[0]['brand']='ORIGINAL BRAND'
+  ops['values']['tt33bagreceipts']=json.dumps(receipts)
+  (root/'data/operations.json').write_text(json.dumps(ops))
+  snapshot=datafile.read_bytes();physical=(root/'data/operations.json').read_bytes()
+  status,view=req();assert status==200,view
+  conflict=next(p for p in view['purchaseOrders'] if p['poNo']=='PO1')['lines'][0]
+  healthy=next(p for p in view['purchaseOrders'] if p['poNo']=='PO2')['lines'][0]
+  assert conflict['billingBlocked'] and conflict['receivedNotBilled'] is None
+  assert 'Receipt 1' in conflict['receiptConflict'] and 'Brand' in conflict['receiptConflict']
+  assert not healthy.get('billingBlocked') and healthy['receivedNotBilled']==2985
+  assert next(b for b in view['bills'] if b['id']=='CONFLICT')['billingBlocked']
+  assert next(b for b in view['bills'] if b['id']==a['id'])['journalId']==a['journalId']
+  assert datafile.read_bytes()==snapshot and (root/'data/operations.json').read_bytes()==physical
+  for route in ['bag_purchases','nonwoven_bag_bills']:
+   status,result=req({'action':'create_bill','poNo':'PO1','lineKey':'L1','bags':1,'ratePerBag':10,'sellerInvoice':'BLOCKED','sellerInvoiceDate':'2026-10-16'},route)
+   assert status==422 and 'Brand' in result['error'],result
+   assert datafile.read_bytes()==snapshot,'Blocked invoice must write nothing'
+  status,result=req({'action':'try_post_bill','billId':'CONFLICT'});assert status==422,result
+  status,result=req({'action':'approve_rate_exception','billId':'CONFLICT','reason':'Director cannot waive physical source mismatch'},role='Director');assert status==422,result
+  assert datafile.read_bytes()==snapshot
+  status,result=req({'action':'create_bill','poNo':'PO2','lineKey':'L1','bags':1,'ratePerBag':10,'sellerInvoice':'HEALTHY','sellerInvoiceDate':'2026-10-16'})
+  assert status==200 and result['result']['journalId'],result
+  assert (root/'data/operations.json').read_bytes()==physical
+  print('PASS conflict isolated by PO/line, receipt identity and field, unchanged historical books, blocked direct/approval paths, healthy bill posts')
   # Bad evidence cannot be treated as a clean receipt or overwrite the Accounts file.
   (root/'data/operations.json').write_text('{broken');snapshot=datafile.read_bytes()
   assert req({'action':'create_bill','poNo':'PO1','lineKey':'L1','bags':1,'ratePerBag':10,'sellerInvoice':'BROKEN','sellerInvoiceDate':'2026-10-16'})[0]==500

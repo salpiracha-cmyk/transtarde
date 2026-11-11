@@ -171,6 +171,7 @@ jobs:
           node tests/accounts-v1/tg_native_voucher_test.js
           python3 tests/accounts-v1/tg_remittance_http_test.py
           python3 tests/accounts-v1/general_bag_bill_http_test.py
+          python3 tests/accounts-v1/bag_multi_bill_http_test.py
           php tests/accounts-v1/accounts_reset_scope_test.php
           php tests/accounts-v1/qa_account_profile_test.php
           php tests/accounts-v1/request_store_read_cache_test.php
@@ -463,6 +464,7 @@ jobs:
           node tests/accounts-v1/review_entry_defaults_test.js
           node tests/accounts-v1/review_receipt_ui_test.js
           node tests/accounts-v1/bag_report_modes_test.js
+          node tests/accounts-v1/bag_conflict_ui_test.js
           node tests/accounts-v1/dashboard_request_sharing_test.js
           node tests/accounts-v1/shared_reads_test.js
           node tests/accounts-v1/ledger_pagination_ui_test.js
