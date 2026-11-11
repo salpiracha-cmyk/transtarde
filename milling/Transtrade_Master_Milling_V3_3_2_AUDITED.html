@@ -73,7 +73,6 @@ body,body label,body input,body textarea,body select,body button,body td,body th
 <div class="tile hidden" data-home-role="reprocess-bill" onclick="openPanel('reprocessbill')"><div class="ico">🧮</div><div class="label">Reprocessing Bill</div></div>
 <div class="tile" onclick="openPanel('oldbags')"><div class="ico">♻️</div><div class="label">USED BAGS (IN &amp; OUT)</div></div>
 <div class="tile" onclick="openPanel('reports')"><div class="ico">📊</div><div class="label">Reports</div></div>
-<div class="tile" data-home-role="admin-only" onclick="openPanel('users')"><div class="ico">👤</div><div class="label">Users & Permissions</div></div>
 </div>
 </section>
 
@@ -943,7 +942,7 @@ function defaultMills(){return [{id:1,name:'TTI Rice Mills',type:'Own / Default'
 function renderMillCards(){let mills=get(STORE_MILLS,defaultMills()),extra=mills.filter(m=>m.id!==1);millCards.innerHTML=`<div class="mill-card" onclick="chooseMill(1)"><div class="big">🏭</div><b>TTI Rice Mills</b><small>Own / Default</small></div><div class="mill-card" onclick="openExMillWorkspace()"><div class="big">🚚</div><b>Ex-Mill</b><small>Outside finished-rice locations</small></div>`+extra.map(m=>`<div class="mill-card" onclick="chooseMill(${Number(m.id)||0})"><div class="big">🏭</div><b>${escHtml(m.name)}</b><small>${escHtml(m.type)}</small></div>`).join('')+`<div class="add-card" onclick="addMillPrompt()"><div class="big">＋</div><b>Add Mill</b><small>External processing / reprocessing mill</small></div>`}
 function openExMillWorkspace(){currentMill={id:'EXMILL',name:'Ex-Mill',type:'Outside Finished Rice'};millHeader.textContent='Working Area: Ex-Mill';openPanel('exmill')}
 function isReprocessingMill(){return !!currentMill&&/reprocess|external.*(?:milling|processing)/i.test(String(currentMill.type||''))}
-function renderHomeForCurrentMill(){let re=isReprocessingMill();document.querySelectorAll('[data-home-role="admin-only"],[data-home-role="own-expense"]').forEach(x=>x.classList.toggle('hidden',re));document.querySelectorAll('[data-home-role="reprocess-bill"]').forEach(x=>x.classList.toggle('hidden',!re))}
+function renderHomeForCurrentMill(){let re=isReprocessingMill();document.querySelectorAll('[data-home-role="own-expense"]').forEach(x=>x.classList.toggle('hidden',re));document.querySelectorAll('[data-home-role="reprocess-bill"]').forEach(x=>x.classList.toggle('hidden',!re))}
 function chooseMill(id){let m=get(STORE_MILLS,defaultMills()).find(x=>x.id===id);if(!m)return;const exMillName=exMillInstructions().find(x=>String(x.mill||'').trim().toLowerCase()===String(m.name||'').trim().toLowerCase())?.mill;if(exMillName){openExMillWorkspace();selectExMill(exMillName);return}if(window.TT_ARRIVAL_DEVICE_GUARD?.switchMill(m)===false)return;currentMill=m;millHeader.textContent='Working Mill: '+m.name;homeTitle.textContent=m.name;openPanel('home')}
 async function syncLocationMaster(name,type,source){
  const access=window.TT_MODULE_ACCESS||{};if(!access.csrf)throw new Error('Session expired. Refresh before adding a mill.');
