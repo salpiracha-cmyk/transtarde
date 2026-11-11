@@ -1,0 +1,71 @@
+name: Revise issued Pohanch Broken KAT
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/pohanch-broken-kat-revision.yml','scripts/revise_issued_pohanch_broken_kat.php']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: transtrade-production-deployment
+  cancel-in-progress: false
+
+jobs:
+  revise:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate the monetary-only update
+        run: |
+          php -l scripts/revise_issued_pohanch_broken_kat.php
+          php <<'PHP'
+          <?php
+          require 'scripts/revise_issued_pohanch_broken_kat.php';
+          foreach (POHANCH_KAT_BATCH as $id => [$pct,$kat,$kg]) {
+              $queue[] = ['id'=>$id,'entity'=>'TTI','vehicle'=>'TEST-'.$id,'broken'=>$pct,'brokenKat'=>$kat];
+              $slips[] = ['slip'=>sprintf('PH-%05d',$id),'entity'=>'TTI','printed'=>true,
+                  'displayName'=>'IRRI-6 White Raw Rice','millName'=>'TTI Rice Mills','broken'=>(string)$pct,
+                  'brokenKat'=>(string)$kat,'payableWeight'=>$kg,'queueId'=>$id,'bridgeId'=>'fixture-'.$id,'truck'=>'TEST-'.$id];
+          }
+          $values=['tt30queue'=>json_encode($queue),'tt30slips'=>json_encode($slips)];
+          $review=pohanch_kat_plan($values,[]);
+          if (count($review['plan'])!==14 || array_sum(array_column($review['plan'],'deductionIncreasePkr'))!=52315 || $review['blockers']) exit(1);
+          foreach (json_decode($review['payloads']['tt30slips'],true) as $index=>$after) {
+              if ((int)$after['brokenKat'] !== (int)$slips[$index]['brokenKat'] + 10) exit(1);
+              $after['brokenKat']=$slips[$index]['brokenKat'];
+              if ($after!==$slips[$index]) exit(1);
+          }
+          if (pohanch_kat_plan($review['payloads'],[])['plan']) exit(1);
+          $linked=pohanch_kat_plan($values,['journals'=>[['entity'=>'TTI','reference'=>'PH-00014']]]);
+          if (($linked['blockers']['PH-00014']['journals']??0)!==1) exit(1);
+          PHP
+      - name: Apply the reviewed batch on production
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          case "$HOSTINGER_DEPLOY_PATH" in
+            /home/*/domains/app.transtradeinternational.com/public_html) ;;
+            *) echo 'Unexpected production path'; exit 1 ;;
+          esac
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh -i "$RUNNER_TEMP/ssh/key" \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" \
+            "$HOSTINGER_USER@$HOSTINGER_HOST" \
+            "umask 077; script=\$(mktemp); trap 'rm -f \"\$script\"' EXIT; cat > \"\$script\"; php \"\$script\" --root='$HOSTINGER_DEPLOY_PATH' --apply" \
+            < scripts/revise_issued_pohanch_broken_kat.php
