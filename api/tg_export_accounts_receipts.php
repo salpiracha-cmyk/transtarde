@@ -10,15 +10,6 @@ try {
     if(!tt_user_business_entity($user,'TG')||(!tt_user_any_icon($user,'Exports',['commercial','tg'])&&!tt_user_any_icon($user,'Accounts',['customer','cashbank']))) {
         http_response_code(403);echo json_encode(['ok'=>false,'error'=>'Exports or Accounts permission required.']);exit;
     }
-    $file=TT_DATA_DIR.'/accounts.json';
-    $store=[];
-    if(is_file($file)) {
-        $handle=fopen($file,'r');
-        if($handle===false||!flock($handle,LOCK_SH))throw new RuntimeException('Accounts receipt storage unavailable.');
-        try {$raw=stream_get_contents($handle);} finally {flock($handle,LOCK_UN);fclose($handle);}
-        $decoded=$raw?json_decode($raw,true):null;
-        if(is_array($decoded))$store=$decoded;
-    }
     $key='transtrade_export_v3_operational';
     $env=static fn(string $name)=>(string)(defined('TT_'.$name)?constant('TT_'.$name):(getenv('TT_'.$name)?:''));
     if($env('DB_HOST')!==''&&$env('DB_NAME')!==''&&$env('DB_USER')!=='') {
@@ -32,11 +23,28 @@ try {
     }
     $exportRoot=is_string($exportPayload)?json_decode($exportPayload,true):null;
     $allowedRefs=[];foreach((array)($exportRoot['contracts']??[]) as $contract)if(tt_user_business_entity($user,strtoupper((string)($contract['seller']??'TTI'))))$allowedRefs[(string)($contract['ref']??'')]=true;
+    $requested=$_GET['contractRefs']??null;
+    if($requested!==null){
+        if(!is_array($requested)||count($requested)>200||array_filter($requested,static fn($ref)=>!is_string($ref)||$ref===''||strlen($ref)>100)){
+            http_response_code(422);echo json_encode(['ok'=>false,'error'=>'Choose valid contract references.']);exit;
+        }
+        foreach($requested as $ref)if(!isset($allowedRefs[$ref])){http_response_code(403);echo json_encode(['ok'=>false,'error'=>'Contract receipts are unavailable for this selection.']);exit;}
+        $allowedRefs=array_intersect_key($allowedRefs,array_fill_keys($requested,true));
+    }
+    $file=TT_DATA_DIR.'/accounts.json';
+    $store=[];
+    if(is_file($file)) {
+        $handle=fopen($file,'r');
+        if($handle===false||!flock($handle,LOCK_SH))throw new RuntimeException('Accounts receipt storage unavailable.');
+        try {$raw=stream_get_contents($handle);} finally {flock($handle,LOCK_UN);fclose($handle);}
+        $decoded=$raw?json_decode($raw,true):null;
+        if(is_array($decoded))$store=$decoded;
+    }
     $invoiceLots=[];
     foreach((array)($exportRoot['shipments']??[]) as $shipment) {
         if(!is_array($shipment)||!empty($shipment['cancelled']))continue;
         $ref=(string)($shipment['contractRef']??'');$invoice=(string)($shipment['commercial']['invoiceNo']??'');
-        if($ref!==''&&$invoice!=='')$invoiceLots[$ref.'|'.$invoice]=(string)($shipment['id']??'');
+        if(isset($allowedRefs[$ref])&&$invoice!=='')$invoiceLots[$ref.'|'.$invoice]=(string)($shipment['id']??'');
     }
     $receipts=[];
     foreach((array)($store['tgBankTransactions']??[]) as $row) {
