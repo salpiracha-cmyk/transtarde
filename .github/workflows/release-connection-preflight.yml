@@ -25,12 +25,12 @@ jobs:
           printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
           chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
           if ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" 'printf "SSH_SHELL_READY\n"' 2>"$RUNNER_TEMP/ssh/error"; then
-            echo 'Authenticated shell is available. No files were uploaded or changed.' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Authenticated shell is available. No files were uploaded or changed.' | tee -a "$GITHUB_STEP_SUMMARY"
           else
             if grep -q '/sbin/nologin' "$RUNNER_TEMP/ssh/error"; then
-              echo 'Hostinger rejected the login shell (/sbin/nologin). Enable/provision shell access for the configured hosting account before deployment. Application code cannot repair the hosting login shell.' >> "$GITHUB_STEP_SUMMARY"
+              echo 'Hostinger rejected the login shell (/sbin/nologin). Enable/provision shell access for the configured hosting account before deployment. Application code cannot repair the hosting login shell.' | tee -a "$GITHUB_STEP_SUMMARY"
             else
-              echo 'SSH preflight failed. Review hosting access and the configured connection secrets. No files were uploaded or changed.' >> "$GITHUB_STEP_SUMMARY"
+              echo 'SSH preflight failed. Review hosting access and the configured connection secrets. No files were uploaded or changed.' | tee -a "$GITHUB_STEP_SUMMARY"
             fi
             exit 1
           fi

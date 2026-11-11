@@ -143,7 +143,7 @@ $sharedBootstrap = <<<'HTML'
       if(sync){x.send();return x.status===200?JSON.parse(x.responseText):null}
       inboundRequest=x;x.timeout=15000;
       if(inboundTag)x.setRequestHeader('If-None-Match',inboundTag);
-      x.onload=()=>{if(x.status===200){try{const data=JSON.parse(x.responseText);if(exportWorkspaceBusy()||pending.size||inFlight.size){inboundTag='';deferInbound();return;}applyRemote(data,false);inboundTag=pending.size||inFlight.size?'':(x.getResponseHeader('ETag')||'');}catch{inboundTag='';}}};
+      x.onload=()=>{if(inboundRequest===x)inboundRequest=null;if(x.status===200){try{const data=JSON.parse(x.responseText);if(exportWorkspaceBusy()||pending.size||inFlight.size){inboundTag='';deferInbound();return;}applyRemote(data,false);inboundTag=pending.size||inFlight.size?'':(x.getResponseHeader('ETag')||'');}catch{inboundTag='';}}};
       x.onloadend=()=>{if(inboundRequest===x)inboundRequest=null;};x.send();
     }catch(e){if(!sync)inboundRequest=null;return null}
   }
