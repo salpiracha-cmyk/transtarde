@@ -2263,15 +2263,22 @@ function waitForPrintImages(root,timeoutMs=30000){
   if(image.complete)loaded();
  })))
 }
+let pendingPrintCleanup=null;
 async function directPrint(title,html,mode='with',readOnly=false,downloadMeta={}){
  // Read-only outputs render committed records and never resave the workspace.
  if(!readOnly)try{if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow()}catch(error){showExportSaveError(error.message);return false}
  const template=document.createElement('template');template.innerHTML=html;
  if(template.content.querySelector('.bankCoveringPage:not([data-tg-cover="true"])')&&!window.confirm('Did you put the original letterhead in the printer?'))return Promise.resolve(false);
+ pendingPrintCleanup?.();
  const root=document.getElementById('printRoot'),old=document.title;
  root.className=mode==='without'?'printModeWithout':'printModeWith';root.innerHTML=html;root.setAttribute('aria-hidden','false');for(const key of Object.keys(root.dataset))if(key.startsWith('download'))delete root.dataset[key];const printedContracts=state.contracts.filter(c=>c.ref&&root.textContent.includes(c.ref)),printContract=printedContracts.length===1?printedContracts[0]:null,inferred=window.TT_DOCUMENT_NAME?.infer({querySelector:selector=>root.querySelector(selector),body:root,title})||{};Object.assign(root.dataset,{downloadTitle:downloadMeta.title||title,downloadParty:downloadMeta.party||inferred.party||(printContract?buyerOf(printContract).name||'':''),downloadReference:downloadMeta.reference||inferred.reference||printContract?.ref||'',downloadCompany:downloadMeta.company||printContract?.seller||''});document.title='';
- const cleanup=()=>{root.innerHTML='';root.className='';root.setAttribute('aria-hidden','true');document.title=old};
+ const cleanup=()=>{
+  if(pendingPrintCleanup!==cleanup)return;
+  pendingPrintCleanup=null;root.innerHTML='';root.className='';root.setAttribute('aria-hidden','true');document.title=old;
+ };
+ pendingPrintCleanup=cleanup;
  return waitForPrintImages(root,30000).then(()=>new Promise(resolve=>setTimeout(resolve,60))).then(()=>{
+  if(pendingPrintCleanup!==cleanup)return false;
   const unavailable=[...root.querySelectorAll('.commercialInvoiceOnePage .docBrand img,.commercialInvoiceOnePage .docAutoSign img,.tgProformaOnePage .docAutoSign img')].filter(image=>getComputedStyle(image).display!=='none'&&(!image.complete||image.naturalWidth===0));
   if(unavailable.length)throw new Error('A marking or signature image could not be loaded. Please retry before printing.');
   if(!fitCOOPages(root))throw new Error('The Certificate of Origin has more text than can fit in its KCCI boxes. Review the address or description before printing; no content has been removed.');
