@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths-ignore:
+      - '.github/workflows/accounts-live-hostinger-qa.yml'
       - 'exports-canary/**'
       - '.github/workflows/hosting-housekeeping.yml'
       - '.github/workflows/milling-exports-qa.yml'
