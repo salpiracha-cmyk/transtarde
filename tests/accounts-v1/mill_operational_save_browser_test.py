@@ -157,13 +157,13 @@ def run():
             op=context.request.get(base+'/api/operations.mysql.php').json();slips=json.loads(op['values']['tt30slips']);assert len(slips)==1 and slips[0]['payableWeight']==990
             mill.locator('#unprintedSlips').get_by_role('button',name='Edit',exact=True).click();assert mill.locator('#arrivalQueue').input_value()==str(queue[0]['id']);assert mill.locator('#karachiWeight').input_value()=='990'
             mill.locator('#karachiWeight').fill('985')
-            for field,value in {'Broken':'37.5','MoistureKat':'4.25','DamageKat':'3','ChalkyKat':'5','PaddyKat':'2'}.items():
+            for field,value in {'Broken':'38','MoistureKat':'4.25','DamageKat':'3','ChalkyKat':'5','PaddyKat':'2'}.items():
                 mill.locator('#arrival'+field).fill(value)
             mill.locator('#savePohanchButton').click();mill.locator('#pohanchFeedback').filter(has_text='Pohanch amended').wait_for()
             amended=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30slips']);assert len(amended)==1 and amended[0]['id']==slips[0]['id'] and amended[0]['payableWeight']==985
             arrival=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30queue'])[0]
-            assert [float(arrival[k]) for k in ('broken','moistureKatKg','damageKat','chalkyKat','paddyKat')]==[37.5,4.25,3,5,2]
-            assert [float(amended[0][k]) for k in ('broken','moistureKatKg','damageKat','chalkyKat','paddyKat')]==[37.5,4.25,3,5,2]
+            assert [float(arrival[k]) for k in ('broken','moistureKatKg','damageKat','chalkyKat','paddyKat')]==[38,4.25,3,5,2]
+            assert [float(amended[0][k]) for k in ('broken','moistureKatKg','damageKat','chalkyKat','paddyKat')]==[38,4.25,3,5,2]
             # A Create-only Mill operator can search saved data and confirm printing,
             # while the canonical Pohanch stays available for authorized reprints.
             staff=browser.new_context()
@@ -192,7 +192,7 @@ def run():
             assert body.count('985 kg')>=2 and body.count('Unloading Date')==2
             assert body.count('Moisture KAT (kg)4.25')==2
             assert popup.locator('.filling-charges').all_text_contents()==['Filling ChargesRs. 500']*2
-            assert body.count('Damage KAT')==2 and body.count('Chalky KAT')==2
+            assert body.count('Damage + Chalky KAT8.00 paisa')==2 and 'Damage / Chalky KAT' not in body
             assert body.count('ORIGINAL')==1 and body.count('OFFICE COPY')==1
             assert len(re.findall(r'\d{2}-\d{2}-\d{4}',body))==4 and not re.search(r'\d{4}-\d{2}-\d{2}',body)
             assert operator.get_by_role('button',name='Mark as printed',exact=True).count()==0
