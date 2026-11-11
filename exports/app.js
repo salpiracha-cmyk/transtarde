@@ -136,8 +136,9 @@ function currentRole(){return window.TT_MODULE_ACCESS?.role||'User'}
 function requiredReason(message){const reason=String(prompt(message)||'').trim();if(!reason)alert('A reason is mandatory. No change was made.');return reason}
 function snapshot(target,reason,action='Amended'){target.versions=Array.isArray(target.versions)?target.versions:[];target.versions.push({at:new Date().toISOString(),by:currentUser(),role:currentRole(),reason,action,snapshot:structuredClone({...target,versions:[]})})}
 function contractHasDownstream(c){const p=state.shipments.find(s=>s.kind!=='lot'&&s.contractRef===c.ref);return !!p&&((p.bagOrders||[]).length||p.production?.sentToMill||lotsFor(p).length)}
+const exportReceiptSnapshots=new WeakMap();
 function accountsFor(s,c,scope='CUSTOMER'){
- let external=[];if(typeof window==='undefined'||!window.TT_EXPORT_TAX_SOURCE)try{external=window.TT_EXPORT_RECEIPTS?window.TT_EXPORT_RECEIPTS.rows(s.contractRef):JSON.parse(localStorage.getItem('tt40exportreceipts')||'[]')}catch{}
+ let external=[];if(typeof window==='undefined'||!window.TT_EXPORT_TAX_SOURCE)try{external=exportReceiptSnapshots.has(state)?(exportReceiptSnapshots.get(state).get(s.contractRef)||[]):window.TT_EXPORT_RECEIPTS?window.TT_EXPORT_RECEIPTS.rows(s.contractRef):JSON.parse(localStorage.getItem('tt40exportreceipts')||'[]')}catch{}
  const merged=new Map([...state.accountsReceipts,...(Array.isArray(external)?external:[])].map(r=>[String(r.id||r.receiptNo||JSON.stringify(r)),r])),tgRef=String(s.tgdocs?.customsInvoiceNo||s.customs?.invoiceNo||''),invoiceRef=scope==='TG_PACK'?tgRef:String(s.commercial?.invoiceNo||c.ref||''),currency=scope==='TG_PACK'?customsCurrencyFor(s,c):c.currency;
  return [...merged.values()].filter(r=>{
   if(r.status==='Reversed'||r.currency!==currency)return false;
@@ -1664,6 +1665,10 @@ async function saveShipmentFolder(s,c,optional=false,onProgress=null,refreshExis
  const payload=window.TT_SHARED_SYNC?.readCommitted?.(STORE);if(!payload)throw new Error('A confirmed server save is required before copying shipment files.');
  const saved=normalize(JSON.parse(payload)),lot=saved.shipments.find(row=>row.id===s.id),contract=saved.contracts.find(row=>row.ref===s.contractRef);
  if(!lot||!contract)throw new Error('Save this lot in Transtrade before copying its files.');
+ if(!customsOnly&&String(contract.seller).toUpperCase()==='TG'&&window.TT_EXPORT_RECEIPTS){
+  const receipts=await window.TT_EXPORT_RECEIPTS.load([contract.ref]);
+  exportReceiptSnapshots.set(saved,new Map([[contract.ref,receipts]]));
+ }
  const live=state;let rows,name;try{state=saved;rows=shipmentFolderDocuments(lot,contract);name=buyerOf(shipmentDocumentContext(lot,contract)).name||lot.buyer}finally{state=live}
  if(customsOnly)rows=rows.filter(row=>row.folder==='Custom documents');
  for(const row of rows)if(row.render){const render=row.render;row.render=()=>{const live=state;try{state=saved;return render()}finally{state=live}}}

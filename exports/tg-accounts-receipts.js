@@ -34,5 +34,5 @@
       host.querySelector('button').onclick=()=>prepare(host,refs,render);
     });return true;
   }
-  window.TT_EXPORT_RECEIPTS={prepare,cancel,rows:ref=>receipts.get(String(ref))||[]};
+  window.TT_EXPORT_RECEIPTS={prepare,cancel,load:refs=>{const list=normalized(refs);return list.length?request(list):Promise.resolve([]);},rows:ref=>receipts.get(String(ref))||[]};
 })();
