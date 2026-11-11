@@ -1,35 +1,82 @@
 <?php
 declare(strict_types=1);
 
-/** Dedicated Directors master. Legacy IDs are retained so existing SODA accounts stay intact. */
-function fe_parties(array $s,string $entity):array {
-    $out=[];$used=[];$snapshots=[];
-    foreach((array)($s['exporterDeals']??[]) as $d)if(($d['entity']??'')===$entity){$used[(string)$d['partyId']]=true;$snapshots[(string)$d['partyId']]=(string)$d['party'];}
-    foreach(dt_legacy_parties() as $p)if(!empty($p['isExporter'])||isset($used[$p['id']]))$out[$p['id']]=$p+['entity'=>$entity,'version'=>0,'active'=>true,'contact'=>'','notes'=>'','legacy'=>true];
-    foreach($snapshots as $id=>$name)if(!isset($out[$id]))$out[$id]=['id'=>$id,'entity'=>$entity,'name'=>$name,'isExporter'=>true,'version'=>0,'active'=>true,'contact'=>'','notes'=>'','legacy'=>true];
-    foreach((array)($s['fellowExporterParties']??[]) as $p)if(($p['entity']??'')===$entity){if(empty($p['active']))unset($out[$p['id']]);else $out[$p['id']]=$p+['isExporter'=>true,'legacy'=>false];}
-    $out=array_values($out);usort($out,static fn($a,$b)=>strnatcasecmp($a['name'],$b['name']));return $out;
-}
-function fe_save_party(array &$s,string $entity,array $b,array $u,bool $deleting=false):array {
-    $id=gm_text($b['partyId']??'',120);$old=null;
-    foreach(fe_parties($s,$entity) as $p)if($p['id']===$id)$old=$p;
-    if($id!==''&&!$old)throw new DomainException('Choose an active fellow exporter in these company books.');
-    if($old&&(int)($b['version']??-1)!==(int)$old['version'])throw new DomainException('Fellow exporter changed. Reopen the master before saving.');
-    if($deleting){
-        if(!$old)throw new DomainException('Choose the fellow exporter to delete.');
-        foreach((array)($s['exporterDeals']??[]) as $d)if(($d['entity']??'')===$entity&&($d['partyId']??'')===$id&&($d['status']??'')!=='Deleted')throw new DomainException('This exporter has an active SODA. Delete an unused SODA first; linked trading history stays protected.');
-        $next=array_replace($old,['active'=>false]);
-    }else{
-        $name=gm_text($b['name']??'',180);if($name==='')throw new DomainException('Enter the fellow exporter name.');
-        foreach(fe_parties($s,$entity) as $p)if($p['id']!==$id&&sac_normal($p['name'])===sac_normal($name))throw new DomainException('This fellow exporter already exists. Select or edit its original master.');
-        if($id===''){$matches=array_values(array_filter(dt_legacy_parties(),static fn($p)=>sac_normal($p['name'])===sac_normal($name)));if(count($matches)>1)throw new DomainException('More than one original business identity has this name. Resolve the duplicate before adding a fellow exporter.');$id=$matches[0]['id']??dt_id((array)($s['fellowExporterParties']??[]),'FEXP');}
-        $code=strtoupper(gm_text($b['code']??($old['code']??''),30));if($code!==''&&!preg_match('/^[A-Z0-9][A-Z0-9._-]{0,29}$/D',$code))throw new DomainException('Use letters, numbers, dash, dot or underscore in the short code.');foreach(fe_parties($s,$entity)as$p)if($p['id']!==$id&&$code!==''&&strcasecmp((string)($p['code']??''),$code)===0)throw new DomainException('This fellow exporter short code already exists.');
-        $next=['id'=>$id,'entity'=>$entity,'name'=>$name,'code'=>$code,'contact'=>gm_text($b['contact']??'',250),'notes'=>gm_text($b['notes']??'',1000),'active'=>true,'isExporter'=>true];
+/** Select Business Parties for new SODAs and preserve the identity of existing SODAs. */
+function fe_parties(array $store, string $entity): array {
+    $out = [];
+    $aliases = [];
+    foreach (dt_legacy_parties($entity) as $party) {
+        if (!$party['isExporter']) continue;
+        $partyAliases = (array)($party['aliases'][$entity] ?? []);
+        unset($party['aliases']);
+        $out[$party['id']] = $party;
+        foreach ($partyAliases as $alias) $aliases[$alias] = $party;
     }
-    $reason=gm_text($b['reason']??'',500);if($old&&strlen($reason)<5)throw new DomainException('Enter a reason for changing or deleting this fellow exporter.');
-    $next['version']=(int)($old['version']??0)+1;$next['updatedAt']=gmdate('c');$next['updatedBy']=$u['username']??'';
-    $s['fellowExporterParties'][$entity.'|'.$id]=$next;$s['fellowExporterAudit'][]=['action'=>$deleting?'DELETE':'SAVE','entity'=>$entity,'id'=>$id,'before'=>$old,'after'=>$next,'reason'=>$reason,'by'=>$u['username']??'','at'=>gmdate('c')];
-    return ['partyId'=>$id];
+    foreach ((array)($store['exporterDeals'] ?? []) as $deal) {
+        if (($deal['entity'] ?? '') !== $entity || ($deal['status'] ?? '') === 'Deleted') continue;
+        $id = (string)($deal['partyId'] ?? '');
+        if ($id === '' || isset($out[$id])) continue;
+        $out[$id] = array_replace($aliases[$id] ?? ['name'=>(string)$deal['party']], [
+            'id'=>$id, 'isExporter'=>false, 'historicalOnly'=>true,
+        ]);
+    }
+    $out = array_values($out);
+    usort($out, static fn($a,$b) => strnatcasecmp($a['name'],$b['name']));
+    return $out;
+}
+
+/** Adopt legacy exporter masters without rewriting any commercial references. */
+function fe_adopt_legacy_parties(array &$parties, array $legacy): int {
+    $adopted = 0;
+    foreach ($legacy as $exporter) {
+        $id = (string)($exporter['id'] ?? '');
+        $entity = (string)($exporter['entity'] ?? '');
+        $name = trim((string)($exporter['name'] ?? ''));
+        if ($id === '' || $name === '' || !in_array($entity,['TTI','BRM'],true)) continue;
+        $matches = [];
+        $alreadyLinked = false;
+        foreach ($parties as $index => $party) {
+            if (in_array($id,(array)($party['fellowExporterAliases'][$entity]??[]),true)) $alreadyLinked = true;
+            if (($party['id']??'') === $id) {
+                $matches = [$index];
+                break;
+            }
+            if (tt_master_name_identity((string)($party['values'][0]??''),'business_parties') === tt_master_name_identity($name,'business_parties')) $matches[] = $index;
+        }
+        if ($alreadyLinked || count($matches)>1) continue;
+        if (!$matches) {
+            if (empty($exporter['active'])) continue;
+            $values = array_fill(0,13,'');
+            $values[0] = $name;
+            $values[1] = (string)($exporter['code']??'');
+            $values[5] = (string)($exporter['contact']??'');
+            $values[10] = 'Active';
+            $values[11] = (string)($exporter['notes']??'');
+            $values[12] = json_encode(['accountingCompanies'=>[$entity]],JSON_THROW_ON_ERROR);
+            $parties[] = ['id'=>$id,'values'=>$values,'importedFellowExporter'=>true];
+            $matches = [array_key_last($parties)];
+        }
+        $party = &$parties[$matches[0]];
+        $party['fellowExporterAliases'][$entity][] = $id;
+        if (!empty($exporter['active'])) {
+            $roles = tt_business_party_categories($party['values'][2]??'');
+            if (!tt_business_party_has_category($party['values'][2]??'','Fellow Exporter')) $roles[] = 'Fellow Exporter';
+            $party['values'][2] = implode('; ',$roles);
+            foreach ([1=>'code',5=>'contact',11=>'notes'] as $field=>$legacyField) {
+                if (trim((string)($party['values'][$field]??''))==='') $party['values'][$field]=(string)($exporter[$legacyField]??'');
+            }
+            if (!empty($party['importedFellowExporter'])) {
+                $profile = json_decode((string)$party['values'][12],true,512,JSON_THROW_ON_ERROR);
+                if (isset($profile['accountingCompanies']) && is_array($profile['accountingCompanies'])) {
+                    $profile['accountingCompanies'] = array_values(array_unique([...$profile['accountingCompanies'],$entity]));
+                    $party['values'][12] = json_encode($profile,JSON_THROW_ON_ERROR);
+                }
+            }
+        }
+        unset($party);
+        $adopted++;
+    }
+    return $adopted;
 }
 function fe_delete_issue(array $s,array $d,array $nativeSales,array $bagSources=[]):string {
     if(($d['status']??'')==='Deleted')return 'This SODA has already been deleted.';

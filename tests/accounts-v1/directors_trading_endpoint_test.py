@@ -138,16 +138,18 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  feed=req(origin='mill',mode='mill')[1];sent=next(x for x in feed['deals'] if x['id']==local_id);assert sent['productionReady'] and sent['productionStockName']=='IRRI READY' and 'price' not in sent and 'terms' not in sent,sent
  assert req({**instruction,'version':5,'productionStockName':'OTHER'},origin='accounts')[0]==422,'Dispatched stock was reassigned'
  print('PASS Accounts/Directors production instruction -> read-only Mill feed; full specification, permission boundaries, no financial write and historical route protection')
- # Directors-only Fellow Exporter master; selection stays separate from Business Parties.
+ # Master Records owns party writes. The old routes cannot change Accounts.
+ stable=path.read_bytes()
  assert req({'action':'save_exporter','name':'Fixture Fellow'},origin='accounts')[0]==403
- stable=path.read_bytes();assert req({'action':'save_exporter','name':'Fixture Fellow'},mode='read')[0]==403 and path.read_bytes()==stable
- status,d=req({'action':'save_exporter','name':'Fixture Fellow','requestKey':'new-fellow-master'});assert status==200,d;party=d['result']['partyId'];assert party in [p['id'] for p in d['parties']]
- st,replay=req({'action':'save_exporter','name':'Fixture Fellow','requestKey':'new-fellow-master'});assert st==200 and replay['result']['partyId']==party
- assert req({'action':'save_exporter','partyId':party,'version':7,'name':'Changed','reason':'Correct master'})[0]==422
- status,d=req({'action':'save_exporter','partyId':party,'version':1,'name':'Fixture Fellow Updated','reason':'Correct name'});assert status==200,d
- fresh={'action':'save_deal',**local,'partyId':party,'reference':'UNUSED-LIFECYCLE','quantityMT':10,'requestKey':'unused-soda-lifecycle'}
+ assert req({'action':'save_exporter','name':'Fixture Fellow'})[0]==403
+ assert req({'action':'save_exporter','name':'Fixture Fellow'},_endpoint='fellow')[0]==405
+ status,master=req(_endpoint='fellow');assert status==200 and set(master)=={'ok','entity','parties','access','result'},master
+ assert master['access']=={'canCreate':False,'canEdit':False,'canDelete':False}
+ assert path.read_bytes()==stable and req(_endpoint='fellow',mode='no-master')[0]==403
+ assert req(_endpoint='fellow',entity='BRM')[0]==403
+ assert [x['id'] for x in master['parties'] if x['isExporter']]==['KAS']
+ fresh={**local,'action':'save_deal','partyId':'KAS','reference':'UNUSED-LIFECYCLE','quantityMT':10,'requestKey':'unused-soda-lifecycle'}
  status,d=req(fresh);assert status==200,d;unused=d['result']['id'];assert not next(x for x in d['deals'] if x['id']==unused)['deletionBlocker']
- assert req({'action':'delete_exporter','partyId':party,'version':2,'reason':'Retire unused party'})[0]==422
  assert req({'action':'delete_deal','id':unused,'version':9,'reason':'Duplicate unused SODA'})[0]==409
  stable_journals=json.loads(path.read_text())['journals'];delete={'action':'delete_deal','id':unused,'version':1,'reason':'Duplicate unused SODA','requestKey':'delete-unused-soda'}
  status,d=req(delete);assert status==200 and d['result']['deleted'] and unused not in [x['id'] for x in d['deals']],d
@@ -155,26 +157,8 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  stable=path.read_bytes();assert req(delete)[0]==200 and path.read_bytes()==stable
  assert unused not in [x['id'] for x in req(origin='mill',mode='mill')[1]['deals']]
  assert req({'action':'delete_deal','id':local_id,'version':5,'reason':'Cannot remove dispatched source'})[0]==422
- status,d=req({'action':'delete_exporter','partyId':party,'version':2,'reason':'Retire unused party'});assert status==200 and party not in [p['id'] for p in d['parties']],d
- assert (root/'data/operations.json').read_bytes()==local_ops_before,'Master and unused SODA lifecycle changed actual Mill operations'
- print('PASS Directors-only exporter Add/Edit/Delete, active-source guards, stale versions, CSRF/rights, audited SODA deletion, retries and no financial/physical changes')
-
- # Shared Parties master endpoint: no access to SODA money, costing or bank payloads.
- stable=path.read_bytes();status,master=req(_endpoint='fellow');assert status==200 and set(master)=={'ok','entity','parties','access','result'},master
- assert path.read_bytes()==stable and req(_endpoint='fellow',mode='no-master')[0]==403
- assert req(_endpoint='fellow',entity='BRM')[0]==403
- assert req({'action':'save_exporter','name':'Shared Master'},_endpoint='fellow',mode='read')[0]==403
- assert req({'action':'save_exporter','name':'Shared Master','csrf':'bad'},_endpoint='fellow')[0]==419
- request={'action':'save_exporter','name':'Shared Master','code':'SHARED','requestKey':'shared-master-001'}
- status,master=req(request,_endpoint='fellow');assert status==200,master;pid=master['result']['partyId']
- stable=path.read_bytes();assert req(request,_endpoint='fellow')[0]==200 and path.read_bytes()==stable
- assert next(p for p in req()[1]['parties']if p['id']==pid)['code']=='SHARED','Master not shared with SODA selector'
- assert req({'action':'save_exporter','name':'Other exporter','code':'SHARED'},_endpoint='fellow')[0]==422
- assert req({'action':'save_exporter','partyId':pid,'version':0,'name':'Shared Master','code':'SHARED','reason':'Stale request'},_endpoint='fellow')[0]==422
- status,master=req({'action':'save_exporter','partyId':pid,'version':1,'name':'Shared Master','code':'NEWCODE','reason':'Correct short code'},_endpoint='fellow');assert status==200,master
- status,master=req({'action':'delete_exporter','partyId':pid,'version':2,'reason':'Unused test master'},_endpoint='fellow');assert status==200 and pid not in [p['id']for p in master['parties']],master
- assert json.loads(path.read_text())['journals']==stable_journals,'Master changed financial records'
- print('PASS shared Parties master: matching rights and company/CSRF, code uniqueness, stale/retry guards, canonical SODA selection and no financial write')
+ assert (root/'data/operations.json').read_bytes()==local_ops_before
+ print('PASS read-only compatibility list, Business Parties selection and audited SODA deletion')
 
  # Bag arrangements: existing SODAs remain pending; only explicit terms and management saves persist.
  original_books=json.loads(path.read_text());assert all(x['bagTerms']['status']=='PENDING_CONFIRMATION' for x in req()[1]['deals'])

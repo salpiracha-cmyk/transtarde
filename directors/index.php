@@ -41,7 +41,7 @@ a.tile{text-decoration:none;color:inherit}
 <?php if(far_permission($user,'Directors','View')): ?><button class="tile" id="openDirectorAssets"><div class="ico">▣</div><h3>Assets &amp; Investments</h3><p>Properties, company broker funds and share holdings.</p></button><?php endif; ?>
 </div>
 <details class="directorSettings"><summary>Settings &amp; annual reviews</summary><div class="homeGrid" id="directorSettingsGrid">
-<?php if(dt_permission($user)): ?><a class="tile" href="/accounts/fellow-exporters.php?from=directors"><div class="ico">FE</div><h3>Fellow Exporter Master</h3><p>Add, edit and delete fellow-exporter parties.</p></a><?php endif; ?>
+<?php if(tt_user_can_master($user,'business_parties','View')): ?><a class="tile" href="/index.php?view=masters&amp;master=business_parties&amp;from=directors"><div class="ico">FE</div><h3>Business Parties</h3><p>Add, edit and delete fellow-exporter parties.</p></a><?php endif; ?>
 <?php if(gm_permission($user,'ZAKAT','View','Directors')): ?><a class="tile" href="../accounts/group-management.php?kind=ZAKAT&amp;origin=directors"><div class="ico">Z</div><h3>Annual Zakat</h3><p>Yearly group assessment, TTI control ledger and payment carry-forward.</p></a><?php endif; ?>
 <?php require_once __DIR__.'/../api/opening_balance_core.php'; if(job_authorized($user)): ?><a class="tile" href="../accounts/opening-balances.php"><div class="ico">JV</div><h3>Opening Balances</h3><p>Record balances brought forward at 1 July 2026.</p></a><?php endif; ?>
 <?php if(tt_inv_can_report($user)): ?><a class="tile" href="/stock-reconciliation.php?origin=directors"><div class="ico">KG</div><h3>Ghati &amp; Stock Reconciliation</h3><p>Current-shift follow-up, physical variances and fixed management rows.</p></a><?php endif; ?>

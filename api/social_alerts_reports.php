@@ -93,7 +93,7 @@ function tt_social_optional_report(string $id,DateTimeImmutable $now,array $ops,
         $runs=tg_rows($ops,'tt30prod');
         $payload['recoveryReports']=[];
         foreach(['TTI','BRM'] as $entity) {
-            $payload['recoveryReports'][]=mr_report($runs,['entity'=>$entity,'mode'=>$mode,'from'=>$from,'to'=>$date]);
+            $payload['recoveryReports'][]=mr_report($runs,['entity'=>$entity,'mode'=>$mode,'from'=>$from,'to'=>$date],stockValues:$ops['values']??[]);
         }
     } elseif(str_starts_with($id,'accounts-')) {
         require_once __DIR__.'/accounts_reports_core.php';

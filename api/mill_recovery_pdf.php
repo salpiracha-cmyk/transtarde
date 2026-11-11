@@ -38,7 +38,7 @@ function mr_pdf_render(array $report): string {
         }
         return $wrapped;
     };
-    $heightOf = static fn(array $wrapped): int => 10 + 11 * max(array_map('count', $wrapped));
+    $heightOf = static fn(array $wrapped): int => 8 + 11 * max(array_map('count', $wrapped));
     $row = static function (array $wrapped, array $widths, bool $header = false) use (&$stream, &$y, $write, $width, $heightOf): void {
         $height = $heightOf($wrapped);
         if ($header) $stream .= '0.91 0.95 0.93 rg 36 '.($y-$height)." $width $height re f 0 g\n";
@@ -65,7 +65,7 @@ function mr_pdf_render(array $report): string {
             if ($y - $heightOf($wrapped) < 36) { $page(); $start(); }
             $row($wrapped, $widths);
         }
-        $y -= 20;
+        $y -= 16;
     };
     $page();
     if (isset($report['tables'])) {
@@ -96,14 +96,16 @@ function mr_pdf_render(array $report): string {
         foreach ($recovery['groups'] as $group) {
             $table($labelPrefix.$group['key'].' | Shift details', ['Shift / status','Mill / variety','Start / end','Hours','Downtime / notes'], [120,185,105,65,295],
                 array_map(static fn($r) => [
-                    $r['shift'].' / '.($r['shiftComplete'] ? 'Complete' : 'In progress'),
+                    $r['shift'].' / '.($r['shiftComplete'] ? 'Complete' : 'In progress (provisional)'),
                     $r['mill'].' / '.$r['variety'], implode(' - ', array_filter([$r['start'], $r['end']])),
                     mr_pdf_number($r['hours']), implode(' / ', array_filter([$r['downtimeReason'], $r['reason'], $r['varianceReason']])),
                 ], $group['runs']));
             foreach (['raw'=>'Raw rice input / stock consumption','finished'=>'Ready rice','byproducts'=>'By-products'] as $section => $label) {
-                $table($labelPrefix.$group['key'].' | '.$label, ['Shift / lot','Product','Brand / order','Bags','Pack kg','Gross kg','Less kg','Net kg','Ratio %'], [105,130,130,55,60,75,70,75,70],
+                $byproduct = $section === 'byproducts';
+                $estimated = $section === 'raw' && in_array('OUTPUT_DERIVED', $group['inputBasis'] ?? [], true);
+                $table($labelPrefix.$group['key'].' | '.($estimated?'Calculated raw input':$label), ['Shift / lot','Product',$byproduct?'Packing':'Brand / order',$estimated?'Est. bags':'Bags','Pack kg','Gross kg','Less kg','Net kg','Ratio %'], [105,130,130,55,60,75,70,75,70],
                     array_map(static fn($r) => [
-                        trim($r['shift'].' '.$r['lotRef']), $r['product'], implode(' / ', array_filter([$r['brand'], $r['contractRef']])),
+                        trim($r['shift'].' '.$r['lotRef']), $r['product'], $byproduct ? ($r['packing'] ?? '') : implode(' / ', array_filter([$r['brand'], $r['contractRef']])),
                         ...array_map('mr_pdf_number', [$r['bags'], $r['bagWeight'] ?? null, $r['grossKg'], $r['lessKg'], $r['kg'], $r['recoveryPct']]),
                     ], $group[$section]));
             }

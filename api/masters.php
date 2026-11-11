@@ -269,6 +269,7 @@ try {
         $row=master_find_row($type,$id);if(!$row)throw new InvalidArgumentException('Master record not found.');
         $statusIndex=$purgeStatusFields[$type];$values=array_values((array)($row['values']??[]));while(count($values)<=$statusIndex)$values[]='';
         $referenced=false;
+        if($type==='business_parties'&&!empty($row['fellowExporterAliases']))$referenced=true;
         if($type==='business_parties')foreach(tt_master_party_history() as $name)if(tt_master_names_conflict((string)$values[0],$name,'business_parties')){$referenced=true;break;}
         foreach(glob(TT_DATA_DIR.'/*.json')?:[] as $file){
             if(realpath($file)===realpath(TT_STORE_FILE))continue;

@@ -1283,8 +1283,6 @@
     const type = activeMasterType();
     document.getElementById("masterTitle").textContent = menuType.name;
     document.getElementById("masterDescription").textContent = menuType.description;
-    document.getElementById('fellowExporterMasterLink')?.remove();
-    if(type.id==='business_parties')document.getElementById('masterDescription').insertAdjacentHTML('afterend','<p id="fellowExporterMasterLink"><a class="button" href="/accounts/fellow-exporters.php?from=masters">Fellow Exporter Parties · Add / Edit / Delete</a></p>');
     document.getElementById('masterDeletionRequests')?.remove();
     if(IS_SUPER_ADMIN && pendingDeletionRequests.length){
       document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterDeletionRequests" class="master-editor-section"><h3>Accounts requests to remove names</h3><p>Approval deactivates the name for future selections. Historical transactions keep the record.</p>${pendingDeletionRequests.map(request=>`<div class="row-actions" style="justify-content:space-between;align-items:center;padding:9px;border-top:1px solid #ddd"><span><b>${escapeHtml(request.name)}</b> · ${escapeHtml(request.type)} · ${escapeHtml(request.requestedBy)}<br>${escapeHtml(request.reason)}</span><span><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Approve">Approve</button><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></span></div>`).join('')}</section>`);
@@ -2327,7 +2325,11 @@
 
   async function initialize() {
     applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); renderApprovals();
-    if (new URLSearchParams(location.search).get('view')==='masters' && hasMasterAccess) showView('masters');
+    const masterQuery = new URLSearchParams(location.search);
+    if (masterQuery.get('view')==='masters' && hasMasterAccess) {
+      if (masterQuery.get('master')==='business_parties' && canMaster('business_parties','View')) currentMaster='business_parties';
+      showView('masters');
+    }
     if (new URLSearchParams(location.search).get('view')==='backup' && IS_SUPER_ADMIN) showView('backup');
     if (IS_SUPER_ADMIN) {
       try { await Promise.all([loadServerUsers(),refreshApprovals(),loadServerAudit(true)]); } catch (error) { toast(error.message); }

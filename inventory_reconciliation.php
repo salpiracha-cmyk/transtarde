@@ -272,8 +272,72 @@ function tt_inv_guard_calculated_stock(array $before,array $after,array $changed
 }
 
 /** Physical used arrival bags, separate from accepted branded supplier receipts. */
+/** Estimate incoming bag equivalents by replaying the stock used by each shift. */
+function tt_inv_production_input_bags(array $values, array $scope): array {
+    $runs = [];
+    foreach (tt_inv_rows($values, 'tt30prod') as $run) {
+        if (tt_inv_same_scope($scope, $run) && isset($run['id'])) $runs[(string)$run['id']] = $run;
+    }
+    $events = [];
+    $scope['arrivalEstimates'] = true;
+    tt_inv_stock($values, $scope, static function (array $event) use (&$events): void {
+        if ($event['kg'] == 0 || !empty($event['arrivalEstimate'])) return;
+        $parts = $event['parts'] ?? [];
+        if ($parts && abs(array_sum(array_column($parts, 'kg')) - $event['kg']) < .001) {
+            foreach ($parts as $part) {
+                $events[] = array_replace($event, ['date'=>mr_valid_date($part['date'])?$part['date']:'', 'kg'=>$part['kg']]);
+            }
+        } else {
+            $events[] = $event;
+        }
+    });
+    $order = static function (array $event) use ($runs): array {
+        $run = $event['kind'] === 'Production consumption' ? ($runs[$event['sourceId']] ?? []) : [];
+        $priority = $event['kg'] > 0 ? 0 : ($run ? 2 : 1);
+        return [$event['date'], $priority, $run['start'] ?? '', $run['serverSequence'] ?? 0, $event['sourceId']];
+    };
+    usort($events, static fn($a, $b) => $order($a) <=> $order($b));
+    $lots = [];
+    $first = [];
+    $deficits = [];
+    $result = [];
+    foreach ($events as $event) {
+        $stock = tt_inv_norm($event['product']);
+        $kg = $event['kg'];
+        if ($kg > 0) {
+            $bags = (float)($event['receiptDetails']['bags'] ?? 0);
+            $ratio = $event['source'] === 'tt30slips' && $event['scopeVerified'] && $event['date'] !== '' && $bags > 0 ? $bags / $kg : null;
+            $offset = min($kg, $deficits[$stock] ?? 0);
+            $deficits[$stock] = ($deficits[$stock] ?? 0) - $offset;
+            if ($kg - $offset > .0005) $lots[$stock][] = ['kg'=>$kg - $offset, 'ratio'=>$ratio];
+            continue;
+        }
+        $remaining = -$kg;
+        $estimate = 0.;
+        $complete = $event['date'] !== '';
+        $index = $first[$stock] ?? 0;
+        while ($remaining > .0005 && isset($lots[$stock][$index])) {
+            $lot = &$lots[$stock][$index];
+            $used = min($remaining, $lot['kg']);
+            $lot['kg'] -= $used;
+            $remaining -= $used;
+            if ($lot['ratio'] === null) $complete = false;
+            else $estimate += $used * $lot['ratio'];
+            if ($lot['kg'] < .0005) $index++;
+            unset($lot);
+        }
+        $first[$stock] = $index;
+        $deficits[$stock] = ($deficits[$stock] ?? 0) + $remaining;
+        $run = $runs[$event['sourceId']] ?? [];
+        if ($event['kind'] === 'Production consumption' && mr_is_calculated($run)) {
+            $result[$event['sourceId']] = $complete && $remaining <= .0005 ? $estimate : null;
+        }
+    }
+    return $result;
+}
+
 function tt_inv_arrival_packing_qty(array $run): int {
-    $ratios=['powder'=>2,'b3'=>2,'csr'=>2,'b2 csr'=>2,'paddy'=>1,'sweeping'=>1,'stone / sutli / dust'=>1];
+    $ratios=['b2 — local'=>1,'b2 — local bags'=>1,'powder'=>2,'b3'=>2,'csr'=>2,'b2 csr'=>2,'paddy'=>1,'sweeping'=>1,'stone / sutli / dust'=>1];
     $total=0;
     foreach((array)($run['rows']??[]) as $row){
         if(!is_array($row)||tt_inv_is_private_row($row)||!empty($row['noStockPost'])||mr_output_kg($row)<=0)continue;
@@ -429,6 +493,9 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
             $r['serverSequence']=$before['serverSequence']??++$sequence;
             $compare=$r;$prior=$before;unset($compare['createdAt'],$compare['updatedAt'],$compare['serverSequence']);if($prior)unset($prior['createdAt'],$prior['updatedAt'],$prior['serverSequence']);
             $r['updatedAt']=$compare===$prior?($before['updatedAt']??$now):$now;
+            if (($before['shiftEntriesComplete'] ?? false) === true && ($r['shiftEntriesComplete'] ?? false) !== true) {
+                throw new DomainException('This shift is already complete. Keep Shift complete checked when amending it.');
+            }
             if(array_key_exists('shiftEntriesComplete',$r)){$r['shiftEntriesComplete']=$r['shiftEntriesComplete']===true;$r['date']=tt_inv_date((string)($r['date']??''));if(tt_inv_shift_name((string)($r['shift']??''))==='')throw new InvalidArgumentException('Production shift is required.');}
         }
         $out[]=$r;

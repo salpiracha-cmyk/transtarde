@@ -105,3 +105,31 @@ $recorded=array_replace($withoutPohanch,['tt30prod'=>$posted]);
 near(tt_inv_stock($recorded,$reported)['IRRI-6 White Raw Rice'],-500,'Actual shift consumption is saved while the receipt is pending');
 near(tt_inv_stock($recorded,$reported)['B3'],500,'Production output is recorded immediately');
 echo "PASS raw-rice production saves independently of Pohanch\n";
+
+
+$inputs = [
+    ['id'=>'one','entity'=>'TTI','millName'=>'TTI Rice Mills','unloadingDate'=>'2026-11-03','displayName'=>'IRRI-6 White Raw Rice','payableWeight'=>1000,'bags'=>20],
+    ['id'=>'two','entity'=>'TTI','millName'=>'TTI Rice Mills','unloadingDate'=>'2026-11-04','displayName'=>'IRRI-6 White Raw Rice','payableWeight'=>2000,'bags'=>30],
+    ['id'=>'other','entity'=>'BRM','millName'=>'TTI Rice Mills','unloadingDate'=>'2026-11-01','displayName'=>'IRRI-6 White Raw Rice','payableWeight'=>9000,'bags'=>30],
+];
+$first=array_replace($reported,['id'=>'first','date'=>'2026-11-04']);
+$next=array_replace($reported,[
+    'id'=>'next','shift'=>'Night','calculatedInputKg'=>1000,'shiftEntriesComplete'=>true,
+    'rows'=>[
+        ['id'=>1,'product'=>'Ready Rice — Emrooz','bags'=>15,'bagWeight'=>50],
+        ['id'=>2,'product'=>'B2 — LOCAL','bags'=>5,'bagWeight'=>50],
+    ],
+]);
+$values=['tt30slips'=>json_encode($inputs),'tt30prod'=>json_encode([$first,$next])];
+$recovery=mr_report([$next],['entity'=>'TTI'],stockValues:$values);
+near($recovery['groups'][0]['raw'][0]['bags'],17.5,'The shift uses 500 kg from each remaining arrival at their separate bag-to-kg ratios');
+near(tt_inv_arrival_packing_qty($next),5,'B2 Local deducts the physical local packing once');
+ok($recovery['groups'][0]['byproducts'][0]['packing']==='Local Bags'&&$recovery['groups'][0]['byproducts'][0]['brand']==='Emrooz','Local packing and recovery allocation remain separate');
+unset($inputs[1]['bags']);
+$values['tt30slips']=json_encode($inputs);
+$missing=mr_report([$next],['entity'=>'TTI'],stockValues:$values);
+ok($missing['groups'][0]['raw'][0]['bags']===null,'Missing arrival bag count is not treated as zero');
+require_once __DIR__.'/../../api/mill_recovery_pdf.php';
+$pdf=mr_pdf_render($recovery);
+ok(str_contains($pdf,'(Local Bags)')&&str_contains($pdf,'(17.500)')&&str_contains($pdf,'(Night / Complete)'),'The PDF displays packing, estimated input bags and saved completion');
+echo "PASS proportional input bags, local B2 stock deduction and completed recovery PDF\n";
