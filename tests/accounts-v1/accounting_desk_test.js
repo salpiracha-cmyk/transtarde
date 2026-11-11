@@ -37,8 +37,8 @@ assert(desk.includes('Export Receipts & Payments') && desk.includes('Bank Receip
 assert(desk.includes("title:'Sales Tax & Refund'") && !desk.includes("title:'Sales Tax Export File'"), 'report must use the consolidated Sales Tax & Refund name');
 assert(desk.includes('const tgAreas') && !desk.includes("key:'tg-purchases'"), 'TG must have the simplified receipt, payment, bank, ledger and report menu without Pakistan purchase workflows');
 assert(desk.includes('accounts_dashboard.php') && desk.includes('accounts_sales_tax.php'), 'dashboard summaries and Sales Tax search must use linked read-only endpoints');
-assert(dashboardApi.includes("['1110','1120']") || (dashboardApi.includes("$a==='1110'") && dashboardApi.includes("$a==='1120'")), 'dashboard bank summary must come from posted bank and cash ledger lines');
-assert(dashboardApi.includes("$a==='1220'") && dashboardApi.includes("$a==='1210'"), 'local and export receivable summaries must come from their posted ledgers');
+assert(dashboardApi.includes('ba_payload($s,$e)') && dashboardApi.includes("$a['availableBalance']"), 'dashboard banks must use the canonical bank/cash projection');
+assert(dashboardApi.includes("(string)($l['account']??'')!=='1220'") && dashboardApi.includes('tt_customer_receivables(tt_fi_advice_project($s,$root)'), 'local receivables retain their ledger calculation and exports use the canonical invoice projection');
 assert(salesTaxApi.includes('tt_export_documents') && salesTaxApi.includes("$accounts['exportReceipts']"), 'Sales Tax search must link Export documents with Accounts receipts');
 assert(exportDocumentsApi.includes("tt_user_can_open_module($user,'Accounts')"), 'Accounts users must be able to read linked Export documents without gaining Export write access');
 assert(receiptUi.includes('id="erAdviceFile"') && receiptUi.includes('uploadAdvice'), 'export receipts must accept a bank credit advice upload');

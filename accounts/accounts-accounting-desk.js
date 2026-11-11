@@ -461,7 +461,7 @@
     if (!home || q('#ttAccountingDesk')) return;
     home.insertAdjacentHTML('afterbegin', deskMarkup());
     q('#ttRecentRefresh').onclick=loadRecentTransactions;
-    q('#ttPendingRefresh').onclick=loadDashboardSummary;
+    q('#ttPendingRefresh').onclick=()=>{dashboardRequests.clear();return loadDashboardSummary();};
     q('.tt-search-main').addEventListener('keydown', event => { if (event.key === 'Enter') openSearch(event.currentTarget.value); });
     showAreasHome();
     refreshEntityLabels();
@@ -528,7 +528,7 @@
     const box=q('#ttRecentTransactions');if(!box)return;
     const company=entity(),request=++recentLoad;box.textContent='Loading transactions…';
     try{
-      const result=await json('../api/accounts_ledger_browser.php?'+new URLSearchParams({entity:company,account:'POSTS',activity:'vouchers',from:'0001-01-01',to:today()}));
+      const result=await json('../api/accounts_ledger_browser.php?'+new URLSearchParams({entity:company,account:'POSTS',activity:'vouchers',page:1,pageSize:50,from:'0001-01-01',to:today()}));
       if(request!==recentLoad||company!==entity()||!box.isConnected)return;
       const grouped=new Map();for(const row of result.rows||[]){const id=row.publicPostId||row.voucher;if(!grouped.has(id))grouped.set(id,{...row,amounts:[]});grouped.get(id).amounts.push((row.currency||row.bookCurrency||(company==='TG'?'AED':'PKR'))+' '+(row.nativeMissing?'Unavailable':money(Math.max(Number(row.debit||0),Number(row.credit||0)))));}const rows=[...grouped.values()];
       box.innerHTML=rows.length?rows.map(row=>`<button type="button" class="tt-recent-row" data-recent-post="${esc(row.voucher)}"><span>${esc(window.TT_DATE?.display(row.date)||row.date)}</span><b>${esc(displayRef(row.publicPostId||row.voucher))}</b><span><strong>${esc(row.party)}</strong><small>${esc(row.narration||row.reference)}</small></span><b>${esc(row.amounts.join(' · '))}</b></button>`).join(''):'<p>No posted transactions.</p>';
@@ -658,7 +658,25 @@
     };
   }
 
-  async function json(url, options) {
+  // Share only requests still running. Never cache a completed financial response.
+  const dashboardRequests = new Map();
+  function json(url, options) {
+    const read = !options?.method || options.method.toUpperCase() === 'GET';
+    const dashboard = read && (String(url).startsWith('../api/accounts_dashboard.php?') || (String(url).startsWith('../api/accounts_ledger_browser.php?') && new URLSearchParams(String(url).split('?')[1]).get('activity') === 'vouchers'));
+    if (dashboard && dashboardRequests.has(url)) return dashboardRequests.get(url);
+    const request = requestJson(url, options).then(data => {
+      if (!read) dashboardRequests.clear();
+      return data;
+    });
+    if (!dashboard) return request;
+    const shared = request.finally(() => {
+      if (dashboardRequests.get(url) === shared) dashboardRequests.delete(url);
+    });
+    dashboardRequests.set(url, shared);
+    return shared;
+  }
+
+  async function requestJson(url, options) {
     const response = await fetch(url, {credentials:'same-origin', headers:{Accept:'application/json', ...(options?.headers || {})}, ...options});
     let data = {};
     try { data = await response.json(); } catch (_) {}
@@ -1176,6 +1194,6 @@
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
-  window.TT_ACCOUNTING_DESK = {installed:true,openSalesTaxSearch:openSalesTax,openHistoricalBagBill:async id=>{await launch({title:'Historical Bag Bill',native:'purchases',then:'[data-purchase="bags"]',bagSync:true});await window.TT_BAG_PURCHASES_UI.mount();window.TT_BAG_PURCHASES_UI.editHistorical(id);}, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:async()=>{await Promise.all([loadDashboardSummary(),loadRecentTransactions()]);}};
+  window.TT_ACCOUNTING_DESK = {installed:true,openSalesTaxSearch:openSalesTax,openHistoricalBagBill:async id=>{await launch({title:'Historical Bag Bill',native:'purchases',then:'[data-purchase="bags"]',bagSync:true});await window.TT_BAG_PURCHASES_UI.mount();window.TT_BAG_PURCHASES_UI.editHistorical(id);}, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:async()=>{dashboardRequests.clear();await Promise.all([loadDashboardSummary(),loadRecentTransactions()]);}};
 })();
 

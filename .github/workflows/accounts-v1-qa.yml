@@ -93,6 +93,7 @@ jobs:
           python3 tests/accounts-v1/expense_invoice_http_test.py
           python3 tests/accounts-v1/financial_report_classification_http_test.py
           python3 tests/accounts-v1/master_family_roundtrip_http_test.py
+          php tests/accounts-v1/dashboard_performance_test.php
           python3 tests/accounts-v1/dashboard_commodity_dues_http_test.py
           python3 tests/accounts-v1/petty_cash_http_test.py
           python3 tests/accounts-v1/mill_petty_cash_http_test.py
@@ -456,6 +457,8 @@ jobs:
           node tests/accounts-v1/review_entry_defaults_test.js
           node tests/accounts-v1/review_receipt_ui_test.js
           node tests/accounts-v1/bag_report_modes_test.js
+          node tests/accounts-v1/dashboard_request_sharing_test.js
+          node tests/accounts-v1/ledger_pagination_ui_test.js
           node tests/accounts-v1/accounts_home_cleanup_ui_test.js
           node tests/accounts-v1/bag_order_report_ui_test.js
           node tests/accounts-v1/investment_edit_ui_test.js

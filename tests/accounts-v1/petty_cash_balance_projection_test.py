@@ -68,6 +68,14 @@ with tempfile.TemporaryDirectory(prefix='cash-projection-') as directory:
         assert historical['opening']==85000 and historical['closing']==57180,historical
         status,raw=read('/api/accounts_ledger_browser.php',entity='TTI',category='bank',account='CASH|TTI',format='csv',**{'from':'0001-01-01','to':'2026-10-27'})
         rows=list(csv.reader(io.StringIO(raw)));assert status==200 and 'Office Petty Cash' in rows[0][3] and float(rows[-1][9])==57180,raw
+        for account,extra in [('CASH|TTI',{}),('CASH|TG',{'entity':'TG'}),('CASH|BRM',{'entity':'BRM'})]:
+            whole=ledger(account,**extra);first=ledger(account,page=1,pageSize=1,**extra);collected=[]
+            for page in range(1,first['pagination']['pages']+1):
+                part=ledger(account,page=page,pageSize=1,**extra)
+                assert part['opening']==whole['opening'] and part['closing']==whole['closing']
+                assert part['periodTotals']=={key:sum(r[key] for r in whole['rows']) for key in ['debit','credit']}
+                collected.extend(part['rows'])
+            assert sorted(collected,key=lambda r:json.dumps(r,sort_keys=True))==sorted(whole['rows'],key=lambda r:json.dumps(r,sort_keys=True)), 'Pagination altered or lost ledger lines'
         assert ledger('CASH|TG',entity='TG',currency='USD')['currency']=='AED'
         assert ledger('CASH|TG',entity='TG',currency='USD')['closing']==367
         status,bad=read('/api/accounts_ledger_browser.php',entity='TTI',account='CASH|BRM');assert status==422,(status,bad)
