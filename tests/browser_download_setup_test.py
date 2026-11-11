@@ -1,18 +1,26 @@
 import importlib.util
 import pathlib
-import subprocess
 import tempfile
-from unittest.mock import patch
 
-source=pathlib.Path(__file__).resolve().parents[1]/'.github/scripts/browser-download-setup.py'
-spec=importlib.util.spec_from_file_location('download_setup',source)
-setup=importlib.util.module_from_spec(spec);spec.loader.exec_module(setup)
+source = pathlib.Path(__file__).resolve().parents[1]/'.github/scripts/browser-download-setup.py'
+spec = importlib.util.spec_from_file_location('download_setup', source)
+setup = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(setup)
 with tempfile.TemporaryDirectory() as directory:
-    root=pathlib.Path(directory);mirror=root/'apt/apt-mirrors.txt';mirror.parent.mkdir()
-    original='http://azure.archive.ubuntu.com/ubuntu\nhttps://security.ubuntu.com/ubuntu\n'
-    mirror.write_text(original);setup.configure(root,False);assert mirror.read_text()==original
-    setup.configure(root,True);assert mirror.read_text()==original.replace('http://azure.archive.ubuntu.com/ubuntu','https://archive.ubuntu.com/ubuntu')
+    root = pathlib.Path(directory)
+    mirror = root/'apt/apt-mirrors.txt'
+    mirror.parent.mkdir()
+    mirror.write_text('http://azure.archive.ubuntu.com/ubuntu\nhttps://security.ubuntu.com/ubuntu\n')
+    sources = root/'apt/sources.list.d/ubuntu.sources'
+    sources.parent.mkdir()
+    sources.write_text('URIs: https://archive.ubuntu.com/ubuntu/\nSuites: noble noble-updates noble-security\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n')
+    third_party = root/'apt/sources.list.d/vendor.list'
+    third_party.write_text('deb https://packages.microsoft.com/repos/code stable main\n')
+    setup.configure(root)
+    assert mirror.read_text() == (setup.MIRROR + '\n') * 2
+    assert 'ubuntu.com' not in sources.read_text()
+    assert 'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' in sources.read_text()
+    assert 'Suites: noble noble-updates noble-security' in sources.read_text()
+    assert third_party.read_text() == 'deb https://packages.microsoft.com/repos/code stable main\n'
     assert 'Timeout "20"' in (root/'apt/apt.conf.d/99-transtrade-download-timeouts').read_text()
-with patch.object(setup.subprocess,'run',side_effect=subprocess.TimeoutExpired('probe',8)):
-    assert not setup.archive_available()
-print('PASS unreachable replacement preserves runner mirrors; reachable replacement and bounded DNS probe')
+print('PASS independent mirror replaces Ubuntu hosts; signing keys, suites and third-party sources preserved')
