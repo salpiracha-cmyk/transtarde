@@ -23,7 +23,7 @@ function tt_user_can_access_entity($u,$entity,$action){return ($_GET['mode']??''
 function tt_verify_csrf($v){return $v==='fixture';}
 function tt_release_read_session(){}
 function tt_accounts_input(){return $GLOBALS['fixtureBody'];}
-function tt_list_masters(){return ['mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mills','','Own Mill','','','Active','','TTI']],['id'=>'mills-2','values'=>['Indus Rice Mill','','External Mill','','','Active']]]];}
+function tt_list_masters(){return ['mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mills','','Own Mill','','','Active','','TTI']],['id'=>'mills-2','values'=>['Indus Rice Mill','','Transfer Location','','','Active']]]];}
 ''')
     (root/'runner.php').write_text('''<?php
 $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQUEST_METHOD']=$r['body']===null?'GET':'POST';$GLOBALS['fixtureBody']=json_encode($r['body']);register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_code()?:200));});require __DIR__.'/api/bag_transfers.php';

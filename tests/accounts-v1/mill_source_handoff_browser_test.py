@@ -213,7 +213,7 @@ def run():
             assert stock['inventory']['lots']['PO|100|mills-1']['availableQty']==81 and target['availableQty']==7 and target['quarantinedQty']==0
             assert books.read_bytes()==financial_before,'Quarantine acknowledgement changed money'
             # Actual native supplier receipt: failed acknowledgement retains entry; accepted/quarantined counters commit together.
-            mill.locator('#bagOrdersBody tr.clickrow').first.click();mill.locator('#inlineBagDate').fill('2026-10-17');mill.locator('#inlineBagQty').fill('10');mill.locator('#inlineBagInspected').check()
+            mill.locator('#bagOrdersBody tr.clickrow').first.click();mill.locator('#inlineBagDate').fill('2026-10-17');mill.locator('#inlineBagQty').fill('10')
             receipt_failed=[True];supplier_posts=[]
             def supplier_receipt_failure(route):
                 if route.request.method=='POST':
@@ -227,7 +227,7 @@ def run():
             assert len(supplier_posts)==2 and supplier_posts[0]==supplier_posts[1],'Supplier retry changed the original receipt facts'
             assert supplier_response.value.json()['receipt']['acceptedQty']==10 and supplier_response.value.json()['order']['received']==110
             context.unroute('**/api/bag_receipts.php',supplier_receipt_failure)
-            mill.locator('#bagOrdersBody tr.clickrow').first.click();mill.locator('#inlineBagDate').fill('2026-10-17');mill.locator('#inlineBagQty').fill('4');mill.locator('#inlineBagInspected').check();mill.locator('#inlineMaterialMismatch').check()
+            mill.locator('#bagOrdersBody tr.clickrow').first.click();mill.locator('#inlineBagDate').fill('2026-10-17');mill.locator('#inlineBagQty').fill('4');mill.locator('#inlineMaterialMismatch').check()
             with mill.expect_response(lambda r:'/api/bag_receipts.php' in r.url and r.request.method=='POST') as held_response:mill.locator('[onclick="receiveBagsInline(event)"]').click()
             assert held_response.value.status==200,held_response.value.text();mill.wait_for_function("!document.querySelector('#inlineBagQty')")
             assert held_response.value.json()['receipt']['quarantinedQty']==4 and held_response.value.json()['order']['received']==114

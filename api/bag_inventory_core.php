@@ -135,6 +135,7 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
             if($date==='')$undated+=$qty;elseif($date<=$asOf)$datedThrough+=$qty;
             $movements[]=['date'=>$date,'lotId'=>$id,'entity'=>$entity,'locationId'=>$location['locationId'],'qty'=>$qty,'type'=>'SUPPLIER_RECEIPT','reference'=>$rid];
         }
+        $lot['supplierReceivedQty']=$counter!==null&&$counter===$totalEvents&&!$lot['holds']?$counter:null;
         if($counter===null){bti_hold($lot,'The received source quantity is unverified.');$counter=$totalEvents;}
         if($totalEvents>$counter)bti_hold($lot,'Dated receipt quantities exceed the saved source counter; reconcile the original receipts.');
         $prior=max(0,$counter-$totalEvents);$undated+=$prior;$lot['undatedReceivedQty']=$undated;

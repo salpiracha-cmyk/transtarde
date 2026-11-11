@@ -98,3 +98,20 @@ bt_check($movements['SHIPMENT_PACKED_BAGS']===-5400&&$movements['SHIPMENT_EMPTY_
 $beforeLoading=bti_project($values,$masters,$destinationScope,'2026-10-05',$today,$state);
 bt_check($beforeLoading['lots'][$lotId]['availableQty']===5508&&$beforeLoading['lots'][$lotId]['committableQty']===0,'Historical stock ignored later committed shipment usage');
 echo "PASS completed shipment consumes 5,400 packed and 108 confirmed empty bags from the accepted transfer exactly once\n";
+
+$automatic=['transfers'=>[],'requests'=>[],'audit'=>[]];
+$ownedInventory=$view;
+$ownedInventory['scope']['type']='Own Mill';
+$exmill=['id'=>'mills-2','name'=>'Al Harmain','status'=>'Active','type'=>'External Mill'];
+$autoBody=['entity'=>'TTI','sourceLocationId'=>'mills-1','destinationId'=>'mills-2','date'=>'2026-10-03','sourceFingerprint'=>$view['fingerprint'],
+    'allocations'=>[['lotId'=>'PO|123|mills-1','qty'=>5508]],'requestKey'=>'dispatch-to-exmill-auto-1'];
+$auto=bt_dispatch($automatic,$ownedInventory,$exmill,$autoBody,$sender,$now,'BT-AUTOMATIC',$allow);
+bt_check($auto['status']==='Received'&&$auto['record']['receipts'][0]['autoFromDispatch'],'Own-to-Ex-Mill dispatch did not post destination receipt');
+bt_check(bt_dispatch($automatic,$ownedInventory,$exmill,$autoBody,$sender,$now,'BT-RETRY',$allow)['replayed'],'Automatic dispatch retry duplicated destination receipt');
+$autoStock=bti_project($values,$masters,$destinationScope,$today,$today,$automatic);
+bt_check(array_sum(array_column($autoStock['lots'],'availableQty'))===5508,'Automatically received stock did not reach the destination');
+$legacy=['transfers'=>['BT-SHIPMENT'=>$dispatch],'requests'=>[],'audit'=>[]];
+$complete=['entity'=>'TTI','transferId'=>'BT-SHIPMENT','requestKey'=>'complete-old-dispatch-1'];
+$completed=bt_complete_exmill_dispatch($legacy,$dispatch,$complete,$sender,$now);
+bt_check($completed['status']==='Received'&&bt_complete_exmill_dispatch($legacy,$dispatch,$complete,$sender,$now)['replayed'],'Legacy Ex-Mill dispatch could not be completed exactly once');
+echo "PASS own-to-Ex-Mill dispatch posts destination stock atomically and preserves exact retries\n";
