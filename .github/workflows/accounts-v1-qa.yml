@@ -307,7 +307,11 @@ jobs:
           sudo python3 .github/scripts/browser-download-setup.py
           python3 -m venv "$RUNNER_TEMP/inventory-venv"
           "$RUNNER_TEMP/inventory-venv/bin/pip" -q install playwright==1.55.0
-          "$RUNNER_TEMP/inventory-venv/bin/playwright" install --with-deps chromium
+          "$RUNNER_TEMP/inventory-venv/bin/playwright" install chromium
+          if ! "$RUNNER_TEMP/inventory-venv/bin/python" .github/scripts/browser-runtime-smoke.py; then
+            "$RUNNER_TEMP/inventory-venv/bin/playwright" install-deps chromium
+            "$RUNNER_TEMP/inventory-venv/bin/python" .github/scripts/browser-runtime-smoke.py
+          fi
       - name: TG remittance review browser flow
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
