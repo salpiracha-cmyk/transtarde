@@ -27,7 +27,7 @@ function mr_input_rows(array $run):array {
     $weights=[];foreach($outputs as $row)if($row['kind']==='finished'){$key=json_encode([$row['brand'],$row['contractRef']]);$weights[$key]=($weights[$key]??0)+$row['kg'];}
     if(!$weights)$weights[json_encode(['',''])]=$total;
     $denominator=array_sum($weights);$remaining=$total;$out=[];$last=array_key_last($weights);
-    foreach($weights as $key=>$weight){[$brand,$contract]=json_decode($key,true);$kg=$key===$last?$remaining:round($total*$weight/$denominator,3);$remaining=round($remaining-$kg,3);$out[]=['lotRef'=>'','product'=>(string)($run['sourceVariety']??$run['variety']??''),'bags'=>0,'grossKg'=>null,'lessKg'=>0,'kg'=>$kg,'brand'=>$brand,'contractRef'=>$contract,'inputBasis'=>'OUTPUT_DERIVED','allocationBasis'=>'FINISHED_OUTPUT_SHARE'];}
+    foreach($weights as $key=>$weight){[$brand,$contract]=json_decode($key,true);$kg=$key===$last?$remaining:round($total*$weight/$denominator,3);$remaining=round($remaining-$kg,3);$out[]=['lotRef'=>'','product'=>(string)($run['sourceVariety']??$run['variety']??''),'bags'=>null,'grossKg'=>null,'lessKg'=>0,'kg'=>$kg,'brand'=>$brand,'contractRef'=>$contract,'inputBasis'=>'OUTPUT_DERIVED','allocationBasis'=>'FINISHED_OUTPUT_SHARE'];}
     return $out;
 }
 function mr_actual_input(array $run):?float {if(mr_is_calculated($run))return null;$rows=mr_measured_input_rows($run);return $rows?round(array_sum(array_column($rows,'kg')),3):null;}
@@ -37,8 +37,15 @@ function mr_output_kg(array $r):float {
     $gross=mr_number($r['systemKg']??0);if($gross<=0)$gross=mr_number($r['bags']??0)*mr_number($r['bagWeight']??0)+mr_number($r['loadingAdjustmentKg']??0);
     return round($gross-mr_number($r['lessKg']??0),3);
 }
+function mr_byproduct_packing(string $product): string {
+    if (preg_match('/^B2\s*—\s*(.+)$/iu', $product, $match)) {
+        $packing = trim($match[1]);
+        if (!in_array(strtoupper($packing), ['LOCAL','LOCAL BAGS'], true)) return $packing;
+    }
+    return 'Local Bags';
+}
 function mr_output_rows(array $run):array {
-    $out=[];foreach((array)($run['rows']??[]) as $r){if(!is_array($r)||!mr_operational($r))continue;$gross=mr_number($r['systemKg']??0);if($gross<=0)$gross=mr_number($r['bags']??0)*mr_number($r['bagWeight']??0)+mr_number($r['loadingAdjustmentKg']??0);$less=mr_number($r['lessKg']??0);$kg=mr_output_kg($r);if($kg<=0)continue;$name=(string)($r['product']??'Unknown');$finished=str_starts_with(strtoupper($name),'READY RICE');$context=(array)($run['recoveryOutputContexts'][(string)($r['id']??'')]??[]);$brand=$finished?(preg_match('/^Ready Rice\s*[—-]\s*(.+)$/iu',$name,$match)?trim($match[1]):(string)($run['recoveryBrand']??'')):(string)($context['brand']??$r['brand']??$run['recoveryBrand']??'');$contract=(string)($context['contractRef']??$r['contractRef']??$run['recoveryContractRef']??'');$out[]=['product'=>$name,'bagWeight'=>mr_number($r['bagWeight']??0),'bags'=>mr_number($r['bags']??0),'grossKg'=>$gross,'lessKg'=>$less,'kg'=>$kg,'kind'=>$finished?'finished':'byproduct','brand'=>$brand,'contractRef'=>$contract,'lotRef'=>(string)($r['lotRef']??$run['outputLotRef']??'')];}return mr_is_calculated($run)?mr_allocate_calculated_outputs($out):$out;
+    $out=[];foreach((array)($run['rows']??[]) as $r){if(!is_array($r)||!mr_operational($r))continue;$gross=mr_number($r['systemKg']??0);if($gross<=0)$gross=mr_number($r['bags']??0)*mr_number($r['bagWeight']??0)+mr_number($r['loadingAdjustmentKg']??0);$less=mr_number($r['lessKg']??0);$kg=mr_output_kg($r);if($kg<=0)continue;$name=(string)($r['product']??'Unknown');$finished=str_starts_with(strtoupper($name),'READY RICE');$context=(array)($run['recoveryOutputContexts'][(string)($r['id']??'')]??[]);$brand=$finished?(preg_match('/^Ready Rice\s*[—-]\s*(.+)$/iu',$name,$match)?trim($match[1]):(string)($run['recoveryBrand']??'')):(string)($context['brand']??$r['brand']??$run['recoveryBrand']??'');$contract=(string)($context['contractRef']??$r['contractRef']??$run['recoveryContractRef']??'');$out[]=['product'=>$name,'bagWeight'=>mr_number($r['bagWeight']??0),'bags'=>mr_number($r['bags']??0),'grossKg'=>$gross,'lessKg'=>$less,'kg'=>$kg,'kind'=>$finished?'finished':'byproduct','packing'=>$finished?'':mr_byproduct_packing($name),'brand'=>$brand,'contractRef'=>$contract,'lotRef'=>(string)($r['lotRef']??$run['outputLotRef']??'')];}return mr_is_calculated($run)?mr_allocate_calculated_outputs($out):$out;
 }
 /** Reporting shares only: the original physical by-product rows remain stored once. */
 function mr_allocate_calculated_outputs(array $rows):array {
@@ -101,11 +108,24 @@ function mr_validate_inputs(array $run,bool $required=false):void {
     if($required&&$outputs&&!($actual>0))throw new DomainException('Actual raw input kilograms are required before saving production.');
     if($required&&array_sum(array_column($outputs,'kg'))>($actual??0)+.001&&strlen(trim((string)($run['recoveryVarianceReason']??'')))<3)throw new DomainException('Explain why recorded output exceeds the actual input weight.');
 }
-function mr_report(array $runs,array $filters=[],array $accounts=[]):array {
+function mr_report(array $runs,array $filters=[],array $accounts=[],?array $stockValues=null):array {
+    $bagsByScope=[];
     $entity=(string)($filters['entity']??'TTI');$mode=(string)($filters['mode']??'daily');$groups=[];$brands=[];$contracts=[];$missing=[];$varieties=[];$mills=[];
     foreach($runs as $run){if(!is_array($run)||strtoupper((string)($run['entity']??'TTI'))!==$entity)continue;$date=(string)($run['date']??'');if(!mr_valid_date($date))continue;$inputs=mr_input_rows($run);$outputs=mr_output_rows($run);if(!$inputs&&!$outputs)continue;$varieties[(string)($run['sourceVariety']??$run['variety']??'')]=true;$mills[(string)($run['millName']??$run['locationName']??'TTI Rice Mills')]=true;foreach(array_merge($inputs,$outputs) as $r){if($r['brand']!=='')$brands[$r['brand']]=true;if($r['contractRef']!=='')$contracts[$r['contractRef']]=true;}
         if((!empty($filters['from'])&&$date<$filters['from'])||(!empty($filters['to'])&&$date>$filters['to'])||(!empty($filters['shift'])&&($run['shift']??'')!==$filters['shift'])||(!empty($filters['variety'])&&($run['sourceVariety']??$run['variety']??'')!==$filters['variety'])||(!empty($filters['mill'])&&($run['millName']??$run['locationName']??'TTI Rice Mills')!==$filters['mill']))continue;
         $id=(string)($run['id']??$date.'|'.($run['shift']??''));
+        if ($stockValues !== null && mr_is_calculated($run) && $inputs) {
+            require_once dirname(__DIR__).'/inventory_reconciliation.php';
+            $scope = tt_inv_scope($run);
+            $scopeKey = $scope['entity'].'|'.tt_inv_location($scope);
+            $bagsByScope[$scopeKey] ??= tt_inv_production_input_bags($stockValues, $scope);
+            $estimated = $bagsByScope[$scopeKey][$id] ?? null;
+            $inputKg = array_sum(array_column($inputs, 'kg'));
+            if ($estimated !== null && $inputKg > 0) {
+                foreach ($inputs as &$input) $input['bags'] = round($estimated * $input['kg'] / $inputKg, 3);
+                unset($input);
+            }
+        }
         $interval=mr_shift_interval($run);
         $shiftDetails=['start'=>$interval?$run['start']:'','end'=>$interval?$run['end']:'',
             'hours'=>$interval?mr_operating_hours($run,$interval):null,
@@ -125,7 +145,7 @@ function mr_read_operations_source(string $path,?array $requestedKeys=null):arra
     $config=static fn(string $name):string=>(string)(defined('TT_DB_'.$name)?constant('TT_DB_'.$name):(getenv('TT_DB_'.$name)?:''));
     if($config('HOST')!==''&&$config('NAME')!==''&&$config('USER')!==''){
         $db=new PDO('mysql:host='.$config('HOST').';dbname='.$config('NAME').';charset=utf8mb4',$config('USER'),$config('PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
-        $keys=$requestedKeys??['tt30prod','tt38kebills','tt38labourbills','tt38reprocessbills','tt37processingexpenses','tt35localsales','tt35exportersale'];
+        $keys=$requestedKeys??['tt30slips','tt30ship','tt32stockadj','tt30prod','tt38kebills','tt38labourbills','tt38reprocessbills','tt37processingexpenses','tt35localsales','tt35exportersale'];
         $db->beginTransaction();try{$q=$db->prepare('SELECT storage_key,payload,version FROM tt_operation_records WHERE storage_key IN ('.implode(',',array_fill(0,count($keys),'?')).')');$q->execute($keys);$values=[];$revision=0;foreach($q->fetchAll() as $r){$values[(string)$r['storage_key']]=(string)$r['payload'];$revision=max($revision,(int)$r['version']);}$db->commit();return ['values'=>$values,'revision'=>$revision,'sourceBackend'=>'mysql'];}catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
     }
     if(!is_file($path))return ['values'=>[],'revision'=>0,'sourceBackend'=>'file'];

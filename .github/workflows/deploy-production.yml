@@ -273,6 +273,12 @@ jobs:
             exit 1
           fi
           echo "DOCUMENT_READER_SETTINGS=$reader_settings_result"
+          if ! fellow_parties_result=$(php "$target/scripts/adopt_fellow_exporter_parties.php" --apply); then
+            tar -xzf "$backup" -C "$target"
+            echo "Fellow exporter adoption failed; previous code restored."
+            exit 1
+          fi
+          echo "$fellow_parties_result"
           printf '%s\n' "$sha" > "$target/.transtrade-release"
           rm -f "$archive"
           rm -rf "$stage"

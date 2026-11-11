@@ -73,7 +73,7 @@ function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now):
     if(!empty($state['repairRecoveryDownload'])) {
         $from=$now->modify('-7 days')->format('Y-m-d');
         $to=$now->modify('-1 day')->format('Y-m-d');
-        $report=mr_report(tg_rows($ops,'tt30prod'),['entity'=>'TTI','mode'=>'daily','from'=>$from,'to'=>$to]);
+        $report=mr_report(tg_rows($ops,'tt30prod'),['entity'=>'TTI','mode'=>'daily','from'=>$from,'to'=>$to],stockValues:$ops['values']??[]);
         if($report['groups']) {
             $report['title']='Daily Recovery';
             yield ['key'=>'recovery-download-repair','hash'=>'1','report'=>$report,'caption'=>'Daily Recovery | '.$from.' to '.$to.' | new copy with direct download'];
@@ -92,10 +92,13 @@ function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now):
     foreach(tg_rows($ops,'tt30prod') as $run) {
         if(empty($run['id']))continue;
         $key='production|'.($run['entity']??'TTI').'|'.$run['id'];
+        if (mr_is_calculated($run) && empty($run['shiftEntriesComplete'])) continue;
         $hash=tg_hash($run);
-        if(!isset($state['observed'][$key])&&($run['date']??'')<$today)continue;
+        $savedAt=strtotime((string)($run['updatedAt']??$run['createdAt']??''));
+        if (!isset($state['observed'][$key]) && ($run['date']??'')<$today
+            && ($savedAt===false || $savedAt<($state['since']??PHP_INT_MAX))) continue;
         if(($state['observed'][$key]??null)===$hash)continue;
-        $report=mr_report([$run],['entity'=>$run['entity']??'TTI','mode'=>'daily','from'=>$run['date'],'to'=>$run['date']]);
+        $report=mr_report([$run],['entity'=>$run['entity']??'TTI','mode'=>'daily','from'=>$run['date'],'to'=>$run['date']],stockValues:$ops['values']??[]);
         if(!$report['groups'])continue;
         $report['title']='Saved Shift Production and Recovery';
         $report['reference']=($run['date']??'').' | '.($run['shift']??'').' | '.($run['millName']??'');
@@ -127,7 +130,7 @@ function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now):
             yield ['key'=>$key,'hash'=>$hash,'text'=>implode("\n",$details)];
         }
     }
-    foreach(tt_telegram_production_reports($root,tg_rows($ops,'tt30prod'),$state['since']) as $job) {
+    foreach(tt_telegram_production_reports($root,tg_rows($ops,'tt30prod'),$state['since'],$ops['values']??[]) as $job) {
         $report=$job['report'];$report['title']=$job['title'];$report['reference']=$job['ref'];
         yield ['key'=>'completed|'.tg_hash($job['key']),'hash'=>'1','report'=>$report,'caption'=>$job['title'].' | '.$job['ref']];
     }
@@ -214,7 +217,7 @@ function tg_dispatch(bool $initialize=false,string $platform='telegram'): array 
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);return ['busy'=>true];}
     try {
         $now=new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi'));
-        $ops=mr_read_operations_source(TT_DATA_DIR.'/operations.json',array_merge(['tt30queue','tt30prod','tt30ship','tt35exload','tt40exinstructions','tt35exportersale','transtrade_export_v3_operational'],array_keys(tg_mill_event_sources())));
+        $ops=mr_read_operations_source(TT_DATA_DIR.'/operations.json',array_merge(['tt30queue','tt30slips','tt30prod','tt30ship','tt32stockadj','tt35localsales','tt35exload','tt40exinstructions','tt35exportersale','transtrade_export_v3_operational'],array_keys(tg_mill_event_sources())));
         if(!isset($ops['values']['transtrade_export_v3_operational']))throw new RuntimeException('Committed Exports source unavailable.');
         $state=is_file($path)?json_decode((string)file_get_contents($path),true,512,JSON_THROW_ON_ERROR):null;
         $destination=$platform==='discord'?(string)$config['channelId']:null;
