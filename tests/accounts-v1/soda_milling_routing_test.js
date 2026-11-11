@@ -102,8 +102,9 @@ const readyKat=['RICE','PK-386','White','READY','PK-386 White Ready KAT','','','
 const katContext={qVariety:{value:'IRRI-6 White Raw Rice'},window:{},purchaseSodaFeed:[],sodaForCurrentMill:()=>true,ttMasterValues:type=>type==='purchase_products'?[product,readyProduct]:type==='purchase_kat'?[katProfile,readyKat]:[]};
 katContext.window.qVariety=katContext.qVariety;
 vm.createContext(katContext);
-vm.runInContext(['selectedPurchaseProduct','arrivalUsesApprovedKat','millRiceType','millBaseVariety','millProductIdentity','katRuleForProduct','katRuleFromMaster','katParameterKey','katAmountForRule','katFromMaster','moistureKatWeightPercent','moistureKatKg','savedMoistureKatKg'].map(name=>extractFunction(mill,name)).join('\n'),katContext);
+vm.runInContext(['selectedPurchaseProduct','arrivalUsesApprovedKat','millRiceType','millBaseVariety','millProductIdentity','katRuleForProduct','katRuleFromMaster','katParameterKey','wholeBrokenPercentage','katAmountForRule','katFromMaster','moistureKatWeightPercent','moistureKatKg','savedMoistureKatKg'].map(name=>extractFunction(mill,name)).join('\n'),katContext);
 assert.equal(katContext.katFromMaster('broken',30),10,'Broken KAT must update from the configured IRRI-6 master bands');
+assert.equal(katContext.katFromMaster('broken',20.25),'','Broken KAT requires a whole-number reading');
 const legacyReceipt={variety:'IRRI-6 White Raw Rice',loadingWeight:10000,moisture:16,moistureKat:'2.75',printed:true};
 assert.equal(katContext.savedMoistureKatKg(legacyReceipt),275,'A historical printed slip can recover a confirmed weight percentage in kg');
 assert.equal(katContext.savedMoistureKatKg({...legacyReceipt,moistureKat:'2.5'}),'','An unmatched legacy deduction must not be guessed');
@@ -119,7 +120,7 @@ assert.equal(katContext.katFromMaster('broken',30),0,'Ex-Mill quality is accepte
 katContext.purchaseSodaFeed[0].readyRoute='DELIVER_TO_STOCK';
 assert.equal(katContext.katFromMaster('broken',30),10,'Ready rice received at our location uses its approved KAT profile');
 assert.match(mill,/ready=identity\.productStage==='READY'/);
-assert.match(mill,/const brokenKat=applyReadyKat\?katAmountForRule\(readyKatRule,'broken',quality\.broken\)/);
+assert.match(mill,/const brokenKat=!wholeBroken\?\(old\|\|q\)\.brokenKat:applyReadyKat\?katAmountForRule\(readyKatRule,'broken',quality\.broken\)/);
 assert.match(mill,/applyReadyKat=ready&&linked\.readyRoute==='DELIVER_TO_STOCK'/);
 assert.match(fs.readFileSync('api/operations_policy.php','utf8'),/completedHistoryPreserved'\s*=>true/);
 assert.match(mill,/_ttPurchaseSodaId/);
