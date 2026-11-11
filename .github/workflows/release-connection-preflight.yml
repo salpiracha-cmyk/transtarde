@@ -14,10 +14,9 @@ jobs:
         env:
           HOSTINGER_DEPLOY_PATH: /home/u831010370/domains/app.transtradeinternational.com/public_html
           HOSTINGER_HOST: 151.106.116.33
-          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_PORT: '65002'
           HOSTINGER_USER: u831010370
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
-          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           expected_target='/home/u831010370/domains/app.transtradeinternational.com/public_html'
@@ -25,7 +24,16 @@ jobs:
           install -m 700 -d "$RUNNER_TEMP/ssh"
           trap 'rm -f "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts" "$RUNNER_TEMP/ssh/error"' EXIT
           printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
-          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          expected_fingerprint='SHA256:Bid0atNrqK2cVKyC84j8BnqToKfMokX5myGJkNCvBsg'
+          ssh-keyscan -T 15 -p "$HOSTINGER_PORT" -t ed25519 "$HOSTINGER_HOST" 2>/dev/null > "$RUNNER_TEMP/ssh/hostkey-candidate"
+          actual_fingerprint=$(ssh-keygen -lf "$RUNNER_TEMP/ssh/hostkey-candidate" -E sha256 | awk '{print $2}' | sort -u)
+          if [ "$actual_fingerprint" != "$expected_fingerprint" ]; then
+            echo "Hostinger ED25519 fingerprint mismatch. Expected $expected_fingerprint; received $actual_fingerprint"
+            rm -f "$RUNNER_TEMP/ssh/hostkey-candidate"
+            exit 1
+          fi
+          mv "$RUNNER_TEMP/ssh/hostkey-candidate" "$RUNNER_TEMP/ssh/known_hosts"
+          echo "HOSTINGER_ED25519_FINGERPRINT_VERIFIED=$actual_fingerprint"
           chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
           if ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" 'printf "SSH_SHELL_READY\n"; test -d /home/u831010370/domains/app.transtradeinternational.com/public_html && test -f /home/u831010370/domains/app.transtradeinternational.com/public_html/login.php && printf "TARGET_VERIFIED\n"' 2>"$RUNNER_TEMP/ssh/error"; then
             echo 'Authenticated shell is available. No files were uploaded or changed.' | tee -a "$GITHUB_STEP_SUMMARY"
