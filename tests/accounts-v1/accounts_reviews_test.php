@@ -21,3 +21,14 @@ $auth=file_get_contents(dirname(__DIR__,2).'/auth_store.php');eval(substr($auth,
 $input=['reference'=>'ft/26265/vxwtl','reason'=>'corrected reference','lines'=>[['description'=>'extra charge','chequeNo'=>'ab123']],'csrf'=>'aBc','action'=>'post_receipt','bankAccountId'=>'bank-AbC','status'=>'Posted','email'=>'user@example.com'];$out=tt_accounts_uppercase_text($input);
 check($out['reference']==='FT/26265/VXWTL'&&$out['lines'][0]['description']==='EXTRA CHARGE'&&$out['lines'][0]['chequeNo']==='AB123','Uppercase nested accounting free text');foreach(['csrf','action','bankAccountId','status','email']as$key)check($out[$key]===$input[$key],'Identity and enum preservation: '.$key);
 echo "Review dismissal, source preservation, company isolation, Ready tolerance and uppercase identity tests passed.\n";
+
+$slip=['entity'=>'TTI','soda'=>'26001','sourceSodaId'=>'N1','slip'=>'PH-90001','truck'=>'TEST-001','millId'=>'M1','bridgeId'=>'fixture','payableWeight'=>1000];
+$s['journals']['N1-JOURNAL']['meta']['payableWeightKg']=94000;
+$overdue=static fn(array $rows): array=>array_values(array_filter($rows,static fn($r)=>$r['kind']==='SODA'));
+check(count($overdue(ar_items($s,'TTI')))===1,'Outstanding SODA quantity appears before Pohanch');
+check($overdue(ar_items($s,'TTI',[$slip]))===[],'Issued Pohanch counts before the Accounts handoff');
+check(count($overdue(ar_items($s,'TTI',[array_replace($slip,['payableWeight'=>500])])))===1,'Part delivery leaves an overdue balance');
+check(count($overdue(ar_items($s,'TTI',[array_replace($slip,['cancelled'=>true])])))===1,'Cancelled Pohanch does not count');
+$s['events']['N1-EVENT']['sourceKey']='POHANCH|M1|fixture';
+check(count($overdue(ar_items($s,'TTI',[$slip])))===1,'The same Pohanch and Accounts event count once');
+echo "Issued Pohanch, partial delivery, cancellation and receipt deduplication passed.\n";

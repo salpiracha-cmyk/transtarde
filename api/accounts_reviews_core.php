@@ -16,8 +16,18 @@ function ar_late_pohanch_fingerprint(array $event,array $journal,string $due):st
         $journal['totalDebit']??null,$meta],JSON_THROW_ON_ERROR));
 }
 
+/** Read saved Mill Pohanch documents, including those awaiting an Accounts handoff. */
+function ar_issued_pohanches(string $entity): array {
+    if (!in_array($entity,['TTI','BRM'],true)) return [];
+    require_once __DIR__.'/mill_recovery_core.php';
+    $ops=mr_read_operations_source(TT_DATA_DIR.'/operations.json',['tt30slips']);
+    $rows=json_decode((string)($ops['values']['tt30slips']??'[]'),true,512,JSON_THROW_ON_ERROR);
+    if (!is_array($rows)) throw new RuntimeException('Mill Pohanch source unavailable.');
+    return array_values(array_filter($rows,static fn($row)=>is_array($row)&&($row['entity']??'')===$entity));
+}
+
 /** Review decisions apply only to the displayed version of the source. */
-function ar_items(array $s,string $entity):array {
+function ar_items(array $s,string $entity,array $pohanches=[]):array {
  $items=[];$sodas=[];$coveredHolds=[];$today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
  $add=static function(string $kind,string $id,string $type,string $reference,string $message,array $target,array $details=[],array $approval=[])use(&$items,$s,$entity):void{
   $key=$entity.'|'.$kind.'|'.$id;$row=['id'=>$key,'kind'=>$kind,'type'=>$type,'reference'=>$reference,'message'=>$message,'target'=>$target];
@@ -35,17 +45,28 @@ function ar_items(array $s,string $entity):array {
   $items[]=$row;
  };
  foreach(['purchaseSodas','purchaseSodasV2']as$collection)foreach((array)($s[$collection]??[])as$id=>$x){if(!is_array($x)||($x['entity']??'')!==$entity)continue;$no=(string)($x['sodaNo']??'');if($no===''||isset($sodas[$no]))continue;$x['id']=(string)($x['id']??$id);$sodas[$no]=$x;}
+ $bySoda=[];
+ if($pohanches)require_once __DIR__.'/arrival_withdrawal_core.php';
+ foreach($pohanches as $slip){
+  if(($slip['entity']??'')!==$entity||empty($slip['slip'])||!empty($slip['deleted'])||!empty($slip['cancelled'])||!empty($slip['reversed'])||
+     in_array(strtolower((string)($slip['status']??'')),['cancelled','deleted','reversed'],true)||tt_is_withdrawn_arrival($slip))continue;
+  $no=(string)($slip['soda']??'');
+  if(isset($sodas[$no]))$bySoda[$no][]=$slip;
+ }
  foreach($sodas as$sodaNumber=>$x){
   $no=(string)$sodaNumber;
   $status=(string)($x['manualStatus']??$x['status']??'');
   if($status==='Cancelled')continue;
   $closed=in_array($status,['Completed','Short Closed','Manual Closed'],true);
-  $received=0.0;
+  $received=0.0;$countedSources=[];$countedSlips=[];
   foreach((array)($s['events']??[]) as $ev){
    if(!is_array($ev)||($ev['entity']??'')!==$entity||($ev['eventType']??'')!=='COMMODITY_RECEIPT_ACCEPTED'||($ev['status']??'')==='Reversed')continue;
    $j=$s['journals'][$ev['journalId']??'']??[];
    if(($j['meta']['soda']??'')!==$no||in_array((string)($j['status']??''),['Reversed','Cancelled'],true)||!empty($j['meta']['deletedFromBooks'])||!empty($j['reversedByPostId']))continue;
    $received+=(float)($j['meta']['payableWeightKg']??0);
+   $countedSources[(string)($ev['sourceKey']??'')]=true;
+   if(!empty($j['meta']['pohanch']))$countedSlips[(string)$j['meta']['pohanch'].'|'.strtoupper(trim((string)($j['meta']['truck']??'')))]=true;
+
    $date=(string)($j['date']??'');
    $due=(string)($x['arrivalDueDate']??'');
    $source=(string)($ev['sourceKey']??'');
@@ -65,6 +86,17 @@ function ar_items(array $s,string $entity):array {
   }
 
   if($closed)continue;
+  foreach($bySoda[$no]??[] as $slip){
+   if(!empty($slip['sourceSodaId'])&&(string)$slip['sourceSodaId']!==$x['id'])continue;
+   $weight=(float)($slip['payableWeight']??0);
+   if(!is_finite($weight)||$weight<=0)continue;
+   $legacy=(string)$slip['slip'].'|'.strtoupper(trim((string)($slip['truck']??'')));
+   $source=!empty($slip['bridgeId'])?'POHANCH|'.($slip['millId']??'MILL').'|'.$slip['bridgeId']:'';
+   if(isset($countedSlips[$legacy])||($source!==''&&isset($countedSources[$source])))continue;
+   $countedSlips[$legacy]=true;
+   if($source!=='')$countedSources[$source]=true;
+   $received+=$weight;
+  }
   $min=(float)($x['qtyFromKg']??0);if(strtoupper((string)($x['commodity']??''))==='RICE'&&strtoupper((string)($x['productStage']??''))==='READY')$min=(float)($x['qtyToKg']??$min)*.95;
   $due=(string)($x['arrivalDueDate']??'');if($min>0&&$received+.001<$min&&$due!==''&&$due<$today)$add('SODA',$x['id'],'Overdue Soda',$no,'Delivery was due on '.$due.'. '.number_format(max(0,$min-$received)/1000,3).' MT is still outstanding. Approve to open this Soda and update its date or quantity.',['sodaNo'=>$no]);
  }

@@ -22,8 +22,9 @@ try{
   }
   if(!$write||!tt_user_can_access_entity($u,$e,'View')||!(tt_user_can_access_entity($u,$e,'Edit')||tt_user_can_access_entity($u,$e,'Approve')))ar_out(['ok'=>false,'error'=>'Accounts review permission required for this company.'],403);
  }
+ $pohanches=$approve?[]:ar_issued_pohanches($e);
  tt_ensure_data_dir();$h=fopen(TT_DATA_DIR.'/accounts.json','r+b');if(!$h||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
- try{rewind($h);$raw=stream_get_contents($h);$s=$raw?json_decode($raw,true):[];if(!is_array($s))throw new RuntimeException('Accounts storage invalid.');$match=null;foreach(ar_items($s,$e)as$item)if($item['id']===($b['id']??'')&&$item['fingerprint']===($b['fingerprint']??'')){$match=$item;break;}
+ try{rewind($h);$raw=stream_get_contents($h);$s=$raw?json_decode($raw,true):[];if(!is_array($s))throw new RuntimeException('Accounts storage invalid.');$match=null;foreach(ar_items($s,$e,$pohanches)as$item)if($item['id']===($b['id']??'')&&$item['fingerprint']===($b['fingerprint']??'')){$match=$item;break;}
  if(!$match)ar_out(['ok'=>false,'error'=>'This review changed or has already been removed. Refresh the list.'],409);
  if($match['kind']==='REMITTANCE')ar_out(['ok'=>false,'error'=>'This payment must be reviewed and posted; it cannot be discarded.'],422);
  if($approve&&empty($match['approval']))ar_out(['ok'=>false,'error'=>'Only a late Pohanch can be approved here.'],422);
