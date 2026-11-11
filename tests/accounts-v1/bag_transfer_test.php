@@ -47,3 +47,71 @@ $back=array_replace($held,['action'=>'return_quarantine','requestKey'=>'quaranti
 $out=bt_quarantine($heldState,$back,$sender,$now2,$authorize);bt_check($out['status']==='Closed — received and returned','Quarantine resolution did not close exactly');$tot=bt_totals($out['record'])[$line];bt_check($tot['received']===60&&$tot['returned']===40&&$tot['quarantined']===0&&$tot['inTransit']===0,'Quarantine quantities did not conserve dispatch');
 $before=serialize($heldState);$over=array_replace($release,['requestKey'=>'quarantine-overflow-01']);bt_reject(fn()=>bt_quarantine($heldState,$over,$receiver,$now2,$authorize),'Resolved quarantine accepted twice');bt_check(serialize($heldState)===$before,'Overflow modified history');
 echo "PASS quarantine: rejected delivery unavailable, immutable actor/date evidence, partial inspection/physical return, date chronology, whole quantities and exact retries\n";
+
+require_once dirname(__DIR__,2).'/api/bag_shipment_usage_core.php';
+$masters=['mills'=>[
+    ['id'=>'mills-1','values'=>['TTI Rice Mills','','Own Mill','','','Active']],
+    ['id'=>'mills-2','values'=>['Al Harmain','','External Mill','','','Active']],
+]];
+$sourceScope=['entity'=>'TTI','locationId'=>'mills-1','millName'=>'TTI Rice Mills'];
+$destinationScope=['entity'=>'TTI','locationId'=>'mills-2','millName'=>'Al Harmain'];
+$shipmentOrder=['id'=>123,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'GHAZAL','size'=>'50 kg','bagType'=>'PP','received'=>5508,'poNo'=>'PO-260001','poLineKey'=>'L1','contractRef'=>'TG/AMT/13'];
+$shipmentReceipt=['id'=>'R1','bagId'=>123,'date'=>'2026-10-01','qty'=>5508];
+$actuals=array_map(static fn($i)=>[
+    'number'=>'ABCD'.str_pad((string)$i,6,'0',STR_PAD_LEFT).'-4','location'=>'Al Harmain','brand'=>'GHAZAL','bags'=>540,'loadedDate'=>'2026-10-06',
+],range(1,10));
+$exports=['contracts'=>[['ref'=>'TG/AMT/13','packingUnit'=>'KG','packings'=>[['brand'=>'GHAZAL','size'=>50]]]],
+    'shipments'=>[['id'=>'shipment-13','kind'=>'lot','lotId'=>'TG/AMT/13/L01','contractRef'=>'TG/AMT/13','completed'=>true,'containers'=>10,
+        'loadingPlan'=>['allocations'=>[['name'=>'Al Harmain','packIndex'=>0,'emptyBags'=>108]]],'millActuals'=>$actuals]]];
+$values=['tt30bags'=>json_encode([$shipmentOrder]),'tt33bagreceipts'=>json_encode([$shipmentReceipt]),'transtrade_export_v3_operational'=>json_encode($exports)];
+$state=['transfers'=>[],'requests'=>[],'audit'=>[]];
+$today='2026-10-17';
+$view=bti_project($values,$masters,$sourceScope,'2026-10-03',$today,$state);
+$allow=static function($entity,$name,$action,$id):void {
+    bt_check($entity==='TTI'&&$action==='Create'&&in_array($id,['mills-1','mills-2'],true),'Unexpected shipment bag usage scope');
+};
+$dispatch=bt_dispatch($state,$view,['id'=>'mills-2','name'=>'Al Harmain','status'=>'Active'],[
+    'entity'=>'TTI','sourceLocationId'=>'mills-1','destinationId'=>'mills-2','date'=>'2026-10-03','sourceFingerprint'=>$view['fingerprint'],
+    'allocations'=>[['lotId'=>'PO|123|mills-1','qty'=>5508]],'requestKey'=>'dispatch-shipment-bags-1',
+],$sender,$now,'BT-SHIPMENT',$allow)['record'];
+$line=$dispatch['lines'][0]['lineId'];
+bt_check(bsu_candidates($values,$dispatch)===[],'Dispatched bags became eligible before physical acceptance');
+$accepted=bt_receive($state,[
+    'entity'=>'TTI','transferId'=>$dispatch['id'],'date'=>'2026-10-04','allocations'=>[['lineId'=>$line,'qty'=>5508]],'requestKey'=>'receive-shipment-bags-1',
+],$receiver,$now,$allow)['record'];
+$matches=bsu_candidates($values,$accepted);
+bt_check(count($matches)===1&&$matches[0]['packedQty']===5400&&$matches[0]['plannedEmptyQty']===108,'Packed actuals and planned spares did not match');
+$request=['entity'=>'TTI','transferId'=>$dispatch['id'],'lineId'=>$line,'shipmentId'=>'shipment-13','fingerprint'=>bt_hash($matches[0]),
+    'emptyQty'=>108,'requestKey'=>'confirm-shipment-bags-1'];
+bt_reject(fn()=>bsu_record($values,$state,$masters,array_replace($request,['emptyQty'=>109]),$receiver,$now,$allow),'Usage exceeded accepted stock');
+bt_reject(fn()=>bsu_record($values,$state,$masters,array_replace($request,['fingerprint'=>'stale']),$receiver,$now,$allow),'Stale shipment usage was accepted');
+bt_reject(fn()=>bsu_record($values,$state,$masters,$request,$receiver,$now,$denied),'Shipment usage bypassed destination permission');
+bsu_record($values,$state,$masters,$request,$receiver,$now,$allow);
+$committed=$state;
+bt_check(bsu_record($values,$state,$masters,$request,$receiver,$now,$allow)['replayed']&&$state===$committed,'Retry deducted shipment bags twice');
+bt_reject(fn()=>bsu_record($values,$state,$masters,array_replace($request,['requestKey'=>'confirm-shipment-bags-2']),$receiver,$now,$allow),'Another request deducted the same shipment twice');
+$stock=bti_project($values,$masters,$destinationScope,$today,$today,$state);
+$lotId='BT|'.$dispatch['id'].'|'.$line;
+bt_check($stock['lots'][$lotId]['availableQty']===0,'Accepted destination stock did not reach zero');
+$movements=array_column($stock['movements'],'qty','type');
+bt_check($movements['SHIPMENT_PACKED_BAGS']===-5400&&$movements['SHIPMENT_EMPTY_BAGS']===-108,'Shipment usage did not keep packed and empty bags distinct');
+$beforeLoading=bti_project($values,$masters,$destinationScope,'2026-10-05',$today,$state);
+bt_check($beforeLoading['lots'][$lotId]['availableQty']===5508&&$beforeLoading['lots'][$lotId]['committableQty']===0,'Historical stock ignored later committed shipment usage');
+echo "PASS completed shipment consumes 5,400 packed and 108 confirmed empty bags from the accepted transfer exactly once\n";
+
+$automatic=['transfers'=>[],'requests'=>[],'audit'=>[]];
+$ownedInventory=$view;
+$ownedInventory['scope']['type']='Own Mill';
+$exmill=['id'=>'mills-2','name'=>'Al Harmain','status'=>'Active','type'=>'External Mill'];
+$autoBody=['entity'=>'TTI','sourceLocationId'=>'mills-1','destinationId'=>'mills-2','date'=>'2026-10-03','sourceFingerprint'=>$view['fingerprint'],
+    'allocations'=>[['lotId'=>'PO|123|mills-1','qty'=>5508]],'requestKey'=>'dispatch-to-exmill-auto-1'];
+$auto=bt_dispatch($automatic,$ownedInventory,$exmill,$autoBody,$sender,$now,'BT-AUTOMATIC',$allow);
+bt_check($auto['status']==='Received'&&$auto['record']['receipts'][0]['autoFromDispatch'],'Own-to-Ex-Mill dispatch did not post destination receipt');
+bt_check(bt_dispatch($automatic,$ownedInventory,$exmill,$autoBody,$sender,$now,'BT-RETRY',$allow)['replayed'],'Automatic dispatch retry duplicated destination receipt');
+$autoStock=bti_project($values,$masters,$destinationScope,$today,$today,$automatic);
+bt_check(array_sum(array_column($autoStock['lots'],'availableQty'))===5508,'Automatically received stock did not reach the destination');
+$legacy=['transfers'=>['BT-SHIPMENT'=>$dispatch],'requests'=>[],'audit'=>[]];
+$complete=['entity'=>'TTI','transferId'=>'BT-SHIPMENT','requestKey'=>'complete-old-dispatch-1'];
+$completed=bt_complete_exmill_dispatch($legacy,$dispatch,$complete,$sender,$now);
+bt_check($completed['status']==='Received'&&bt_complete_exmill_dispatch($legacy,$dispatch,$complete,$sender,$now)['replayed'],'Legacy Ex-Mill dispatch could not be completed exactly once');
+echo "PASS own-to-Ex-Mill dispatch posts destination stock atomically and preserves exact retries\n";

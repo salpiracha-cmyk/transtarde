@@ -3,7 +3,7 @@ const source=fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.h
 let records=[],writes=0,alerts=[];
 const c={window:{},STORE_BAGS:'bags',get:()=>records,set:()=>writes++,defaultBagOrders:()=>[],alert:s=>alerts.push(s),currentBagOrder:7,bagOrdersBody:{innerHTML:''},bagReceiveCard:{classList:{add(){}}},transferBrand:{value:'A',innerHTML:''},transferQty:{value:'1'},transferMill:{value:'Other Mill'},bagReceiveQty:{value:'1'},document:{getElementById:()=>({value:'1',checked:false})},escHtml:s=>String(s)};
 vm.createContext(c);
-for(const name of ['normalizeBagOrderIds','bagOrderIdentityWarning','renderBagOrders','saveBagReceiptStatus','receiveBagsInline','receiveBags','transferBags']){const a=source.indexOf('function '+name+'('),b=source.indexOf('\n',a);assert(a>=0);vm.runInContext(source.slice(a,b),c);}
+for(const name of ['normalizeBagOrderIds','bagOrderIdentityWarning','renderBagOrders','saveBagReceiptStatus','receiveBagsInline','receiveBags','transferBags']){const a=source.indexOf('function '+name+'('),b=name==='renderBagOrders'?source.indexOf('function bagTareGrams(',a):source.indexOf('\n',a);assert(a>=0);vm.runInContext(source.slice(a,b),c);}
 for(const bad of [[{id:7,brand:'A'},{id:7,brand:'B'}],[{brand:'A'}],[{id:0}],[{id:9007199254740992}],[{id:7},{id:'7'}],[{id:'007'}]]){
  records=structuredClone(bad);const before=JSON.stringify(records);assert.equal(c.normalizeBagOrderIds(records),null);c.currentBagOrder=7;c.renderBagOrders();assert.match(c.bagOrdersBody.innerHTML,/identities are missing or ambiguous/);assert.equal(c.currentBagOrder,null);
  for(const name of ['saveBagReceiptStatus','receiveBagsInline','receiveBags']){c.currentBagOrder=7;c[name]();assert.match(alerts.at(-1),/No records were changed/);}

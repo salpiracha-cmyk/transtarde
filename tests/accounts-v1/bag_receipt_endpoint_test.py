@@ -58,12 +58,13 @@ else{$out=['values'=>[],'meta'=>[]];foreach($p->query('SELECT storage_key,payloa
             assert source.read_bytes()==unchanged and books.read_bytes()==financial,'Conflicting receipt review rewrote evidence'
         source.write_bytes(original_store)
     assert req(mode='other')[0]==403 and req(mode='company')[0]==403 and req(mode='no-mill')[0]==403
-    body=dict(csrf='fixture',action='receive_supplier',entity='TTI',locationId='mills-1',bagId='123',date='2026-10-17',qty=10,sourceFingerprint=review['fingerprint'],requestKey='actual-supplier-receipt-0001',keepReceiptOpen=False,inspected=True,printingMismatch=False,materialMismatch=False,qualityMismatch=False,tareMismatch=False,actualTareGrams=None)
+    body=dict(csrf='fixture',action='receive_supplier',entity='TTI',locationId='mills-1',bagId='123',date='2026-10-17',qty=10,sourceFingerprint=review['fingerprint'],requestKey='actual-supplier-receipt-0001',keepReceiptOpen=False,remarks='Delivered in two bundles',printingMismatch=False,materialMismatch=False,qualityMismatch=False,tareMismatch=False,actualTareGrams=None)
     for denied,mode in [(body,'read'),(dict(body,csrf='bad'),'source'),(body,'company'),(dict(body,entity='BRM'),'source'),(dict(body,locationId='mills-2'),'source')]:
         status,result=req(denied,mode=mode);assert status in (403,419,422),result;assert snapshot()==before,'Denied receipt changed data'
-    for changes in [dict(qty=1.5),dict(qty=0),dict(date='2099-01-01'),dict(inspected=False),dict(tareMismatch=True),dict(sourceFingerprint='a'*64)]:
+    for changes in [dict(qty=1.5),dict(qty=0),dict(date='2099-01-01'),dict(remarks="X"*1001),dict(tareMismatch=True),dict(sourceFingerprint='a'*64)]:
         status,result=req(dict(body,**changes));assert status==422,result;assert snapshot()==before,'Invalid receipt changed a counter or audit'
     status,saved=req(body);assert status==200,saved;receipt=saved['receipt'];assert receipt['qty']==10 and receipt['acceptedQty']==10 and receipt['quarantinedQty']==0 and receipt['userId']==7 and receipt['sourceSnapshot']['locationId']=='mills-1'
+    assert receipt['remarks']=='Delivered in two bundles' and receipt['inspected'] is True
     assert saved['order']['received']==110 and saved['stateVersion']==1
     physical=stored();assert len(json.loads(physical['values']['tt33bagreceipts']))==2 and json.loads(physical['values']['tt30bags'])[0]['received']==110
     assert saved['sourceValues']['tt30bags']['version']>0 and saved['sourceValues']['tt33bagreceipts']['version']>0

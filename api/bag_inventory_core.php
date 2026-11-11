@@ -135,6 +135,7 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
             if($date==='')$undated+=$qty;elseif($date<=$asOf)$datedThrough+=$qty;
             $movements[]=['date'=>$date,'lotId'=>$id,'entity'=>$entity,'locationId'=>$location['locationId'],'qty'=>$qty,'type'=>'SUPPLIER_RECEIPT','reference'=>$rid];
         }
+        $lot['supplierReceivedQty']=$counter!==null&&$counter===$totalEvents&&!$lot['holds']?$counter:null;
         if($counter===null){bti_hold($lot,'The received source quantity is unverified.');$counter=$totalEvents;}
         if($totalEvents>$counter)bti_hold($lot,'Dated receipt quantities exceed the saved source counter; reconcile the original receipts.');
         $prior=max(0,$counter-$totalEvents);$undated+=$prior;$lot['undatedReceivedQty']=$undated;
@@ -204,6 +205,19 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
             $unallocated[]=['reference'=>'LEGACY-PROD|'.$pid,'entity'=>$entity,'locationId'=>$location['locationId'],'brand'=>(string)$brand,'qty'=>$qty,'date'=>$date,'sourceFingerprint'=>bt_hash(['issue'=>$issue,'parent'=>$parent])];
             foreach($candidates as $id=>$lot)bti_hold($lots[$id],'Historical production consumption requires an explicit original-PO allocation.');
         }
+    }
+    foreach($state['transfers']??[] as $transfer)foreach($transfer['shipmentBagUsage']??[] as $usage){
+        $id='BT|'.$transfer['id'].'|'.$usage['lineId'];
+        if(!isset($lots[$id]))continue;
+        $lot=&$lots[$id];
+        foreach(['packedQty'=>'SHIPMENT_PACKED_BAGS','emptyQty'=>'SHIPMENT_EMPTY_BAGS'] as $field=>$type){
+            $qty=$usage[$field];
+            if(!$qty)continue;
+            if($usage['date']<=$asOf)$lot['issuedQty']+=$qty;
+            $movements[]=['date'=>$usage['date'],'lotId'=>$id,'entity'=>$lot['entity'],'locationId'=>$lot['locationId'],
+                'qty'=>-$qty,'type'=>$type,'reference'=>$usage['id'],'shipment'=>$usage['lotRef']];
+        }
+        unset($lot);
     }
     $visible=[];foreach($lots as $id=>$lot){if($lot['entity']!==($scope['entity']??'')||$lot['locationId']!==($scope['locationId']??''))continue;
         $lot['balanceBeforeUnallocated']=$lot['receivedQty']+$lot['returnedQty']-$lot['issuedQty']-$lot['transferredOutQty']-$lot['supplierReturnedQty'];

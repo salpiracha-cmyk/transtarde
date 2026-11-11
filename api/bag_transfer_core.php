@@ -59,6 +59,30 @@ function bt_commit_request(array &$state,array $request,array $record,string $ac
     $state['requests'][$request['id']]=['fingerprint'=>$request['fingerprint'],'transferId'=>$record['id'],'action'=>$action,'at'=>$now]+$request['actor'];
     $state['audit'][]=['transferId'=>$record['id'],'action'=>$action,'at'=>$now]+$request['actor'];
 }
+/** An owned mill's confirmed dispatch to an outside mill posts both sides of the transfer. */
+function bt_record_exmill_receipt(array $record,array $actor,string $now): array {
+    $record['receipts'][]=[
+        'id'=>'BTE-'.substr(hash('sha256',$record['id'].'|EXMILL_DISPATCH'),0,24),
+        'date'=>$record['date'],
+        'lines'=>array_map(static fn($line)=>['lineId'=>$line['lineId'],'qty'=>$line['qty']],$record['lines']),
+        'reason'=>'Automatically received at the Ex-Mill from the confirmed mill dispatch.',
+        'autoFromDispatch'=>true,'at'=>$now,
+    ]+$actor;
+    bt_totals($record);
+    return $record;
+}
+
+function bt_complete_exmill_dispatch(array &$state,array $record,array $body,array $user,string $now): array {
+    $action='EXMILL_DISPATCH_RECEIPT';
+    $request=bt_request($state,$body,$user,$action);
+    if($replay=bt_replay($state,$request))return $replay;
+    if(bt_status($record)!=='In transit')throw new DomainException('Only an untouched Ex-Mill dispatch can be completed automatically.');
+    $record=bt_record_exmill_receipt($record,$request['actor'],$now);
+    $state['transfers'][$record['id']]=$record;
+    bt_commit_request($state,$request,$record,$action,$now);
+    return ['record'=>$record,'status'=>bt_status($record),'replayed'=>false];
+}
+
 /** Inventory is recomputed by the caller under its operations write lock, never supplied by a client. */
 function bt_dispatch(array &$state,array $inventory,array $destination,array $body,array $user,string $now,string $id,callable $authorize): array {
     $request=bt_request($state,$body,$user,'DISPATCH');$source=(array)($inventory['scope']??[]);$entity=(string)($source['entity']??'');
@@ -84,6 +108,9 @@ function bt_dispatch(array &$state,array $inventory,array $destination,array $bo
         $lines[]=['lineId'=>$lineId,'sourceLotId'=>$lotId,'originBagId'=>(string)$lot['originBagId'],'qty'=>$qty,'sourceSnapshot'=>array_intersect_key($lot,array_flip(['originBagId','poNo','poLineKey','contractRef','brand','packingSize','bagType','skuKey','entity','locationId','millName','sourceKind','exporterDealId','externalOwnerId','externalOwnerName','stockOwnerType','sodaReference']))];
     }
     $record=['id'=>$id,'entity'=>$entity,'date'=>$date,'source'=>$source,'destination'=>array_intersect_key($destination,array_flip(['id','name'])),'sourceFingerprint'=>$inventory['fingerprint'],'lines'=>$lines,'receipts'=>[],'returns'=>[],'createdAt'=>$now,'createdBy'=>$request['actor']];
+    if(strcasecmp(trim((string)($source['type']??'')),'Own Mill')===0&&strcasecmp(trim((string)($destination['type']??'')),'External Mill')===0){
+        $record=bt_record_exmill_receipt($record,$request['actor'],$now);
+    }
     $state['transfers'][$id]=$record;bt_commit_request($state,$request,$record,'DISPATCH',$now);
     return ['record'=>$record,'status'=>bt_status($record),'replayed'=>false];
 }
