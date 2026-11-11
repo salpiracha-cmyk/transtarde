@@ -86,7 +86,7 @@ function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now):
         $id=(string)($audit['id']??tg_hash($audit));
         yield ['key'=>'export|'.$id,'hash'=>'1','text'=>"Exports update\n".implode("\n",array_filter([
             (string)($audit['user']??'Exports user'),trim(($audit['area']??'').' | '.($audit['action']??'')),
-            (string)($audit['contractRef']??''),(string)($audit['detail']??''),(string)($audit['at']??''),
+            (string)($audit['contractRef']??''),(string)(($audit['changeSummary']??'')?:($audit['detail']??'')),(string)($audit['at']??''),
         ]))];
     }
     foreach(tg_rows($ops,'tt30prod') as $run) {

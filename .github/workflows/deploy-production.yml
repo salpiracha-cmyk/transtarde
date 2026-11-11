@@ -279,6 +279,11 @@ jobs:
             exit 1
           fi
           echo "$fellow_parties_result"
+          if ! amt14_result=$(php "$target/scripts/correct_amt14_hs_and_reconcile_handoffs.php"); then
+            echo "AMT/14 or Accounts handoff reconciliation needs review."
+            exit 1
+          fi
+          echo "$amt14_result"
           printf '%s\n' "$sha" > "$target/.transtrade-release"
           rm -f "$archive"
           rm -rf "$stage"

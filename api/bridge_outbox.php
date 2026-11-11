@@ -107,8 +107,9 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $read = bo_read_locked(LOCK_SH, function(array $store) use ($user): array {
             $items = [];
+            $confirmed = [];
             foreach ((array)$store['bridgeOutbox'] as $item) {
-                if (!is_array($item) || ($item['status'] ?? 'Pending') === 'Posted') {
+                if (!is_array($item)) {
                     continue;
                 }
                 $module = (string)($item['module'] ?? '');
@@ -116,12 +117,16 @@ try {
                 if (!bo_can_write($user, $module) || !tt_user_can_access_entity($user, $entity, 'View')) {
                     continue;
                 }
-                $items[] = $item;
+                if (($item['status'] ?? 'Pending') === 'Posted') {
+                    $confirmed[] = array_intersect_key($item,array_flip(['key','kind','body']));
+                } elseif (!eq_draft($item)) {
+                    $items[] = $item;
+                }
             }
             usort($items, static fn(array $a, array $b): int => strcmp((string)($a['createdAt'] ?? ''), (string)($b['createdAt'] ?? '')));
-            return $items;
+            return ['items'=>$items,'confirmed'=>$confirmed];
         });
-        bo_out(['ok' => true, 'items' => $read['result'], 'revision' => $read['revision']]);
+        bo_out(['ok' => true, 'revision' => $read['revision']] + $read['result']);
     }
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
