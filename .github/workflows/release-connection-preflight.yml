@@ -12,10 +12,10 @@ jobs:
     steps:
       - name: Check authenticated shell without uploading or changing files
         env:
-          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
-          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_DEPLOY_PATH: /home/u831010370/domains/app.transtradeinternational.com/public_html
+          HOSTINGER_HOST: 151.106.116.33
           HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
-          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_USER: u831010370
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
           HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
         run: |
