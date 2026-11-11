@@ -27,9 +27,9 @@ function ar_issued_pohanches(string $entity): array {
 }
 
 /** Review decisions apply only to the displayed version of the source. */
-function ar_items(array $s,string $entity,array $pohanches=[]):array {
+function ar_items(array $s,string $entity,array $pohanches=[],?array &$statements=null):array {
  $items=[];$sodas=[];$coveredHolds=[];$today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
- $add=static function(string $kind,string $id,string $type,string $reference,string $message,array $target,array $details=[],array $approval=[])use(&$items,$s,$entity):void{
+ $add=static function(string $kind,string $id,string $type,string $reference,string $message,array $target,array $details=[],array $approval=[],array $statement=[])use(&$items,$s,$entity):void{
   $key=$entity.'|'.$kind.'|'.$id;$row=['id'=>$key,'kind'=>$kind,'type'=>$type,'reference'=>$reference,'message'=>$message,'target'=>$target];
   $row['fingerprint']=hash('sha256',json_encode($row,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
   if(($s['accountsReviewDismissals'][$key]['fingerprint']??'')===$row['fingerprint'])return;
@@ -42,6 +42,7 @@ function ar_items(array $s,string $entity,array $pohanches=[]):array {
    if(($s['accountsReviewDismissals'][$key]['fingerprint']??'')===$row['fingerprint']||
       ($s['accountsReviewApprovals'][$approval['key']]['receiptFingerprint']??'')===$approval['receiptFingerprint'])return;
   }
+  if($statement)$row['statement']=$statement;
   $items[]=$row;
  };
  foreach(['purchaseSodas','purchaseSodasV2']as$collection)foreach((array)($s[$collection]??[])as$id=>$x){if(!is_array($x)||($x['entity']??'')!==$entity)continue;$no=(string)($x['sodaNo']??'');if($no===''||isset($sodas[$no]))continue;$x['id']=(string)($x['id']??$id);$sodas[$no]=$x;}
@@ -58,14 +59,22 @@ function ar_items(array $s,string $entity,array $pohanches=[]):array {
   $status=(string)($x['manualStatus']??$x['status']??'');
   if($status==='Cancelled')continue;
   $closed=in_array($status,['Completed','Short Closed','Manual Closed'],true);
-  $received=0.0;$countedSources=[];$countedSlips=[];
+  $received=0.0;$countedSources=[];$countedSlips=[];$deliveries=[];
   foreach((array)($s['events']??[]) as $ev){
    if(!is_array($ev)||($ev['entity']??'')!==$entity||($ev['eventType']??'')!=='COMMODITY_RECEIPT_ACCEPTED'||($ev['status']??'')==='Reversed')continue;
    $j=$s['journals'][$ev['journalId']??'']??[];
    if(($j['meta']['soda']??'')!==$no||in_array((string)($j['status']??''),['Reversed','Cancelled'],true)||!empty($j['meta']['deletedFromBooks'])||!empty($j['reversedByPostId']))continue;
-   $received+=(float)($j['meta']['payableWeightKg']??0);
-   $countedSources[(string)($ev['sourceKey']??'')]=true;
-   if(!empty($j['meta']['pohanch']))$countedSlips[(string)$j['meta']['pohanch'].'|'.strtoupper(trim((string)($j['meta']['truck']??'')))]=true;
+   $receiptSource=(string)($ev['sourceKey']??'');
+   $receiptSlip=(string)($j['meta']['pohanch']??'');
+   $receiptTruck=(string)($j['meta']['truck']??'');
+   $legacy=$receiptSlip!==''?$receiptSlip.'|'.strtoupper(trim($receiptTruck)):'';
+   $kg=(float)($j['meta']['payableWeightKg']??0);
+   if($kg>0&&is_finite($kg)&&!isset($countedSources[$receiptSource])&&($legacy===''||!isset($countedSlips[$legacy]))){
+    $received+=$kg;
+    $deliveries[]=['pohanch'=>$receiptSlip?:($j['reference']??''),'truck'=>$receiptTruck,'warehouse'=>(string)($j['meta']['millName']??$x['locationName']??$x['location']??''),'date'=>(string)($j['date']??''),'kg'=>$kg];
+   }
+   if($receiptSource!=='')$countedSources[$receiptSource]=true;
+   if($legacy!=='')$countedSlips[$legacy]=true;
 
    $date=(string)($j['date']??'');
    $due=(string)($x['arrivalDueDate']??'');
@@ -85,7 +94,6 @@ function ar_items(array $s,string $entity,array $pohanches=[]):array {
    if($systemHold&&count($items)>$before)$coveredHolds[$key]=true;
   }
 
-  if($closed)continue;
   foreach($bySoda[$no]??[] as $slip){
    if(!empty($slip['sourceSodaId'])&&(string)$slip['sourceSodaId']!==$x['id'])continue;
    $weight=(float)($slip['payableWeight']??0);
@@ -96,9 +104,25 @@ function ar_items(array $s,string $entity,array $pohanches=[]):array {
    $countedSlips[$legacy]=true;
    if($source!=='')$countedSources[$source]=true;
    $received+=$weight;
+   $deliveries[]=['pohanch'=>(string)$slip['slip'],'truck'=>(string)($slip['truck']??''),'warehouse'=>(string)($slip['millName']??$slip['locationName']??$x['locationName']??$x['location']??''),'date'=>(string)($slip['unloadingDate']??$slip['arrivalDate']??''),'kg'=>$weight];
   }
-  $min=(float)($x['qtyFromKg']??0);if(strtoupper((string)($x['commodity']??''))==='RICE'&&strtoupper((string)($x['productStage']??''))==='READY')$min=(float)($x['qtyToKg']??$min)*.95;
-  $due=(string)($x['arrivalDueDate']??'');if($min>0&&$received+.001<$min&&$due!==''&&$due<$today)$add('SODA',$x['id'],'Overdue Soda',$no,'Delivery was due on '.$due.'. '.number_format(max(0,$min-$received)/1000,3).' MT is still outstanding. Approve to open this Soda and update its date or quantity.',['sodaNo'=>$no]);
+  $min=(float)($x['qtyFromKg']??0);$max=(float)($x['qtyToKg']??0);
+  $readyRice=strtoupper((string)($x['commodity']??''))==='RICE'&&strtoupper((string)($x['productStage']??''))==='READY';
+  $exMill=($x['readyRoute']??'')==='EX_MILL';
+  $min=$readyRice&&$max>0?$max*.95:($exMill?$min*.95:$min);
+  $max=$max>0?($exMill||$readyRice?$max*1.05:$max+950):0;
+  $trips=count(array_filter($deliveries,static fn($receipt)=>trim($receipt['truck'])!==''));
+  $tolerance=$exMill?0:$trips*1000;
+  $short=max(0,$min-$received);
+  $due=(string)($x['arrivalDueDate']??'');
+  $within=$received>0&&$min>0&&$short<=$tolerance+.001&&($max<=0||$received<=$max+.001);
+  $statement=['sodaNo'=>$no,'supplier'=>$x['party']??'','broker'=>$x['broker']??'','product'=>$x['displayName']??$x['variety']??$x['commodity']??'',
+   'sodaDate'=>$x['sodaDate']??'','dueDate'=>$due,'warehouse'=>$x['locationName']??$x['location']??'',
+   'orderedMinKg'=>(float)($x['qtyFromKg']??0),'orderedMaxKg'=>(float)($x['qtyToKg']??0),
+   'minKg'=>$min,'maxKg'=>$max,'receivedKg'=>$received,'shortKg'=>$short,'truckTrips'=>$trips,'shortToleranceKg'=>$tolerance,
+   'canClose'=>!$closed&&$within&&!$exMill,'deliveries'=>$deliveries];
+  if($statements!==null)$statements[$x['id']]=$statement;
+  if(!$closed&&$min>0&&$short>$tolerance+.001&&$due!==''&&$due<$today)$add('SODA',$x['id'],'Overdue Soda',$no,'Delivery was due on '.$due.'. '.number_format($short/1000,3).' MT is still outstanding.',['sodaNo'=>$no],[],[],$statement);
  }
  foreach((array)($s['payableHolds']??[])as$id=>$x){if(!is_array($x)||($x['entity']??'')!==$entity||empty($x['active'])||isset($coveredHolds[$id]))continue;$no=(string)($x['sodaNo']??'');$add('HOLD',(string)$id,'Held payment',(string)($x['pohanch']??$x['sourceKey']??''),'This payment is on hold: '.(string)($x['reason']??'Accounts review required').'. Approve to open the related entry for correction.',['sodaNo'=>$no,'sourceKey'=>(string)($x['sourceKey']??''),'reason'=>(string)($x['reason']??'')]);}
  foreach((array)($s['freightBillsV1']??[])as$id=>$x){if(!is_array($x)||($x['entity']??'')!==$entity)continue;$open=round((float)($x['disputedTotal']??0)-(float)($x['disputeSettledTotal']??0),2);if($open>.009)$add('FREIGHT',(string)($x['id']??$id),'Freight dispute',(string)($x['invoiceNo']??$id),'PKR '.number_format($open,2).' of this freight bill is disputed. Approve to open the bill for review.',['billId'=>(string)($x['id']??$id)]);}
