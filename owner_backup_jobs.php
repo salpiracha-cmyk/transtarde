@@ -32,10 +32,14 @@ function tt_owner_job_public(array $state):array {
     $out=['ok'=>true,'job'=>$state['id'],'state'=>$state['state'],'stage'=>$state['stage']??$state['state']];
     if($state['state']==='ready')$out+=['length'=>$state['length'],'sha256'=>$state['sha256']];
     if($state['state']==='failed')$out['error']='Backup preparation failed. Previous completed backups were preserved. Reference: '.($state['errorCode']??'PREPARATION');
-    if($state['state']==='preparing'&&time()-(int)($state['createdAt']??0)>1200)$out=['ok'=>true,'job'=>$state['id'],'state'=>'failed','error'=>'Backup preparation timed out. Previous backups were preserved. Try again.'];
+    if($state['state']==='preparing'&&time()-(int)($state['progressAt']??$state['createdAt']??0)>1200)$out=['ok'=>true,'job'=>$state['id'],'state'=>'failed','error'=>'Backup preparation timed out. Previous backups were preserved. Try again.'];
     return $out;
 }
 function tt_owner_job_generate(string $kind,array $state,string $password,?callable $build=null,?callable $verify=null):array {
+    if($kind==='full'&&$build===null){
+        try{tt_backup_build_init(tt_owner_job_dir($kind),'full');$state['batchBuild']=true;$state['stage']='building';tt_owner_job_write($kind,$state);return $state;}
+        catch(Throwable $e){$state['state']=$state['stage']='failed';$state['errorCode']='BUILD_INIT';tt_owner_job_write($kind,$state);return $state;}
+    }
     $path='';$stage=tt_owner_job_dir($kind).'/incoming.tmp';$reserve=str_repeat('x',262144);$finished=false;
     register_shutdown_function(static function()use($kind,$state,&$reserve,&$finished){$e=error_get_last();if(!$finished&&$e&&in_array($e['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR],true)){
         $reserve='';$state['state']=$state['stage']='failed';$state['errorCode']='FATAL:'.basename($e['file']).':'.$e['line'];tt_owner_job_write($kind,$state);
@@ -57,4 +61,29 @@ function tt_owner_job_generate(string $kind,array $state,string $password,?calla
         tt_owner_job_write($kind,$state);return $state;
     }catch(Throwable $e){$state['state']=$state['stage']='failed';$state['errorCode']=get_class($e).':'.basename($e->getFile()).':'.$e->getLine();tt_owner_job_write($kind,$state);return $state;}
     finally{$finished=true;$reserve='';if($path!==''&&is_file($path))unlink($path);if(is_file($stage)&&!is_link($stage))unlink($stage);}
+}
+
+function tt_owner_job_step(string $kind,array $m,string $password):array {
+    $zip=null;
+    try{
+        $dir=tt_owner_job_dir($kind);$candidate=$dir.'/candidate.zip';
+        if($m['stage']==='building'){
+            $path=tt_backup_build_step($dir,$password);
+            if($path!==null){if(is_link($candidate)||!rename($path,$candidate))throw new RuntimeException('Cannot stage candidate.');$m['identity']=tt_owner_job_identity($candidate);$m['stage']='verifying';$m['verifiedFiles']=0;}
+        }elseif($m['stage']==='verifying'){
+            if(tt_owner_job_identity($candidate)!==$m['identity'])throw new RuntimeException('Candidate changed.');
+            [$zip,$manifest,$key]=tt_backup_open_verified($candidate,$password);$entries=array_values($manifest['encryptedEntries']);$start=microtime(true);$bytes=0;$count=0;
+            while($m['verifiedFiles']<count($entries)){$entry=$entries[$m['verifiedFiles']];tt_backup_decrypt_entry($zip,$entry,$key,null);$m['verifiedFiles']++;$bytes+=$entry['size'];if(++$count>=200||$bytes>=8388608||microtime(true)-$start>=2)break;}
+            $zip->close();$zip=null;
+            if(tt_owner_job_identity($candidate)!==$m['identity'])throw new RuntimeException('Candidate changed.');
+            if($m['verifiedFiles']===count($entries)){
+                $hash=hash_file('sha256',$candidate);$size=filesize($candidate);$target=$dir.'/transfer.zip';
+                if(!$hash||!$size||is_link($target)||tt_owner_job_identity($candidate)!==$m['identity']||!rename($candidate,$target))throw new RuntimeException('Cannot promote verified archive.');
+                $m['state']=$m['stage']='ready';$m['sha256']=$hash;$m['length']=$size;$m['identity']=tt_owner_job_identity($target);$m['readyAt']=time();$m['filename']='TRANSTRADE_FULL_BACKUP_'.gmdate('Y-m-d_His').'.zip';
+            }
+        }
+        $m['progressAt']=time();
+    }catch(Throwable $e){$m['state']=$m['stage']='failed';$m['errorCode']='BATCH_PREPARATION';}
+    finally{if($zip instanceof TT_SimpleZipReader)$zip->close();}
+    tt_owner_job_write($kind,$m);return $m;
 }

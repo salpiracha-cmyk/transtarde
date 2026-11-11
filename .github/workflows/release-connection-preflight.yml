@@ -1,0 +1,36 @@
+name: Release SSH connection preflight (read only)
+on:
+  pull_request:
+    paths: ['.github/workflows/release-connection-preflight.yml']
+permissions:
+  contents: read
+jobs:
+  connection:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Check authenticated shell without uploading or changing files
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          trap 'rm -f "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts" "$RUNNER_TEMP/ssh/error"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          if ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" 'printf "SSH_SHELL_READY\n"' 2>"$RUNNER_TEMP/ssh/error"; then
+            echo 'Authenticated shell is available. No files were uploaded or changed.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            if grep -q '/sbin/nologin' "$RUNNER_TEMP/ssh/error"; then
+              echo 'Hostinger rejected the login shell (/sbin/nologin). Enable/provision shell access for the configured hosting account before deployment. Application code cannot repair the hosting login shell.' >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo 'SSH preflight failed. Review hosting access and the configured connection secrets. No files were uploaded or changed.' >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 1
+          fi

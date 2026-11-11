@@ -37,10 +37,11 @@ function br_arp(array $books,array $ops,array $root,string $date,array $rates):a
     foreach($purchases as &$p){if(!$p['receivedKnown'])$p['receivedMT']=null;if(!$p['quantityKnown']){$p['contractedMinMT']=null;$p['contractedMaxMT']=null;}}unset($p);
     $fellow=br_fellow_sales($books,$source,$date);$sales=$fellow['sales'];
     foreach($sales as &$sale)if(!$sale['loadedKnown'])$sale['loadedMT']=null;unset($sale);$exports=array_values(array_filter($sales,static fn($r)=>!isset($r['exporterDealId'])));$additional=array_values(array_filter($sales,static fn($r)=>isset($r['exporterDealId'])));
+    $closedSales=[];foreach($sales as $sale)if(!isset($sale['exporterDealId']))$closedSales[$sale['ref']]=$sale['closed'];
     $loading=[];$lotMap=array_column($root['shipments'],null,'id');$contracts=array_column($root['contracts'],null,'ref');
     foreach(['tt30ship','tt40exinstructions'] as $key)foreach(gd_rows($ops['values'],$key) as $r){
         if(!se_active($r))continue;$sid=(string)($r['_ttShipmentId']??$r['shipmentId']??'');$lot=$lotMap[$sid]??[];$contract=$contracts[$lot['contractRef']??$r['contractRef']??'']??[];
-        $contractRef=(string)($lot['contractRef']??$r['contractRef']??'');$saleClosed=false;foreach($sales as$sale)if(!isset($sale['exporterDealId'])&&$sale['ref']===$contractRef)$saleClosed=$sale['closed'];if($saleClosed||!empty($lot['completed']))continue;
+        $contractRef=(string)($lot['contractRef']??$r['contractRef']??'');$saleClosed=$closedSales[$contractRef]??false;if($saleClosed||!empty($lot['completed']))continue;
         $on=se_day($r['date']??$r['createdAt']??$lot['loadingPlan']['date']??'');if($on!==''&&$on>$date)continue;
         $completed=$key==='tt30ship'?($r['status']??'')==='Completed':!empty($r['loadingComplete']);$completion=se_day($r['completedAt']??'');if($completed&&($completion===''||$completion<=$date))continue;
         $containers=$key==='tt30ship'?(array)($r['containers']??[]):array_values(array_filter(gd_rows($ops['values'],'tt35exload'),static fn($x)=>($x['instructionId']??'')===($r['id']??'')&&se_active($x)));

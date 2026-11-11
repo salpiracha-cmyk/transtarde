@@ -242,6 +242,7 @@ jobs:
           php tests/security/pc_pairing_test.php
           python3 tests/security/pc_pairing_http_test.py
           php tests/security/owner_backup_jobs_test.php
+          php tests/security/backup_resumable_build_test.php
           php tests/security/office_backup_auth_test.php
           python3 tests/security/office_backup_agent_test.py
           python3 tests/security/office_backup_protocol_test.py

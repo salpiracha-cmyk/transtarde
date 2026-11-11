@@ -140,6 +140,13 @@ function operations_db(): PDO {
 }
 
 function operations_install(PDO $db): void {
+    // Existing production reads must not execute DDL or acquire schema locks.
+    try {
+        foreach(['tt_operation_records','tt_operation_history','tt_export_documents'] as $table)$db->query('SELECT 1 FROM '.$table.' LIMIT 0');
+        return;
+    } catch(PDOException $e) {
+        if($e->getCode()!=='42S02')throw $e;
+    }
     try {
         $db->exec("CREATE TABLE IF NOT EXISTS tt_operation_records (
         storage_key VARCHAR(96) NOT NULL PRIMARY KEY,
@@ -184,6 +191,16 @@ function operations_install(PDO $db): void {
         $db->query('SELECT storage_key FROM tt_operation_history LIMIT 1');
         $db->query('SELECT id FROM tt_export_documents LIMIT 1');
     }
+}
+
+/** A validator is bound to the authenticated actor, source versions and projection code. */
+function operations_read_tag(array $user,mixed $source): string {
+    $auth=TT_DATA_DIR.'/auth.json';
+    return '"'.hash('sha256',json_encode([$user,$source,hash_file('sha256',__FILE__),hash_file('sha256',__DIR__.'/operations_scope.php'),is_file($auth)?hash_file('sha256',$auth):null],JSON_THROW_ON_ERROR)).'"';
+}
+function operations_not_modified(string $tag): bool {
+    header('ETag: '.$tag);
+    return trim((string)($_SERVER['HTTP_IF_NONE_MATCH']??''))===$tag;
 }
 
 function operations_list_by_identity(array $rows, string $identity): array {
@@ -705,6 +722,7 @@ function operations_file_fallback(array $user): never {
         finally { flock($handle, LOCK_UN); fclose($handle); }
         $store = $raw ? json_decode($raw, true) : null;
         if (!is_array($store)) $store = ['revision'=>0,'values'=>[],'meta'=>[]];
+        if(operations_not_modified(operations_read_tag($user,[$store,($_GET['asset_refs']??'')==='1']))){http_response_code(304);exit;}
         operations_respond(['ok'=>true,'revision'=>(int)($store['revision']??0),'serverNow'=>gmdate('c')]+os_project($user,(array)($store['values']??[]),(array)($store['meta']??[])));
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') operations_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
@@ -800,7 +818,12 @@ try {
     operations_install($db);
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $db->beginTransaction();
+        $versions=$db->query('SELECT storage_key,version,updated_at FROM tt_operation_records ORDER BY storage_key')->fetchAll();
+        $tag=operations_read_tag($user,[$versions,($_GET['asset_refs']??'')==='1']);
+        if(operations_not_modified($tag)){$db->commit();http_response_code(304);exit;}
         $rows = $db->query('SELECT storage_key, payload, version, updated_at, updated_by, updated_by_user, updated_by_module FROM tt_operation_records')->fetchAll();
+        $db->commit();
         $values = $meta = [];
         $revision = 0;
         foreach ($rows as $row) {

@@ -593,9 +593,9 @@ function companyChamberDetails(code){
  // Preserve the existing approved TTI/BRM identity during migration; new companies have no guessed signatory.
  return{chamberName:'Karachi Chamber of Commerce & Industry',membershipNo:values[8]||(code==='TTI'?'36453':''),signatory:code==='TTI'?'ABDUL RAZZAK PARACHA':code==='BRM'?'TAYYAB RAZZAK PARACHA':'',designation:/^(TTI|BRM)$/.test(code)?'PROPRIETOR':''}
 }
-let companyMasterRefreshRunning=false;
+let companyMasterRefreshRunning=false,companyMasterRefreshAt=0;
 async function refreshExportCompanyMasters(){
- if(companyMasterRefreshRunning||document.visibilityState==='hidden')return;companyMasterRefreshRunning=true;
+ if(companyMasterRefreshRunning||document.visibilityState==='hidden'||Date.now()-companyMasterRefreshAt<60000)return;companyMasterRefreshRunning=true;companyMasterRefreshAt=Date.now();
  try{
   const response=await fetch('/api/masters.php',{credentials:'same-origin'});if(!response.ok)return;const data=await response.json();
   if(!data.ok||!Array.isArray(data.masters?.companies))return;
@@ -609,7 +609,7 @@ async function refreshExportCompanyMasters(){
 }
 if(!window.TT_EXPORT_TAX_SOURCE)window.addEventListener('focus',refreshExportCompanyMasters);
 document.addEventListener('visibilitychange',()=>{if(!window.TT_EXPORT_TAX_SOURCE&&document.visibilityState!=='hidden')void refreshExportCompanyMasters()});
-if(!window.TT_EXPORT_TAX_SOURCE)setInterval(refreshExportCompanyMasters,30000);
+if(!window.TT_EXPORT_TAX_SOURCE)setInterval(refreshExportCompanyMasters,60000);
 function shipmentPartyDetailsClosed(s){return !!(s&&(s.completed||s.cancelled||/^(completed|closed|archived|cancelled)$/i.test(String(s.status||''))))}
 function captureShipmentPartyDetails(s,c,legacy=false,root=state){
  if(s.documentParties){if(!s.documentParties.exporterKey)s.documentParties.exporterKey=s.seller==='TG'?pakistanExporterKey(s):c.seller;if(!s.documentParties.cooExporter){const code=s.seller==='TG'?pakistanExporterKey(s):c.seller;s.documentParties.cooExporter=structuredClone(legacy?(SELLER_DETAILS[code]||sellerOf({seller:code})):sellerOf({seller:code}))}if(!s.documentParties.chamber)s.documentParties.chamber=legacy?legacyShipmentChamber(s,c):companyChamberDetails(s.seller==='TG'?pakistanExporterKey(s):c.seller);return s.documentParties;}

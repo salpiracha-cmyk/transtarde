@@ -135,12 +135,17 @@ $sharedBootstrap = <<<'HTML'
   const parse=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
   const stableId=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return 600000000+(h>>>0)%300000000};
   const put=(k,v)=>{const s=JSON.stringify(v);if(localStorage.getItem(k)!==s)localStorage.setItem(k,s)};
+  let inboundRequest=null,inboundTag='';
   function getRemote(sync=true){
+    if(!sync&&inboundRequest)return;
     try{
       const x=new XMLHttpRequest();x.open('GET',endpoint+'?asset_refs=1&r='+Date.now(),!sync);x.withCredentials=true;
       if(sync){x.send();return x.status===200?JSON.parse(x.responseText):null}
-      x.onload=()=>{if(x.status===200)applyRemote(JSON.parse(x.responseText),false)};x.send();
-    }catch(e){return null}
+      inboundRequest=x;x.timeout=15000;
+      if(inboundTag)x.setRequestHeader('If-None-Match',inboundTag);
+      x.onload=()=>{if(x.status===200){try{const data=JSON.parse(x.responseText);if(exportWorkspaceBusy()||pending.size||inFlight.size){inboundTag='';deferInbound();return;}applyRemote(data,false);inboundTag=pending.size||inFlight.size?'':(x.getResponseHeader('ETag')||'');}catch{inboundTag='';}}};
+      x.onloadend=()=>{if(inboundRequest===x)inboundRequest=null;};x.send();
+    }catch(e){if(!sync)inboundRequest=null;return null}
   }
   function exportWorkspaceBusy(){return access.moduleId==='exports'&&window.TT_EXPORT_WORKSPACE_BUSY?.()===true}
   function deferInbound(){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,1000)}
@@ -168,6 +173,7 @@ $sharedBootstrap = <<<'HTML'
     return new Promise((resolve,reject)=>{const waiter={resolve,reject,intent,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);if(!commitWaiters.length)waiting();reject(new Error('Save was not confirmed before the connection timed out. Reload and review the server state before retrying.'))}},120000);commitWaiters.push(waiter);waiting();flush()})
   }
   function refreshNow(options){
+    inboundTag='';
     const requested=options?.keys;
     if(requested!==undefined&&(!Array.isArray(requested)||!requested.length||requested.some(key=>typeof key!=='string'||!allowed(key))))return Promise.reject(new Error('The requested refresh source is invalid.'));
     const keys=requested===undefined?null:new Set(requested);
@@ -321,7 +327,7 @@ $sharedBootstrap = <<<'HTML'
   function bridge(){try{exportsToMill();millToExports()}catch(e){console.error('Transtrade inter-module bridge',e)}}
   function notifyRemote(keys=[]){dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy,keys}}))}
   function showSyncError(msg,conflict){console.error(msg);if(conflict)dispatchEvent(new CustomEvent('tt:shared-conflict',{detail:{message:msg}}))}
-  function checkInbound(){if(exportWorkspaceBusy()){deferInbound();return}const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);if(access.moduleId!=='milling')inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
+  function checkInbound(){if(document.hidden)return;if(exportWorkspaceBusy()){deferInbound();return}const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);if(access.moduleId!=='milling')inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
   // A bill Save appends only its reviewed record. It never flushes another form.
   async function deleteMillRecord(intent){
     if(access.moduleId!=='milling')throw new Error('Open Milling before deleting a Mill entry.');
@@ -535,7 +541,7 @@ $brandHead .= '<link rel="stylesheet" href="/brand-theme.css?v=20261006-number-e
 if($id==='milling')$brandHead.='<style id="milling-production-layout">'.$productionLayout.'</style><script src="/accounts/mill-record-delete-ui.js"></script>';
 if($localSalesView)$brandHead.='<style>.panel{display:none!important}#local.active,#millLanding.active{display:block!important}</style>';
 $headPos = stripos($html, '</head>');
-if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
+if ($headPos !== false) $html = substr_replace($html, $brandHead.'<script src="/shared-reads.js"></script>'.$bootstrap.$sharedBootstrap, $headPos, 0);
 $accountsSourceBridge = '<script src="mill-duplicate-approvals.js"></script><script src="accounts/source-bridge.js?v=20261107-exmill-drafts-2"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';
 $brandBody = '<script src="/session-activity.js?v=20261105-mill-idle"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';

@@ -290,13 +290,20 @@ class PreparedBackupResponse:
 def open_backup_response(config):
     result = backup_job_json(config, 'prepare')
     deadline = time.monotonic() + 1200
+    hard_deadline = time.monotonic() + 7200
+    progress = None
     while result.get('state') == 'preparing':
         job = result.get('job', '')
         if len(job) != 32 or any(c not in '0123456789abcdef' for c in job):
             raise ValueError('Invalid backup preparation job.')
-        if time.monotonic() >= deadline: raise TimeoutError('Hosted backup preparation exceeded 20 minutes.')
+        current_progress = (result.get('progressAt'), result.get('verifiedFiles'))
+        if current_progress != progress and any(value is not None for value in current_progress):
+            deadline = min(hard_deadline, time.monotonic() + 1200)
+            progress = current_progress
+        if time.monotonic() >= deadline: raise TimeoutError('Hosted backup preparation stopped progressing or exceeded its time limit.')
         print('Server is ' + ('verifying' if result.get('stage') == 'verifying' else 'preparing') + ' the encrypted backup...', flush=True)
-        time.sleep(10)
+        delay = result.get('pollAfterSeconds', 10)
+        time.sleep(max(1, min(10, delay)) if isinstance(delay, (int, float)) else 10)
         result = backup_job_json(config, 'status', {'job': job})
     if result.get('state') != 'ready': raise RuntimeError('Server could not prepare a verified recovery archive.')
     return PreparedBackupResponse(config, result)

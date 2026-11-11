@@ -13,6 +13,7 @@ try{
   $lock=tt_owner_job_lock($kind,LOCK_EX);owner_expect(is_resource($lock),'Job lock unavailable.');
   owner_expect(tt_owner_job_lock($kind,LOCK_EX)===null,'Concurrent writer entered.');
   $done=tt_owner_job_generate($kind,$m,$password);
+  for($step=0;$done['state']==='preparing'&&$step<100;$step++)$done=tt_owner_job_step($kind,$done,$password);
   owner_expect($done['state']==='ready','Actual encrypted backup generation failed: '.($done['errorCode']??''));
   $path=tt_owner_job_dir($kind).'/transfer.zip';$before=file_get_contents($path);
   owner_expect(hash_file('sha256',$path)===$done['sha256']&&filesize($path)===$done['length'],'Cache integrity failed.');

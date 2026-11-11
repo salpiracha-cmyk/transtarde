@@ -41,7 +41,7 @@ $client=hash_hmac('sha256',$password,$token);
 function office_backup_json(array $value,int $status=200):void {
     http_response_code($status);header('Content-Type: application/json; charset=UTF-8');echo json_encode($value,JSON_THROW_ON_ERROR);
 }
-$jobLock=null;
+$jobLock=null;$workLock=null;
 try {
     if($action==='prepare'){
         if(!function_exists('litespeed_finish_request')&&!function_exists('fastcgi_finish_request'))office_backup_error(503,'Background preparation is unavailable.');
@@ -50,11 +50,13 @@ try {
             if(hash_equals((string)($m['client']??''),$client)&&isset($m['id'])){office_backup_json(tt_office_job_public($m),202);exit;}
             office_backup_error(409,'Another office backup is being prepared. Retry shortly.');
         }
-        if(($m['state']??'')==='preparing'&&($m['stage']??'')==='verifying'&&hash_equals((string)($m['client']??''),$client)){
+        if(($m['state']??'')==='preparing'&&time()-(int)($m['progressAt']??$m['createdAt']??0)<1200&&!hash_equals((string)($m['client']??''),$client))office_backup_error(409,'Another office backup is being prepared. Retry shortly.');
+        if(($m['state']??'')==='preparing'&&(($m['stage']??'')==='verifying'||(($m['stage']??'')==='building'&&!empty($m['batchBuild'])))&&hash_equals((string)($m['client']??''),$client)){
             office_backup_json(tt_office_job_public($m),202);
         }elseif(($m['state']??'')==='ready'&&hash_equals((string)($m['client']??''),$client)&&time()-(int)$m['readyAt']<900&&tt_office_job_identity(tt_office_job_dir().'/transfer.zip')===$m['identity']){
             office_backup_json(tt_office_job_public($m));
         }else{
+            $workLock=tt_backup_work_lock();if(!$workLock){header('Retry-After: 5');office_backup_error(409,'Another archive is being prepared. Retry shortly.');}
             $m=['id'=>bin2hex(random_bytes(16)),'client'=>$client,'state'=>'preparing','stage'=>'building','createdAt'=>time()];tt_office_job_write($m);
             // Reply before any large archive work. The observed production SAPI
             // is LiteSpeed and provides litespeed_finish_request().
@@ -71,8 +73,10 @@ try {
                 $jobLock=tt_office_job_lock(LOCK_EX);
                 if($jobLock){
                     $m=tt_office_job_read();if(!tt_office_job_matches($m,$id,$client))office_backup_error(409,'Backup job changed.');
-                    if(($m['state']??'')==='preparing'){
+                    $workLock=tt_backup_work_lock();
+                    if($workLock&&($m['state']??'')==='preparing'){
                         if(($m['stage']??'')==='verifying')$m=tt_office_job_verify_step($m,$password);
+                        elseif(!empty($m['batchBuild'])&&($m['stage']??'')==='building')$m=tt_office_job_build_step($m,$password);
                         else{$m['state']=$m['stage']='failed';$m['errorCode']='WORKER_STOPPED';tt_office_job_write($m);}
                     }
                 }
@@ -94,4 +98,4 @@ try {
         }
     }
 }catch(Throwable $error){error_log('Transtrade office transfer failed: '.get_class($error));if(!headers_sent())office_backup_error(500,'Office backup preparation or transfer failed. Existing completed backups were preserved.');}
-finally{if(is_resource($jobLock)){flock($jobLock,LOCK_UN);fclose($jobLock);}}
+finally{if(is_resource($workLock)){flock($workLock,LOCK_UN);fclose($workLock);}if(is_resource($jobLock)){flock($jobLock,LOCK_UN);fclose($jobLock);}}

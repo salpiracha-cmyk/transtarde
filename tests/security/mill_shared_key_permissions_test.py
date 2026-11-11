@@ -8,11 +8,11 @@ with tempfile.TemporaryDirectory(prefix='tti-operation-scope-') as folder:
  root=pathlib.Path(folder);app=root/'app';shutil.copytree(ROOT,app,ignore=shutil.ignore_patterns('.git','node_modules','__pycache__'))
  private=root/'transtrade_private';private.mkdir();auth=private/'auth.json';book=private/'operations.json';harness=root/'request.php'
  harness.write_text(r'''<?php
- $r=json_decode($argv[2],true);$_SERVER['REQUEST_URI']='/api/'.$r['endpoint'];$_SERVER['REQUEST_METHOD']=$r['method'];$_SERVER['REMOTE_ADDR']='192.0.2.49';
+ $r=json_decode($argv[2],true);$_SERVER['REQUEST_URI']='/api/'.$r['endpoint'];$_SERVER['REQUEST_METHOD']=$r['method'];$_SERVER['REMOTE_ADDR']='192.0.2.49';$_SERVER['HTTP_IF_NONE_MATCH']=$r['etag']??'';
  session_name('TRANSTRADE_SESSION');session_id('scope-fixture');session_start();$_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];session_write_close();
  $GLOBALS['body']=json_encode($r['body']);$GLOBALS['status']=$argv[3];
  class ScopeInput{public $context;private $offset=0;function stream_open($p,$m,$o,&$opened){return $p==='php://input';}function stream_read($n){$v=substr($GLOBALS['body'],$this->offset,$n);$this->offset+=strlen($v);return $v;}function stream_eof(){return $this->offset>=strlen($GLOBALS['body']);}function stream_stat(){return [];}}
- stream_wrapper_unregister('php');stream_wrapper_register('php',ScopeInput::class);register_shutdown_function(static function(){file_put_contents($GLOBALS['status'],(string)(http_response_code()?:200));});require $argv[1].'/api/'.$r['endpoint'];
+ stream_wrapper_unregister('php');stream_wrapper_register('php',ScopeInput::class);register_shutdown_function(static function(){file_put_contents($GLOBALS['status'],(string)(http_response_code()?:200));if(function_exists('operations_read_tag')&&isset($GLOBALS['user'])&&is_file(TT_DATA_DIR.'/operations.json'))file_put_contents($GLOBALS['status'].'.etag',operations_read_tag($GLOBALS['user'],[json_decode(file_get_contents(TT_DATA_DIR.'/operations.json'),true),false]));});require $argv[1].'/api/'.$r['endpoint'];
  ''')
  sql=root/'db.php';sql.write_text(r'''<?php
  $p=new PDO('mysql:host='.getenv('TT_DB_HOST').';dbname='.getenv('TT_DB_NAME').';charset=utf8mb4',getenv('TT_DB_USER'),getenv('TT_DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
@@ -36,10 +36,13 @@ with tempfile.TemporaryDirectory(prefix='tti-operation-scope-') as folder:
  def seed():
   book.write_text(json.dumps({'revision':1,'values':initial,'meta':{key:{'version':1,'updatedBy':'Fixture'} for key in initial}}))
   if MYSQL:subprocess.run(['php',str(sql),'seed',json.dumps(initial)],env=env,check=True,capture_output=True)
- def request(endpoint='operations.mysql.php',body=None):
-  req={'endpoint':endpoint,'method':'GET' if body is None else 'POST','body':body or {}}
+ def request(endpoint='operations.mysql.php',body=None,etag=''):
+  req={'endpoint':endpoint,'method':'GET' if body is None else 'POST','body':body or {},'etag':etag}
   status=root/'status';r=subprocess.run(['php','-d',f'session.save_path={root}',str(harness),str(app),json.dumps(req),str(status)],env=env,text=True,capture_output=True)
   assert r.returncode==0,r.stdout+r.stderr
+  if int(status.read_text())==304:
+   assert not r.stdout,'Unchanged response must not send records'
+   return 304,None
   try:return int(status.read_text()),json.loads(r.stdout)
   except Exception:raise AssertionError(r.stdout+r.stderr)
  def stored():
@@ -47,6 +50,13 @@ with tempfile.TemporaryDirectory(prefix='tti-operation-scope-') as folder:
   return json.loads(book.read_text())['values']
  def write(key,value,version=1,module='Mill'):
   return request(body={'csrf':'fixture','sourceModule':module,'key':key,'value':json.dumps(value),'baseVersion':version})
+
+ if not MYSQL:
+  seed();grant('Mill','queue');status,data=request();assert status==200
+  tag=(root/'status.etag').read_text();assert request(etag=tag)==(304,None)
+  changed=json.loads(book.read_text());changed['revision']+=1;book.write_text(json.dumps(changed));assert request(etag=tag)[0]==200,'Changed sources reused a validator'
+  tag=(root/'status.etag').read_text();grant('Mill','production');assert request(etag=tag)[0]==200,'Changed permissions reused another projection'
+  print('PASS conditional operational reads: no body when unchanged; source and permission changes invalidate')
 
  for key in ['tt30arrivaldefaults','tt30mills','tt38costmaster','tt38labourrates','tt39rentmaster','tt39salarymaster','tt38accountsfeed','tt39accountsoutbox','tt30directoralerts','tt32exportsync','tt35exmill']:
   seed();grant('Mill','production');before=stored();status,data=write(key,[]);assert status==403 and stored()==before,(key,status,data)
