@@ -37,7 +37,7 @@ function bsu_candidates(array $values, array $transfer): array {
             if(!$expected||count($actuals)!==$expected)continue;
             $packed=0;$loadedDate='';$seen=[];
             foreach($actuals as $actual){
-                $number=strtoupper(preg_replace('/\s+/','',(string)($actual['number']??$actual['container']??$actual['containerNo']??'')));
+                $number=preg_replace('/[^A-Z0-9]/','',strtoupper((string)($actual['number']??$actual['container']??$actual['containerNo']??'')));
                 $date=bti_date($actual['loadedDate']??$actual['loadingDate']??$actual['date']??'');
                 $count=bti_count($actual['bags']??null);
                 if(!preg_match('/^[A-Z]{4}[0-9]{7}$/D',$number)||isset($seen[$number])||!$count||$date===''||bti_norm($actual['location']??'')!==$destination||bti_norm($actual['brand']??'')!==$brand)continue 2;

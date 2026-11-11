@@ -58,7 +58,7 @@ $destinationScope=['entity'=>'TTI','locationId'=>'mills-2','millName'=>'Al Harma
 $shipmentOrder=['id'=>123,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'GHAZAL','size'=>'50 kg','bagType'=>'PP','received'=>5508,'poNo'=>'PO-260001','poLineKey'=>'L1','contractRef'=>'TG/AMT/13'];
 $shipmentReceipt=['id'=>'R1','bagId'=>123,'date'=>'2026-10-01','qty'=>5508];
 $actuals=array_map(static fn($i)=>[
-    'number'=>'ABCD'.str_pad((string)$i,7,'0',STR_PAD_LEFT),'location'=>'Al Harmain','brand'=>'GHAZAL','bags'=>540,'loadedDate'=>'2026-10-06',
+    'number'=>'ABCD'.str_pad((string)$i,6,'0',STR_PAD_LEFT).'-4','location'=>'Al Harmain','brand'=>'GHAZAL','bags'=>540,'loadedDate'=>'2026-10-06',
 ],range(1,10));
 $exports=['contracts'=>[['ref'=>'TG/AMT/13','packingUnit'=>'KG','packings'=>[['brand'=>'GHAZAL','size'=>50]]]],
     'shipments'=>[['id'=>'shipment-13','kind'=>'lot','lotId'=>'TG/AMT/13/L01','contractRef'=>'TG/AMT/13','completed'=>true,'containers'=>10,
