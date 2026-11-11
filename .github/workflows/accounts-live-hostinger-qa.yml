@@ -1,10 +1,9 @@
 name: Accounts Hostinger Live Smoke
 
+# Heavy authenticated production audits are manual only. Ordinary releases
+# use isolated QA plus the deployment health checks, not a full live crawl.
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: [Deploy Production]
-    types: [completed]
 
 permissions:
   contents: read
@@ -15,14 +14,14 @@ concurrency:
 
 jobs:
   accounts-live-smoke:
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: live-qa
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -57,7 +56,7 @@ jobs:
           TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
           TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
           PLAYWRIGHT_HTML_OPEN: never
-        run: npx playwright test tests/live/accounts-hostinger-qa.spec.js tests/live/deployed-reports-review.spec.js --reporter=line,html
+        run: npx playwright test tests/live/accounts-hostinger-qa.spec.js tests/live/deployed-reports-review.spec.js --reporter=line,html --workers=1 --retries=0 --max-failures=1
       - name: Upload failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
@@ -68,4 +67,3 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
-
