@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const source=fs.readFileSync(process.argv[2]||'exports/app.js','utf8'),start=source.indexOf('async function directPrint('),end=source.indexOf('\nfunction fitCOOPages(',start);
+const source=fs.readFileSync(process.argv[2]||'exports/app.js','utf8'),start=source.indexOf('let pendingPrintCleanup='),end=source.indexOf('\nfunction fitCOOPages(',start);
 assert(start>=0&&end>start,'Current print entry point unavailable');
 (async()=>{
  for(const mode of ['with','without'])for(const readOnly of [true,false])for(const available of [true,false]){
