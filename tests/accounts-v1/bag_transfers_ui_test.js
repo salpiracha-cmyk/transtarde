@@ -2,10 +2,16 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require
 const dom=new JSDOM('<body><div id="newbags"></div><input id="otherDraft" value="keep"></body>',{url:'https://fixture.invalid/module.php?id=milling',runScripts:'outside-only'}),w=dom.window;
 w.currentMill={name:'Source Mill',entity:'TTI'};w.stockEntityForView=()=> 'TTI';w.TT_MODULE_ACCESS={userId:7,csrf:'qa-only',masters:{mills:[{id:'M1',values:['Source Mill']},{id:'M2',values:['Destination Mill']}]}};let reads=0,posts=[],mode='success',accepted=0,commits=0,reviewWait=null;const requests=new Map();
 const source={id:'PO|B1|M1',poNo:'PO-1',poLineKey:'L1',brand:'ASAS',packingSize:'50 kg',packingKg:50,bagType:'PP',availableQty:100,committableQty:100,balanceBeforeUnallocated:100,hold:''};
+const unavailable={
+ 'zero':{...source,id:'zero',brand:'ZERO STOCK',availableQty:0,committableQty:0},
+ 'reserved':{...source,id:'reserved',brand:'RESERVED',committableQty:0},
+ 'held':{...source,id:'held',brand:'HELD',hold:'Quarantined'},
+ 'external':{...source,id:'external',brand:'EXTERNAL',sourceKind:'OTHER_EXPORTER'}
+};
 const record={id:'BT-1',entity:'TTI',date:'2026-10-17',source:{locationId:'M1',millName:'Source Mill'},destination:{id:'M2',name:'Destination Mill'},lines:[{lineId:'L1',originBagId:'B1',sourceSnapshot:{poNo:'PO-1',brand:'ASAS',packingSize:'50 kg'}}],quantities:{L1:{dispatched:10,received:0,returned:0,inTransit:10}}};
 const response=(ok,body,status=ok?200:422)=>({ok,status,json:async()=>structuredClone(body)});
 w.fetch=async(url,options={})=>{
- if(!options.method){reads++;if(reviewWait)await reviewWait;const query=new URL(url,w.location.href).searchParams,id=query.get('locationId');return response(true,{ok:true,entity:query.get('entity'),locationId:id,canCreate:true,destinations:[{id:id==='M1'?'M2':'M1',name:id==='M1'?'Destination Mill':'Source Mill'}],inventory:{asOfDate:query.get('asOf'),fingerprint:'a'.repeat(64),lots:id==='M1'?{[source.id]:source}:{},warnings:[]},transfers:[record]});}
+ if(!options.method){reads++;if(reviewWait)await reviewWait;const query=new URL(url,w.location.href).searchParams,id=query.get('locationId');return response(true,{ok:true,entity:query.get('entity'),locationId:id,canCreate:true,destinations:[{id:id==='M1'?'M2':'M1',name:id==='M1'?'Destination Mill':'Source Mill'}],inventory:{asOfDate:query.get('asOf'),fingerprint:'a'.repeat(64),lots:id==='M1'?{[source.id]:source,...unavailable}:unavailable,warnings:[]},transfers:[record]});}
  const body=JSON.parse(options.body);posts.push(body);assert.equal(body.csrf,'qa-only');if(mode==='refuse'){return response(false,{ok:false,error:'Review committed source stock again.'});}
  if(mode==='network'){throw Error('Connection unavailable');}
  if(!requests.has(body.requestKey)){requests.set(body.requestKey,structuredClone(body));commits++;if(body.action==='receive'){accepted+=body.allocations.reduce((n,a)=>n+a.qty,0);record.quantities.L1.received=accepted;record.quantities.L1.inTransit=10-accepted;}if(body.action==='quarantine'){record.quantities.L1.inTransit-=body.allocations[0].qty;record.quantities.L1.quarantined=(record.quantities.L1.quarantined||0)+body.allocations[0].qty;}if(body.action==='accept_quarantine'){record.quantities.L1.received+=body.allocations[0].qty;record.quantities.L1.quarantined-=body.allocations[0].qty;}if(body.action==='return_quarantine'){record.quantities.L1.returned+=body.allocations[0].qty;record.quantities.L1.quarantined-=body.allocations[0].qty;}}
@@ -15,7 +21,13 @@ w.fetch=async(url,options={})=>{
 };
 w.eval(fs.readFileSync('accounts/bag-transfers-ui.js','utf8'));const api=w.TT_BAG_TRANSFERS,q=s=>w.document.querySelector(s),tick=()=>new Promise(resolve=>setImmediate(resolve)),key='tt_ui_bag_pending_7_TTI_M1';
 (async()=>{
- assert.equal(reads,0,'Loading component fetched stock');await api.open();assert.equal(reads,1);assert.equal(posts.length,0);
+ assert.equal(reads,0,'Loading component fetched stock');await api.open(undefined,false);assert.equal(reads,1);assert.equal(posts.length,0);
+ assert.equal(q('#acknowledgedBagTransfers').open,false);
+ assert.equal(q('[data-transfer-history-panel]').open,false);
+ assert.equal(w.document.querySelectorAll('[data-source-lot]').length,1);
+ assert.doesNotMatch(q('[data-transfer-stock]').textContent,/ZERO STOCK|RESERVED|HELD|EXTERNAL/);
+ assert.equal(q('[data-dispatch-fields]').hidden,false);
+ q('#acknowledgedBagTransfers').open=true;
  assert.throws(()=>api.whole('1.5'),/whole/);assert.throws(()=>api.whole(''),/whole/);assert.throws(()=>api.whole('Infinity'),/whole/);
  const qty=()=>q('[data-source-lot]');qty().value='10';q('[data-transfer-destination]').value='M2';assert.equal(reads,1,'Typing dispatched stock review');
  let finish;reviewWait=new Promise(resolve=>{finish=resolve;});const reviewing=api.refresh();await Promise.resolve();qty().value='11';finish();await reviewing;reviewWait=null;assert.equal(qty().value,'11','Review response erased entered dispatch');qty().value='10';
@@ -25,7 +37,7 @@ w.eval(fs.readFileSync('accounts/bag-transfers-ui.js','utf8'));const api=w.TT_BA
  qty().value='4';mode='success';q('[data-dispatch-bags]').click();await tick();assert.equal(posts.at(-1).requestKey,refusedKey);assert.equal(posts.at(-1).allocations[0].qty,4);assert.equal(commits,2);assert.equal(w.localStorage.getItem(key),null);
  qty().value='2';q('[data-transfer-destination]').value='M2';mode='lost';q('[data-dispatch-bags]').click();await tick();const lostKey=posts.at(-1).requestKey;assert.equal(commits,3);assert.equal(qty().value,'2');qty().value='7';q('[data-dispatch-bags]').click();await tick();assert.equal(commits,3,'Different facts sent over uncertain movement');assert.equal(posts.at(-1).requestKey,lostKey);
  q('[data-confirm-pending]').click();await tick();assert.equal(commits,3,'Lost acknowledgement duplicated movement');assert.equal(qty().value,'7','Recovery erased newer current draft');assert.equal(w.localStorage.getItem(key),null);
- w.currentMill={name:'Destination Mill',entity:'TTI'};await api.open();assert.equal(q('[data-return-transfer]'),null);assert(q('[data-receive-transfer]'));q('[data-receive-transfer]').click();q('[data-ack-line]').value='6';const before=posts.length;q('[data-save-ack]').click();await tick();assert.equal(posts.length,before,'Uninspected receipt posted');assert.match(q('[data-transfer-message]').textContent,/inspection/);
+ w.currentMill={name:'Destination Mill',entity:'TTI'};await api.open();assert.equal(q('[data-dispatch-fields]').hidden,true);assert.match(q('[data-transfer-stock]').textContent,/No bags available for transfer/);assert.match(q('[data-transfer-history]').textContent,/BT-1/);assert.equal(q('[data-return-transfer]'),null);assert(q('[data-receive-transfer]'));q('[data-receive-transfer]').click();q('[data-ack-line]').value='6';const before=posts.length;q('[data-save-ack]').click();await tick();assert.equal(posts.length,before,'Uninspected receipt posted');assert.match(q('[data-transfer-message]').textContent,/inspection/);
  q('[data-accepted-inspection]').checked=true;mode='lost';q('[data-save-ack]').click();await tick();assert.equal(accepted,6);assert.equal(q('[data-ack-line]').value,'6');const receiptKey=posts.at(-1).requestKey;q('[data-confirm-pending]').click();await tick();assert.equal(accepted,6,'Lost receipt response duplicated destination stock');assert.equal(posts.at(-1).requestKey,receiptKey);assert.equal(q('[data-ack-line]').value,'6','Recovery erased current receipt entry');
  w.currentMill={name:'Source Mill',entity:'TTI'};await api.open();assert(q('[data-return-transfer]'));assert.equal(q('[data-receive-transfer]'),null);assert.equal(qty().value,'7','Scope navigation lost dispatch draft');w.currentMill={name:'Destination Mill',entity:'TTI'};await api.open();assert.equal(q('[data-ack-line]').value,'6','Scope navigation lost partial receipt draft');assert.equal(q('[data-accepted-inspection]').checked,true);w.currentMill={name:'Source Mill',entity:'TTI'};await api.open();
  w.currentMill={name:'Missing master',entity:'TTI'};await api.open();assert.match(q('[data-transfer-message]').textContent,/Mills & Locations/);w.currentMill={name:'Source Mill',entity:'TTI'};await api.open();assert.equal(qty().value,'7');

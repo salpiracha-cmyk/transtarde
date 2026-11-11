@@ -146,7 +146,7 @@ def run():
             assert books.read_bytes()==financial_before,'Production Save or retry wrote financial journals'
             # Native transfer UI -> actual acknowledged controller. No PO or books rewrite.
             original_orders=saved_ops['values']['tt30bags'];mill.evaluate("openPanel('newbags')")
-            mill.locator('[data-source-lot]').wait_for();mill.locator('[data-transfer-date]').fill('2026-10-17')
+            mill.get_by_text('Physical bag stock and transfers',exact=True).click();mill.locator('[data-source-lot]').wait_for();mill.locator('[data-transfer-date]').fill('2026-10-17')
             with mill.expect_response(lambda r:'/api/bag_transfers.php?' in r.url):mill.locator('[data-transfer-refresh]').click()
             mill.locator('[data-source-lot]').fill('10');mill.locator('[data-transfer-destination]').select_option('mills-2')
             transfer_blocked=[True];transfer_posts=[]
@@ -166,7 +166,7 @@ def run():
             target=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-2&asOf=2026-10-17').json()
             assert stock['inventory']['lots']['PO|100|mills-1']['availableQty']==78 and target['inventory']['lots'][target_lot]['availableQty']==0
             context.unroute('**/api/bag_transfers.php',transfer_failure)
-            mill.evaluate("chooseMill(2);openPanel('newbags')");mill.locator('[data-receive-transfer]').wait_for();mill.locator('[data-receive-transfer]').click();mill.locator('[data-ack-line]').fill('6')
+            mill.evaluate("chooseMill(2);openPanel('newbags')");mill.get_by_text('Physical bag stock and transfers',exact=True).click();mill.get_by_text('Transfer history',exact=True).click();mill.locator('[data-receive-transfer]').wait_for();mill.locator('[data-receive-transfer]').click();mill.locator('[data-ack-line]').fill('6')
             mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-accepted-inspection]').check()
             receipt_lost=[True];receipt_posts=[]
             def receipt_lost_ack(route):
@@ -185,7 +185,7 @@ def run():
             target=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-2&asOf=2026-10-17').json()
             assert target['inventory']['lots'][target_lot]['availableQty']==6
             context.unroute('**/api/bag_transfers.php',receipt_lost_ack)
-            mill.evaluate("chooseMill(1);openPanel('newbags')");mill.locator('[data-return-transfer]').wait_for();mill.locator('[data-return-transfer]').click()
+            mill.evaluate("chooseMill(1);openPanel('newbags')");mill.get_by_text('Physical bag stock and transfers',exact=True).click();mill.get_by_text('Transfer history',exact=True).click();mill.locator('[data-return-transfer]').wait_for();mill.locator('[data-return-transfer]').click()
             mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-ack-line]').fill('2');mill.locator('[data-ack-reason]').fill('Actually returned and counted at source')
             with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as return_response:mill.locator('[data-save-ack]').click()
             assert return_response.value.status==200,return_response.value.text()
@@ -195,7 +195,7 @@ def run():
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json()
             assert saved_ops['values']['tt30bags']==original_orders and books.read_bytes()==financial_before,'Native transfer UI changed supplier PO or financial records'
             # Rejected delivery remains physically held until inspected acceptance or actual return.
-            mill.evaluate("chooseMill(2);openPanel('newbags')");mill.locator('[data-hold-transfer]').wait_for();mill.locator('[data-hold-transfer]').click()
+            mill.evaluate("chooseMill(2);openPanel('newbags')");mill.get_by_text('Physical bag stock and transfers',exact=True).click();mill.get_by_text('Transfer history',exact=True).click();mill.locator('[data-hold-transfer]').wait_for();mill.locator('[data-hold-transfer]').click()
             mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-ack-line]').fill('2');mill.locator('[data-ack-reason]').fill('Damaged bags held at destination')
             with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as held_transfer:mill.locator('[data-save-ack]').click()
             assert held_transfer.value.status==200,held_transfer.value.text();mill.locator('[data-release-transfer]').wait_for()
@@ -204,7 +204,7 @@ def run():
             mill.locator('[data-release-transfer]').click();mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-ack-line]').fill('1');mill.locator('[data-ack-reason]').fill('One bag corrected and inspected');mill.locator('[data-accepted-inspection]').check()
             with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as accepted_transfer:mill.locator('[data-save-ack]').click()
             assert accepted_transfer.value.status==200,accepted_transfer.value.text();mill.wait_for_function("!document.querySelector('[data-ack-line]')")
-            mill.evaluate("chooseMill(1);openPanel('newbags')");mill.locator('[data-held-return]').wait_for();mill.locator('[data-held-return]').click()
+            mill.evaluate("chooseMill(1);openPanel('newbags')");mill.get_by_text('Physical bag stock and transfers',exact=True).click();mill.get_by_text('Transfer history',exact=True).click();mill.locator('[data-held-return]').wait_for();mill.locator('[data-held-return]').click()
             mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-ack-line]').fill('1');mill.locator('[data-ack-reason]').fill('Damaged bag physically received at source')
             with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as returned_hold:mill.locator('[data-save-ack]').click()
             assert returned_hold.value.status==200,returned_hold.value.text();mill.wait_for_function("!document.querySelector('[data-ack-line]')")
