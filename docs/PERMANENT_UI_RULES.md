@@ -854,5 +854,7 @@ Owner clarification, 29 October 2026: Salaries & Staff opens the next incomplete
 
 ### Bags receipt conflict isolation — 11 November 2026
 
-- A conflicting physical receipt must not prevent unrelated Bags forms and reports from opening. Show the PO, line and receipt identity with the mismatched fields; keep only affected lines blocked from new billing.
-- Read-only warnings must not rewrite physical stock, original PO/receipt facts, posted invoices or supplier balances. Direct API posting and Director approval must continue enforcing original receipt-source consistency.
+- A conflicting physical receipt must not prevent unrelated Bags forms and reports from opening. Show the PO, line and receipt identity with the mismatched fields; allow affected invoices to be submitted for Director approval, holding financial posting until approval.
+- Read-only warnings must not rewrite physical stock, original PO/receipt facts, posted invoices or supplier balances. Staff cannot bypass receipt discrepancies. Directors and Super Admin may explicitly approve them with a recorded reason through the shared approval workflow. Bind approval to the reviewed invoice and original receipt evidence; changed evidence requires a fresh review. Preserve the original physical records rather than silently rewriting them.
+
+- Director clarification: receipt discrepancies are reviewable business exceptions, not permanent blocks. A Director or Super Admin may approve directly with a reason without requiring staff to enter a supplier settlement first. Staff submissions remain unposted until that approval.

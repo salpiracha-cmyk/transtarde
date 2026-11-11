@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 
+/** A reviewable business discrepancy, bound to the original physical evidence. */
+class BagReceiptDiscrepancy extends DomainException {
+    public function __construct(string $message, public readonly array $evidence) {parent::__construct($message);}
+}
+
+
 /** Bags are counted as whole units; never round an invoice into the PO allowance. */
 function bqa_quantity(mixed $value):int {
     if(!is_numeric($value))throw new DomainException('Enter a positive whole number of bags.');
@@ -58,7 +64,7 @@ function bqa_current_line(array $line,array $bill):array {
     $orders=$decode('tt30bags');$allReceipts=$decode('tt33bagreceipts');$movementState=$decode('tt41bagtransfers');$allDispositions=(array)($movementState['receiptDispositions']??[]);
     $flags=['printing'=>false,'material'=>false,'quality'=>false,'tareMismatch'=>false,'exception'=>false];$found=false;$received=0;$measured=0.;$weight=0.;$keep=false;$evidence=[];$dispositionEvidence=[];$ids=[];
     foreach($orders as $order)if(is_array($order))$ids[(string)($order['id']??'')]=($ids[(string)($order['id']??'')]??0)+1;
-    foreach($orders as $order){
+    try { foreach($orders as $order){
         if(!is_array($order)||($order['_ttBridge']??'')!=='exports'||($order['poNo']??'')!==($bill['poNo']??'')||bqa_mill_line_key($order)!==($bill['lineKey']??''))continue;
         $candidates=array_values($poSources[(string)$order['poNo'].'|'.bqa_mill_line_key($order)]??[]);$owner=(string)($order['entity']??$order['bagReceiptScope']['entity']??(count($candidates)===1?$candidates[0]['entity']:''));
         if($owner===''&&!empty($order['received']))throw new DomainException('Receipt stock ownership requires reconciliation before billing.');if($owner!==($bill['entity']??''))continue;
@@ -86,6 +92,14 @@ function bqa_current_line(array $line,array $bill):array {
         $counter=bti_count($order['received']??null);if($counter===null||$returned>$counter)throw new DomainException('Actual receipt and supplier return quantities need reconciliation before billing.');$received+=$counter-$returned;
         $evidence[]=['orderId'=>$id,'receipts'=>$receipts];array_push($dispositionEvidence,...$dispositions);if(!isset($line['agreedTareGrams']))$line['agreedTareGrams']=(float)($order['tare']??0);
     }
+    } catch(DomainException $error) {
+        $sourceOrders=array_values(array_filter($orders,static fn($o)=>is_array($o)&&($o['poNo']??'')===($bill['poNo']??'')&&bqa_mill_line_key($o)===($bill['lineKey']??'')));
+        $sourceIds=array_column($sourceOrders,'id');
+        $sourceReceipts=array_values(array_filter($allReceipts,static fn($r)=>in_array($r['bagId']??null,$sourceIds)));
+        $receiptIds=array_column($sourceReceipts,'id');
+        $sourceDispositions=array_values(array_filter($allDispositions,static fn($r)=>in_array($r['receiptId']??null,$receiptIds)));
+        throw new BagReceiptDiscrepancy($error->getMessage(),[$sourceOrders,$sourceReceipts,$sourceDispositions]);
+    }
     if($found){$line['keepReceiptOpen']=$keep;$line['receivedQty']=$received;$line['acceptance']=$flags+['receivedWeightKg'=>$measured+.0001>=$received&&$received>0?round($weight,6):null,'weightComplete'=>$measured+.0001>=$received,'receiptEvidence'=>$evidence,'physicalDispositions'=>$dispositionEvidence];}
 
     return $line;
@@ -97,7 +111,9 @@ function bqa_assess(array $store,array $bill):array {
     $po=(array)($store['bagPurchaseOrders'][$bill['poNo']??'']??[]);$line=[];
     foreach((array)($po['lines']??[]) as $row)if(($row['lineKey']??'')===($bill['lineKey']??'')){$line=$row;break;}
     if(!$line||(!empty($po['entity'])&&($po['entity']??'')!==($bill['entity']??'')))return ['issues'=>[],'fingerprint'=>'','receivedWeightKg'=>null];
-    $line=bqa_current_line($line,$bill);$acceptance=(array)($line['acceptance']??[]);$issues=[];$prior=bqa_billed($store,(string)($bill['poNo']??''),(string)($bill['lineKey']??''),(string)($bill['id']??''));$cumulative=$prior['bags']+(int)($bill['bags']??0);if($cumulative>(int)($line['orderedQty']??0))$issues[]='Cumulative billed bags '.$cumulative.' exceed PO quantity '.(int)($line['orderedQty']??0);if($cumulative>(int)($line['receivedQty']??0))$issues[]='Cumulative billed bags '.$cumulative.' exceed actual bags received '.(int)($line['receivedQty']??0);
+    $issues=[];$receiptEvidence=null;
+    try{$line=bqa_current_line($line,$bill);}catch(BagReceiptDiscrepancy $error){$issues[]=$error->getMessage();$receiptEvidence=$error->evidence;}
+    $acceptance=(array)($line['acceptance']??[]);if($receiptEvidence!==null)$acceptance['sourceDiscrepancyEvidence']=$receiptEvidence;$prior=bqa_billed($store,(string)($bill['poNo']??''),(string)($bill['lineKey']??''),(string)($bill['id']??''));$cumulative=$prior['bags']+(int)($bill['bags']??0);if($cumulative>(int)($line['orderedQty']??0))$issues[]='Cumulative billed bags '.$cumulative.' exceed PO quantity '.(int)($line['orderedQty']??0);if($cumulative>(int)($line['receivedQty']??0))$issues[]='Cumulative billed bags '.$cumulative.' exceed actual bags received '.(int)($line['receivedQty']??0);
     foreach(['printing'=>'Printing / artwork differs from the order','material'=>'Bag material differs from the order','quality'=>'Bag quality is not accepted'] as $key=>$message)if(!empty($acceptance[$key]))$issues[]=$message;
     if(!empty($acceptance['exception'])&&!array_filter($issues)&&empty($acceptance['tareMismatch']))$issues[]='Mill receipt has an unresolved bag specification discrepancy';
     $received=(float)($line['receivedQty']??0);$weight=isset($acceptance['receivedWeightKg'])?(float)$acceptance['receivedWeightKg']:null;
@@ -114,7 +130,7 @@ function bqa_assess(array $store,array $bill):array {
     // Bind the decision to the exact reviewed bill, excluding metadata added by approval itself.
     $review=[];foreach(['id', 'entity', 'supplier', 'sellerInvoice', 'sellerInvoiceDate', 'poNo', 'lineKey', 'status', 'createdBy', 'supplierSettlement', 'supplierSettlementBy', 'supplierSettlementAt', 'bags', 'billingBasis', 'bagWeightGrams', 'totalWeightKg', 'billingRate', 'ratePerBag', 'baseAmount', 'gstRate', 'gstAmount', 'salesTaxInvoice', 'totalAmount', 'billPurpose', 'stockTreatment', 'bagType', 'packingSize', 'brand'] as $field)$review[$field]=$bill[$field]??null;
     $fingerprint=hash('sha256',json_encode([$review,$line['agreedTareGrams']??null,$line['orderedQty']??0,$line['receivedQty']??0,$prior,$acceptance,$issues],JSON_THROW_ON_ERROR));
-    return ['issues'=>$issues,'fingerprint'=>$fingerprint,'receivedWeightKg'=>$allowedKg];
+    return ['issues'=>$issues,'fingerprint'=>$fingerprint,'receivedWeightKg'=>$allowedKg,'receiptEvidence'=>$receiptEvidence];
 }
 
 function bqa_approved(array $bill,array $assessment):bool {
@@ -123,11 +139,11 @@ function bqa_approved(array $bill,array $assessment):bool {
 
 function bqa_hold(array $store,array $bill):?string {
     $a=bqa_assess($store,$bill);
-    return $a['issues']&&!bqa_approved($bill,$a)?'Director approval required: '.implode('; ',$a['issues']).'. Contact the bag supplier and record the settlement before requesting approval.':null;
+    return $a['issues']&&!bqa_approved($bill,$a)?'Director approval required: '.implode('; ',$a['issues']).'. Submit the discrepancy for Director review.':null;
 }
 
 function bqa_approve(array &$store,string $collection,string $id,array $user,string $reason,string $expectedFingerprint):void {
-    if(strlen(trim($reason))<5)throw new DomainException('Record the supplier settlement and approval reason (at least 5 characters).');
+    if(strlen(trim($reason))<5)throw new DomainException('Record the reviewed discrepancy and approval reason (at least 5 characters).');
     $bill=$store[$collection][$id]??null;if(!is_array($bill)||!empty($bill['journalId']))throw new DomainException('Choose an unposted bag bill.');
     $assessment=bqa_assess($store,$bill);if($expectedFingerprint===''||!hash_equals($assessment['fingerprint'],$expectedFingerprint))throw new DomainException('The bill or receipt changed. Reopen the approval and review the current discrepancy.');if(!$assessment['issues'])throw new DomainException('No bag specification, quantity or weight exception currently requires approval. PO rates are not a posting condition.');
     $actor=(string)($user['full_name']??$user['username']??'');
@@ -135,5 +151,5 @@ function bqa_approve(array &$store,string $collection,string $id,array $user,str
     $store[$collection][$id]['acceptanceApprovedBy']=$actor;
     $store[$collection][$id]['acceptanceApprovedFingerprint']=$assessment['fingerprint'];
     $store[$collection][$id]['acceptanceApprovalReason']=trim($reason);
-    $store['bagAcceptanceAudit'][]=['billId'=>$id,'collection'=>$collection,'actor'=>$actor,'userId'=>$user['id']??null,'reason'=>trim($reason),'issues'=>$assessment['issues'],'fingerprint'=>$assessment['fingerprint'],'at'=>gmdate('c')];
+    $store['bagAcceptanceAudit'][]=['billId'=>$id,'collection'=>$collection,'actor'=>$actor,'userId'=>$user['id']??null,'reason'=>trim($reason),'issues'=>$assessment['issues'],'receiptEvidence'=>$assessment['receiptEvidence']??null,'fingerprint'=>$assessment['fingerprint'],'at'=>gmdate('c')];
 }
