@@ -278,6 +278,14 @@ try {
         if (!in_array($entity, ['TTI','BRM'], true)) ps_out(['ok'=>false, 'error'=>'Sodas are available only in the selected Pakistan legal books.'], 422);
         if(!tt_user_can_access_entity($user,$entity,'View'))ps_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);
         $store = ps_read();
+        if(($_GET['action']??'')==='delivery_statement'){
+            require_once __DIR__.'/accounts_reviews_core.php';
+            $statements=[];
+            ar_items($store,$entity,ar_issued_pohanches($entity),$statements);
+            $statement=$statements[(string)($_GET['id']??'')]??null;
+            if(!$statement)ps_out(['ok'=>false,'error'=>'SODA not found.'],404);
+            ps_out(['ok'=>true,'statement'=>$statement]);
+        }
         if(($_GET['action']??'')==='buying_for')ps_out(['ok'=>true,'buyingForTargets'=>sb_targets(br_operations(),$store,$entity)]);
         ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'rules'=>['doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG, 'maxOverKg'=>PS_MAX_OVER_KG]]+ps_metadata($user));
     }
@@ -307,6 +315,12 @@ try {
     if (!in_array($entity, ['TTI','BRM'], true)) ps_out(['ok'=>false, 'error'=>'Invalid legal entity.'], 422);
     $entityAction=$action==='create'?'Create':'Edit';if(!tt_user_can_access_entity($user,$entity,$entityAction))ps_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);
     $buyingOps=!empty($body['buyingForAllocations'])?br_operations():null;
+    $deliverySlips=[];
+    if($action==='close_delivery'){
+        require_once __DIR__.'/accounts_reviews_core.php';
+        $deliverySlips=ar_issued_pohanches($entity);
+    }
+
     tt_ensure_data_dir();
     $handle = @fopen(PS_FILE,'r+b');
     if ($handle === false || !flock($handle, LOCK_EX)) throw new RuntimeException('store');
@@ -347,6 +361,18 @@ try {
             if($linked)ps_out(['ok'=>false,'error'=>'This Soda has a linked Pohanch, lifting or bill and cannot be deleted. Amend or cancel it so the audit trail remains intact.'],409);
             unset($store['purchaseSodas'][$id]);foreach((array)($store['postingKeys']??[])as$key=>$posting){if(is_array($posting)&&(string)($posting['sodaId']??'')===$id)unset($store['postingKeys'][$key]);}
             tt_audit((int)($user['id']??0),(string)($user['username']??''),'Permanently deleted unused Soda '.$number.' — '.$reason);
+        } elseif ($action === 'close_delivery') {
+            $id=(string)($body['id']??'');
+            $old=$store['purchaseSodas'][$id]??null;
+            if(!is_array($old)||($old['entity']??'')!==$entity)ps_out(['ok'=>false,'error'=>'SODA not found.'],404);
+            $statements=[];
+            ar_items($store,$entity,$deliverySlips,$statements);
+            $delivery=$statements[$id]??[];
+            if(empty($delivery['canClose']))ps_out(['ok'=>false,'error'=>'The saved deliveries are outside the SODA closing range. Refresh the delivery statement.'],409);
+            $status=$delivery['shortKg']>.001?'Short Closed':'Completed';
+            $at=gmdate('c');$by=ps_user_name($user);
+            $old['audit'][]=['at'=>$at,'by'=>$by,'reason'=>'Delivery closed from the saved SODA statement','changes'=>['status'=>['from'=>$old['status']??'Open','to'=>$status]],'delivery'=>array_diff_key($delivery,['deliveries'=>true])];
+            $store['purchaseSodas'][$id]=array_replace($old,['status'=>$status,'manualStatus'=>$status,'statusChangedAt'=>$at,'statusChangedBy'=>$by]);
         } elseif ($action === 'set_status') {
             $id = trim((string)($body['id'] ?? '')); $status = (string)($body['status'] ?? ''); $reason = trim((string)($body['reason'] ?? ''));
             if (!in_array($status, ['Open','Completed','Short Closed','Cancelled'], true)) ps_out(['ok'=>false, 'error'=>'Invalid Soda status.'], 422);

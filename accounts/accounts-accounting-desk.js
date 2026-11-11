@@ -549,6 +549,29 @@
       body:JSON.stringify({action,entity:company,csrf:access.csrf,id:row.id,fingerprint:row.fingerprint})});
   }
 
+  function canCloseSodaDeliveries(company) {
+    const permissions=access.permissions;
+    if(access.super||permissions==='all')return true;
+    const scope=permissions?.['entity-'+company.toLowerCase()];
+    if(Object.keys(permissions||{}).some(key=>key.startsWith('entity-'))&&!scope?.includes('Edit'))return false;
+    const rights=Array.isArray(permissions)?permissions:Object.values(permissions||{}).flat();
+    return rights.some(right=>['Edit','Create','Approve'].includes(right));
+  }
+
+  function sodaDeliveryStatement(statement) {
+    const tons=kg=>Number((Number(kg||0)/1000).toFixed(3)).toLocaleString('en-PK',{maximumFractionDigits:3})+' MT';
+    const fields=[['SODA',statement.sodaNo],['Supplier',statement.supplier],['Broker',statement.broker],['Product',statement.product],
+      ['Warehouse',statement.warehouse],['SODA date',sodaDate(statement.sodaDate)],['Delivery due',sodaDate(statement.dueDate)],
+      ['Ordered range',tons(statement.orderedMinKg)+' – '+tons(statement.orderedMaxKg)],
+      ['Allowed range',tons(statement.minKg)+' – '+tons(statement.maxKg)],
+      ['Offloaded',tons(statement.receivedKg)],['Short of minimum',tons(statement.shortKg)],
+      ['Shortfall allowance',tons(statement.shortToleranceKg)+' for '+statement.truckTrips+' truck trip(s)']];
+    return '<dl class="tt-attention-details">'+fields.filter(([,value])=>value).map(([label,value])=>'<dt>'+esc(label)+'</dt><dd>'+esc(value)+'</dd>').join('')+'</dl>'+
+      '<div class="tableWrap"><table><thead><tr><th>Pohanch</th><th>Truck</th><th>Warehouse</th><th>Unloaded</th><th>Payable weight</th></tr></thead><tbody>'+
+      (statement.deliveries.map(row=>'<tr><td>'+esc(row.pohanch)+'</td><td>'+esc(row.truck)+'</td><td>'+esc(row.warehouse)+'</td><td>'+esc(sodaDate(row.date))+'</td><td>'+tons(row.kg)+'</td></tr>').join('')||'<tr><td colspan="5">No offloading recorded.</td></tr>')+
+      '</tbody></table></div>';
+  }
+
   function reviewAttention(row) {
     if(row.kind==='REMINDER')return launch({native:'expenses',then:'[data-expense="'+row.target.expense+'"]'});
     if(row.kind==='REMITTANCE')return window.TT_TG_REMITTANCES.open(row.target.remittanceId);
@@ -558,7 +581,7 @@
     const openLabel=row.kind==='HOLD'?'Open payment hold':row.kind==='FREIGHT'?'Open freight bill':
       row.kind==='PAYMENT'&&row.details?.['Payment type']==='Third-Party Account'?'Open payment details':row.target?.sodaNo?'Open SODA':'';
     body.innerHTML=`<div class="tt-form"><h3>${esc(row.reference||row.type)}</h3><p>${esc(row.message)}</p>
-      ${details?`<dl class="tt-attention-details">${details}</dl>`:''}${row.approval?.releaseHold?'<p>Approving releases the automatic late-delivery hold.</p>':''}<p id="ttReviewError" role="alert"></p>
+      ${row.statement?sodaDeliveryStatement(row.statement):details?`<dl class="tt-attention-details">${details}</dl>`:''}${row.approval?.releaseHold?'<p>Approving releases the automatic late-delivery hold.</p>':''}<p id="ttReviewError" role="alert"></p>
       ${openLabel?`<button type="button" class="btn" id="ttReviewOpen">${openLabel}</button>`:''}
       <button type="button" class="btn" id="ttReviewDiscard">Discard notice</button></div>`;
     const action=async task=>{
@@ -829,9 +852,33 @@
         const saved=document.createDocumentFragment();while(body.firstChild)saved.appendChild(body.firstChild);
         const restore=()=>{body.replaceChildren(saved);body.scrollTop=scroll;if(q('.tt-window',host))q('.tt-window',host).scrollTop=windowScroll;};
         const details=()=>{
-          body.innerHTML=`<div class="tt-modebar"><button data-back-soda>← SODAs</button><button type="button" data-pencil-soda aria-label="Edit SODA ${esc(record.sodaNo)}" title="Edit SODA" style="background:#e5a126;flex:0 0 38px;padding:8px">✎</button><button type="button" data-print-contract style="background:#22624c;color:white">Print Contract</button>${access.super?'<button type="button" data-delete-soda style="color:#a22">Delete unused SODA</button>':''}</div><div class="tt-record-card"><h3>SODA ${esc(record.sodaNo)} · ${esc(sodaStatus(record))}</h3><dl class="tt-soda-details">${sodaFields(record).map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl><h4>Buying for · internal only</h4><p>${record.productStage==='RAW'&&(record.commodity||'RICE')==='RICE'?'Automatic FIFO':(record.buyingForAllocations||[]).map(a=>`${esc((sodaData.buyingForTargets||[]).find(t=>t.id===a.targetId)?.reference||a.targetId)}: ${money(a.quantityKg/1000)} MT`).join(' · ')||'General stock'}</p><h4>Completion checks</h4><p>Received / lifted: ${money(Number(record.receivedKg||0)/1000)} MT · Billed: PKR ${money(record.billedAmount)} · Settled: PKR ${money(record.paidAmount)} · Outstanding: PKR ${money(record.payableOutstanding)}</p><p>${esc((record.completionBlockers||[]).join(' · ')||sodaStatus(record))}</p>${record.receipts?.length?`<details><summary>Linked receipts / liftings (${record.receipts.length})</summary>${record.receipts.map(item=>`<p>${esc(sodaDate(item.date))} · ${esc(item.truck||item.id||'')} · ${money(item.kg)} kg · ${esc(item.billId||'Bill pending')}</p>`).join('')}</details>`:''}${record.audit?.length?`<details><summary>Amendment history</summary>${record.audit.map(item=>`<details><summary>${esc(sodaDate(item.at))} · ${esc(item.by)} · ${esc(item.reason)}</summary>${Object.entries(item.changes||{}).map(([field,change])=>`<p><b>${esc(field)}</b>: ${esc(typeof change.from==='object'?JSON.stringify(change.from):change.from)} → ${esc(typeof change.to==='object'?JSON.stringify(change.to):change.to)}</p>`).join('')}</details>`).join('')}</details>`:''}</div>`;
+          body.innerHTML=`<div class="tt-modebar"><button data-back-soda>← SODAs</button><button type="button" data-pencil-soda aria-label="Edit SODA ${esc(record.sodaNo)}" title="Edit SODA" style="background:#e5a126;flex:0 0 38px;padding:8px">✎</button><button type="button" data-print-contract style="background:#22624c;color:white">Print Contract</button><button type="button" data-delivery-statement>Delivery statement</button>${access.super?'<button type="button" data-delete-soda style="color:#a22">Delete unused SODA</button>':''}</div><div class="tt-record-card"><h3>SODA ${esc(record.sodaNo)} · ${esc(sodaStatus(record))}</h3><dl class="tt-soda-details">${sodaFields(record).map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl><h4>Buying for · internal only</h4><p>${record.productStage==='RAW'&&(record.commodity||'RICE')==='RICE'?'Automatic FIFO':(record.buyingForAllocations||[]).map(a=>`${esc((sodaData.buyingForTargets||[]).find(t=>t.id===a.targetId)?.reference||a.targetId)}: ${money(a.quantityKg/1000)} MT`).join(' · ')||'General stock'}</p><h4>Completion checks</h4><p>Received / lifted: ${money(Number(record.receivedKg||0)/1000)} MT · Billed: PKR ${money(record.billedAmount)} · Settled: PKR ${money(record.paidAmount)} · Outstanding: PKR ${money(record.payableOutstanding)}</p><p>${esc((record.completionBlockers||[]).join(' · ')||sodaStatus(record))}</p>${record.receipts?.length?`<details><summary>Linked receipts / liftings (${record.receipts.length})</summary>${record.receipts.map(item=>`<p>${esc(sodaDate(item.date))} · ${esc(item.truck||item.id||'')} · ${money(item.kg)} kg · ${esc(item.billId||'Bill pending')}</p>`).join('')}</details>`:''}${record.audit?.length?`<details><summary>Amendment history</summary>${record.audit.map(item=>`<details><summary>${esc(sodaDate(item.at))} · ${esc(item.by)} · ${esc(item.reason)}</summary>${Object.entries(item.changes||{}).map(([field,change])=>`<p><b>${esc(field)}</b>: ${esc(typeof change.from==='object'?JSON.stringify(change.from):change.from)} → ${esc(typeof change.to==='object'?JSON.stringify(change.to):change.to)}</p>`).join('')}</details>`).join('')}</details>`:''}</div>`;
           q('[data-back-soda]',body).onclick=restore;
           q('[data-print-contract]',body).onclick=()=>printSoda(record);
+          q('[data-delivery-statement]',body).onclick=async event=>{
+            const company=entity(),button=event.currentTarget;
+            button.disabled=true;
+            try{
+              const {statement}=await json(api+'?'+new URLSearchParams({entity:company,action:'delivery_statement',id:record.id}));
+              if(company!==entity()||!button.isConnected)return;
+              body.innerHTML='<div class="tt-modebar"><button type="button" data-delivery-back>← SODA details</button></div><h3>Warehouse delivery statement</h3>'+sodaDeliveryStatement(statement)+
+                (statement.canClose&&canCloseSodaDeliveries(company)?'<button type="button" class="btn green" data-close-delivery>Close SODA deliveries</button>':'')+'<p data-delivery-error role="alert"></p>';
+              q('[data-delivery-back]',body).onclick=details;
+              const close=q('[data-close-delivery]',body);
+              if(close)close.onclick=async()=>{
+                if(company!==entity()||!confirm('Close deliveries for SODA '+record.sodaNo+'?'))return;
+                close.disabled=true;
+                try{
+                  const result=await json(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'close_delivery',csrf:access.csrf,entity:company,id:record.id})});
+                  Object.assign(record,(result.sodas||[]).find(row=>row.id===record.id)||{});
+                  details();
+                  await loadDashboardSummary();
+                }catch(error){q('[data-delivery-error]',body).textContent=error.message;close.disabled=false;}
+              };
+            }catch(error){alert(error.message);}
+            finally{button.disabled=false;}
+          };
+
           if(q('[data-delete-soda]',body))q('[data-delete-soda]',body).onclick=async()=>{if(!confirm(`Permanently delete unused SODA ${record.sodaNo}? Linked records cannot be deleted.`))return;const reason=prompt('Reason for permanent deletion:','Entered in error');if(!reason?.trim())return;try{sodaData=await json(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',csrf:access.csrf,entity:entity(),id:record.id,reason:reason.trim()})});renderSodaNew(host);}catch(error){alert(error.message);}};
           q('[data-pencil-soda]',body).onclick=()=>{
             body.innerHTML=`<div class="tt-modebar"><button data-back-detail>← SODA details</button></div>${sodaForm(record)}`;
