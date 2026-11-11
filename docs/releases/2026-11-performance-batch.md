@@ -4,6 +4,9 @@ This branch is for review and testing. Do not deploy or merge it until the owner
 
 ## Changes
 
+- Accounts home summaries/recent postings defer reads while an inner area or form is open. They refresh when home is reopened. Report loads require an active report screen, and selected reports request only their needed detailed ledger/expense/party collections; financial statement totals and legacy API defaults remain compatible. Directors report links already load on navigation; displayed home alerts remain available.
+- Compress software text (PHP, JavaScript, HTML, CSS and related text formats) before archive encryption, using the existing restore-compatible compressed chunk format. This reduces software archive bytes without dropping recovery files. It is not a changed-data-only backup protocol; the daily Data/Software split and existing retention remain in force.
+
 - Share identical simultaneous GETs for selected report, ledger, master and dashboard endpoints. Each caller receives its own response body. No completed response cache; writes invalidate in-flight reuse. Company/query and request options remain part of the key.
 - Background company/customer refreshes are limited to once per minute while visible. JV notices use a one-minute interval with error backoff; explicit checks remain immediate. Mill version checks run every 30 seconds while an operational screen is active. Session inactivity enforcement is unchanged.
 - Shared operational refresh has one in-flight request and authenticated conditional reads. Unchanged sources return 304 before large JSON projections; permission changes invalidate the validator. Full reads and explicit refresh remain available. Existing tables are probed without CREATE TABLE on every request.

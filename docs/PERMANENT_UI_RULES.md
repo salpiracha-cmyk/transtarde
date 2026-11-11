@@ -1,5 +1,9 @@
 # Transtrade Permanent UI Rules
 
+## Demand-driven reads — 11 November 2026
+
+Reports and ledger detail load only for the open report, ledger or transaction form that needs them. Accounts and Directors home pages may request their displayed summaries and attention items, but must not preload unrelated reports. Hidden Accounts home panels defer their reads until home is reopened. A selected report must not build unrelated detailed ledger, expense or party lists; preserve complete financial totals and permission checks.
+
 ## User-facing download filenames — 22 October 2026
 
 - Every document download and Print / Save PDF uses the actual party, document title, and saved invoice/SODA/bill/Post ID reference. Ledger and report filenames include their displayed date range and company/currency where needed to distinguish books. Example: `Shams Broker - SODA - SODA-2026-001 - TTI.pdf`.

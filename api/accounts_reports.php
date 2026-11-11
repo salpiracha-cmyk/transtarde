@@ -64,7 +64,7 @@ try {
         ar_out(['ok' => false, 'error' => 'From date cannot be after the as-of date.'], 422);
     }
 
-    ar_out(ar_build_report(ar_read(AR_FILE),ar_read(AR_MASTER),$entity,$from,$asOf,isset($_GET['currency'])?(string)$_GET['currency']:null));
+    ar_out(ar_build_report(ar_read(AR_FILE),ar_read(AR_MASTER),$entity,$from,$asOf,isset($_GET['currency'])?(string)$_GET['currency']:null,(string)($_GET['view']??'all')));
 
 } catch (DomainException $error) { ar_out(['ok'=>false,'error'=>$error->getMessage()],422);
 } catch (Throwable $error) {

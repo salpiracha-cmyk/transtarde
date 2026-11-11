@@ -20,7 +20,9 @@ function ar_sum_rows(array $rows, string $column): float {
     return round($sum, 2);
 }
 
-function ar_build_report(array $sourceStore,array $sourceMaster,string $entity,string $from,string $asOf,?string $currency=null):array {
+function ar_build_report(array $sourceStore,array $sourceMaster,string $entity,string $from,string $asOf,?string $currency=null,string $view='all'):array {
+    if(!in_array($view,['all','tb','gl','pl','bs','expenses','personal','vehicles','balances','commodity','shipment'],true))throw new DomainException('Unknown report view.');
+    $includeLedger=in_array($view,['all','gl','commodity'],true);
     $store = alv_amendment_books($sourceStore);
     $master = $sourceMaster;
     if(isset($store['journals'])&&!is_array($store['journals']))throw new RuntimeException('Journal source is invalid.');
@@ -69,7 +71,7 @@ function ar_build_report(array $sourceStore,array $sourceMaster,string $entity,s
     $ledger = [];
     $skippedMalformedLines = 0;
     foreach ($journals as $journal) {
-        $displayReference=tt_accounts_ledger_reference($store,$journal);
+        $displayReference=$includeLedger?tt_accounts_ledger_reference($store,$journal):'';
         foreach ((array)($journal['lines'] ?? []) as $line) {
             if (!ar_valid_line($line)) {
                 $skippedMalformedLines++;
@@ -81,6 +83,7 @@ function ar_build_report(array $sourceStore,array $sourceMaster,string $entity,s
             $balances[$code] = ($balances[$code] ?? 0.0) + $debit - $credit;
             if(isset($hidden[(string)($journal['id']??'')]))continue;
             if((string)$journal['date']<$from)continue;
+            if(!$includeLedger)continue;
             $ledger[] = [
                 'date' => (string)($journal['date'] ?? ''),
                 'journalId' => (string)($journal['id'] ?? ''),
@@ -203,11 +206,11 @@ function ar_build_report(array $sourceStore,array $sourceMaster,string $entity,s
         'from' => $from,
         'asOf' => $asOf,
         'generalLedger' => $ledger,
-        'expenseActivity' => sac_expense_activity($store,$entity,$from,$asOf),
-        'personalAdjustments'=>array_values(array_filter(array_map(static function($r)use($from,$asOf){$r['rows']=array_values(array_filter((array)$r['rows'],static fn($row)=>($row['date']??'')>=$from&&($row['date']??'')<=$asOf));return $r;},array_filter((array)($store['expensePersonalLinks']??[]),static fn($r)=>($r['entity']??'')===$entity)),static fn($r)=>!empty($r['rows']))),
+        'expenseActivity' => in_array($view,['all','expenses','vehicles'],true)?sac_expense_activity($store,$entity,$from,$asOf):[],
+        'personalAdjustments'=>!in_array($view,['all','personal'],true)?[]:array_values(array_filter(array_map(static function($r)use($from,$asOf){$r['rows']=array_values(array_filter((array)$r['rows'],static fn($row)=>($row['date']??'')>=$from&&($row['date']??'')<=$asOf));return $r;},array_filter((array)($store['expensePersonalLinks']??[]),static fn($r)=>($r['entity']??'')===$entity)),static fn($r)=>!empty($r['rows']))),
         'trialBalance' => [
             'rows' => $trial,
-            'partyRows'=>alv_party_trial($journals,$catalog),
+            'partyRows'=>in_array($view,['all','tb','balances'],true)?alv_party_trial($journals,$catalog):[],
             'totalDebit' => $totalDebit,
             'totalCredit' => $totalCredit,
             'balanced' => abs($totalDebit - $totalCredit) < .005,

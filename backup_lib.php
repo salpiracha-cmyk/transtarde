@@ -67,7 +67,7 @@ final class TT_SimpleZipWriter {
         if ($source === false) throw new RuntimeException('A backup source file could not be read.');
         [$mtime, $mdate] = self::dosTime(filemtime($path) ?: null);
         $flags = 0x0808; // UTF-8 name plus a data descriptor after streamed contents.
-        $method = $compress && preg_match('/\.(json|txt|csv|log|sql)([.-]|$)/i', $name) ? 8 : 0;
+        $method = $compress && preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i', $name) ? 8 : 0;
         $deflater = $method === 8 ? deflate_init(ZLIB_ENCODING_RAW, ['level'=>6]) : null;
         if ($method === 8 && $deflater === false) { fclose($source); throw new RuntimeException('Backup compression could not start.'); }
         $offset = $this->offset;
@@ -690,7 +690,7 @@ function tt_build_download_backup(bool $full,string $password='',string $scope='
     };
     $addEncryptedFile=function(string $logical,string $path)use($zip,$key,&$map,&$counter,&$encryptedFiles):void{
         if(isset($encryptedFiles[$path])){$map[$logical]=$encryptedFiles[$path];return;}
-        $compress=(bool)preg_match('/\.(json|txt|csv|log|sql)([.-]|$)/i',$path);
+        $compress=(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i',$path);
         $source=fopen($path,'rb');if($source===false)throw new RuntimeException('A recovery source file could not be read.');
         $chunks=[];$digest=hash_init('sha256');$size=0;
         try {
@@ -1074,9 +1074,9 @@ function tt_backup_build_init(string $dir,string $scope,?callable $sources=null)
         };
         foreach($business as $logical=>$bytes)$files[$logical]=[$own($bytes,null),true];
         $snapshot=[];foreach($private as $logical=>$path){$snapshot[$path]=in_array($path,$temps,true)?$own(null,$path):$path;}
-        foreach($documents+tt_backup_module_documents($private) as $logical=>$path)$files[$logical]=[$snapshot[$path]??$path,(bool)preg_match('/\.(json|txt|csv|log|sql)([.-]|$)/i',$path)];
-        foreach($private as $logical=>$path)$files['System_Recovery/private/'.$logical]=[$snapshot[$path],(bool)preg_match('/\.(json|txt|csv|log|sql)([.-]|$)/i',$path)];
-        foreach($app as $logical=>$path)$files['Application_Code/'.$logical]=[$path,(bool)preg_match('/\.(json|txt|csv|log|sql)([.-]|$)/i',$path)];
+        foreach($documents+tt_backup_module_documents($private) as $logical=>$path)$files[$logical]=[$snapshot[$path]??$path,(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i',$path)];
+        foreach($private as $logical=>$path)$files['System_Recovery/private/'.$logical]=[$snapshot[$path],(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i',$path)];
+        foreach($app as $logical=>$path)$files['Application_Code/'.$logical]=[$path,(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i',$path)];
         $byPath=[];
         foreach($files as $logical=>[$path,$compress]){
             if(isset($byPath[$path])){$plan['files'][$byPath[$path]]['logical'][]=$logical;continue;}
