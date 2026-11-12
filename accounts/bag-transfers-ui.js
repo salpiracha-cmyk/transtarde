@@ -3,7 +3,7 @@
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),norm=v=>String(v??'').trim().replace(/\s+/g,' ').toLowerCase();
 const dateText=value=>String(value??'').replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3-$2-$1');
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-let root=null,active=null,data=null,sequence=0,busy=false;const drafts=new Map();
+let root=null,active=null,data=null,sequence=0,busy=false;const drafts=new Map(),currentReceipts=new Map();
 function place(entity){
  const mill=typeof currentMill==='undefined'?null:currentMill;if(!mill)throw Error('Select the physical mill first.');
  const matches=(window.TT_MODULE_ACCESS?.masters?.mills||[]).filter(row=>norm(row.values?.[0])===norm(mill.name));if(matches.length!==1)throw Error('Resolve this physical mill in Mills & Locations.');
@@ -65,21 +65,29 @@ function ackForm(id,action,saved=null){
  if(saved){q('[data-ack-date]').value=saved.date;q('[data-ack-reason]').value=saved.reason;root.querySelectorAll('[data-ack-line]').forEach(input=>input.value=saved.quantities[input.dataset.ackLine]??'');if(q('[data-accepted-inspection]'))q('[data-accepted-inspection]').checked=saved.accepted;}
  form.querySelector('[data-close-ack]').onclick=()=>form.replaceChildren();form.querySelector('[data-save-ack]').onclick=()=>void acknowledge();if(root.open)window.TT_FORM_VIEWPORT?.open(form);
 }
+async function readStock(scope,date){
+ const response=await fetch('/api/bag_transfers.php?'+new URLSearchParams({entity:scope.entity,locationId:scope.locationId,asOf:date}),{credentials:'same-origin',headers:{Accept:'application/json'}});
+ const next=await response.json();
+ if(!response.ok||!next.ok)throw Error(next.error||'Bag stock could not be reviewed.');
+ if(next.entity!==scope.entity||next.locationId!==scope.locationId||next.inventory?.asOfDate!==date)throw Error('The stock review belongs to another company, location or date.');
+ return next;
+}
 async function refresh(){
  if(!active||busy)return;const scope=active,node=root,date=q('[data-transfer-date]').value,source=quantities('[data-source-lot]'),request=++sequence;q('[data-transfer-refresh]').disabled=true;message('Checking committed physical stock…');
- try{const response=await fetch('/api/bag_transfers.php?'+new URLSearchParams({entity:scope.entity,locationId:scope.locationId,asOf:date}),{credentials:'same-origin',headers:{Accept:'application/json'}}),next=await response.json();
-  if(request!==sequence||root!==node)return;if(q('[data-transfer-date]').value!==date){message('Date changed. Review stock again.');return;}if(!response.ok||!next.ok)throw Error(next.error||'Bag stock could not be reviewed.');
-  if(next.entity!==scope.entity||next.locationId!==scope.locationId||next.inventory?.asOfDate!==date)throw Error('The stock review belongs to another company, location or date.');
+ try{
+  const next=await readStock(scope,date);
+  if(request!==sequence||root!==node)return;if(q('[data-transfer-date]').value!==date){message('Date changed. Review stock again.');return;}
+  if(date===today())currentReceipts.set(scope.key,next.inventory.lots);
   const previous=data;
   data=next;
   const counters=result=>Object.values(result?.inventory?.lots||{}).filter(lot=>!lot.isTransferStock&&lot.supplierReceivedQty!=null).map(lot=>[lot.originBagId,lot.supplierReceivedQty]);
   if(JSON.stringify(counters(previous))!==JSON.stringify(counters(next))&&typeof currentBagOrder!=='undefined'&&currentBagOrder==null&&typeof renderBagOrders==='function')renderBagOrders();
-  const latest=quantities('[data-source-lot]');renderStock(Object.keys(latest).length?latest:(Object.keys(source).length?source:(drafts.get(scope.key)?.source||{})));history();message('');pending();
+  const latest=quantities('[data-source-lot]');renderStock(Object.keys(latest).length?latest:(Object.keys(source).length?source:(drafts.get(scope.key)?.source||{})));history();message('');pending();return true;
  }catch(error){if(request===sequence&&root===node)message(error.message+' Your entry is retained.');}finally{if(request===sequence&&root===node)q('[data-transfer-refresh]').disabled=false;}
 }
 async function open(entity,expanded=true){
  remember();const owner=entity||(typeof stockEntityForView==='function'?stockEntityForView():'TTI');let scope;try{scope=place(owner);}catch(error){if(q('[data-transfer-message]')){message(error.message+' Previous entry retained; select a valid physical mill before continuing.');data=null;}else{if(!root){root=document.createElement('section');root.className='card';(document.getElementById('ourExportBags')||document.getElementById('newbags'))?.append(root);}root.textContent=error.message;}return;}
- if(!active||active.key!==scope.key||!q('[data-transfer-date]')){sequence++;active=scope;data=null;build(scope);}root.open=expanded;pending();if(expanded)window.TT_FORM_VIEWPORT?.open(root);await refresh();const saved=drafts.get(scope.key)?.ack;if(active?.key===scope.key&&data&&saved&&!q('[data-ack-id]'))ackForm(saved.id,saved.action||(saved.returned?'return_to_source':'receive'),saved);
+ if(!active||active.key!==scope.key||!q('[data-transfer-date]')){sequence++;active=scope;data=null;build(scope);}root.open=expanded;pending();if(expanded)window.TT_FORM_VIEWPORT?.open(root);const refreshed=await refresh();const saved=drafts.get(scope.key)?.ack;if(active?.key===scope.key&&data&&saved&&!q('[data-ack-id]'))ackForm(saved.id,saved.action||(saved.returned?'return_to_source':'receive'),saved);return refreshed;
 }
 function whole(value){const n=Number(value);if(!String(value).trim()||!Number.isSafeInteger(n)||n<=0)throw Error('Enter positive whole bag quantities.');return n;}
 async function dispatch(){
@@ -117,9 +125,19 @@ async function send(body,recovery=false){
  finally{busy=false;node.inert=wasInert;if(!acknowledged&&focus?.isConnected)focus.focus({preventScroll:true});}
  if(acknowledged&&root===node&&active.key===scope.key){await refresh();message('Movement '+(intent.body.transferId||'dispatch')+' saved. '+(q('[data-transfer-message]').textContent.includes('retained')?'Stock refresh could not be confirmed; your current entry is retained.':'Confirmed stock refreshed.'));}
 }
-function receiptQuantity(order){
- if(!data||!active)return null;
- const lot=data.inventory.lots?.['PO|'+order.id+'|'+active.locationId];
- return lot?.poNo===order.poNo&&lot?.poLineKey===order.poLineKey?lot.supplierReceivedQty:null;
+async function loadCurrentReceipts(){
+ const scope=place(typeof stockEntityForView==='function'?stockEntityForView():'TTI');
+ if(await open(scope.entity,false)&&q('[data-transfer-date]').value===today())return true;
+ if(q('[data-transfer-date]')?.value===today())return false;
+ const next=await readStock(scope,today());
+ currentReceipts.set(scope.key,next.inventory.lots);
+ return true;
 }
-window.TT_BAG_TRANSFERS={open,refresh,whole,receiptQuantity};})();
+function receiptQuantity(order){
+ try{
+  const scope=place(String(order.entity||'TTI').toUpperCase());
+  const lot=currentReceipts.get(scope.key)?.['PO|'+order.id+'|'+scope.locationId];
+  return lot?.poNo===order.poNo&&lot?.poLineKey===order.poLineKey?lot.supplierReceivedQty:null;
+ }catch{return null;}
+}
+window.TT_BAG_TRANSFERS={open,refresh,whole,receiptQuantity,loadCurrentReceipts};})();

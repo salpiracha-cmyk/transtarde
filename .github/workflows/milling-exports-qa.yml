@@ -192,6 +192,7 @@ jobs:
           node tests/exmill_instruction_authority_test.js
           node tests/exmill_product_matching_test.js
           node tests/exmill_form_stability_browser_qa.js
+          node tests/milling_loading_views_test.js
           node tests/master_data_topbar_audit.js
           node tests/offline_recovery_audit.js
           node tests/super_admin_cleanup_audit.js
