@@ -515,7 +515,7 @@ function tab(x){
 function refresh(){
  persistSales();
  if(!sel)return;
- loadTareBox.hidden=sel.billingWeightBasis!==&#x27;NET&#x27;;
+ loadTareBox.hidden=sel.billingWeightBasis!==&#x27;NET&#x27;&amp;&amp;editLoadIndex===null;
  let l=loaded(sel), original=total(sel), diff=original-l, v=shownSaleValue(sel), p=paid(sel);
  tq.textContent=sel.tons+&#x27; Tons&#x27;;
  ql.textContent=(l/1000).toFixed(3)+&#x27; Tons&#x27;;
@@ -548,14 +548,14 @@ function refresh(){
 
 function toggleSodaEdit(){
  if(sel.closed)return;
- eDate.value=sel.date;eParty.value=sel.party;eBroker.value=sel.broker||&#x27;&#x27;;eProductIdentity.value=[sel.baseVariety,sel.riceType].filter(Boolean).join(&#x27; &#x27;);eProduct.value=sel.product;eTons.value=sel.tons;eRate.value=sel.rate;eBillingWeightBasis.value=sel.billingWeightBasis||&#x27;GROSS&#x27;;eBillingWeightBasis.disabled=sel.loads.length&gt;0;eDoneBy.value=sel.doneBy||&#x27;&#x27;;
+ eDate.value=sel.date;eParty.value=sel.party;eBroker.value=sel.broker||&#x27;&#x27;;eProductIdentity.value=[sel.baseVariety,sel.riceType].filter(Boolean).join(&#x27; &#x27;);eProduct.value=sel.product;eTons.value=sel.tons;eRate.value=sel.rate;eBillingWeightBasis.value=sel.billingWeightBasis||&#x27;GROSS&#x27;;eDoneBy.value=sel.doneBy||&#x27;&#x27;;
  sodaEdit.classList.toggle(&#x27;hidden&#x27;);
 }
 async function saveSodaEdit(){
  if(sel.closed)return;const before=structuredClone(sel),draft=structuredClone(sel);
  if(eBroker.value.trim()&amp;&amp;!brokerNames.some(name=&gt;name.toLowerCase()===eBroker.value.trim().toLowerCase()))return alert(&#x27;Select an active Broker profile from the list.&#x27;);
  let editIdentity=productIdentities.find(x=&gt;x.label.toLowerCase()===eProductIdentity.value.trim().toLowerCase());if(!editIdentity)return alert(&#x27;Select the Variety / Type so this stock remains separate.&#x27;);
- draft.date=eDate.value;draft.party=eParty.value.trim();draft.broker=eBroker.value.trim();draft.product=eProduct.value.trim();draft.baseVariety=editIdentity.baseVariety;draft.riceType=editIdentity.riceType;draft.productStage=&#x27;FINISHED&#x27;;draft.displayName=[editIdentity.label,draft.product].join(&#x27; · &#x27;);draft.tons=+eTons.value||draft.tons;draft.rate=+eRate.value||draft.rate;draft.billingWeightBasis=eBillingWeightBasis.value;draft.doneBy=eDoneBy.value.trim();
+ draft.date=eDate.value;draft.party=eParty.value.trim();draft.broker=eBroker.value.trim();draft.product=eProduct.value.trim();draft.baseVariety=editIdentity.baseVariety;draft.riceType=editIdentity.riceType;draft.productStage=&#x27;FINISHED&#x27;;draft.displayName=[editIdentity.label,draft.product].join(&#x27; · &#x27;);draft.tons=+eTons.value||draft.tons;draft.rate=+eRate.value||draft.rate;draft.billingWeightBasis=eBillingWeightBasis.value;if(draft.billingWeightBasis===&#x27;NET&#x27;&amp;&amp;draft.loads.some(l=&gt;l.emptyTareKg==null))return alert(&#x27;Some saved loadings have no empty bag weight. Open each loading, choose Edit and enter the total empty bag weight first. Then select Net billing. Your SODA fields are retained.&#x27;);draft.doneBy=eDoneBy.value.trim();
  if(!await commitLocalSale(draft,before))return;
  sodaEdit.classList.add(&#x27;hidden&#x27;);workTitle.textContent=sel.soda+&#x27; — &#x27;+sel.party+&#x27; — &#x27;+sel.product;workSub.textContent=sel.tons+&#x27; Tons @ Rs. &#x27;+sel.rate+&#x27;/kg · Billing: &#x27;+(sel.billingWeightBasis||&#x27;GROSS&#x27;)+&#x27; • Soda Done By: &#x27;+(sel.doneBy||&#x27;—&#x27;);refresh();toastMsg(&#x27;Soda details updated&#x27;);
 }
@@ -646,7 +646,7 @@ async function saveLoad(){
    return;
  }
 
- let tare=sel.billingWeightBasis===&#x27;NET&#x27;?Number(loadTareKg.value):0;if(!Number.isFinite(tare)||tare&lt;0||tare&gt;=q||(sel.billingWeightBasis===&#x27;NET&#x27;&amp;&amp;!loadTareKg.value.trim()))return alert(&#x27;Enter total empty bag weight in kg. It must be less than the Karachi weighbridge weight. Enter 0 for loose cargo.&#x27;);
+ let tare=Number(loadTareKg.value||0);if(!Number.isFinite(tare)||tare&lt;0||tare&gt;=q||(sel.billingWeightBasis===&#x27;NET&#x27;&amp;&amp;!loadTareKg.value.trim()))return alert(&#x27;Enter total empty bag weight in kg. It must be less than the Karachi weighbridge weight. Enter 0 for loose cargo.&#x27;);
  let rec={truck:t,date:loadDate.value,kg:q,weighbridgeGrossKg:q,emptyTareKg:tare,bags:+loadBags.value||0,remarks:remarks.value.trim(),printed:false};
  const old=editLoadIndex===null?null:sel.loads[editLoadIndex];rec.bridgeId=old?.bridgeId||(&#x27;LSL-&#x27;+crypto.randomUUID());rec.gatePassRef=old?.gatePassRef||(&#x27;LGP-&#x27;+sel.soda+&#x27;-&#x27;+(editLoadIndex===null?sel.loads.length+1:editLoadIndex+1));
  if(editLoadIndex===null)draft.loads.push(rec);else{rec.printed=old.printed;draft.loads[editLoadIndex]=rec;}
@@ -664,7 +664,7 @@ async function saveLoad(){
 
 function editLoad(i){
  if(sel.closed)return;
- let x=sel.loads[i];editLoadIndex=i;truck.value=x.truck;loadDate.value=x.date;loadKg.value=x.kg;loadBags.value=x.bags||&#x27;&#x27;;loadTareKg.value=x.emptyTareKg??&#x27;&#x27;;remarks.value=x.remarks||&#x27;&#x27;;loadEntryTitle.textContent=&#x27;Edit Loading&#x27;;cancelLoadEditBtn.classList.remove(&#x27;hidden&#x27;);
+ let x=sel.loads[i];editLoadIndex=i;truck.value=x.truck;loadDate.value=x.date;loadKg.value=x.kg;loadBags.value=x.bags||&#x27;&#x27;;loadTareKg.value=x.emptyTareKg??&#x27;&#x27;;loadTareBox.hidden=false;remarks.value=x.remarks||&#x27;&#x27;;loadEntryTitle.textContent=&#x27;Edit Loading&#x27;;cancelLoadEditBtn.classList.remove(&#x27;hidden&#x27;);
 }
 function cancelLoadEdit(){editLoadIndex=null;truck.value=&#x27;&#x27;;loadDate.value=today();loadKg.value=&#x27;&#x27;;loadBags.value=&#x27;&#x27;;loadTareKg.value=&#x27;&#x27;;remarks.value=&#x27;&#x27;;loadEntryTitle.textContent=&#x27;Add Loading&#x27;;cancelLoadEditBtn.classList.add(&#x27;hidden&#x27;)}
 
