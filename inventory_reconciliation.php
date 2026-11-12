@@ -245,7 +245,7 @@ function tt_inv_stock(array $values,array $scope, ?callable $observe=null): arra
     foreach(tt_inv_rows($values,'tt30ship')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt30ship',$r,$i,'Export loading');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['weight']??0)],(array)($r['containers']??[]));
         $kg=array_sum(array_map(static fn($x)=>(float)($x['weight']??0),(array)($r['containers']??[])));$add(tt_inv_resolve_stock($m,$r),-$kg);
     }
-    foreach(tt_inv_rows($values,'tt32stockadj')as$i=>$r){if(!tt_inv_same_scope($scope,$r))continue;$source('tt32stockadj',$r,$i,!empty($r['openingStock'])?'Opening stock':'Stock adjustment');
+    foreach(tt_inv_rows($values,'tt32stockadj')as$i=>$r){if(!tt_inv_same_scope($scope,$r))continue;$source('tt32stockadj',$r,$i,!empty($r['openingStock'])?'Opening stock':(($r['type']??'')==='Return to Production'?'Return to production':'Stock adjustment'));
         if(($r['type']??'')==='Paltai Transfer'){$add((string)$r['from'],-(float)($r['sourceDeductionKg']??$r['weightKg']??0));$add((string)$r['to'],(float)($r['weightKg']??0));$add((string)($r['rawStockName']??'RAW RICE'),(float)($r['sweepingKg']??0));continue;}
         if(!empty($r['readyRiceKg']))$add((string)($r['stockName']??$r['brand']??'Unknown'),(float)$r['readyRiceKg']);
         if(!empty($r['rawRiceKg']))$add((string)($r['rawStockName']??'RAW RICE'),(float)$r['rawRiceKg']);
@@ -469,6 +469,7 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
                 $r['containers'][$i]=$container;
             }
         }elseif($key==='tt32stockadj'){
+            if(($r['type']??'')==='Return to Production'||($before['type']??'')==='Return to Production')$r=pt_return_prepare($values,$r,$before,array_merge($old,array_values(array_filter($out,static fn($x)=>!isset($index[(string)$x['id']])))),$now);
             if(($r['type']??'')==='Paltai Transfer'||($before['type']??'')==='Paltai Transfer')$r=pt_prepare($values,$r,$before,array_merge($old,array_values(array_filter($out,static fn($x)=>!isset($index[(string)$x['id']])))));
             if((tt_inv_is_private_row($r)||str_contains((string)($r['type']??''),'Physical Nil'))&&!$before)throw new DomainException('A client cannot create a management stock adjustment.');
             if($before&&(tt_inv_is_private_row($before)||str_contains((string)($before['type']??''),'Physical Nil'))){
@@ -521,7 +522,7 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         $reprocessing=array_filter($changed,static fn($run)=>strtoupper((string)($run['inputStage']??'RAW'))!=='RAW');
         if($reprocessing)tt_inv_guard_calculated_stock($values,array_replace($values,['tt30prod'=>tt_inv_json($out)]),$reprocessing);
     }
-    if($key==='tt32stockadj')foreach($old as$r)if(($r['type']??'')==='Paltai Transfer'&&!isset($seen[(string)$r['id']]))throw new DomainException('Saved Paltai transfers cannot be removed.');
+    if($key==='tt32stockadj')foreach($old as$r)if(in_array($r['type']??'',['Paltai Transfer','Return to Production'],true)&&!isset($seen[(string)$r['id']]))throw new DomainException('Saved stock transfers cannot be removed.');
     return tt_inv_json($out);
 }
 /** Pure transform, called inside the same lock/transaction as the source save. */
