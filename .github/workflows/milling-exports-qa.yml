@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     paths-ignore:
+      - '.github/workflows/mill-entry-review.yml'
+      - '.github/scripts/mill_entry_review.php'
       - '.github/workflows/telegram-automatic-delivery.yml'
       - '.github/workflows/accounts-live-hostinger-qa.yml'
       - 'exports-canary/**'

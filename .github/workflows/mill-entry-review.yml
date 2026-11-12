@@ -1,0 +1,46 @@
+name: Read-only Mill entry diagnosis
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/mill-entry-review.yml', '.github/scripts/mill_entry_review.php']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: transtrade-mill-entry-review
+  cancel-in-progress: false
+jobs:
+  deliver:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read selected Mill facts once with encrypted output
+        env:
+          HOSTINGER_HOST: 151.106.116.33
+          HOSTINGER_PORT: '65002'
+          HOSTINGER_USER: u831010370
+          HOSTINGER_DEPLOY_PATH: /home/u831010370/domains/app.transtradeinternational.com/public_html
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          trap 'rm -rf "$RUNNER_TEMP/ssh"' EXIT
+          expected_fingerprint='SHA256:Bid0atNrqK2cVKyC84j8BnqToKfMokX5myGJkNCvBsg'
+          ssh-keyscan -T 15 -p "$HOSTINGER_PORT" -t ed25519 "$HOSTINGER_HOST" 2>/dev/null > "$RUNNER_TEMP/ssh/hostkey-candidate"
+          actual_fingerprint=$(ssh-keygen -lf "$RUNNER_TEMP/ssh/hostkey-candidate" -E sha256 | awk '{print $2}' | sort -u)
+          if [ "$actual_fingerprint" != "$expected_fingerprint" ]; then
+            echo "Hostinger ED25519 fingerprint mismatch; refusing connection."
+            exit 1
+          fi
+          mv "$RUNNER_TEMP/ssh/hostkey-candidate" "$RUNNER_TEMP/ssh/known_hosts"
+          echo "HOSTINGER_ED25519_FINGERPRINT_VERIFIED=$actual_fingerprint"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+            -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" \
+            "php" < .github/scripts/mill_entry_review.php
