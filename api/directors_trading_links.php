@@ -11,6 +11,13 @@ function dt_assert_other_bag_route(array $before,array $after,array $sources):vo
     foreach($sources as $r)if(($r['exporterDealId']??'')===($before['id']??'')&&!empty($r['received'])&&($after['bagTerms']['status']??'')==='CONFIRMED'&&($after['bagTerms']['owner']??'')!=='FELLOW')throw new DomainException('Received fellow-exporter bags cannot be reassigned to our ownership or bulk delivery. Preserve their physical custody history.');
     foreach($sources as $r)if(($r['exporterDealId']??'')===($before['id']??'')&&!empty($r['received']))foreach(['entity','brand','packing','productionMillName'] as $field)if(trim((string)($before[$field]??''))!==trim((string)($after[$field]??'')))throw new DomainException('Received other exporter bags retain their original SODA brand, packing and mill. Reconcile the original physical source before changing its route.');
 }
+/** One production source read only when the Mill opens its SODA choices. */
+function dt_read_production_values():array {
+    $db=tt_accounts_exports_db();
+    if($db){$q=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key=? LIMIT 1');$q->execute(['tt30prod']);$raw=$q->fetchColumn();return ['tt30prod'=>$raw===false?'[]':$raw];}
+    $p=TT_DATA_DIR.'/operations.json';$v=is_file($p)?json_decode((string)file_get_contents($p),true,512,JSON_THROW_ON_ERROR):[];
+    return ['tt30prod'=>$v['values']['tt30prod']??'[]'];
+}
 function dt_read_native_sales():array {
     $key='tt35exportersale';$db=tt_accounts_exports_db();
     if($db){$q=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key=? LIMIT 1');$q->execute([$key]);$raw=$q->fetchColumn();}
