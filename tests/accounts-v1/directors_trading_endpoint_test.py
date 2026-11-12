@@ -180,3 +180,12 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  assert state['exporterDeals'][bag_deal]['history'][-1]['before']['bagTerms']['ratePKRPerBag']==22.5 and state['exporterDeals'][bag_deal]['bagTerms']['ratePKRPerBag']==0
  assert len(state['bagArrangementAudit'])==2
  print('PASS bag arrangements: pending legacy state, role/company/CSRF boundaries, custom audited versioning/retry, explicit owner/supplier/shares/treatment/rate, audited SODA amendment and zero financial or physical postings')
+
+ for basis,expected in [('GROSS',100000),('NET',99000)]:
+  payload={'action':'queue_candidate','sourceKey':'WEIGHT|'+basis,'saleDate':'2026-10-02','entity':'TTI','product':'B3','party':'Fixture','loadedKg':123,'ratePerKg':100,'billingWeightBasis':basis,'weighbridgeGrossKg':1000,'emptyTareKg':10}
+  status,result=req(payload,_endpoint='local');assert status==200,result
+  assert result['candidate']['amount']==expected and result['candidate']['weighbridgeGrossKg']==1000,result
+  assert result['candidate']['netLoadedKg']==990,result
+ assert req({**payload,'sourceKey':'WEIGHT|INVALID','billingWeightBasis':'INVALID'},_endpoint='local')[0]==422
+ assert req({**payload,'sourceKey':'WEIGHT|INVALIDTARE','emptyTareKg':1001},_endpoint='local')[0]==422
+ print('PASS local Accounts server derives gross/net billing from saved weight facts, retains physical gross and rejects invalid basis/tare')

@@ -10,6 +10,8 @@ function dt_validate_arrangement(array &$d,array $b):void {
     $unit=dt_enum($b['priceUnit']??'MT',['MT','KG'],'price unit');
     // price remains per MT in the canonical store. UI converts once, before saving.
     $d['priceUnit']=$unit;
+    $d['billingWeightBasis']=dt_enum($b['billingWeightBasis']??'NET',['GROSS','NET'],'gross cargo or net rice billing weight');
+
     $d['bagRatePKRPerKg']=$local?gm_number($b['bagRatePKRPerKg']??0,'bag deduction estimate per kg'):0.;
     $actual=$b['bagDeductionPKR']??null;$d['bagDeductionPKR']=$local&&$actual!==null&&$actual!==''?gm_number($actual,'confirmed total bags deduction for loaded goods'):null;
     $yield=$b['recoveryPct']??null;$d['recoveryPct']=$local&&$yield!==null&&$yield!==''?dt_positive($yield,'expected final-rice recovery percentage'):null;
@@ -24,7 +26,7 @@ function dt_validate_arrangement(array &$d,array $b):void {
     if($d['partnerSharePct']>100)throw new DomainException('Partner share cannot exceed 100%.');
 }
 function dt_local_review_hash(array $s,array $d,array $native):string {
-    return hash('sha256',json_encode([$native,dt_sale_cost($s,$d,$native,$native['loadedMT']),array_intersect_key($d,array_flip(['price','bagDeductionPKR','bagRatePKRPerKg','bagDeductionLoadedMT','quantityMT','terms','packing']))],JSON_THROW_ON_ERROR));
+    return hash('sha256',json_encode([$native,dt_sale_cost($s,$d,$native,$native['loadedMT']),array_intersect_key($d,array_flip(['price','bagDeductionPKR','bagRatePKRPerKg','bagDeductionLoadedMT','quantityMT','terms','packing','billingWeightBasis']))],JSON_THROW_ON_ERROR));
 }
 function dt_local_loadings(array $d,array $w):array {
     return array_map(static fn($r)=>['id'=>$r['loadingId'],'shipmentId'=>$d['id'],'invoiceRef'=>$r['invoice'],'quantityMT'=>$r['quantityMT'],'sourceSnapshot'=>['lot'=>$r['invoice'],'contract'=>$d['reference']?:$d['id']]],$w['rows']);

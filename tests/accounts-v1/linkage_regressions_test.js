@@ -77,7 +77,7 @@ exContext.purchaseSodaFeed=[{id:'S-2',entity:'TTI',sodaNo:'2',productStage:'READ
 exContext.syncExMillPurchaseSodas();
 assert.equal(stores.instructions[0].sourceSodaId,'S-2','Equivalent Export and Accounts rice descriptions must link without a false authorization block');
 
-const stockFns=['millBaseVariety','millRiceType','millProductIdentity','stockEntityForView','isOperationalProductionRow','stockScopeMatches','resolveStockKey','shipmentLoadedWeight','computedStockRows'].map(n=>extractFunction(milling,n)).join('\n');
+const stockFns=['millBaseVariety','millRiceType','millProductIdentity','stockEntityForView','isOperationalProductionRow','stockScopeMatches','resolveStockKey','shipmentLoadedWeight','stockCargoKg','computedStockRows'].map(n=>extractFunction(milling,n)).join('\n');
 const stockStores={};
 const stockContext={
  TT_COMMODITY_FLOW:require('../../commodity-flow.js'),
