@@ -1431,7 +1431,14 @@ async function loadCurrentBagOrders(){
  })();
  return bagOrderLoad;
 }
-function renderBagOrders(){let a=normalizeBagOrderIds(get(STORE_BAGS,defaultBagOrders()));if(!a){currentBagOrder=null;bagReceiveCard.classList.add('hidden');document.getElementById('completedBagOrders').hidden=true;bagOrdersBody.innerHTML='<tr><td colspan="9" role="alert">'+escHtml(bagOrderIdentityWarning())+'</td></tr>';transferBrand.innerHTML='<option value="">Review bag order identities</option>';return}bagOrdersBody.innerHTML='';const scoped=a.filter(x=>stockScopeMatches(x)&&x.sourceKind!=='OTHER_EXPORTER').map(bagOrderReceiptPosition);
+function renderBagOrders(){let a=normalizeBagOrderIds(get(STORE_BAGS,defaultBagOrders()));if(!a){currentBagOrder=null;bagReceiveCard.classList.add('hidden');document.getElementById('completedBagOrders').hidden=true;bagOrdersBody.innerHTML='<tr><td colspan="9" role="alert">'+escHtml(bagOrderIdentityWarning())+'</td></tr>';transferBrand.innerHTML='<option value="">Review bag order identities</option>';return}bagOrdersBody.innerHTML='';const exports=get('transtrade_export_v3_operational',{});
+const isClosed=record=>!!(record&&(record.completed||record.closed||record.cancelled||/^(completed|closed|archived|cancelled)$/i.test(String(record.status||'').trim())));
+const closedTransaction=order=>{
+ if(!order.contractRef||!order.poNo)return false;
+ const shipments=(exports.shipments||[]).filter(shipment=>shipment.contractRef===order.contractRef&&shipment.bagOrders?.some(po=>po.poNo===order.poNo));
+ return shipments.length?shipments.every(isClosed):(exports.contracts||[]).some(contract=>contract.ref===order.contractRef&&isClosed(contract));
+};
+const scoped=a.filter(x=>stockScopeMatches(x)&&x.sourceKind!=='OTHER_EXPORTER'&&!closedTransaction(x)).map(bagOrderReceiptPosition);
 const completed=scoped.filter(x=>bagReceiptClosure(x).closed);
 const visible=scoped.filter(x=>!bagReceiptClosure(x).closed);
 document.getElementById('completedBagOrders').hidden=!completed.length;

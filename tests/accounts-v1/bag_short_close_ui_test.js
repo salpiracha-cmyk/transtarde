@@ -32,3 +32,22 @@ assert.match(context.bagOrdersBody.innerHTML,/bag-marking-box[^>]*><span>MEGA<\/
 assert.equal(nodes.completedBagOrders.hidden,false);
 assert.match(nodes.completedBagOrdersBody.innerHTML,/PO-260001 · TG\/AMT\/13 · GHAZAL/);
 console.log('PASS completed bag orders leave active receiving and retain receipt history');
+
+const originalGet=context.get;
+const exportState={shipments:[
+ {contractRef:'TG/AMT/13',completed:true,bagOrders:[{poNo:'PO-260001'}]},
+ {contractRef:'TG/AMT/14',status:'Open',bagOrders:[{poNo:'PO-260002'}]},
+]};
+context.get=(key,fallback)=>key==='transtrade_export_v3_operational'?exportState:originalGet(key,fallback);
+orders.push({id:3,poNo:'PO-260002',contractRef:'TG/AMT/14',brand:'GHAZAL',ordered:3000,received:0});
+context.renderBagOrders();
+assert.doesNotMatch(context.bagOrdersBody.innerHTML,/TG\/AMT\/13/);
+assert.doesNotMatch(nodes.completedBagOrdersBody.innerHTML,/TG\/AMT\/13/);
+assert.equal(nodes.completedBagOrders.hidden,true);
+assert.match(context.bagOrdersBody.innerHTML,/TG\/AMT\/14/);
+assert.equal(orders[0].received,5508);
+orders[0].received=100;
+context.renderBagOrders();
+assert.doesNotMatch(context.bagOrdersBody.innerHTML,/TG\/AMT\/13/);
+assert.equal(writes,0);
+console.log('PASS closed shipment POs are hidden from New Export Bags and retain their source records');
