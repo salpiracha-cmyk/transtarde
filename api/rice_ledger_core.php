@@ -2,6 +2,14 @@
 declare(strict_types=1);
 require_once dirname(__DIR__).'/inventory_reconciliation.php';
 
+/** Operational stock order, shared by the screen, print and CSV. */
+function rl_product_order(string $product): int {
+    if(preg_match('/\bRaw Rice$/i',$product))return 0;
+    if(preg_match('/(?:^| — )(?:B2(?: CSR| \/ BROKEN| — .*)?|BROKEN|B3|CSR|PADDY|POWDER|SWEEPING|STONE \/ SUTLI \/ DUST)$/iu',$product))return 2;
+    if(preg_match('/(?:Rice — |\bReady Rice$|^Ready Rice — )/iu',$product))return 1;
+    return 2;
+}
+
 /** Read-only projection of canonical stock movements. Never recalculate stock independently. */
 function rl_report(array $values,array $scope,array $filters):array {
     $sources=array_slice(TT_INV_SOURCE_KEYS,0,6);
@@ -18,7 +26,7 @@ function rl_report(array $values,array $scope,array $filters):array {
     });
     foreach($moves as $i=>&$row)$row['order']=$i;unset($row);
     usort($moves,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strcmp($a['sourceId'],$b['sourceId'])?:($a['order']<=>$b['order']));
-    $products=array_keys($stock);sort($products);$selected=(string)($filters['product']??'');
+    $products=array_keys($stock);usort($products,static fn($a,$b)=>(rl_product_order($a)<=>rl_product_order($b))?:strnatcasecmp($a,$b));$selected=(string)($filters['product']??'');
     $from=(string)($filters['from']??'');$to=(string)($filters['to']??'');$movement=(string)($filters['movement']??'All');
     $balances=[];$summaries=[];$rows=[];$undated=[];
     foreach($products as $product){if($selected!==''&&$product!==$selected)continue;$balances[$product]=0.;$summaries[$product]=['product'=>$product,'openingKg'=>0.,'inwardKg'=>0.,'outwardKg'=>0.,'closingKg'=>0.,'undatedKg'=>0.,'undatedCount'=>0,'scopeUnverifiedCount'=>0,'provisional'=>false,'arrivalEstimate'=>false];}

@@ -69,3 +69,27 @@ eq(summary($actual,$raw)['arrivalEstimate'],false,'Actual stock clears the estim
 eq($actual['rows'][0]['date'],'2026-09-02','Actual unloading date replaces Arrival Report date');
 eq($actual['rows'][0]['receiptDetails']['brokenKat'],2.0,'Actual Pohanch KAT replaces the estimate');
 echo "PASS accepted arrivals are provisional until linked Pohanch replaces their details\n";
+
+// Regression: a saved Sweeping return must debit the original variety, not
+// create a second, negative UNASSIGNED bucket. Projection never re-posts stock.
+$returnOpening=$scope+['id'=>'SWEEP-OPEN','date'=>'2026-11-10','openingStock'=>true,'baseVariety'=>'IRRI-6','riceType'=>'White','rawStockName'=>'IRRI-6 White Raw Rice','rawRiceKg'=>5780,'byProducts'=>['Sweeping'=>7000,'B2'=>120]];
+$return=$scope+['id'=>'SWEEP-RETURN','date'=>'2026-11-12','type'=>'Return to Production','returnVersion'=>1,'from'=>'Sweeping','to'=>'IRRI-6 White Raw Rice','rawStockName'=>'IRRI-6 White Raw Rice','rawRiceKg'=>7000,'weightKg'=>7000,'byProducts'=>['Sweeping'=>-7000]];
+$other=$scope+['id'=>'OTHER-VARIETY','date'=>'2026-11-10','openingStock'=>true,'baseVariety'=>'C-9','riceType'=>'White','byProducts'=>['Sweeping'=>300]];
+$brand=$scope+['id'=>'BRAND','date'=>'2026-11-10','readyRiceKg'=>400,'stockName'=>'IRRI-6 White Rice — emrooz'];
+$v=values(['tt32stockadj'=>[$returnOpening,$return,$other,$brand]]);$unchanged=$v;$pooled=$scope+['physicalPool'=>true];$r=rl_report($v,$pooled,['to'=>'2026-11-12']);
+eq(summary($r,'IRRI-6 White Rice — Sweeping')['inwardKg'],7000.0,'Original Sweeping inward preserved');
+eq(summary($r,'IRRI-6 White Rice — Sweeping')['outwardKg'],7000.0,'Return debits the same variety');
+eq(summary($r,'IRRI-6 White Rice — Sweeping')['closingKg'],0.0,'Sweeping closes at zero');
+eq(summary($r,'IRRI-6 White Raw Rice')['closingKg'],12780.0,'Raw credited only once');
+eq(summary($r,'C-9 White Rice — Sweeping')['closingKg'],300.0,'Other variety untouched');
+eq(in_array('UNASSIGNED VARIETY — Sweeping',$r['products']),false,'Return must not invent unassigned Sweeping');
+eq(array_slice($r['products'],0,2),['IRRI-6 White Raw Rice','IRRI-6 White Rice — emrooz'],'Raw first then brand before by-products');
+eq(array_column($r['summaries'],'product'),$r['products'],'Summary and selector order match');
+eq($v,$unchanged,'Report must never rewrite stored returns');
+$before=rl_report($v,$pooled,['to'=>'2026-11-11']);eq(summary($before,'IRRI-6 White Rice — Sweeping')['closingKg'],7000.0,'Before-return date unchanged');
+$filtered=rl_report($v,$pooled,['from'=>'2026-11-12','to'=>'2026-11-12','movement'=>'Outward','product'=>'IRRI-6 White Rice — Sweeping']);eq($filtered['summaries'][0]['openingKg'],7000.0,'Date filter carries original Sweeping');eq($filtered['summaries'][0]['closingKg'],0.0,'Filtered closing correct');
+$new=$return+['baseVariety'=>'IRRI-6','riceType'=>'White'];$newValues=values(['tt32stockadj'=>[$returnOpening,$new,$other,$brand]]);eq(rl_report($newValues,$pooled,[])['summaries'],$r['summaries'],'New explicit metadata and legacy return agree');
+eq(tt_inv_physical_name('Sweeping',['type'=>'Stock adjustment']),'UNASSIGNED VARIETY — Sweeping','Unrelated unknown history stays unassigned');
+eq(rl_product_order('IRRI-6 White Rice — B2 CSR'),2,'Byproduct is not a ready brand');
+eq(rl_product_order('Ready Rice — LOCAL'),1,'Legacy ready brand ordering');
+echo "PASS Sweeping return variety, no duplicate raw, historical date ranges and raw/brand/by-product order\n";

@@ -165,6 +165,17 @@ function tt_inv_physical_name(string $name,array $record): string {
     $name=trim($name);
     if(!preg_match('/^(?:B2(?:\s*[—-].*)?|B2 \/ BROKEN|BROKEN(?:\s*[—-].*)?|B3|CSR|B2 CSR|PADDY|POWDER|SWEEPING|STONE \/ SUTLI \/ DUST)$/iu',$name))return $name;
     $product=preg_match('/^(?:B2(?! CSR)|BROKEN)/iu',$name)?'B2':$name;
+    // A return is a same-variety reclassification, not new production. Older
+    // returns already retain the exact destination identity; resolve it on read
+    // without rewriting the saved movement or crediting raw rice a second time.
+    if(($record['type']??'')==='Return to Production' && strcasecmp($name,'Sweeping')===0
+        && empty($record['baseVariety']) && empty($record['variety'])) {
+        $raw=trim((string)($record['rawStockName']??$record['to']??''));
+        if(preg_match('/^.+ Raw Rice$/i',$raw)) {
+            $record['baseVariety']=tt_product_base($raw);
+            $record['riceType']=tt_product_type_from_name($raw);
+        }
+    }
     $legacyName=trim((string)($record['variety']??''));
     $base=trim((string)($record['baseVariety']??'')) ?: $legacyName;
     $riceType=trim((string)($record['riceType']??''));
