@@ -20,7 +20,7 @@ assert.ok(bundle.indexOf("'accounts-navigation-ui.js'")>bundle.indexOf("'account
 assert.match(navigation,/directLanding: true/);assert.match(navigation,/topLevelEditors: true/);assert.match(navigation,/isolatedEditorSiblings: true/);assert.match(navigation,/compactHome: true/);assert.match(navigation,/Change Company/);assert.match(navigation,/tt-editor-open/);
 assert.match(localSales,/weighbridgeGrossKg/,'Local Sales must accept weighbridge gross weight');
 assert.match(localSales,/emptyTareKg/,'Local Sales must accept empty tare weight');
-assert.match(localSales,/\$kg=round\(\$gross-\$tare,3\)/,'Local Sales receivable quantity must be gross less empty tare');
+assert.match(localSales,/WEIGHBRIDGE_GROSS/,'Local Sales must retain the selected gross billing basis; arithmetic is exercised by endpoint tests');
 assert.match(localSales,/WEIGHBRIDGE_NET/,'Local Sales must mark weighbridge-net quantity basis');
 assert.match(localSales,/!ls_module_write\(\$user,'Mill'\)&&!ls_module_write\(\$user,'Accounts'\)/,'Local Sales candidates must be queueable from Mill or Accounts');
 assert.match(localSales,/\$amount=\$rate>0&&\$kg>0\?round\(\$kg\*\$rate,2\)/,'Local Sales amount must be calculated from net weighbridge weight and rate when available');
