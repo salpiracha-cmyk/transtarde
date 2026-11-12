@@ -33,3 +33,21 @@ function pt_guard_labour(array $values,string $json):string{
     $seen=[];foreach($rows as$r){$id=(string)($r['id']??'');if(isset($saved[$id])){if(isset($seen[$id])||$r!=$saved[$id])throw new DomainException('Paltai labour is maintained by the saved stock transfer.');$seen[$id]=true;}elseif(!empty($r['paltaiSourceId']))throw new DomainException('Paltai labour must originate from a saved stock transfer.');}
     if(array_diff_key($saved,$seen))throw new DomainException('Paltai labour cannot be removed.');return $json;
 }
+
+/** Internal return of existing sweeping; no purchase, finished output or labour is created. */
+function pt_return_prepare(array $values,array $row,?array $before,array $accepted,string $now):array {
+    if($before){if($row!=$before)throw new DomainException('This return is already saved. Review the original stock movement.');return $before;}
+    $date=(string)($row['date']??'');$today=(new DateTimeImmutable($now))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('Y-m-d');
+    if(($row['returnVersion']??0)!==1||!in_array($row['entity']??'',['TTI','BRM'],true)||trim((string)($row['millName']??''))==='')throw new InvalidArgumentException('Reopen the mill and company before saving this return.');
+    if(!mr_valid_date($date)||$date>$today)throw new InvalidArgumentException('Choose today or the actual past return date.');
+    $from=(string)($row['from']??'');$to=(string)($row['to']??'');$kg=$row['weightKg']??null;
+    if(!is_numeric($kg)||!is_finite((float)$kg)||(float)$kg<=0||abs((float)$kg-round((float)$kg,3))>.0000001)throw new InvalidArgumentException('Enter a positive return weight in kg, using up to three decimal places.');$kg=(float)$kg;
+    if(!preg_match('/^Sweeping$/i',$from)||!preg_match('/^.+ Raw Rice$/i',$to)||strlen($to)>300)throw new InvalidArgumentException('Choose Sweeping as the source and a raw rice variety as the destination.');
+    if(($row['rawStockName']??'')!==$to||!is_numeric($row['rawRiceKg']??null)||abs((float)$row['rawRiceKg']-$kg)>.0000001||($row['byProducts']??[])!=[$from=>-$kg])throw new InvalidArgumentException('Sweeping removed and raw rice added must be the same weight.');
+    foreach(['readyRiceKg','arrivalKg','openingStock','paltaiVersion','sweepingKg'] as $key)if(!empty($row[$key]))throw new InvalidArgumentException('A return cannot add finished rice, purchases or another stock movement.');
+    $current=$values;$current['tt32stockadj']=tt_inv_json($accepted);$atDate=0.;
+    $stock=tt_inv_stock($current,$row,static function($event)use(&$atDate,$date,$from){if($event['product']===$from&&($event['date']===''||$event['date']<=$date))$atDate+=(float)$event['kg'];});
+    $available=max(0,min((float)($stock[$from]??0),$atDate));
+    if($kg>$available+.001)throw new InvalidArgumentException('Only '.number_format($available,3).' kg of Sweeping is available for this mill, company and return date. Check the weight or record the missing stock first.');
+    return $row;
+}

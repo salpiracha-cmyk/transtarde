@@ -863,3 +863,9 @@ Owner clarification, 29 October 2026: Salaries & Staff opens the next incomplete
 - Saving a production report must preserve unchanged historical reports exactly, including their recorded bag deductions. Recalculate only explicitly amended reports.
 - Other-exporter loading uses the recorded finished-stock identity for the assigned company, mill and brand. A quality specification is not a stock name. Resolve only one unambiguous brand stock; preserve the stock of already loaded records.
 - Mill errors must explain the reason and the next action in plain language. Retain entered values; show available and requested quantities for stock shortages, and distinguish saving a container from closing the whole sale.
+
+## Sweeping returned to production — 12 November 2026
+
+- Place Return to production beside Paltai. Record the actual return date, Sweeping source, destination raw rice variety and kilograms with one explicit save.
+- Deduct Sweeping and add exactly the same kilograms to raw rice in the same company/mill transaction. Never fabricate finished output, purchases or labour. Normal shift production consumes the returned raw stock.
+- Preserve production drafts and failed return inputs; use the existing stable retry identity. Show recent saved returns and clear only the confirmed return fields.
