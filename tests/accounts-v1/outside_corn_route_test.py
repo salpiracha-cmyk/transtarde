@@ -15,17 +15,33 @@ with tempfile.TemporaryDirectory(prefix='tti-outside-corn-') as directory:
  tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>[['id'=>1,'username'=>'fixture','full_name'=>'Fixture','role'=>'Super Admin','active'=>true,'session_version'=>1]],'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'audit'=>[]]));
  ''');subprocess.run(['php',str(seed),str(app)],check=True,env=env,capture_output=True)
  harness=root/'request.php';harness.write_text(r'''<?php
- $_SERVER['REQUEST_URI']='/api/'.$argv[4];$_SERVER['REQUEST_METHOD']=$argv[5];$_SERVER['REMOTE_ADDR']='192.0.2.45';
+ $_GET=json_decode($argv[6]??'{}',true);$_SERVER['REQUEST_URI']='/api/'.$argv[4];$_SERVER['REQUEST_METHOD']=$argv[5];$_SERVER['REMOTE_ADDR']='192.0.2.45';
  session_name('TRANSTRADE_SESSION');session_id('outside-corn-'.bin2hex(random_bytes(12)));session_start();$_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];session_write_close();
  $GLOBALS['fixtureBody']=$argv[3];$GLOBALS['statusFile']=$argv[2];
  class CornInput{public $context;private $offset=0;function stream_open($p,$m,$o,&$opened){return $p==='php://input';}function stream_read($n){$v=substr($GLOBALS['fixtureBody'],$this->offset,$n);$this->offset+=strlen($v);return $v;}function stream_eof(){return $this->offset>=strlen($GLOBALS['fixtureBody']);}function stream_stat(){return [];}}
  stream_wrapper_unregister('php');stream_wrapper_register('php',CornInput::class);register_shutdown_function(static function(){file_put_contents($GLOBALS['statusFile'],(string)(http_response_code()?:200));});require $argv[1];
  ''')
- def request(api,body=None):
+ def request(api,body=None,query=None):
   status=root/'status.txt';body={} if body is None else {'csrf':'fixture',**body};method='GET' if not body or body=={'csrf':'fixture'} else 'POST'
-  out=subprocess.run(['php','-d',f'session.save_path={root}',str(harness),str(app/'api'/api),str(status),json.dumps(body),api,method],env=env,text=True,capture_output=True)
+  out=subprocess.run(['php','-d',f'session.save_path={root}',str(harness),str(app/'api'/api),str(status),json.dumps(body),api,method,json.dumps(query or {})],env=env,text=True,capture_output=True)
   assert out.returncode==0,out.stderr+out.stdout
   return int(status.read_text()),json.loads(out.stdout)
+ # The report counts an issued Mill Pohanch before posting, and keeps old open SODAs.
+ initial_books=books.read_bytes()
+ report_soda={'id':'PS-OLD','sodaNo':'25001','entity':'TTI','sodaDate':'2025-01-15','commodity':'RICE',
+              'qtyFromKg':35000,'qtyToKg':40000,'status':'Open','readyRoute':'DELIVER_TO_STOCK'}
+ books.write_text(json.dumps({'revision':0,'journals':{},'purchaseSodasV2':{'PS-OLD':report_soda}}))
+ receipt={'id':'REC1','entity':'TTI','sourceSodaId':'PS-OLD','soda':'25001','slip':'P-01',
+          'truck':'TRUCK-01','arrivalDate':'2025-01-16','payableWeight':20000}
+ ops.write_text(json.dumps({'revision':0,'values':{'tt30slips':json.dumps([receipt])}}))
+ before=books.read_bytes()
+ status,data=request('purchase_sodas.php',query={'action':'summary'})
+ assert status==200,(status,data)
+ row=data['sodas'][0]
+ assert row['deliveryReceivedKg']==20000 and row['deliveryBalanceMinKg']==15000 and row['deliveryBalanceMaxKg']==20000 and row['balanceToArrive'],row
+ assert books.read_bytes()==before
+ books.write_bytes(initial_books)
+ ops.unlink()
  create={'action':'create','requestKey':'outside-corn-request-00001','entity':'TTI','purchaseProductId':'fixture-corn','sodaDate':'2026-10-18','supplierId':'fixture-supplier','broker':'','readyRoute':'EX_MILL','locationId':'fixture-mill','qtyFromMT':'50','qtyToMT':'50','rate':4000,'rateUnit':'MAUND','paymentTermType':'CASH','arrivalDueDate':'2026-10-24'}
  status,data=request('purchase_sodas.php',create);assert status==200,(status,data)
  soda=data['created'];sid=soda['id'];assert soda['commodity']=='CORN' and soda['productStage']=='RAW' and soda['readyRoute']=='EX_MILL' and soda['ratePerKg']==100 and soda['katProfile']=='CORN',soda
