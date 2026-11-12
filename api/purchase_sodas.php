@@ -237,6 +237,60 @@ function ps_rows(array $store, string $entity): array {
     return $rows;
 }
 
+/** Show physical deliveries even while an issued Pohanch awaits Accounts posting. */
+function ps_report_rows(array $store, string $entity, bool $includeLegacy = false): array {
+    require_once __DIR__.'/accounts_reviews_core.php';
+    require_once __DIR__.'/delivery_completion_core.php';
+
+    $reportStore = $store;
+    if ($includeLegacy) {
+        $current = array_filter($store['purchaseSodas'] ?? [], static fn($row) => is_array($row) && ($row['entity'] ?? '') === $entity);
+        $known = array_fill_keys(array_column($current, 'sodaNo'), true);
+        foreach (($store['purchaseSodasV2'] ?? []) as $id => $legacy) {
+            if (!is_array($legacy) || ($legacy['entity'] ?? '') !== $entity || empty($legacy['sodaNo']) || isset($known[$legacy['sodaNo']])) continue;
+            $id = (string)($legacy['id'] ?? $id);
+            if (isset($current[$id])) continue;
+            $current[$id] = $legacy;
+            $known[$legacy['sodaNo']] = true;
+        }
+        $reportStore['purchaseSodas'] = $current;
+    }
+    $rows = ps_rows($reportStore, $entity);
+    $statements = [];
+    $sourceAvailable = true;
+    try {
+        ar_items($store, $entity, ar_issued_pohanches($entity), $statements);
+    } catch (RuntimeException | JsonException $error) {
+        error_log('SODA delivery quantities could not be read: '.$error->getMessage());
+        $sourceAvailable = false;
+    }
+
+    foreach ($rows as &$row) {
+        $closed = in_array(strtolower((string)(($row['manualStatus'] ?? '') ?: ($row['status'] ?? ''))),
+            ['cancelled','completed','closed','short closed','manual closed'], true);
+        $exMill = ($row['readyRoute'] ?? '') === 'EX_MILL';
+        $statement = $statements[$row['id']] ?? null;
+        $received = $exMill || $sourceAvailable ? (float)($statement && !$exMill ? $statement['receivedKg'] : $row['receivedKg']) : null;
+        $units = $statement && !$exMill
+            ? array_sum(array_map(static fn($receipt) => $receipt['kg'] > PS_TRUCK_DOUBLE_KG ? 2 : 1, $statement['deliveries']))
+            : $row['truckUnitsReceived'];
+        $minimum = (float)($row['qtyFromKg'] ?? 0);
+        $maximum = (float)(($row['qtyToKg'] ?? 0) ?: $minimum);
+        $trucks = max(0, (int)($row['expectedTrucks'] ?? 0) - $units);
+        $fulfilled = $closed || ($received !== null && !$trucks && (
+            ($maximum > 0 && dc_complete($maximum / 1000, $received / 1000)) ||
+            ($maximum <= 0 && (int)($row['expectedTrucks'] ?? 0) > 0)));
+        $row['deliveryReceivedKg'] = $received;
+        $row['deliveryUnitsReceived'] = $received === null ? null : $units;
+        $row['deliveryBalanceMinKg'] = $fulfilled ? 0 : ($received !== null && $maximum > 0 ? max(0, $minimum - $received) : null);
+        $row['deliveryBalanceMaxKg'] = $fulfilled ? 0 : ($received !== null && $maximum > 0 ? max(0, $maximum - $received) : null);
+        $row['deliveryBalanceUnits'] = $fulfilled ? 0 : ($received === null ? null : $trucks);
+        $row['balanceToArrive'] = !$exMill && !$fulfilled && $received !== null && (($row['deliveryBalanceMaxKg'] ?? 0) > 0 || $trucks > 0);
+    }
+    unset($row);
+    return $rows;
+}
+
 function ps_validate(array $body, ?array $existing = null): array {
     $profiles=tt_purchase_product_profiles();$purchaseProductId=trim((string)($body['purchaseProductId']??$existing['purchaseProductId']??''));$product=tt_find_purchase_product($purchaseProductId,$profiles);
     if(!$product||!in_array((string)($product['productStage']??''),['RAW','READY'],true))ps_out(['ok'=>false,'error'=>'Select an active Raw or Ready purchase product from Purchase Commodities & KAT.'],422);
@@ -287,7 +341,8 @@ try {
             ps_out(['ok'=>true,'statement'=>$statement]);
         }
         if(($_GET['action']??'')==='buying_for')ps_out(['ok'=>true,'buyingForTargets'=>sb_targets(br_operations(),$store,$entity)]);
-        ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'rules'=>['doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG, 'maxOverKg'=>PS_MAX_OVER_KG]]+ps_metadata($user));
+        if(($_GET['action']??'')==='summary')ps_out(['ok'=>true,'sodas'=>ps_report_rows($store,$entity,true)]);
+        ps_out(['ok'=>true, 'sodas'=>ps_report_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'rules'=>['doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG, 'maxOverKg'=>PS_MAX_OVER_KG]]+ps_metadata($user));
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') ps_out(['ok'=>false, 'error'=>'Method not allowed.'], 405);
     $body = json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input')) ?: '', true);
@@ -386,7 +441,7 @@ try {
         $store['revision'] = (int)($store['revision'] ?? 0) + 1;
         $encodedAccounts=json_encode($store,JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);rewind($handle);if(!ftruncate($handle,0)||fwrite($handle,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($handle))throw new RuntimeException('Accounts storage could not be written.');
     } finally { flock($handle, LOCK_UN); fclose($handle); }
-    ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'created'=>$created]+ps_metadata($user));
+    ps_out(['ok'=>true, 'sodas'=>ps_report_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'created'=>$created]+ps_metadata($user));
 } catch (InvalidArgumentException $error) {
     ps_out(['ok'=>false,'error'=>$error->getMessage()],422);
 } catch (Throwable $error) {

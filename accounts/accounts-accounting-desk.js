@@ -55,6 +55,7 @@
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'party'},{title:'Post ID Register',special:'post-ledger'},{title:'Trial Balance',native:'reports',find:'Trial Balance'},{title:'Chart of Accounts & Details',special:'account-heads'},{title:'Subaccounts & Details',special:'subaccounts'},{title:'Forward Booking Register',special:'forward-register'}]},
     {key:'reports', glyph:'▤', title:'Reports', note:'Financial, tax, party, commodity and shipment reports', actions:[
+      {title:'SODA Summary',special:'soda-summary'}, {title:'SODA Balance to Arrive',special:'soda-balance'},
       {title:'Production & Recovery',special:'production-recovery'}, {title:'Bag Orders, Receipts & Tax',special:'bag-report'},
       {title:'Sales Tax & Refund', note:'Monthly return and refund files with payment tracing', special:'sales-tax'},
       {title:'Expenses by Type / Recipient',special:'expense-report'}, {title:'Vehicle / Asset Costs',special:'vehicle-report'}, {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
@@ -266,6 +267,7 @@
     if(action.special==='other-export-expense')return openOtherExportExpense();
     if (action.special === 'stock-reconciliation' && access.canInventoryReconciliation) { location.href='/stock-reconciliation.php?origin=accounts&entity='+encodeURIComponent(entity()); return; }
     if (action.special === 'soda') return openSoda();
+    if (['soda-summary','soda-balance'].includes(action.special)) return openSodaSummary(action.special === 'soda-balance');
     if (action.special === 'search') return openSearch();
     if (action.special === 'sales-tax') return window.TT_MONTHLY_SALES_TAX.open();
     if (action.special === 'export-receipt') return window.TT_EXPORT_RECEIPTS_UI?.openForm?.();
@@ -813,7 +815,8 @@
       const button = q('[type="submit"]', form); button.disabled = true;
       try {
         const result = await json(api, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-        sodaData = {...sodaData,...result};
+        if(result.duplicate)await loadSodas();
+        else sodaData = {...sodaData,...result};
         alert(record ? `Soda ${record.sodaNo} amended. The change and reason were added to its audit history.` : `Soda ${result.created?.sodaNo || 'number'} saved. No ledger entry was posted.`);
         if (record) renderSodaSearch(host); else renderSodaNew(host);
       } catch (error) { alert(error.message); button.disabled = false; }
@@ -822,6 +825,30 @@
 
   const sodaDate = value => window.TT_DATE?.display(value) || String(value || '').replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3-$2-$1');
   const sodaStatus = row => row.calculatedStatus === 'Completed' ? 'SODA COMPLETE AND CLOSED' : row.calculatedStatus || row.status || 'Open';
+
+  const sodaMT = kg => (kg / 1000).toLocaleString('en-PK',{minimumFractionDigits:3,maximumFractionDigits:3});
+  const sodaColumns = ['Date','SODA','Supplier / Broker','Product','Ordered','Received','Balance','Status'];
+  function sodaQuantity(min, max, units) {
+    const weight = max == null ? '' : (min === max ? sodaMT(max) : sodaMT(min)+'–'+sodaMT(max))+' MT';
+    return [weight, units > 0 ? units+' truck units' : ''].filter(Boolean).join(' · ') || (units === 0 ? '0 truck units' : '—');
+  }
+  function sodaSummaryCells(row) {
+    const min = Number(row.qtyFromKg || row.qtyToKg || 0), max = Number(row.qtyToKg || min);
+    const received = row.deliveryReceivedKg === undefined ? row.receivedKg : row.deliveryReceivedKg;
+    const byTruck = Number(row.expectedTrucks || 0) > 0;
+    return `<td>${esc(sodaDate(row.sodaDate))}</td><td><b>${esc(row.sodaNo)}</b></td><td>${esc(row.party||'—')}<br><small>${esc(row.broker||'Direct purchase')}</small></td><td>${esc(row.displayName||row.variety||row.commodity)}</td><td>${sodaQuantity(min,max||null,row.expectedTrucks)}</td><td>${sodaQuantity(received,received,byTruck?row.deliveryUnitsReceived:null)}</td><td>${sodaQuantity(row.deliveryBalanceMinKg,row.deliveryBalanceMaxKg,byTruck?row.deliveryBalanceUnits:null)}</td><td>${esc(sodaStatus(row))}</td>`;
+  }
+  function sodaSummaryTable() {
+    return `<div class="tableWrap"><table class="tt-soda-table"><thead><tr>${[...sodaColumns,'Print'].map(label=>`<th>${label}</th>`).join('')}</tr></thead><tbody data-soda-results></tbody></table></div>`;
+  }
+  function renderSodaSummaryRows(results, rows, interactive=false) {
+    results.innerHTML=rows.length?rows.map(row=>`<tr${interactive?` tabindex="0" data-soda-view="${esc(row.id)}" aria-label="Open SODA ${esc(row.sodaNo)}"`:''}>${sodaSummaryCells(row)}<td><button type="button" data-soda-print="${esc(row.id)}" aria-label="Print SODA ${esc(row.sodaNo)}" title="Print Contract">⎙</button></td></tr>`).join(''):'<tr><td colspan="9">No matching SODAs.</td></tr>';
+  }
+  function recentSodaCutoff() {
+    const [year,month,day]=today().split('-').map(Number);
+    const lastDay=new Date(Date.UTC(year,month-2,0)).getUTCDate();
+    return new Date(Date.UTC(year,month-3,Math.min(day,lastDay))).toISOString().slice(0,10);
+  }
   function sodaFields(row) {
     return [['SODA number',row.sodaNo],['Date',sodaDate(row.sodaDate)],['Broker',row.broker||'Direct purchase'],['Supplier',row.party||'—'],['Product',row.displayName||[row.commodity,row.variety,row.riceType,row.brokenGrade,row.productStage].filter(Boolean).join(' · ')],['Quantity',`${money(Number(row.qtyFromKg||0)/1000)}${Number(row.qtyToKg)>Number(row.qtyFromKg)?' – '+money(Number(row.qtyToKg)/1000):''} MT${row.expectedTrucks?' · '+row.expectedTrucks+' trucks / containers':''}`],['Rate',`PKR ${money(row.rate??row.ratePerKg)} per ${row.rateUnit==='MAUND'?'maund (40 kg)':'kg'}`],['Delivery location',row.locationName||row.location||'—'],['Route',row.readyRoute==='EX_MILL'?'Ex-Mill container loading':'Delivery to mill / stock'],['Delivery by',sodaDate(row.arrivalDueDate||row.deliveryDeadline)||'—'],['Payment terms',row.paymentTermType==='CREDIT'?`Credit · ${row.creditDays||0} days`:'Cash · arrival + 2 days'],['Terms / conditions',row.terms||'—'],['Agreed remarks',row.remarks||'—']];
   }
@@ -850,9 +877,10 @@
     const dates=rows.map(row=>row.sodaDate).filter(Boolean).sort();
     const filename=window.TT_DOCUMENT_NAME?.name({party:parties.length===1?parties[0]:'',company:rows[0].entity||entity(),title:summary?'SODA Register':'SODA',reference:rows.length===1?rows[0].sodaNo:'',from:rows.length>1?dates[0]:'',to:rows.length>1?dates.at(-1):''})||legacyFilename;
     const popup=window.TT_PRINT.create();
+    if(!popup)return alert('Allow pop-ups to print the SODA.');
     const originalTitle=document.title;document.title=filename;
     popup.document.open();
-    popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title data-tt-filename>${esc(filename)}</title><style>@page{size:A4 portrait;margin:10mm}*{box-sizing:border-box}body{font:11px Arial,sans-serif;color:#20352e;margin:0}header{text-align:center;border-bottom:2px solid #22624c;padding-bottom:6px}header strong{display:block;font-size:22px}header span{display:block;font-size:12px;letter-spacing:1px;margin-top:4px}.soda-contract{font-size:13px;font-weight:700;line-height:1.3;width:100%;min-height:126mm;padding:6mm 3mm;break-inside:avoid;page-break-inside:avoid}.soda-contract:nth-of-type(2n){break-after:page;page-break-after:always}.soda-contract:last-child{break-after:auto;page-break-after:auto}.contract-ref{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;font-size:13px}.soda-number{font-size:24px;font-weight:900;line-height:1.1;overflow-wrap:anywhere}dl{margin:0;display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #d4dfd9}dl div{display:flex;gap:8px;border-bottom:1px solid #d4dfd9;padding:5px 3px;min-width:0}dl div:nth-last-child(-n+2){grid-column:1/-1}dt{font-weight:bold;flex:0 0 90px}.soda-location{grid-column:1/-1}.soda-location dt{flex-basis:145px}dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}footer{padding-top:14px;font-size:12px}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #cbd8d1;padding:6px;text-align:left;overflow-wrap:anywhere}th{background:#edf5ef}thead{display:table-header-group}tr{break-inside:avoid}h1{font-size:18px}p{white-space:pre-wrap}</style></head><body>${summary?`<h1>SODA Register · ${esc(rows[0].entity||entity())}</h1><p>${esc(label)} · ${rows.length} SODA(s)</p><table><thead><tr>${['Date','SODA','Broker / Supplier','Product','Quantity MT','Rate / basis','Status'].map(v=>`<th>${v}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(sodaDate(row.sodaDate))}</td><td>${esc(row.sodaNo)}</td><td>${esc(row.broker||'Direct')}<br>${esc(row.party||'')}</td><td>${esc(row.displayName||row.variety||row.commodity)}</td><td>${money(Number(row.qtyToKg||row.qtyFromKg||0)/1000)}</td><td>${money(row.rate??row.ratePerKg)} / ${esc(row.rateUnit||'KG')}</td><td>${esc(sodaStatus(row))}</td></tr>`).join('')}</tbody></table>`:rows.map(sodaContract).join('')}</body></html>`);
+    popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title data-tt-filename>${esc(filename)}</title><style>@page{size:A4 portrait;margin:10mm}*{box-sizing:border-box}body{font:11px Arial,sans-serif;color:#20352e;margin:0}header{text-align:center;border-bottom:2px solid #22624c;padding-bottom:6px}header strong{display:block;font-size:22px}header span{display:block;font-size:12px;letter-spacing:1px;margin-top:4px}.soda-contract{font-size:13px;font-weight:700;line-height:1.3;width:100%;min-height:126mm;padding:6mm 3mm;break-inside:avoid;page-break-inside:avoid}.soda-contract:nth-of-type(2n){break-after:page;page-break-after:always}.soda-contract:last-child{break-after:auto;page-break-after:auto}.contract-ref{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;font-size:13px}.soda-number{font-size:24px;font-weight:900;line-height:1.1;overflow-wrap:anywhere}dl{margin:0;display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #d4dfd9}dl div{display:flex;gap:8px;border-bottom:1px solid #d4dfd9;padding:5px 3px;min-width:0}dl div:nth-last-child(-n+2){grid-column:1/-1}dt{font-weight:bold;flex:0 0 90px}.soda-location{grid-column:1/-1}.soda-location dt{flex-basis:145px}dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}footer{padding-top:14px;font-size:12px}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #cbd8d1;padding:6px;text-align:left;overflow-wrap:anywhere}th{background:#edf5ef}thead{display:table-header-group}tr{break-inside:avoid}h1{font-size:18px}p{white-space:pre-wrap}</style></head><body>${summary?`<h1>SODA Register · ${esc(rows[0].entity||entity())}</h1><p>${esc(label)} · ${rows.length} SODA(s)</p><table><thead><tr>${sodaColumns.map(v=>`<th>${v}</th>`).join('')}<th>Rate / basis</th></tr></thead><tbody>${rows.map(row=>`<tr>${sodaSummaryCells(row)}<td>${money(row.rate??row.ratePerKg)} / ${esc(row.rateUnit||'KG')}</td></tr>`).join('')}</tbody></table>`:rows.map(sodaContract).join('')}</body></html>`);
     popup.document.close();popup.addEventListener('afterprint',()=>{if(document.title===filename)document.title=originalTitle;},{once:true});popup.print();
   }
   function printSoda(row) { printSodas([row]); }
@@ -911,15 +939,20 @@
     });
   }
 
+  function sodaPresentationStyle() {
+    if(!q('#ttSodaPresentationStyle')){const style=document.createElement('style');style.id='ttSodaPresentationStyle';style.textContent='.tt-soda-table{table-layout:fixed;width:100%;min-width:0!important}.tt-soda-table th,.tt-soda-table td{white-space:normal!important;overflow-wrap:anywhere;padding:7px!important}.tt-soda-table tr[data-soda-view]{cursor:pointer}.tt-soda-table tr[data-soda-view]:hover,.tt-soda-table tr[data-soda-view]:focus{background:#edf5f1;outline:2px solid #8cae9e}.tt-soda-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tt-soda-toolbar input{flex:1;min-width:180px}.tt-soda-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.tt-soda-details dt{font-weight:bold}.tt-soda-details dd{margin:3px 0;white-space:pre-wrap}.tt-soda-print-filters{display:flex;gap:12px;flex-wrap:wrap;padding:12px 0}.tt-soda-print-filters label{display:grid;gap:5px}.tt-soda-print-filters select{max-width:240px}';document.head.appendChild(style);}
+  }
+
   function renderSodaNew(host, term = '') {
     const body=q('.tt-window-body',host);
-    if(!q('#ttSodaPresentationStyle')){const style=document.createElement('style');style.id='ttSodaPresentationStyle';style.textContent='.tt-soda-table{table-layout:fixed;width:100%;min-width:0!important}.tt-soda-table th,.tt-soda-table td{white-space:normal!important;overflow-wrap:anywhere;padding:7px!important}.tt-soda-table tr[data-soda-view]{cursor:pointer}.tt-soda-table tr[data-soda-view]:hover,.tt-soda-table tr[data-soda-view]:focus{background:#edf5f1;outline:2px solid #8cae9e}.tt-soda-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tt-soda-toolbar input{flex:1;min-width:180px}.tt-soda-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.tt-soda-details dt{font-weight:bold}.tt-soda-details dd{margin:3px 0;white-space:pre-wrap}.tt-soda-print-filters{display:flex;gap:12px;flex-wrap:wrap;padding:12px 0}.tt-soda-print-filters label{display:grid;gap:5px}.tt-soda-print-filters select{max-width:240px}';document.head.appendChild(style);}
-    body.innerHTML=`<div class="tt-modebar"><button class="active" data-soda-new>New SODA</button></div>${sodaForm()}<section class="tt-records"><h3>Recent SODAs</h3><div class="tt-soda-toolbar"><input id="ttSodaSearch" data-master-ignore aria-label="Search all SODAs" placeholder="Search SODA, broker, supplier, product or date" value="${esc(term)}"><button type="button" data-print-sodas style="background:#22624c;color:white">Print SODAs</button></div><form class="tt-soda-print-filters" hidden><label>From date<input name="from" type="date" required value="${today()}"></label><label>To date<input name="to" type="date" required value="${today()}"></label><label>Broker<select name="broker"><option value="">All brokers</option>${[...new Set(sodaData.sodas.map(row=>row.broker).filter(Boolean))].sort().map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('')}</select></label><label>Format<select name="format"><option value="summary">Summary Register</option><option value="contracts">Individual Contracts</option></select></label><button type="submit">Print</button><p data-print-error role="alert"></p></form><div class="tableWrap"><table class="tt-soda-table"><colgroup><col style="width:12%"><col style="width:9%"><col style="width:21%"><col style="width:21%"><col style="width:11%"><col style="width:19%"><col style="width:7%"></colgroup><thead><tr><th>Date</th><th>SODA</th><th>Supplier / Broker</th><th>Product</th><th>Quantity</th><th>Status</th><th>Print</th></tr></thead><tbody data-soda-results></tbody></table></div></section>`;
+    sodaPresentationStyle();
+    body.innerHTML=`<div class="tt-modebar"><button class="active" data-soda-new>New SODA</button></div>${sodaForm()}<section class="tt-records"><h3>Recent SODAs</h3><div class="tt-soda-toolbar"><input id="ttSodaSearch" data-master-ignore aria-label="Search recent SODAs" placeholder="Search SODA, broker, supplier, product or date" value="${esc(term)}"><button type="button" data-print-sodas style="background:#22624c;color:white">Print SODAs</button></div><form class="tt-soda-print-filters" hidden><label>From date<input name="from" type="date" required value="${today()}"></label><label>To date<input name="to" type="date" required value="${today()}"></label><label>Broker<select name="broker"><option value="">All brokers</option>${[...new Set(sodaData.sodas.map(row=>row.broker).filter(Boolean))].sort().map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('')}</select></label><label>Format<select name="format"><option value="summary">Summary Register</option><option value="contracts">Individual Contracts</option></select></label><button type="submit">Print</button><p data-print-error role="alert"></p></form>${sodaSummaryTable()}</section>`;
     const results=q('[data-soda-results]',body);
+    const cutoff=recentSodaCutoff();
     const filter=()=>{
       const needle=q('#ttSodaSearch',body).value.trim().toLowerCase();
-      const rows=sodaData.sodas.filter(row=>!needle||[row.sodaNo,row.broker,row.party,row.commodity,row.variety,row.displayName,row.location,sodaStatus(row),row.sodaDate,sodaDate(row.sodaDate)].some(value=>String(value||'').toLowerCase().includes(needle)));
-      results.innerHTML=rows.length?rows.map(row=>`<tr tabindex="0" data-soda-view="${esc(row.id)}" aria-label="Open SODA ${esc(row.sodaNo)}"><td>${esc(sodaDate(row.sodaDate))}</td><td><b>${esc(row.sodaNo)}</b></td><td>${esc(row.party||'—')}<br><small>${esc(row.broker||'Direct purchase')}</small></td><td>${esc(row.displayName||row.variety||row.commodity)}</td><td>${money(Number(row.qtyToKg||row.qtyFromKg||0)/1000)} MT</td><td>${esc(sodaStatus(row))}</td><td><button type="button" data-soda-print="${esc(row.id)}" aria-label="Print SODA ${esc(row.sodaNo)}" title="Print Contract">⎙</button></td></tr>`).join(''):'<tr><td colspan="7">No matching SODAs.</td></tr>';
+      const rows=sodaData.sodas.filter(row=>row.sodaDate>=cutoff&&(!needle||[row.sodaNo,row.broker,row.party,row.commodity,row.variety,row.displayName,row.location,sodaStatus(row),row.sodaDate,sodaDate(row.sodaDate)].some(value=>String(value||'').toLowerCase().includes(needle))));
+      renderSodaSummaryRows(results,rows,true);
       bindSodaRows(host,()=>renderSodaNew(host,needle));
     };
     q('#ttSodaSearch',body).oninput=filter;
@@ -928,6 +961,35 @@
     q('[data-print-sodas]',body).onclick=()=>{printForm.hidden=!printForm.hidden;};
     printForm.onsubmit=event=>{event.preventDefault();const {from,to,broker,format}=printForm.elements;const error=q('[data-print-error]',printForm);if(from.value>to.value){error.textContent='From date must be on or before To date.';return;}const rows=sodaData.sodas.filter(row=>row.sodaDate>=from.value&&row.sodaDate<=to.value&&(!broker.value||row.broker===broker.value));if(!rows.length){error.textContent='No SODAs match these filters.';return;}error.textContent='';printSodas(rows,format.value==='summary',`${broker.value||'All brokers'} · ${sodaDate(from.value)} to ${sodaDate(to.value)}`);};
     bindSodaForm(host);filter();
+  }
+
+
+  async function openSodaSummary(balanceOnly = false) {
+    const company=entity(), token=++launchGeneration;
+    const host=layer('ttSodaSummaryLayer',balanceOnly?'SODA Balance to Arrive':'SODA Summary');
+    const body=q('.tt-window-body',host);
+    body.innerHTML='<p>Loading SODAs…</p>';
+    try {
+      const {sodas}=await json(api+'?'+new URLSearchParams({entity:company,action:'summary'}));
+      if(token!==launchGeneration||company!==entity()||host.hidden)return;
+      sodaPresentationStyle();
+      body.innerHTML=`<form class="tt-soda-print-filters"><label>From date<input name="from" type="date"></label><label>To date<input name="to" type="date"></label><button type="submit">Apply dates</button><button type="reset">Clear dates</button><button type="button" data-print-summary>Print summary</button><p role="alert" data-report-error></p></form>${sodaSummaryTable()}`;
+      const form=q('form',body), results=q('[data-soda-results]',body), error=q('[data-report-error]',body);
+      const base=balanceOnly?sodas.filter(row=>row.balanceToArrive):sodas;
+      let displayed=[];
+      const show=()=>{
+        const {from,to}=form.elements;
+        if(from.value&&to.value&&from.value>to.value){error.textContent='From date must be on or before To date.';return;}
+        error.textContent=sodas.some(row=>row.deliveryReceivedKg===null)?'Some delivery quantities are unavailable. Open SODA Summary to review affected rows.':'';
+        displayed=base.filter(row=>(!from.value||row.sodaDate>=from.value)&&(!to.value||row.sodaDate<=to.value));
+        renderSodaSummaryRows(results,displayed);
+        qa('[data-soda-print]',results).forEach(button=>button.onclick=()=>printSoda(displayed.find(row=>row.id===button.dataset.sodaPrint)));
+      };
+      form.onsubmit=event=>{event.preventDefault();show();};
+      form.onreset=()=>queueMicrotask(show);
+      q('[data-print-summary]',body).onclick=()=>printSodas(displayed,true,balanceOnly?'SODA Balance to Arrive':'SODA Summary');
+      show();
+    } catch(error) { if(token===launchGeneration&&!host.hidden)body.textContent=error.message; }
   }
 
   async function openSoda() {
@@ -1195,6 +1257,6 @@
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
-  window.TT_ACCOUNTING_DESK = {installed:true,openSalesTaxSearch:openSalesTax,openHistoricalBagBill:async id=>{await launch({title:'Historical Bag Bill',native:'purchases',then:'[data-purchase="bags"]',bagSync:true});await window.TT_BAG_PURCHASES_UI.mount();window.TT_BAG_PURCHASES_UI.editHistorical(id);}, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:async()=>{dashboardRequests.clear();await Promise.all([loadDashboardSummary(),loadRecentTransactions()]);}};
+  window.TT_ACCOUNTING_DESK = {installed:true,openSalesTaxSearch:openSalesTax,openHistoricalBagBill:async id=>{await launch({title:'Historical Bag Bill',native:'purchases',then:'[data-purchase="bags"]',bagSync:true});await window.TT_BAG_PURCHASES_UI.mount();window.TT_BAG_PURCHASES_UI.editHistorical(id);}, openSoda, openSodaSummary, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:async()=>{dashboardRequests.clear();await Promise.all([loadDashboardSummary(),loadRecentTransactions()]);}};
 })();
 
