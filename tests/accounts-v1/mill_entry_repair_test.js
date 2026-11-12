@@ -12,6 +12,7 @@ assert.equal(resolve(deal,{containers:[{net:1}],stockSourceName:'Original stock'
 w.computedStockRows=()=>[{name:'IRRI-6 White Rice — emrooz',kg:50},{name:'C-9 White Rice — emrooz',kg:100}];
 assert.equal(resolve(deal),'5% double polish','Different varieties must not be guessed');
 assert.equal(resolve({...deal,productionStockName:'IRRI-6 White Rice — EMROOZ'}),'IRRI-6 White Rice — emrooz');
+assert.equal(resolve({...deal,productionStockName:'C-9 White Rice — emrooz',productionIdentity:{stockName:'Different inferred stock'}}),'C-9 White Rice — emrooz','Exact instructed stock remains authoritative');
 w.eval(fs.readFileSync('global-validation.js','utf8'));
 w.alert('This production save identity already belongs to different saved facts. Your production entry is retained.');
 assert.match(w.document.querySelector('.tt-validation-banner').textContent,/earlier saved report/);assert.equal(w.document.querySelector('#draft').value,'preserved');

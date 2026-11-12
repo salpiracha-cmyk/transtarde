@@ -7,10 +7,10 @@ function renderChoices(){const byBrand=$('directorExporterGroup').value==='BRAND
 async function open(force=false){mount();const scope=window.operationalStockScope?.()||{},key=[scope.entity,scope.millName].join('|');if(!force&&loadedScope===key)return;if(loadedScope&&loadedScope!==key){const ref=window.currentExporterRecord?.()?.ref;draft=null;original=null;activeId='';$('directorExporterInstruction').hidden=true;if(ref)window.toggleExporterSale(ref);}if(!scope.entity||!scope.millName){message('Select the working mill first.',true);return;}try{const r=await fetch('/api/directors_trading.php?origin=mill&entity='+encodeURIComponent(scope.entity),{credentials:'same-origin'}),data=await r.json();if(!r.ok||!data.ok)throw Error(data.error||'SODAs could not load.');deals=data.deals.filter(d=>!d.productionReady||String(d.productionMillName).trim().toUpperCase()===String(scope.millName).trim().toUpperCase());loadedScope=key;renderChoices();message(deals.length?'Select a SODA to see its specification and enter loading.':'No SODAs assigned by Accounts / Directors.');}catch(e){message(e.message,true);}}
 function loadingStockName(deal,existing=null){
  if(existing?.containers?.length)return existing.stockSourceName||existing.displayName||deal.productionStockName;
- if(deal.productionIdentity?.stockName)return deal.productionIdentity.stockName;
  const rows=window.computedStockRows?.(deal.entity)||[],norm=v=>String(v||'').trim().replace(/\s+/g,' ').toUpperCase();
  const exact=rows.filter(r=>norm(r.name)===norm(deal.productionStockName));
  if(exact.length===1)return exact[0].name;
+ if(deal.productionIdentity?.stockName)return deal.productionIdentity.stockName;
  if(deal.commodity==='CORN'||!norm(deal.brand))return deal.productionStockName;
  // Match the whole brand suffix, within the selected company and physical mill.
  // Never guess between two varieties or consume B2 stock as Ready Rice.

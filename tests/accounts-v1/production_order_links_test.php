@@ -20,3 +20,8 @@ check(pol_order_identity(array_replace($order,['id'=>'UNKNOWN']),$values,$scope)
 check(pol_order_identity(array_replace($order,['productionVariety'=>'IRRI-6 Parboil Rice']),$values,$scope)['riceType']==='Parboiled / Sella','Explicit instruction controls future output');
 $before=serialize($values);$enriched=pol_enrich_order($order,$values,$scope);check($enriched['specification']==='5% double polish','Specification preserved separately');check(serialize($values)===$before,'Read projection never rewrites history');
 echo "PASS production order identities: explicit, historical, same-brand varieties, ambiguity, scope and unchanged history\n";
+
+check(pol_order_identity(['product'=>'IRRI-6 White Rice','brand'=>''],[],$scope)['stockName']==='IRRI-6 White Rice','Unbranded stock has no invented suffix');
+check(pol_enrich_order($order+['fullSpecification'=>'Old full specification','specificationMode'=>'BRIEF'],$values,$scope)['specification']==='5% double polish','Brief mode ignores inactive full text');
+check(pol_enrich_order($order+['fullSpecification'=>'Full active specification','specificationMode'=>'FULL'],$values,$scope)['specification']==='Full active specification','Full mode uses active full text');
+echo "PASS unbranded stock and active brief/full specification\n";
