@@ -1,6 +1,5 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__.'/production_order_links.php';
 /** Production instructions are issued in Accounts/Directors; physical facts stay in Milling. */
 function dt_production_choices(array $s,string $entity,string $date):array {
     require_once __DIR__.'/group_daily_core.php';$ops=gd_read_operations(TT_DATA_DIR.'/operations.json');$source=gd_sources($s,$ops,$date);$mills=[];
@@ -11,6 +10,7 @@ function dt_production_choices(array $s,string $entity,string $date):array {
     return ['mills'=>array_values($mills),'stocks'=>$stocks];
 }
 function dt_production_instruction(array $d,array $b,array $choices,array $nativeSales,string $date):array {
+    require_once __DIR__.'/production_order_links.php';
     if($d['direction']!=='SALE')throw new DomainException('Mill production instructions apply to goods supplied by us.');
     $mill=null;foreach($choices['mills'] as $r)if($r['id']===($b['productionMillId']??''))$mill=$r;if(!$mill)throw new DomainException('Choose the mill that will produce and dispatch this SODA.');
     $brand=gm_text($b['brand']??'',200);$stock=gm_text($b['productionStockName']??'',300);if($stock==='')throw new DomainException('Specify the exact finished output / stock name for this SODA.');
