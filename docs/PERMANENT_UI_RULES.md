@@ -858,3 +858,8 @@ Owner clarification, 29 October 2026: Salaries & Staff opens the next incomplete
 - Read-only warnings must not rewrite physical stock, original PO/receipt facts, posted invoices or supplier balances. Staff cannot bypass receipt discrepancies. Directors and Super Admin may explicitly approve them with a recorded reason through the shared approval workflow. Bind approval to the reviewed invoice and original receipt evidence; changed evidence requires a fresh review. Preserve the original physical records rather than silently rewriting them.
 
 - Director clarification: receipt discrepancies are reviewable business exceptions, not permanent blocks. A Director or Super Admin may approve directly with a reason without requiring staff to enter a supplier settlement first. Staff submissions remain unposted until that approval.
+
+## Mill entry recovery and plain errors — 12 November 2026
+- Saving a production report must preserve unchanged historical reports exactly, including their recorded bag deductions. Recalculate only explicitly amended reports.
+- Other-exporter loading uses the recorded finished-stock identity for the assigned company, mill and brand. A quality specification is not a stock name. Resolve only one unambiguous brand stock; preserve the stock of already loaded records.
+- Mill errors must explain the reason and the next action in plain language. Retain entered values; show available and requested quantities for stock shortages, and distinguish saving a container from closing the whole sale.

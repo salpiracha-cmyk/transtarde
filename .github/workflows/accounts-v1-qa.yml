@@ -82,6 +82,7 @@ jobs:
           python3 tests/accounts-v1/mill_liabilities_endpoint_test.py
           python3 tests/accounts-v1/mill_reference_endpoint_test.py
           python3 tests/accounts-v1/arrival_withdrawal_test.py
+          node tests/accounts-v1/mill_entry_repair_test.js
           node tests/accounts-v1/production_source_save_test.js
           node tests/accounts-v1/mill_source_save_test.js
           node tests/accounts-v1/accounts_notifications_test.js
