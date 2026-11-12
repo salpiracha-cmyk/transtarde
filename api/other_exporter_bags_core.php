@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/bag_receipts_core.php';
 require_once __DIR__.'/bag_arrangement_core.php';
+require_once __DIR__.'/production_order_links.php';
 
 /** External ownership is a physical custody dimension, never a TTI bag purchase. */
 function oeb_instruction_projection(array $deal): array {
@@ -98,7 +99,7 @@ function oeb_production_orders(array $values,array $books,array $scope,string $d
     $active=static fn($r)=>empty($r['cancelled'])&&!preg_match('/^(cancelled|deleted)$/i',(string)($r['status']??''))&&!$closed($r)&&($r['date']??'')<=$date;
     foreach((array)($books['exporterDeals']??[]) as $d){if(($d['direction']??'')!=='SALE'||($d['entity']??'')!==$scope['entity']||!oeb_active($d,(array)$root)||!$active($d)||($d['date']??'')>$date||(($d['commodity']??'RICE')!=='RICE'))continue;
         if(!empty($d['productionMillName'])&&bti_norm($d['productionMillName'])!==bti_norm($scope['millName']))continue;
-        $rows[]=['orderId'=>'FELLOW|'.$d['id'],'sourceKind'=>'FELLOW','historicalClosed'=>$closed($d),'sourceId'=>$d['id'],'entity'=>$scope['entity'],'party'=>(string)($d['party']??''),'brand'=>(string)($d['brand']??''),'quantityMT'=>$d['quantityMT']??null,'product'=>(string)($d['product']??''),'packing'=>(string)($d['packing']??''),'contractRef'=>'','bagResponsibility'=>ba_physical_responsibility($d),'ready'=>!empty($d['productionReady']),'version'=>(int)($d['version']??0)];
+        $rows[]=['orderId'=>'FELLOW|'.$d['id'],'sourceKind'=>'FELLOW','historicalClosed'=>$closed($d),'sourceId'=>$d['id'],'entity'=>$scope['entity'],'party'=>(string)($d['party']??''),'brand'=>(string)($d['brand']??''),'quantityMT'=>$d['quantityMT']??null,'product'=>(string)($d['product']??''),'reference'=>(string)($d['reference']??''),'fullSpecification'=>(string)($d['fullSpecification']??''),'productionVariety'=>(string)($d['productionVariety']??''),'productionStockName'=>(string)($d['productionStockName']??''),'packing'=>(string)($d['packing']??''),'contractRef'=>'','bagResponsibility'=>ba_physical_responsibility($d),'ready'=>!empty($d['productionReady']),'version'=>(int)($d['version']??0)];
     }
     $customers=[];foreach((array)($root['customers']??[]) as $c)$customers[(string)($c['id']??'')]=(string)($c['name']??'');
     foreach((array)($root['contracts']??[]) as $c){if(!$active($c)||(!empty($c['commodity'])&&!in_array(strtoupper((string)$c['commodity']),['RICE'],true))||preg_match('/\b(maize|corn|wheat|sesame)\b/i',(string)($c['product']??'')))continue;$entity=strtoupper((string)($c['seller']??'TTI'));if($entity==='TG'){$entity=strtoupper((string)($c['customsExporter']??''));foreach((array)($root['shipments']??[]) as $lot)if(($lot['contractRef']??'')===($c['ref']??'')&&strtoupper((string)($lot['documentParties']['exporterKey']??$lot['customs']['exporter']??''))===$scope['entity'])$entity=$scope['entity'];}if($entity!==$scope['entity'])continue;
@@ -122,7 +123,7 @@ function oeb_production_orders(array $values,array $books,array $scope,string $d
     $parents=array_column($rows,null,'orderId');foreach(bti_rows($values,'tt35brandmeta') as $r){if(($r['kind']??'')!=='PRODUCTION_BRAND'||($r['entity']??'')!==$scope['entity']||($r['locationId']??'')!==$scope['locationId']||!isset($parents[$r['parentOrderId']??'']))continue;$parent=$parents[$r['parentOrderId']];$rows[]=array_replace($parent,['orderId'=>$r['id'],'parentOrderId'=>$r['parentOrderId'],'brand'=>$r['brand']]);}
     $originals=array_column(bti_rows($values,'tt30bags'),null,'id');
     foreach($rows as &$order){$order['bagsAvailable']=0;$order['bagsQuarantined']=0;$order['bagSourceKnown']=false;foreach((array)($inventory['lots']??[]) as $lot){if(bti_norm($lot['brand']??'')!==bti_norm($order['brand']))continue;$original=$originals[$lot['originBagId']??'']??[];$linked=($order['sourceKind']==='FELLOW'&&($lot['exporterDealId']??'')===$order['sourceId'])||($order['sourceKind']==='EXPORT'&&($original['contractRef']??'')===$order['sourceId'])||($order['sourceKind']==='BAG'&&$lot['id']===$order['sourceId']);if(!$linked)continue;$order['bagSourceKnown']=true;$order['bagsAvailable']+=is_int($lot['committableQty']??null)?max(0,$lot['committableQty']):0;$order['bagsQuarantined']+=(int)($lot['quarantinedQty']??0);}}unset($order);
-    return $rows;
+    return array_map(static fn($order)=>pol_enrich_order($order,$values,$scope),$rows);
 }
 function oeb_register_production_brand(array &$values,array &$state,array $books,array $scope,array $body,array $user,string $now): array {
     $request=bt_request($state,$body,$user,'PRODUCTION_BRAND');if($request['prior'])return array_replace($request['prior']['result'],['replayed'=>true]);

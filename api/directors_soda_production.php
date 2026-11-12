@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/production_order_links.php';
 /** Production instructions are issued in Accounts/Directors; physical facts stay in Milling. */
 function dt_production_choices(array $s,string $entity,string $date):array {
     require_once __DIR__.'/group_daily_core.php';$ops=gd_read_operations(TT_DATA_DIR.'/operations.json');$source=gd_sources($s,$ops,$date);$mills=[];
@@ -13,9 +14,12 @@ function dt_production_instruction(array $d,array $b,array $choices,array $nativ
     if($d['direction']!=='SALE')throw new DomainException('Mill production instructions apply to goods supplied by us.');
     $mill=null;foreach($choices['mills'] as $r)if($r['id']===($b['productionMillId']??''))$mill=$r;if(!$mill)throw new DomainException('Choose the mill that will produce and dispatch this SODA.');
     $brand=gm_text($b['brand']??'',200);$stock=gm_text($b['productionStockName']??'',300);if($stock==='')throw new DomainException('Specify the exact finished output / stock name for this SODA.');
+    $variety=gm_text($b['productionVariety']??$d['productionVariety']??'',200);
+    if($variety!==''&&!pol_parse_identity($variety))throw new DomainException('Choose a rice variety and type, such as IRRI-6 White Rice.');
+    if($variety!==''&&($d['commodity']??'RICE')==='RICE'){$identity=pol_parse_identity($variety);$stock=$identity['displayName'].($brand!==''?' — '.$brand:'');}
     $mode=dt_enum($b['specificationMode']??'BRIEF',['BRIEF','FULL'],'brief or full mill specification');$full=gm_text($b['fullSpecification']??'',12000);if($mode==='FULL'&&$full==='')throw new DomainException('Enter the full specification to send to the mill.');
     if(trim((string)($d['product']??''))==='')throw new DomainException('Save the product / brief specification on this SODA first.');
     $native=dt_native_state($d,$nativeSales,$date);if($native['loadedMT']>0){foreach($nativeSales as $r)if(dt_native_parent_matches($d,$r)&&!empty($r['containers']))if(($r['stockSourceName']??$r['displayName']??'')!==$stock||strcasecmp(trim((string)($r['millName']??'')),$mill['name'])!==0||($r['brand']??$stock)!==($brand!==''?$brand:$stock))throw new DomainException('Dispatched goods retain their original mill and stock source. Use a separate SODA for a new production route.');}
     $tare=gm_number($b['productionBagTareGrams']??100,'empty bag weight in grams');if($tare>10000)throw new DomainException('Review empty bag weight in grams.');
-    return array_replace($d,['productionReady'=>true,'productionMillId'=>$mill['id'],'productionMillName'=>$mill['name'],'productionStockName'=>$stock,'brand'=>$brand,'specificationMode'=>$mode,'fullSpecification'=>$full,'productionNotes'=>gm_text($b['productionNotes']??'',5000),'productionBagTareGrams'=>$tare]);
+    return array_replace($d,['productionVariety'=>$variety,'productionReady'=>true,'productionMillId'=>$mill['id'],'productionMillName'=>$mill['name'],'productionStockName'=>$stock,'brand'=>$brand,'specificationMode'=>$mode,'fullSpecification'=>$full,'productionNotes'=>gm_text($b['productionNotes']??'',5000),'productionBagTareGrams'=>$tare]);
 }
