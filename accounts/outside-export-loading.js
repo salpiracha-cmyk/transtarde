@@ -18,6 +18,7 @@ async function request(body){
 async function refresh(){
  if(busy)return;
  busy=true;
+ status('Loading assignments…');
  try{data=await request();render();status('');}catch(error){status(error.message,true);}finally{busy=false;}
 }
 const options=(rows,key,label,value)=>'<option value="">Choose</option>'+rows.map(r=>`<option value="${esc(r[key])}" ${String(r[key])===String(value)?'selected':''}>${esc(r[label])}</option>`).join('');
@@ -28,9 +29,9 @@ function render(){
  const row=data.rows.find(r=>r.id===selected);
  if(!row){
   if(cfg.lot){root.innerHTML='<p>This lot is unavailable in your loading permissions.</p>';return;}
-  const search=q('oelSearch').value.trim().toLowerCase().replace(/-/g,'');
-  const list=data.rows.filter(r=>[r.contract,r.lot,r.site,r.assignment.supplier,...r.actuals.map(a=>a.number)].some(v=>String(v||'').toLowerCase().replace(/-/g,'').includes(search)));
-  root.innerHTML=list.map(r=>`<p><button type="button" data-lot="${esc(r.id)}">${esc(r.contract)} · ${esc(r.lot)} · ${esc(r.site)}</button> ${r.actuals.length}/${r.expected} · ${r.complete?'Complete':r.assignment.route?'Assigned':'Awaiting assignment'}</p>`).join('')||'<p>No matching outside loads.</p>';
+  const search=(cfg.search||q('oelSearch'))?.value.trim().toLowerCase().replace(/-/g,'')||'';
+  const list=data.rows.filter(r=>[r.contract,r.lot,r.site,r.brand,r.assignment.supplier,...r.actuals.map(a=>a.number)].some(v=>String(v||'').toLowerCase().replace(/-/g,'').includes(search)));
+  root.innerHTML=list.map(r=>`<p><button type="button" data-lot="${esc(r.id)}">${esc(r.contract)} · ${esc(r.lot)} · ${esc(r.site)}</button> ${r.actuals.length}/${r.expected} · ${r.complete?'Complete':r.assignment.route?'Assigned':'Awaiting assignment'}</p>`).join('')||(cfg.milling&&!search?'<p>No outside loads are assigned to your login.</p>':'<p>No matching outside loads.</p>');
   root.querySelectorAll('[data-lot]').forEach(b=>b.onclick=()=>{selected=b.dataset.lot;render();});
   return;
  }
@@ -42,7 +43,7 @@ function render(){
  <h2>${esc(row.contract)} · ${esc(row.lot)}</h2><p><strong>${esc(row.site)}</strong> · ${esc(row.entity)} · Planned ${esc(date(row.plannedDate))} · ${row.actuals.length}/${row.expected} containers</p>
  <p>${esc(row.brand)} · ${esc(row.packing)} · ${esc(assignment.supplier||automaticDeal?.label||'Awaiting SODA assignment')} · ${esc(assignment.assignee||'Unassigned')}</p>
  ${row.quality||row.specifications.length?`<details open><summary>Production and quality specifications</summary><p>${esc(row.quality)}</p>${row.specifications.map(spec=>`<p>${esc(spec.name)} · ${esc(spec.value)}</p>`).join('')}</details>`:''}
- ${assign&&!row.deals.length?'<p class="notice warn">Directors must link an active purchase SODA to this sales contract before containers can be recorded.</p>':assign&&!automaticDeal?`<form id="oelAssign"><div class="grid">
+ ${assign&&!row.deals.length?'<p class="notice warn">Directors must link an active purchase SODA to this sales contract before containers can be recorded.</p>':assign&&!automaticDeal?`<form id="oelAssign"><div class="${cfg.milling ? 'r3' : 'grid'}">
  ${row.deals.length===1?`<input type="hidden" name="dealId" value="${esc(row.deals[0].id)}">`:`<label>Purchase SODA<select name="dealId" required>${options(row.deals,'id','label',assignment.dealId)}</select></label>`}
  <label>Who enters loading<select name="route"><option value="EXPORTS">Exports · assign to me</option><option value="MILL" ${(assignment.route||cfg.preferredRoute)==='MILL'?'selected':''}>TTI Mill staff · on site</option></select></label>
  <label id="oelAssignee">Assigned Mill user<select name="assigneeId">${options(data.staff.filter(s=>s.entities.includes(row.entity)),'id','name',assignment.assigneeId)}</select></label></div><button>Save assignment</button></form>`:''}
@@ -59,7 +60,7 @@ function render(){
  if(edit){
   function container(a={}){
    const editing=!!a.number,finalContainer=cfg.origin==='exports'&&!editing&&row.actuals.length+1===row.expected;
-   q('oelContainer').innerHTML=`<form id="oelActual"><h3>${editing?'Correct container details':'Add container'}</h3><div class="grid">
+   q('oelContainer').innerHTML=`<form id="oelActual"><h3>${editing?'Correct container details':'Add container'}</h3><div class="${cfg.milling ? 'r3' : 'grid'}">
     ${field('number','Container number',a.number,'text',editing?'readonly':'required maxlength="16"')}
     ${field('seal','Seal',a.seal,'text','required maxlength="40"')}
     ${field('site','Loading location',row.site,'text','readonly')}
@@ -88,9 +89,10 @@ async function save(row,action,fields,button){
  if(cfg.onSaved)try{await cfg.onSaved();}catch{status('Saved. Refresh Exports before opening shipment documents.',true);}}
  catch(error){status(error.message,true);button.disabled=false;}finally{busy=false;}
 }
-q('oelRefresh').onclick=refresh;
+if(q('oelRefresh'))q('oelRefresh').onclick=refresh;
 if(q('oelSearch'))q('oelSearch').oninput=()=>{if(!selected)render();};
 refresh();
+return {refresh:()=>{if(cfg.milling&&q('oelActual')){status('Return to the loading list before refreshing.');return;}return refresh();}, reopen:()=>{if(!q('oelActual')){render();return refresh();}}, filter:()=>{if(!selected)render();}};
 }
 window.TT_OUTSIDE_LOADING_VIEW={mount};
 if(window.TT_OUTSIDE_LOADING)mount(document,window.TT_OUTSIDE_LOADING);
