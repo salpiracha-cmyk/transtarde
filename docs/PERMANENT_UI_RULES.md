@@ -869,3 +869,5 @@ Owner clarification, 29 October 2026: Salaries & Staff opens the next incomplete
 - Place Return to production beside Paltai. Record the actual return date, Sweeping source, destination raw rice variety and kilograms with one explicit save.
 - Deduct Sweeping and add exactly the same kilograms to raw rice in the same company/mill transaction. Never fabricate finished output, purchases or labour. Normal shift production consumes the returned raw stock.
 - Preserve production drafts and failed return inputs; use the existing stable retry identity. Show recent saved returns and clear only the confirmed return fields.
+
+- Sweeping returns retain the raw destination’s variety/type so the physical report debits that same variety’s Sweeping. Resolve older returns from their saved raw destination on read; never replay the transfer. Stock summaries show raw rice first, finished/ready rice by brand next, then by-products, consistently for screen, print and CSV.

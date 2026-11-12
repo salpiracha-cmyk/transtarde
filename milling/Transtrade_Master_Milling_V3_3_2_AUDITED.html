@@ -1746,7 +1746,7 @@ async function confirmProductionReturn(){
  if(!from||!to)return alert('Choose the Sweeping stock and the raw rice variety receiving it.');
  if(!Number.isFinite(kg)||kg<=0||Math.abs(kg*1000-Math.round(kg*1000))>.00001)return alert('Enter the weight returned in kg, using up to three decimal places.');
  const entity=document.getElementById('prodEntity')?.value||stockEntityForView(),available=computedStockRows(entity).find(r=>r.name===from)?.kg||0;if(kg>available+.001)return alert('Only '+available.toLocaleString()+' kg of Sweeping is available. You entered '+kg.toLocaleString()+' kg. Check the weight or record the missing stock first.');
- const rec={id:Date.now(),...operationalStockScope({entity}),type:'Return to Production',returnVersion:1,date,from,to,weightKg:kg,rawStockName:to,rawRiceKg:kg,byProducts:{[from]:-kg},remarks:note};
+ const rec={id:Date.now(),...operationalStockScope({entity}),type:'Return to Production',returnVersion:1,baseVariety:millProductIdentity(to,'RAW').baseVariety,riceType:millProductIdentity(to,'RAW').riceType,date,from,to,weightKg:kg,rawStockName:to,rawRiceKg:kg,byProducts:{[from]:-kg},remarks:note};
  return window.TT_MILL_ACTION_SAVE.save(STORE_STOCKADJ,rec,{label:'Return to production',onSaved:()=>{productionReturnKg.value='';productionReturnNote.value='';refreshProductionReturn();showNonBlockingMessage('Return saved. Sweeping reduced by '+kg.toLocaleString()+' kg and '+to+' increased by the same weight.');}});
 }
 function togglePaltai(open=paltaiPanel.classList.contains('hidden')){
