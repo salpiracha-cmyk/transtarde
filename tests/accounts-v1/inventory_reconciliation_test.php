@@ -192,3 +192,15 @@ echo "PASS inventory reconciliation: $count assertions; in-memory fixtures only;
 $cornScope=['entity'=>'TTI','millId'=>2,'millName'=>'Other Mill'];
 $cornValues=values(['tt30slips'=>[$cornScope+['id'=>'CORN-ARRIVAL','commodity'=>'CORN','baseVariety'=>'Yellow Corn','displayName'=>'Yellow Corn','payableWeight'=>100000]],'tt30ship'=>[$cornScope+['id'=>'CORN-SHIP','commodity'=>'MAIZE','baseVariety'=>'Yellow Corn','brand'=>'CORN BRAND','containers'=>[['weight'=>27470]]]]]);
 $cornStock=tt_inv_stock($cornValues,$cornScope);equal($cornStock['Yellow Corn'],72530.,'Corn loading consumes received commodity without a fictitious production run');equal(count($cornStock),1,'Corn does not create a separate branded Rice stock');
+
+// Historical arrival-bag rules must not run again on carried, unchanged reports.
+require_once __DIR__.'/../../api/production_save_core.php';
+$historical=$scope+['id'=>991,'date'=>'2026-09-20','shift'=>'Day','variety'=>'IRRI-6','inputBasis'=>'OUTPUT_DERIVED','recoveryVersion'=>2,'arrivalPackingVersion'=>1,'arrivalPackingQty'=>2,'clientSaveRequestId'=>'historical-save-request-991','rows'=>[['product'=>'B2 — LOCAL','bags'=>10,'bagWeight'=>50],['product'=>'B3','bags'=>2,'bagWeight'=>50]]];
+$history=['tt30prod'=>tt_inv_json([$historical])];
+check(tt_inv_arrival_packing_qty($historical)!==2,'Fixture must exercise changed historical bag formula');
+$prepared=tt_inv_prepare_write($history,'tt30prod',tt_inv_public_values($history)['values']['tt30prod'],$mill,'2026-09-22T09:00:00Z');
+equal(tt_inv_rows(['tt30prod'=>$prepared],'tt30prod')[0],$historical,'Unchanged production retains original bag count and all source facts');
+equal(ps_effects($history,['tt30prod'=>$prepared],$mill,'2026-09-22T09:00:00Z'),$history,'Unchanged acknowledged report does not falsely reject the next source save');
+$changed=$historical;$changed['rows'][0]['bags']=11;
+rejects(fn()=>ps_effects($history,['tt30prod'=>tt_inv_json([$changed])],$mill,'2026-09-22T09:00:00Z'),'Changing facts under the same save identity remains blocked');
+echo "PASS historical production carry-through preserves bag counts without weakening duplicate-save checks\n";

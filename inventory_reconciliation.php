@@ -429,6 +429,12 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
     $seen=[];$out=[];
     foreach($incoming as$r){if(!is_array($r))throw new InvalidArgumentException('Invalid operational row.');$id=(string)($r['id']??'');
         if($id===''||isset($seen[$id]))throw new InvalidArgumentException('Each operational row needs a unique stable identity.');$seen[$id]=true;$before=$index[$id]??null;
+        // A collection save carries old reports too. Preserve their acknowledged facts,
+        // including historical derived bag counts, instead of applying today's formulas.
+        if($key==='tt30prod'&&$before){
+            $public=tt_inv_rows(tt_inv_public_values(['tt30prod'=>tt_inv_json([$before])])['values'],'tt30prod')[0];
+            if($r==$public){$out[]=$before;continue;}
+        }
         if($key===TT_INV_CONFIRMATIONS){
             if($before){$out[]=$before;continue;}
             $scope=tt_inv_scope($r);if(!in_array($scope['entity'],['TTI','BRM'],true)||trim((string)($r['millName']??''))==='')throw new InvalidArgumentException('Stock company and mill are required.');
