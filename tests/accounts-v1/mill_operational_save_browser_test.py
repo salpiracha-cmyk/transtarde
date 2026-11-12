@@ -109,6 +109,8 @@ def run():
             assert not mill.locator('#exBuyer').is_visible()
             director=context.new_page();director.goto(base+'/directors/exporter-trading.php');director.get_by_role('button',name='+ New SODA',exact=True).click()
             director.locator('#dtDealForm [name=partyId]').select_option('QA-EXPORTER')
+            assert director.locator('#dtDealForm [name=billingWeightBasis]').input_value()=='GROSS'
+            director.locator('#dtDealForm [name=billingWeightBasis]').select_option('NET')
             for field,value in {'price':'10','quantityMT':'0.5','product':'QA BRAND','terms':'Exporter handles bags and collection; Mill records physical dispatch only.'}.items():director.locator('#dtDealForm [name='+field+']').fill(value)
             director.get_by_role('button',name='Save SODA',exact=True).click();director.locator('#dtMessage').filter(has_text='Saved.').wait_for()
             director.get_by_role('button',name='View',exact=True).click();director.get_by_role('button',name='Production / mill specification',exact=True).click();director.locator('#dtProductionForm').wait_for()
@@ -121,6 +123,7 @@ def run():
             director.close()
             mill.locator('#exTruck').fill('QA-303');mill.locator('#exBags').fill('10');mill.locator('#exGross').fill('501');mill.locator('[onclick="addExporterContainer()"]').click();mill.wait_for_function("document.querySelector('#exTruck').value === ''")
             op=context.request.get(base+'/api/operations.mysql.php').json();exporter=json.loads(op['values']['tt35exportersale']);assert len(exporter)==1 and len(exporter[0]['containers'])==1 and exporter[0]['containers'][0]['net']==500 and exporter[0]['exporterDealId']==soda_id
+            assert mill.evaluate("computedStockRows('TTI').find(r=>r.name==='QA BRAND').kg")==499,'Net billing must still deduct 501 kg gross from stock'
             mill.locator('#exTruck').fill('QA-304');mill.locator('#exBags').fill('1');mill.locator('#exGross').fill('1.1');mill.locator('[onclick="addExporterContainer()"]').click();mill.get_by_text('Loading exceeds the SODA quantity.',exact=False).first.wait_for();assert len(json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt35exportersale'])[0]['containers'])==1,'Excess loading was saved'
             for selector in ['#exTruck','#exBags','#exGross']:mill.locator(selector).fill('')
             saved=context.request.get(base+'/api/directors_trading.php?entity=TTI').json();linked=next(d for d in saved['deals'] if d['id']==soda_id);assert linked['working']['loadedMT']==.5 and linked['working']['remainingMT']==0 and linked['bookBalancePKR']==0,linked
