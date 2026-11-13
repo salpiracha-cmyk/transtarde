@@ -366,9 +366,6 @@ th{background:#f1f6f4}
           &lt;div id=&quot;payBankWrap&quot; class=&quot;hidden&quot;&gt;&lt;label for=&quot;payBank&quot;&gt;Transtrade Company Account&lt;/label&gt;
             &lt;select id=&quot;payBank&quot;&gt;&lt;option value=&quot;&quot;&gt;Select company account&lt;/option&gt;&lt;/select&gt;
           &lt;/div&gt;
-          &lt;div id=&quot;payThirdPartyWrap&quot; class=&quot;hidden&quot;&gt;&lt;label for=&quot;payThirdParty&quot;&gt;Third-Party Type&lt;/label&gt;
-            &lt;select id=&quot;payThirdParty&quot;&gt;&lt;option value=&quot;&quot;&gt;Select third-party type&lt;/option&gt;&lt;option&gt;Freight Forwarder&lt;/option&gt;&lt;option&gt;Broker&lt;/option&gt;&lt;option&gt;Supplier&lt;/option&gt;&lt;/select&gt;
-          &lt;/div&gt;
           &lt;div&gt;&lt;label for=&quot;payDate&quot;&gt;Payment Date&lt;/label&gt;&lt;input id=&quot;payDate&quot; type=&quot;date&quot;&gt;&lt;/div&gt;
           &lt;div&gt;&lt;label for=&quot;payAmount&quot;&gt;Amount Received&lt;/label&gt;&lt;input id=&quot;payAmount&quot; inputmode=&quot;decimal&quot;&gt;&lt;/div&gt;
           &lt;div id=&quot;normalRefWrap&quot;&gt;&lt;label id=&quot;payWhereLabel&quot; for=&quot;payWhere&quot;&gt;Reference (Optional)&lt;/label&gt;&lt;input id=&quot;payWhere&quot;&gt;&lt;/div&gt;
@@ -599,10 +596,10 @@ function refresh(){
  paidMetric.textContent=money(p);
  balancePayMetric.textContent=money(Math.max(0,v-p));
  if(window.tqTop)tqTop.textContent=fmtKg(total(sel));if(window.qlTop)qlTop.textContent=fmtKg(l);if(window.bqTop){bqTopLabel.textContent=diff&gt;=0?&#x27;Balance Quantity&#x27;:&#x27;Excess Quantity Loaded&#x27;;bqTop.textContent=fmtKg(Math.abs(diff))}
- if(window.paySummaryDetails)paySummaryDetails.innerHTML=sel.pay.length?sel.pay.slice().sort((a,b)=&gt;String(b.date).localeCompare(String(a.date))).map(p=&gt;`&lt;div class=&quot;mini&quot;&gt;&lt;b&gt;${escHtml(p.date)}&lt;/b&gt; — ${money(p.amount)} — ${escHtml([p.thirdPartyType,p.where].filter(Boolean).join(&#x27; · &#x27;)||p.type||&#x27;—&#x27;)}&lt;/div&gt;`).join(&#x27;&#x27;):&#x27;&lt;div class=&quot;mini&quot;&gt;No payment received yet.&lt;/div&gt;&#x27;;
+ if(window.paySummaryDetails)paySummaryDetails.innerHTML=sel.pay.length?sel.pay.slice().sort((a,b)=&gt;String(b.date).localeCompare(String(a.date))).map(p=&gt;`&lt;div class=&quot;mini&quot;&gt;&lt;b&gt;${escHtml(p.date)}&lt;/b&gt; — ${money(p.amount)} — ${escHtml(p.where||p.type||&#x27;—&#x27;)}&lt;/div&gt;`).join(&#x27;&#x27;):&#x27;&lt;div class=&quot;mini&quot;&gt;No payment received yet.&lt;/div&gt;&#x27;;
  if(window.loadSummaryDetails)loadSummaryDetails.innerHTML=sel.loads.length?sel.loads.slice().sort((a,b)=&gt;String(b.date).localeCompare(String(a.date))).map(x=&gt;`&lt;div class=&quot;mini&quot;&gt;&lt;b&gt;${escHtml(x.date)}&lt;/b&gt; — ${escHtml(x.truck)} — ${fmtKg(x.kg)}&lt;/div&gt;`).join(&#x27;&#x27;):&#x27;&lt;div class=&quot;mini&quot;&gt;No quantity loaded yet.&lt;/div&gt;&#x27;;
  let locked=sel.closed;
- [payDate,payAmount,payType,payWhere,payBank,payThirdParty,adjustSource,truck,loadDate,loadKg,loadBags,loadTareKg,remarks,saveLoadBtn].forEach(el=&gt;el.disabled=locked);
+ [payDate,payAmount,payType,payWhere,payBank,adjustSource,truck,loadDate,loadKg,loadBags,loadTareKg,remarks,saveLoadBtn].forEach(el=&gt;el.disabled=locked);
  editSodaBtn.disabled=locked;
  closeBtn.disabled=locked || !(sel.loads.length &amp;&amp; p&gt;=closingValue(sel));
  lockMsg.classList.toggle(&#x27;hidden&#x27;,!locked);
@@ -646,8 +643,7 @@ function paymentTypeChanged(){
  let bank=payType.value===&#x27;Transtrade Bank&#x27;;
  const thirdParty=payType.value===&#x27;Third-Party Account&#x27;;
  payBankWrap.classList.toggle(&#x27;hidden&#x27;,!bank);
- payThirdPartyWrap.classList.toggle(&#x27;hidden&#x27;,!thirdParty);
- payWhereLabel.textContent=thirdParty?&#x27;Third-Party Name / Reference&#x27;:&#x27;Reference (Optional)&#x27;;
+ payWhereLabel.textContent=thirdParty?&#x27;Third-Party Name&#x27;:&#x27;Reference (Optional)&#x27;;
  refreshAdjustmentSources();
 }
 function refreshAdjustmentSources(){
@@ -672,23 +668,20 @@ async function savePay(){
    rec.where=`${src.soda} — ${src.product} — ${src.party} (Excess Adjustment)`;
    rec.sourceSoda=src.soda;rec.sourceProduct=src.product;rec.sourceParty=src.party;
  }else{rec.where=payType.value===&#x27;Transtrade Bank&#x27;?payBank.value:payWhere.value.trim();if(payType.value===&#x27;Transtrade Bank&#x27;&amp;&amp;!rec.where)return alert(&#x27;Select the Transtrade Bank account.&#x27;);}
- if(rec.type===&#x27;Third-Party Account&#x27;){
-   if(!payThirdParty.value)return localSaleErrorMessage(&#x27;Select Freight Forwarder, Broker or Supplier.&#x27;);
-   rec.thirdPartyType=payThirdParty.value;
- }
+ if(rec.type===&#x27;Third-Party Account&#x27;&amp;&amp;!rec.where)return localSaleErrorMessage(&#x27;Enter the third-party name.&#x27;);
  const old=editPayIndex===null?null:sel.pay[editPayIndex];rec.bridgeId=old?.bridgeId||(&#x27;LSP-&#x27;+crypto.randomUUID());
  const bank=payBank.selectedOptions?.[0];if(rec.type===&#x27;Transtrade Bank&#x27;){rec.bankAccountId=bank?.dataset.bankId||&#x27;&#x27;;rec.bankEntity=bank?.dataset.entity||&#x27;&#x27;;draft.accountEntity=rec.bankEntity;}
  else rec.bankEntity=draft.accountEntity||draft.entity||&#x27;TTI&#x27;;
  if(editPayIndex===null)draft.pay.push(rec);else draft.pay[editPayIndex]=rec;
  if(!await commitLocalSale(draft,before))return;editPayIndex=null;
- payDate.value=today();payAmount.value=&#x27;&#x27;;payWhere.value=&#x27;&#x27;;payBank.value=&#x27;&#x27;;payThirdParty.value=&#x27;&#x27;;payType.value=&#x27;Cash&#x27;;paymentTypeChanged();
+ payDate.value=today();payAmount.value=&#x27;&#x27;;payWhere.value=&#x27;&#x27;;payBank.value=&#x27;&#x27;;payType.value=&#x27;Cash&#x27;;paymentTypeChanged();
  refresh();toastMsg(&#x27;Payment saved&#x27;);return true;
 }
 
 function renderPayments(){
  if(!sel)return;
  payDetails.classList.toggle(&#x27;hidden&#x27;,sel.pay.length===0);
- payDetails.innerHTML=sel.pay.length?`&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Date&lt;/th&gt;&lt;th&gt;Amount&lt;/th&gt;&lt;th&gt;Transaction Type&lt;/th&gt;&lt;th&gt;Details&lt;/th&gt;&lt;th&gt;Accounts&lt;/th&gt;&lt;th&gt;Edit&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${sel.pay.map((p,i)=&gt;`&lt;tr&gt;&lt;td&gt;${escHtml(p.date)}&lt;/td&gt;&lt;td&gt;${money(p.amount)}&lt;/td&gt;&lt;td&gt;${escHtml(p.type)}&lt;/td&gt;&lt;td&gt;${escHtml([p.thirdPartyType,p.where].filter(Boolean).join(&#x27; · &#x27;)||p.type||&#x27;—&#x27;)}&lt;/td&gt;&lt;td&gt;${escHtml(p.accounts)}&lt;/td&gt;&lt;td&gt;${sel.closed?&#x27;Locked&#x27;:`&lt;button class=&quot;sec&quot; onclick=&quot;editPay(${i})&quot;&gt;Edit&lt;/button&gt;`}&lt;/td&gt;&lt;/tr&gt;`).join(&#x27;&#x27;)}&lt;/tbody&gt;&lt;/table&gt;`:&#x27;&#x27;;
+ payDetails.innerHTML=sel.pay.length?`&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Date&lt;/th&gt;&lt;th&gt;Amount&lt;/th&gt;&lt;th&gt;Transaction Type&lt;/th&gt;&lt;th&gt;Details&lt;/th&gt;&lt;th&gt;Accounts&lt;/th&gt;&lt;th&gt;Edit&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${sel.pay.map((p,i)=&gt;`&lt;tr&gt;&lt;td&gt;${escHtml(p.date)}&lt;/td&gt;&lt;td&gt;${money(p.amount)}&lt;/td&gt;&lt;td&gt;${escHtml(p.type)}&lt;/td&gt;&lt;td&gt;${escHtml(p.where||p.type||&#x27;—&#x27;)}&lt;/td&gt;&lt;td&gt;${escHtml(p.accounts)}&lt;/td&gt;&lt;td&gt;${sel.closed?&#x27;Locked&#x27;:`&lt;button class=&quot;sec&quot; onclick=&quot;editPay(${i})&quot;&gt;Edit&lt;/button&gt;`}&lt;/td&gt;&lt;/tr&gt;`).join(&#x27;&#x27;)}&lt;/tbody&gt;&lt;/table&gt;`:&#x27;&#x27;;
 }
 
 function paymentDetails(){
@@ -699,7 +692,6 @@ function paymentDetails(){
 function editPay(i){
  if(sel.closed)return;
  let p=sel.pay[i];editPayIndex=i;payDate.value=p.date;payAmount.value=p.amount;payType.value=p.type;paymentTypeChanged();
- payThirdParty.value=p.thirdPartyType||&#x27;&#x27;;
  if(p.type===&#x27;Other Adjustment&#x27;)adjustSource.value=p.sourceSoda||&#x27;&#x27;;
  else if(p.type===&#x27;Transtrade Bank&#x27;)payBank.value=[...payBank.options].find(o=&gt;o.dataset.bankId===p.bankAccountId||o.value===p.where)?.value||&#x27;&#x27;;
  else payWhere.value=p.where||&#x27;&#x27;;
