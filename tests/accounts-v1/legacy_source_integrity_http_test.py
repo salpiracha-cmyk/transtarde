@@ -143,7 +143,7 @@ register_shutdown_function(static function()use($req){file_put_contents($req['st
         assert status == expected_status, (endpoint, status, result)
         saved = json.loads(books.read_text())
         assert saved['journals']['KEEP'] == source['journals']['KEEP'] and saved['untouched'] == source['untouched']
-        no_write = method == 'GET' or expected_status != 200
+        no_write = method == 'GET' or expected_status != 200 or (endpoint in ['local_sales_costing', 'export_costing'] and body.get('action') == 'post_waiting')
         assert saved['revision'] == (7 if no_write else 8)
         if no_write:
             assert books.read_bytes() == before

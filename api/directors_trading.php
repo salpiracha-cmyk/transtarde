@@ -37,10 +37,17 @@ try {
     if($write&&in_array($action,['save_exporter','delete_exporter'],true))dt_out(['ok'=>false,'error'=>'Manage fellow exporters in Master Records → Business Parties.'],403);
     if($write&&$action==='save_bag_arrangement'&&($origin!=='Directors'||$loadingOnly||$costOnly||!in_array($u['role']??'',['Super Admin','Director'],true)))dt_out(['ok'=>false,'error'=>'Director or Super Admin arrangement-management permission required.'],403);
     if($write&&!tt_verify_csrf((string)($b['csrf']??'')))dt_out(['ok'=>false,'error'=>'Session expired. Reopen this form.'],419);
+    if($write&&$action==='post_local_cost')dt_out(['ok'=>true,'reportOnly'=>true,'message'=>'Costing is reporting only. No posting is required.']);
     $today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');$asOf=gm_date($b['asOf']??$_GET['asOf']??$today);if($write&&$asOf>$today)throw new DomainException('Posting/report date cannot be in the future.');
     tt_ensure_data_dir();$file=TT_DATA_DIR.'/accounts.json';if(!is_file($file))throw new RuntimeException('Accounts must be initialized first.');$h=fopen($file,$mutate?'r+':'rb');if(!$h||!flock($h,$mutate?LOCK_EX:LOCK_SH))throw new RuntimeException('Storage unavailable.');
     try {
-        $s=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);if(!is_array($s))throw new RuntimeException('Accounts storage is invalid.');if(!$write&&!$costOnly&&!$loadingOnly&&!$millOnly&&in_array($_GET['view']??'',['parties','parties_and_mills'],true)){
+        $s=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);if(!is_array($s))throw new RuntimeException('Accounts storage is invalid.');if(!$write&&!$costOnly&&!$loadingOnly&&!$millOnly&&str_starts_with((string)($_GET['view']??''),'cost_report:')){
+            $id=substr((string)$_GET['view'],12);$deal=$s['exporterDeals'][$id]??null;
+            if(!$deal||$deal['entity']!==$entity||($deal['status']??'')==='Deleted')throw new DomainException('SODA not found in this company.');
+            require_once __DIR__.'/management_costing_core.php';
+            if(trim((string)($deal['brand']??''))==='')throw new DomainException('This SODA has no linked production brand for its cost report. Entries can continue.');$report=mc_payload($s,mc_read_ops(),$entity);$report['sheets']=array_values(array_filter($report['sheets'],static fn($row)=>$row['date']<=$asOf&&array_filter($row['readyProducts'],static fn($product)=>mc_norm((string)preg_replace('/^.*[—–]\s*/u','',$product))===mc_norm((string)$deal['brand']))));
+            dt_out($report+['reportOnly'=>true,'note'=>'Production cost estimates for this brand. Not a final shipment profit; quantities, bills and settlement remain separate.']);
+        }if(!$write&&!$costOnly&&!$loadingOnly&&!$millOnly&&in_array($_GET['view']??'',['parties','parties_and_mills'],true)){
             $parties=dt_parties($s,$entity);
             $result=['ok'=>true,'entity'=>$entity,'asOf'=>$asOf,'parties'=>$parties];
             if($_GET['view']==='parties_and_mills'){

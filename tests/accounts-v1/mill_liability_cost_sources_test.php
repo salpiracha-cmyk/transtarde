@@ -49,3 +49,17 @@ $discounted=['entity'=>'TTI','status'=>'Posted','date'=>'2026-10-02','chequeStat
 $projection=eiv_balance(['supplierSettlements'=>[$discounted]],['id'=>'EINV1','entity'=>'TTI','supplierPayableTotal'=>1000,'status'=>'Posted']);
 check_cost($projection['allocated']===1000.0&&$projection['pendingCheque']===900.0&&$projection['discount']===100.0&&$projection['cashPaid']===0.0&&(float)$projection['outstanding']===0.0,'Pending cheque amount incorrectly included the agreed supplier discount');
 echo "PASS pending cheque reports its actual net amount separately from the agreed discount\n";
+
+// Reporting expenses allocate once by the original company, mill and period.
+$reportOps=['values'=>['tt30prod'=>json_encode([$run('A','2026-10-03','TTI Rice Mills','IRRI-6',1000),$run('C','2026-10-04','TTI Rice Mills','IRRI-6',3000),$run('D','2026-10-04','Other Mill','IRRI-6',9000)])]];
+$reportGroups=pc_group_production(pc_production($reportOps));
+$j=static fn($id,$account,$amount,$mill,$entity='TTI')=>['id'=>$id,'entity'=>$entity,'status'=>'Posted','date'=>'2026-10-31','sourceType'=>'EXPENSE','meta'=>['month'=>'2026-10','productionCostEligible'=>true,'millName'=>$mill],'lines'=>[['account'=>$account,'debit'=>$amount,'credit'=>0],['account'=>'2140','debit'=>0,'credit'=>$amount]]];
+$books=['journals'=>['RENT'=>$j('RENT','6300',4000,'TTI Rice Mills'),'SAL'=>$j('SAL','6210',8000,'TTI Rice Mills'),'OTHER'=>$j('OTHER','6700',2000,'TTI Rice Mills'),'FOREIGN'=>$j('FOREIGN','6300',99000,'TTI Rice Mills','BRM'),'UNKNOWN'=>$j('UNKNOWN','6210',1000,''),'OLD'=>$j('OLD','6700',5000,'TTI Rice Mills'),'COGS'=>$j('COGS','5100',90000,'TTI Rice Mills')]];
+$books['journals']['OLD']['reversedByPostId']='REV';$before=serialize($books);
+$reportSources=pc_cost_sources($reportOps,$reportGroups,$books,'TTI');$allocated=0.;$byDate=[];
+foreach($reportSources as $source)foreach($source['allocations'] as $group=>$value){$allocated+=$value;$date=$reportGroups[$group]['date'];$byDate[$date]=($byDate[$date]??0)+$value;}
+check_cost($allocated===14000.0,'Rent, salary and mill expenses once; no other-company, reversed or COGS cost');
+check_cost($byDate['2026-10-03']===3500.0&&$byDate['2026-10-04']===10500.0,'Mill-period kilograms give exact pro-rata shares');
+check_cost(count(array_filter($reportSources,fn($r)=>!$r['allocations']))===1,'Unlocated cost remains visible and unallocated');
+check_cost(serialize($books)===$before,'Opening allocation report cannot write books');
+echo "PASS report-only rent, salary, mill expenses, exact pro-rata, unallocated sources and no accounting mutations\n";

@@ -14,7 +14,7 @@ function sc_pending_warnings(array $s,string $date,?string $entity=null):array {
             $pending=!empty($p['costPending']);$lastId=$p['postId'];
         }
         foreach((array)($d['costReviews']??[]) as $review)if(($review['date']??'')<=$date&&($review['settlementPostId']??'')===$lastId)$pending=false;
-        if($pending)$out[]=($d['party']??$d['id']).' — Profit provisional — rice cost pending. Accounts must post the approved cost for the billed deliveries.';
+        if($pending)$out[]=($d['party']??$d['id']).' — Profit provisional — rice cost pending. Reporting estimate only; missing costs never block entries.';
     }
     return $out;
 }

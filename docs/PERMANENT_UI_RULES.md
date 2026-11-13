@@ -871,3 +871,9 @@ Owner clarification, 29 October 2026: Salaries & Staff opens the next incomplete
 - Preserve production drafts and failed return inputs; use the existing stable retry identity. Show recent saved returns and clear only the confirmed return fields.
 
 - Sweeping returns retain the raw destination’s variety/type so the physical report debits that same variety’s Sweeping. Resolve older returns from their saved raw destination on read; never replay the transfer. Stock summaries show raw rice first, finished/ready rice by brand next, then by-products, consistently for screen, print and CSV.
+
+## Reporting costs are not posting controls — owner clarification, 13 November 2026
+
+Physical stock uses original Karachi weighbridge in/out movements independently of cost reports. Raw rice, milling, electricity, labour, salaries, rent and other recorded mill expenses feed read-only management estimates. Shared expenses allocate once by company, mill, relevant period and production kilograms; unidentified locations remain visibly unallocated. A composite milling/processing estimate is replaced by available actual conversion sources, not added to them. Estimates remain provisional until all quantity, invoice, expense and payment settlement evidence is complete.
+
+Missing report costs must never block Accounts, Mill or Exports operational entries or commercial billing. Reporting rates, opening reports and cost refreshes create no COGS, inventory or cash journals and no physical stock movements. Retire cost-only posting controls; preserve historical journals without reversing them automatically. Actual supplier invoices, commercial settlement, receipts and payments retain their original accounting, authorization, duplication and physical-source checks. Contractual supplier charges that determine an actual payable are not report-only cost estimates.
