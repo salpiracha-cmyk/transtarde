@@ -88,6 +88,16 @@ function sp_historical_opening(array $state,array $candidate,string $entity,arra
     }else throw new DomainException('Historical shipment does not link an opening posting.');
     return true;
 }
+/** A report estimate is never an accounting posting or physical movement. */
+function sp_reporting_cost(array $state,string $entity,string $product,float $kg,string $date):?float {
+    if($kg<0)return null;if($kg===0.0)return 0.;$normal=static fn($v)=>strtoupper(trim((string)preg_replace('/\s+/u',' ',(string)$v)));
+    $best=null;$rank=0;foreach(['localSalesCostRates'=>1,'inventoryCostRates'=>2,'managementCostRates'=>3] as $collection=>$priority)foreach((array)($state[$collection]??[]) as $rate){
+        if(($rate['entity']??'')!==$entity||($rate['status']??'Active')!=='Active'||empty($rate['effectiveFrom'])||$rate['effectiveFrom']>$date||(float)($rate['costPerKg']??0)<=0)continue;
+        $names=array_merge([(string)($rate['product']??'')],(array)($rate['aliases']??[]));if(!in_array($normal($product),array_map($normal,$names),true))continue;
+        if(!$best||$rate['effectiveFrom']>$best['effectiveFrom']||($rate['effectiveFrom']===$best['effectiveFrom']&&$priority>$rank)){$best=$rate;$rank=$priority;}
+    }
+    return $best?round($kg*(float)$best['costPerKg'],2):null;
+}
 /** Read accepted revenue/COGS only after validating their posted source identities. */
 function sp_sale_evidence(array $state,array $candidate,string $entity,array $hidden,array $activeReversals):?array {
     $id=(string)($candidate['id']??'');$saleId=(string)($candidate['journalId']??'');$costId=(string)($candidate['costJournalId']??'');
@@ -105,7 +115,9 @@ function sp_sale_evidence(array $state,array $candidate,string $entity,array $hi
     }
     if($costId===''){
         if(isset($candidate['costAmount'])&&sp_amount($candidate['costAmount'])!=0)throw new DomainException('Stock cost has no linked posting.');
-        return ['revenue'=>$revenue,'stockCost'=>null];
+        $kg=(float)($candidate['meta']['actualQtyMT']??0)*1000;$meta=(array)($candidate['meta']??[]);
+        foreach((array)($state['exporterDeals']??[]) as $deal)if(($deal['entity']??'')===$entity&&($deal['direction']??'')==='PURCHASE'&&($deal['status']??'')!=='Deleted')foreach((array)($deal['loadings']??[]) as $load)if(($load['sourceSnapshot']['contract']??'')===($meta['contractRef']??'')&&in_array($meta['lotRef']??'',[$load['shipmentId'],$load['sourceSnapshot']['lot']??''],true))$kg-=(float)$load['quantityMT']*1000;
+        return ['revenue'=>$revenue,'stockCost'=>$kg>0?sp_reporting_cost($state,$entity,(string)($meta['product']??''),$kg,(string)($candidate['recognitionDate']??$candidate['suggestedRecognitionDate']??'')):null,'estimateOnly'=>true];
     }
     $cost=$state['journals'][$costId]??[];$costType=($cost['sourceType']??'')==='POST_AMENDMENT_CORRECTION'?($cost['meta']['originalSourceType']??''):($cost['sourceType']??'');
     if($entity==='TG'&&$costType==='TG_INTERCOMPANY_PAYABLE_RECOGNIZED'){
@@ -169,7 +181,7 @@ function sp_fellow_costs(array $state,string $entity,array $hidden,array $active
     $out=[];$holds=[];$seen=[];
     foreach(array_filter((array)($state['exporterDeals']??[]),static fn($row)=>($row['status']??'')!=='Deleted') as $d){if(($d['entity']??'')!==$entity)continue;$loads=array_column((array)($d['loadings']??[]),null,'id');
         foreach((array)($d['settlementPosts']??[]) as $p){$id=(string)($p['postId']??'');if(isset($hidden[$id]))continue;try{if(isset($seen[$id]))throw new DomainException('Repeated exporter settlement Post ID.');$j=sp_source_post($state,$id,$entity,'FELLOW_EXPORTER_SETTLEMENT','exporterDealId',$d['id'],$hidden,$activeReversals);$seen[$id]=true;$amount=sp_amount($p['amountPKR']??null);$purchase=$d['direction']==='PURCHASE';if(abs(sp_post_net($j,$purchase?'2140':'1230')-($purchase?-$amount:$amount))>.005)throw new DomainException('Exporter settlement control does not match its saved allocation.');
-            if(!$purchase){$own=round(array_sum((array)($p['costDeltaByAccount']??[])),2);if(abs(sp_post_net($j,'5100')-$own)>.005||abs(-sp_post_net($j,'4100')-$amount)>.005)throw new DomainException('Own exporter sale/cost does not reconcile.');$key='OTHER-EXPORTER|'.$d['id'];$out[]=['key'=>$key,'contractRef'=>$d['reference']?:$d['id'],'lotRef'=>'Other exporter · '.$d['party'],'stockCost'=>$own,'revenue'=>$amount,'external'=>false];continue;}
+            if(!$purchase){$own=round(array_sum((array)($p['costDeltaByAccount']??[])),2);if(abs(sp_post_net($j,'5100')-$own)>.005||abs(-sp_post_net($j,($d['arrangement']??'')==='EX_MILL'?'4200':'4100')-(($d['arrangement']??'')==='EX_MILL'?sp_post_net($j,'5300'):0)-$amount)>.005)throw new DomainException('Own exporter sale/cost does not reconcile.');$key='OTHER-EXPORTER|'.$d['id'];$out[]=['key'=>$key,'contractRef'=>$d['reference']?:$d['id'],'lotRef'=>'Other exporter · '.$d['party'],'stockCost'=>empty($p['costDeltaByAccount'])?null:$own,'revenue'=>$amount,'external'=>false];continue;}
             if(abs(sp_post_net($j,'5100')-$amount)>.005)throw new DomainException('External goods cost does not reconcile.');$deltas=$p['settlementByLoadingDelta']??null;if(!is_array($deltas)||abs(array_sum($deltas)-$amount)>.005)throw new DomainException('External cost needs its original invoice allocation.');
             foreach($deltas as $loadId=>$value){$l=$loads[$loadId]??null;$contract=$l['sourceSnapshot']['contract']??'';$lot=$l['sourceSnapshot']['lot']??'';if(!$l||$contract===''||$lot==='')throw new DomainException('External cost has no original shipment link.');$out[]=['key'=>$contract.'|'.$lot,'contractRef'=>$contract,'lotRef'=>$lot,'stockCost'=>sp_amount($value),'revenue'=>0.,'external'=>true];}
         }catch(DomainException $e){$holds[]='Exporter settlement '.$id.': '.$e->getMessage();}}

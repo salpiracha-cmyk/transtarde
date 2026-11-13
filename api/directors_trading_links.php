@@ -50,7 +50,7 @@ function dt_sale_cost(array $s,array $d,array $native,float $invoiceMT):array {
     if(!$native['known']||$total+.000001<$invoiceMT||$total<=0)return ['byAccount'=>[],'totalPKR'=>null,'sources'=>[],'issues'=>['Link dated, committed own Mill dispatch for every contributed tonne before posting.']];
     $normal=static fn($v)=>strtoupper(trim((string)preg_replace('/\s+/u',' ',(string)$v)));
     foreach($native['loads'] as $load){$best=null;$rank=0;foreach(['localSalesCostRates'=>1,'inventoryCostRates'=>2] as $collection=>$priority)foreach((array)($s[$collection]??[]) as $r){if(!empty($r['estimateOnly'])||($r['entity']??'')!==$d['entity']||($r['status']??'Active')!=='Active'||($r['effectiveFrom']??'')>$load['date']||$normal($r['product']??'')!==$normal($load['product']))continue;if(!$best||$r['effectiveFrom']>$best['effectiveFrom']||($r['effectiveFrom']===$best['effectiveFrom']&&$priority>$rank)){$best=$r;$rank=$priority;}}
-        if(!$best||(float)($best['costPerKg']??0)<=0||!in_array($best['inventoryAccount']??'',['1310','1320','1330'],true)){$issues[]='Approved Accounts stock cost is missing for '.$load['product'].' on '.$load['date'].'.';continue;}
+        if(!$best||(float)($best['costPerKg']??0)<=0||!in_array($best['inventoryAccount']??'',['1310','1320','1330'],true)){$issues[]='Reporting cost is not yet available for '.$load['product'].' on '.$load['date'].'.';continue;}
         $amount=round(($load['grossQuantityMT']??$load['quantityMT'])*1000*(float)$best['costPerKg']*$invoiceMT/$total,2);$account=$best['inventoryAccount'];$by[$account]=round(($by[$account]??0)+$amount,2);$sources[]=$load+['costRateId'=>$best['id']??'','costPerKg'=>$best['costPerKg'],'costPKR'=>$amount,'inventoryAccount'=>$account];
     }
     foreach((array)($s['localSalesCandidates']??[]) as $c)if(($c['entity']??'')===$d['entity']&&!empty($c['journalId'])&&dt_local_sale_owner(['exporterDeals'=>[$d]],$d['entity'],(string)($c['sourceKey']??''))){$j=$s['journals'][$c['journalId']]??[];if(($j['status']??'')==='Posted'&&empty($j['reversedByPostId']))$issues[]='This Mill sale already has a local-sale posting. Accounts must reconcile/reverse that original before Directors settlement.';}
@@ -58,7 +58,7 @@ function dt_sale_cost(array $s,array $d,array $native,float $invoiceMT):array {
 }
 
 function dt_review_context(array $s,array $d,array $nativeSales,string $date):array {
- $n=dt_native_state($d,$nativeSales,$date);$mt=0.;foreach((array)($d['loadings']??[]) as $l)if($l['date']<=$date)$mt+=$l['quantityMT'];return [$n,dt_sale_cost($s,$d,$n,$mt)['sources']];
+ $n=dt_native_state($d,$nativeSales,$date);$mt=0.;foreach((array)($d['loadings']??[]) as $l)if($l['date']<=$date)$mt+=$l['quantityMT'];return [$n];
 }
 
 function dt_validate_mill_link(array $s,array $d,array $nativeSales):void {
@@ -79,4 +79,13 @@ function dt_historical_fob(array $s,array $lots,string $date):?float {
 
 function dt_statement_charges(array $rows):array {
  if(!array_is_list($rows)||count($rows)>100)throw new DomainException('Use at most 100 statement charge rows.');$out=[];foreach($rows as $r){$description=gm_text($r['description']??'',300);if($description==='')throw new DomainException('Describe every other-exporter statement charge.');$out[]=['id'=>dt_id([],'CHG'),'category'=>dt_enum($r['category']??'OTHER',['FOB','FREIGHT','INSURANCE','BANK','OTHER'],'charge category'),'description'=>$description,'scope'=>dt_enum($r['scope']??'WHOLE_INVOICE',['WHOLE_INVOICE','OUR_SHARE'],'statement charge allocation'),'amountPKR'=>gm_number($r['amountPKR']??null,'statement charge')];}return $out;
+}
+
+/** Commercial source integrity is independent of every reporting rate or valuation. */
+function dt_assert_sale_source(array $s,array $d,array $native,float $invoiceMT):void {
+    if(empty($native['known'])||($native['loadedMT']??0)+.000001<$invoiceMT||$invoiceMT<=0)throw new DomainException('Link the dated Mill loading for the quantity being billed.');
+    foreach((array)($s['localSalesCandidates']??[]) as $c){
+        if(($c['entity']??'')!==$d['entity']||empty($c['journalId'])||!dt_local_sale_owner(['exporterDeals'=>[$d]],$d['entity'],(string)($c['sourceKey']??'')))continue;
+        $j=$s['journals'][$c['journalId']]??[];if(($j['status']??'')==='Posted'&&empty($j['reversedByPostId']))throw new DomainException('This Mill sale is already billed in Local Sales. Correct that original bill before billing it again.');
+    }
 }

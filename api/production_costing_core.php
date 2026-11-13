@@ -308,6 +308,27 @@ function pc_cost_sources(array $ops, array $groups, array $store = [], string $e
         if (($bill['utilityType']??'')==='ELECTRICITY'&&$reference!==''&&isset($seenElectricity[$signature])) continue;
         $add('UTILITY|'.$bill['id'],(string)($bill['utilityTypeName']??'Mill Utility'),$from,$to,(float)($bill['amount']??0),$reference,$mill,['accountsStatus'=>!empty($bill['expenseInvoice'])?'Posted invoice':'Posted payment','postId'=>(string)($bill['journalId']??'')]);
     }
+    // Expense journals are the monetary authority. Payments against a liability,
+    // inventory/COGS transfers and an operational bill already included above are not costs again.
+    $represented=[];foreach($sources as $source)if(!empty($source['postId']))$represented[$source['postId']]=true;
+    foreach((array)($store['journals']??[]) as $id=>$journal){
+        if(($journal['entity']??'')!==$entity||($journal['status']??'')!=='Posted'||!empty($journal['reversalOf'])||!empty($journal['reversedByPostId'])||isset($represented[$id]))continue;
+        if(in_array($journal['sourceType']??'',['EXPORT_COGS','LOCAL_SALE_COGS','FELLOW_EXPORTER_SETTLEMENT'],true))continue;
+        foreach((array)($journal['lines']??[]) as $index=>$line){
+            $meta=$line+(array)($journal['meta']??[]);$account=(string)($line['account']??'');
+            if(!preg_match('/^[56]/',$account)||$account==='5100')continue;
+            if(empty($meta['productionCostEligible'])&&strtoupper((string)($meta['location']??''))!=='MILL'&&empty($meta['millLocationId']))continue;
+            // Shipment-specific costs stay with that shipment, outside the shared mill pool.
+            if(!empty($meta['contractRef'])||!empty($meta['exporterDealId'])||!empty($meta['shipmentId']))continue;
+            $amount=round((float)($line['debit']??0)-(float)($line['credit']??0),2);if($amount<=0)continue;
+            $master=$store['salaryMasters'][$meta['salaryMasterId']??'']??$store['rentMasters'][$meta['rentMasterId']??'']??[];
+            $mill=(string)($meta['millName']??$meta['locationName']??$meta['mill']??$master['millName']??$master['mill']??'');
+            $date=(string)($journal['date']??'');$month=(string)($meta['month']??'');
+            $from=(string)($meta['readFrom']??$meta['from']??$date);$to=(string)($meta['readTo']??$meta['till']??$date);
+            if(preg_match('/^\d{4}-\d{2}$/',$month)){$from=$month.'-01';$to=(new DateTimeImmutable($from))->modify('last day of this month')->format('Y-m-d');}
+            $add('JOURNAL|'.$id.'|'.$index,(string)($line['accountName']??'Mill expense'),$from,$to,$amount,(string)($journal['reference']??$id),$mill,['postId'=>(string)$id,'accountsStatus'=>'Posted expense','postingVerified'=>true]);
+        }
+    }
     return $sources;
 }
 

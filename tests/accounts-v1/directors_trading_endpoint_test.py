@@ -100,11 +100,12 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  status,feed=req(origin='mill',mode='mill');assert feed['deals'][0]['millPlannedMT']==100,feed
  assert req({'action':'loading','id':sale_id,'version':1,'date':'2026-10-02','invoiceRef':'OTHER-INV','quantityMT':40,'totalInvoiceMT':100,'contractPrice':500},origin='exports',mode='exports')[0]==403,'Exports injected financial contract price'
  status,d=req({'action':'loading','id':sale_id,'version':1,'date':'2026-10-02','invoiceRef':'OTHER-INV','quantityMT':40,'totalInvoiceMT':100},origin='exports',mode='exports');assert status==200,d
- assert req({'action':'post_settlement','id':sale_id,'version':2})[0]==422,'Missing approved own-goods cost was treated as zero'
+ assert req({'action':'post_settlement','id':sale_id,'version':2})[0]==422,'Unreviewed commercial charges must still be reviewed'
  stored=json.loads(path.read_text());stored['inventoryCostRates']={'R':{'id':'R','entity':'TTI','product':'IRRI READY','effectiveFrom':'2026-10-01','costPerKg':100,'inventoryAccount':'1320'}};path.write_text(json.dumps(stored))
  status,d=req({'action':'review_loading','id':sale_id,'version':2,'loadingId':json.loads(path.read_text())['exporterDeals'][sale_id]['loadings'][0]['id'],'reviewConfirmed':True});assert status==200,d
+ stored=json.loads(path.read_text());stored['inventoryCostRates']={};path.write_text(json.dumps(stored))
  status,d=req({'action':'post_settlement','id':sale_id,'version':3});assert status==200,d
- lines=json.loads(path.read_text())['journals'][d['result']['postId']]['lines'];assert any(x['account']=='1320' and x['credit']==4000000 for x in lines),lines
+ lines=json.loads(path.read_text())['journals'][d['result']['postId']]['lines'];assert not any(x['account'] in ['5100','1310','1320','1330'] for x in lines),lines
  before_duplicate=path.read_bytes()
  status,error=req({'action':'queue_candidate','sourceKey':'EXPORTER|'+own['ref'],'saleDate':'2026-10-02','entity':'TTI','product':'IRRI READY','loadedKg':40000,'ratePerKg':100,'amount':4000000},_endpoint='local');assert status==422 and 'Directors' in error['error'],(status,error)
  assert path.read_bytes()==before_duplicate and (root/'data/operations.json').read_bytes()==ops_before,'Duplicate protection or settlement changed original Mill stock'
@@ -190,3 +191,16 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  assert req({**payload,'sourceKey':'WEIGHT|INVALID','billingWeightBasis':'INVALID'},_endpoint='local')[0]==422
  assert req({**payload,'sourceKey':'WEIGHT|INVALIDTARE','emptyTareKg':1001},_endpoint='local')[0]==422
  print('PASS local Accounts server derives gross/net billing from saved weight facts, retains physical gross and rejects invalid basis/tare')
+ # Explicit cost-report reads allocate only the chosen brand and never save books/stock.
+ report_books=json.loads(path.read_text());report_books['exporterDeals'][local_id]['brand']='REPORT BRAND'
+ report_books['managementCostingInputs']=[{'entity':'TTI','date':'2026-10-03','variety':'IRRI-6','rawRiceRate':10,'millingRate':3,'byProducts':{}}]
+ path.write_text(json.dumps(report_books))
+ report_ops=json.loads((root/'data/operations.json').read_text())
+ report_ops['values']['tt30prod']=json.dumps([{'id':'REPORT-RUN','entity':'TTI','date':'2026-10-03','millName':'Own Mill','sourceVariety':'IRRI-6','recoveryVersion':1,'rawInputs':[{'grossKg':1500}],'rows':[{'id':'A','product':'Ready Rice — REPORT BRAND','bags':10,'bagWeight':50},{'id':'B','product':'Ready Rice — OTHER BRAND','bags':20,'bagWeight':50}]}])
+ report_ops['values']['tt38labourbills']=json.dumps([{'id':'REPORT-LAB','entity':'TTI','date':'2026-10-03','millName':'Own Mill','amount':300}])
+ (root/'data/operations.json').write_text(json.dumps(report_ops));before_books=path.read_bytes();before_ops=(root/'data/operations.json').read_bytes()
+ status,report=req(view='cost_report:'+local_id,origin='accounts');assert status==200,report
+ assert len(report['sheets'])==1 and report['sheets'][0]['brandProductionKg']==500 and report['sheets'][0]['conversionCostPKR']==100,report
+ assert report['sheets'][0]['rawRiceValue']==5000,report
+ assert path.read_bytes()==before_books and (root/'data/operations.json').read_bytes()==before_ops,'Cost report wrote journals or stock'
+ print('PASS explicit cost report: exact brand, pro-rata expenses, no journals or stock changes')

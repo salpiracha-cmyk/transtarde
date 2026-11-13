@@ -27,9 +27,9 @@ function dt_validate_arrangement(array &$d,array $b):void {
     if($d['partnerSharePct']>100)throw new DomainException('Partner share cannot exceed 100%.');
 }
 function dt_local_review_hash(array $s,array $d,array $native):string {
-    if(($d['localReviewVersion']??1)>=2)return hash('sha256',json_encode([$native,array_intersect_key($d,array_flip(['price','bagDeductionPKR','bagRatePKRPerKg','bagDeductionLoadedMT','quantityMT','terms','packing','billingWeightBasis']))],JSON_THROW_ON_ERROR));
-    return hash('sha256',json_encode([$native,dt_sale_cost($s,$d,$native,$native['loadedMT']),array_intersect_key($d,array_flip(['price','bagDeductionPKR','bagRatePKRPerKg','bagDeductionLoadedMT','quantityMT','terms','packing','billingWeightBasis']))],JSON_THROW_ON_ERROR));
+    return hash('sha256',json_encode([$native,array_intersect_key($d,array_flip(['price','bagDeductionPKR','bagRatePKRPerKg','bagDeductionLoadedMT','quantityMT','terms','packing','billingWeightBasis']))],JSON_THROW_ON_ERROR));
 }
+
 function dt_local_loadings(array $d,array $w):array {
     return array_map(static fn($r)=>['id'=>$r['loadingId'],'shipmentId'=>$d['id'],'invoiceRef'=>$r['invoice'],'quantityMT'=>$r['quantityMT'],'sourceSnapshot'=>['lot'=>$r['invoice'],'contract'=>$d['reference']?:$d['id']]],$w['rows']);
 }
@@ -86,25 +86,7 @@ function dt_loaded_cashflow(array $source,array $s,array $root,array $values,str
 
 require_once __DIR__.'/directors_soda_production.php';
 
-/** Only missing valuation may wait. Broken sources and duplicate sales remain errors. */
-function dt_cost_can_wait(array $d,array $w):bool {
-    if(($d['arrangement']??'')!=='EX_MILL'||empty($w['ownDispatch']['known']))return false;
-    $issues=(array)($w['ownStockCost']['issues']??[]);
-    if(!$issues)return false;
-    foreach($issues as $issue)if(!str_starts_with($issue,'Approved Accounts stock cost is missing for '))return false;
-    return true;
-}
 /** Cost-only completion cannot recognise new sales, bags, or physical stock. */
 function dt_post_local_cost(array &$s,array &$d,array $w,array $u,string $date):array {
-    if(($d['arrangement']??'')!=='EX_MILL'||empty($d['settlementPosts']))throw new DomainException('Post the final rice bill first.');
-    if(($w['ownStockCost']['totalPKR']??null)===null)throw new DomainException('Rice cost is still pending. Approve the production stock cost in Accounts first.');
-    if(dt_settlement_deltas($s,$d,$w))throw new DomainException('Delivered quantities or bags changed. Review and post the final bill adjustment first.');
-    $previous=[];$last=null;foreach((array)$d['settlementPosts'] as $p){$j=$s['journals'][$p['postId']]??[];if(($j['status']??'')!=='Posted'||!empty($j['reversedByPostId']))continue;$last=$p;foreach((array)($p['costDeltaByAccount']??[]) as $account=>$amount)$previous[$account]=($previous[$account]??0)+$amount;}
-    $changed=false;foreach(array_unique(array_merge(array_keys($previous),array_keys($w['ownStockCost']['byAccount']))) as $account)if(abs(($previous[$account]??0)-($w['ownStockCost']['byAccount'][$account]??0))>=.005)$changed=true;
-    if(!$changed&&$last&&!empty($last['costPending'])){
-        foreach((array)($d['costReviews']??[]) as $r)if(($r['settlementPostId']??'')===$last['postId'])throw new DomainException('This approved cost is already recorded.');
-        $d['costReviews'][]=['date'=>$date,'settlementPostId'=>$last['postId'],'sources'=>$w['ownStockCost']['sources'],'by'=>$u['username']??'Accounts'];
-        return ['costReviewed'=>true,'message'=>'Approved rice cost already matches the books. No duplicate journal was needed.'];
-    }
-    return dt_post_settlement($s,$d,$w,$u,$date);
+    return ['reportOnly'=>true,'message'=>'Costing is a report only. No journal or stock movement is created.'];
 }
