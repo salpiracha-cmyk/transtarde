@@ -667,7 +667,7 @@ async function savePay(){
    if(a&gt;av)return alert(&#x27;Adjustment amount is more than the available excess on selected Soda.&#x27;);
    rec.where=`${src.soda} — ${src.product} — ${src.party} (Excess Adjustment)`;
    rec.sourceSoda=src.soda;rec.sourceProduct=src.product;rec.sourceParty=src.party;
- }else{rec.where=payType.value===&#x27;Transtrade Bank&#x27;?payBank.value:payWhere.value.trim();if(payType.value===&#x27;Transtrade Bank&#x27;&amp;&amp;!rec.where)return alert(&#x27;Select the Transtrade Bank account.&#x27;);}
+ }else{rec.where=payType.value===&#x27;Transtrade Bank&#x27;?(payBank.value?payBank.selectedOptions[0].textContent:&#x27;&#x27;):payWhere.value.trim();if(payType.value===&#x27;Transtrade Bank&#x27;&amp;&amp;!rec.where)return alert(&#x27;Select the Transtrade Bank account.&#x27;);}
  if(rec.type===&#x27;Third-Party Account&#x27;&amp;&amp;!rec.where)return localSaleErrorMessage(&#x27;Enter the third-party name.&#x27;);
  const old=editPayIndex===null?null:sel.pay[editPayIndex];rec.bridgeId=old?.bridgeId||(&#x27;LSP-&#x27;+crypto.randomUUID());
  const bank=payBank.selectedOptions?.[0];if(rec.type===&#x27;Transtrade Bank&#x27;){rec.bankAccountId=bank?.dataset.bankId||&#x27;&#x27;;rec.bankEntity=bank?.dataset.entity||&#x27;&#x27;;draft.accountEntity=rec.bankEntity;}
@@ -693,7 +693,7 @@ function editPay(i){
  if(sel.closed)return;
  let p=sel.pay[i];editPayIndex=i;payDate.value=p.date;payAmount.value=p.amount;payType.value=p.type;paymentTypeChanged();
  if(p.type===&#x27;Other Adjustment&#x27;)adjustSource.value=p.sourceSoda||&#x27;&#x27;;
- else if(p.type===&#x27;Transtrade Bank&#x27;)payBank.value=[...payBank.options].find(o=&gt;o.dataset.bankId===p.bankAccountId||o.value===p.where)?.value||&#x27;&#x27;;
+ else if(p.type===&#x27;Transtrade Bank&#x27;)payBank.value=[...payBank.options].find(o=&gt;o.dataset.bankId===p.bankAccountId||o.textContent===p.where)?.value||&#x27;&#x27;;
  else payWhere.value=p.where||&#x27;&#x27;;
  window.scrollTo({top:document.getElementById(&#x27;pp&#x27;).offsetTop-20,behavior:&#x27;smooth&#x27;});
 }
