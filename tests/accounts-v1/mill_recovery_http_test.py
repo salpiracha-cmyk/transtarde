@@ -4,7 +4,8 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='mill-recovery-http-') as tmp:
  root=pathlib.Path(tmp)
  for d in ['api','data']:(root/d).mkdir()
- for f in ['arrival_withdrawal_core.php','paltai_core.php','mill_recovery.php','mill_recovery_core.php','mill_recovery_cost.php','production_costing_core.php','management_costing_core.php','accounts_source_store.php']:shutil.copy(ROOT/'api'/f,root/'api'/f)
+ for f in ['arrival_withdrawal_core.php','paltai_core.php','mill_recovery.php','mill_recovery_core.php','mill_recovery_cost.php','production_costing_core.php','management_costing_core.php','raw_fifo_core.php','accounts_source_store.php']:shutil.copy(ROOT/'api'/f,root/'api'/f)
+ (root/'directors').mkdir();shutil.copy(ROOT/'directors/costing-profiles.json',root/'directors/costing-profiles.json')
  for f in ['inventory_reconciliation.php','product_stage.php']:shutil.copy(ROOT/f,root/f)
  (root/'auth_store.php').write_text('''<?php
  // This file-backed fixture must not inherit the CI MySQL service.
