@@ -303,7 +303,7 @@ def open_backup_response(config):
         if time.monotonic() >= deadline: raise TimeoutError('Hosted backup preparation stopped progressing or exceeded its time limit.')
         print('Server is ' + ('verifying' if result.get('stage') == 'verifying' else 'preparing') + ' the encrypted backup...', flush=True)
         delay = result.get('pollAfterSeconds', 10)
-        time.sleep(max(1, min(10, delay)) if isinstance(delay, (int, float)) else 10)
+        time.sleep(max(10, min(60, delay)) if isinstance(delay, (int, float)) else 30)
         result = backup_job_json(config, 'status', {'job': job})
     if result.get('state') != 'ready': raise RuntimeError('Server could not prepare a verified recovery archive.')
     return PreparedBackupResponse(config, result)
@@ -342,7 +342,9 @@ def pull(config, destination, scheduled_for=None, refresh_tiers=False):
                 out.flush(); os.fsync(out.fileno())
             if received != length: raise ValueError(f'Backup transfer incomplete: received {received:,} of {length:,} bytes. Existing verified backups were preserved.')
             if digest.hexdigest() != expected: raise ValueError(f'Backup transfer checksum mismatch after receiving all {received:,} bytes. Existing verified backups were preserved.')
-        validate_zip(temp)
+        manifest = validate_zip(temp)
+        if config.get('expectedSoftwareRevision') and manifest.get('softwareRevision') != config['expectedSoftwareRevision']:
+            raise ValueError('Software changed during backup. Previous backups were preserved; retry for a matching version.')
         stamp = datetime.now(timezone(timedelta(hours=5)))
         if config.get('scope') in ('data','software'):
             from scripts.backup_plan import commit_received
@@ -702,6 +704,22 @@ def run(args):
             raise ValueError('Update existing PC settings in the current Windows app before using the separate software backup.')
         if config.get('scope')=='data' and getattr(args,'software',False):
             config=dict(config,scope='software');destination=Path(config.get('softwareDestination',destination.parent/'SoftwareBackups'))
+        release = None
+        if config.get('scope') in ('data', 'software'):
+            release = backup_job_json(config, 'info').get('softwareRevision')
+            if not isinstance(release, str) or not re.fullmatch(r'[a-f0-9]{40}', release):
+                raise ValueError('The deployed software version could not be checked.')
+            config = dict(config, expectedSoftwareRevision=release)
+        if config.get('scope') == 'data':
+            # Capture each deployed version once; ordinary days do not rebuild it.
+            software_args = argparse.Namespace(**vars(args))
+            software_args.software = True
+            software_args.backup_only = True
+            software_args.scheduled = False
+            software_args.force = False
+            software_args.refresh_tiers = False
+            if run(software_args):
+                raise RuntimeError('The matching software copy is not verified; previous recovery points were preserved.')
         state_path = args.config.with_name('software-backup-state.json' if config.get('scope')=='software' else 'office-backup-state.json')
         state = json.loads(state_path.read_text(encoding='utf-8')) if state_path.exists() else {}
         now = time.time()
@@ -714,6 +732,10 @@ def run(args):
             current = recorded_slot == scheduled_for.isoformat() if recorded_slot else scheduled_for.timestamp() <= last_success <= now
         else:
             current = last_success <= now and same_day
+        if config.get('scope') == 'software':
+            current = state.get('softwareRevision') == release and last_file.is_file()
+            if current:
+                current = sha256_file(last_file) == state.get('sha256')
         current=current and state.get('scope','full')==config.get('scope','full')
         if not args.force and current and last_file.is_file():
             print('Daily backup is current.'); return 0
@@ -735,7 +757,10 @@ def run(args):
                 detail = f'HTTP {exc.code}' if isinstance(exc, error.HTTPError) else str(exc)
                 print('Backup attempt failed; retrying shortly:', type(exc).__name__, detail, file=sys.stderr, flush=True)
                 time.sleep(2 ** attempt * 5)
-        new_state = {'last_success': time.time(), 'last_file': path.name, 'sha256': digest,'scope':config.get('scope','full')}
+        manifest = validate_zip(path) if release else {}
+        if release and manifest.get('softwareRevision') != release:
+            raise RuntimeError('Software changed during backup. The downloaded copy was preserved; retry for matching data and software.')
+        new_state = {'last_success': time.time(), 'last_file': path.name, 'sha256': digest,'scope':config.get('scope','full'), 'softwareRevision': manifest.get('softwareRevision')}
         if scheduled_for is not None: new_state['scheduled_for'] = scheduled_for.isoformat()
         print('Verified encrypted backup saved:', path.name, flush=True)
         try:

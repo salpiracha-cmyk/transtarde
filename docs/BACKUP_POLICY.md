@@ -1,3 +1,28 @@
+# Replacement office plan — 13 November 2026 (activation pending)
+
+Owner-approved: daily business data at 18:00 Asia/Karachi; software once per deployed
+revision; preserve historical ZIP recovery and the separate shipment delivery.
+
+The replacement is explicitly enabled only after a scheduled CLI worker heartbeat
+has been observed. Until activation, existing installations retain protocol 2.
+In worker mode HTTP prepare only queues metadata and status only reads metadata;
+no archive construction or decryption occurs during status polling. A single CLI
+worker owns the global archive lock, builds 4 MiB batches and pauses two seconds
+between steps. This reduces work and concurrency; it is not a guaranteed I/O cap.
+Large-file verification, source capture and final archive hashing must still be
+measured on hosting before declaring the resource incident resolved.
+
+The new Windows app keeps seven daily data dates and twelve monthly data points.
+It verifies a matching software revision before the first data backup for that
+revision, rather than rebuilding software weekly or on every Backup Now. Its old
+weekly software task is retained disabled; shipment task behavior is unchanged.
+Data continues to include canonical records, portable database rows, users,
+masters/settings and uploaded documents. Old full ZIPs are not deleted or converted.
+The same schema 1/2/3 recovery reader remains in place.
+
+Cutover checklist: see `docs/LIGHT_BACKUP_CUTOVER.md`. No production recovery is
+part of testing. Never enable before the worker and new PC app have been tested.
+
 # Current owner-approved plan — 26 October 2026
 
 This section supersedes the older scheduled hosting and PC tier replacement rules below. Those sections describe legacy installations and retained recovery points.
