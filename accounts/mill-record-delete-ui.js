@@ -49,6 +49,7 @@
    onDeleted?.();window.showNonBlockingMessage?.('Entry deleted.');
   });
  }
+ function loadingId(r){return r.id||r.bridgeId||('legacy:'+['date','c','t','b','g'].map(k=>String(r[k]??'')).join('|'));}
  function loadingButton(sourceId,loadId){if(!loadId)return '';return '<button type="button" class="tt-row-remove" data-mill-load-delete="'+esc(loadId)+'" data-source-id="'+esc(sourceId)+'" aria-label="Delete loading" title="Delete loading">−</button>';}
  function removeLoading(sourceId,loadId){
   const row=get('tt35exportersale',[]).find(r=>String(r.id??r.ref)===String(sourceId));
@@ -62,5 +63,5 @@
   if(!target)return;
   event.preventDefault();event.stopImmediatePropagation();remove(target.dataset.millDelete,target.dataset.sourceId);
  },true);
- window.TT_MILL_DELETE={button,dialog,remove,loadingButton,removeLoading};
+ window.TT_MILL_DELETE={button,dialog,remove,loadingButton,removeLoading,loadingId};
 })();

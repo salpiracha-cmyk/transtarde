@@ -163,6 +163,14 @@ if($argv[1]==='seed'){
     status,result=req('tt35exportersale',remaining,loadId='LOAD-SECOND',requestKey='second-loading-delete-123')
     assert status==200 and json.loads(result['values']['tt35exportersale'])[0]['containers']==[],(status,result)
     assert books.read_bytes()==financial
+    legacy=copy.deepcopy(linked);legacy['containers']=[dict(date='2026-10-17',c='TGC243205-0',t='GLT-8230',b=625,g=25070,net=25007.5),dict(date='2026-10-17',c='BREAK BULK',t='ABC-123',b=100,g=5000,net=4990)]
+    seed({**initial,'tt35exportersale':json.dumps([legacy])})
+    status,result=req('tt35exportersale',legacy,loadId='legacy:2026-10-17|TGC243205-0|GLT-8230|625|25070',requestKey='legacy-container-delete')
+    assert status==200,(status,result)
+    remainder=json.loads(result['values']['tt35exportersale'])[0]
+    assert remainder['containers']==[legacy['containers'][1]]
+    status,result=req('tt35exportersale',remainder,loadId='legacy:2026-10-17|BREAK BULK|ABC-123|100|5000',requestKey='legacy-truck-delete-123')
+    assert status==200 and json.loads(result['values']['tt35exportersale'])[0]['containers']==[],(status,result)
     # Return to the earlier successful source deletion state.
     seed(deleted_state)
     # A local sale without downstream handoffs can be removed.

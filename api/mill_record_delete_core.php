@@ -61,7 +61,7 @@ function mrd_dependencies(array $values,array $books,string $key,array $row,bool
 function mrd_apply(array $values,array $books,array $user,array $body,string $now): array {
     $key=(string)($body['collection']??'');$id=(string)($body['sourceId']??'');$request=(string)($body['requestKey']??'');$reason=trim((string)($body['reason']??''));
     if(!isset(MRD_KINDS[$key])||$id===''||!preg_match('/^[A-Za-z0-9_-]{16,120}$/D',$request)||mb_strlen($reason)<5||mb_strlen($reason)>300)throw new DomainException('Select a saved entry and enter a deletion reason of 5 to 300 characters.');
-    $loadId=(string)($body['loadId']??'');if($loadId!==''&&($key!=='tt35exportersale'||strlen($loadId)>200))throw new DomainException('Choose a valid saved loading.');
+    $loadId=(string)($body['loadId']??'');if($loadId!==''&&($key!=='tt35exportersale'||strlen($loadId)>512))throw new DomainException('Choose a valid saved loading.');
     $archive=tt_inv_rows($values,MRD_ARCHIVE);
     foreach($archive as $receipt)if(($receipt['collection']??'')===$key&&(string)$receipt['sourceId']===$id&&(string)($receipt['loadId']??'')===$loadId){
         mrd_authorize($user,$key,$receipt['authorization']??$receipt['before'],$values);
@@ -79,10 +79,10 @@ function mrd_apply(array $values,array $books,array $user,array $body,string $no
     mrd_authorize($user,$key,$authority,$values);
     $shown=os_project($user,[$key=>tt_inv_json([$row])]+$values)['values'][$key]??'[]';
     if(!operations_same_value(json_decode($shown,true,512,JSON_THROW_ON_ERROR)[0]??null,$body['expected']??null))throw new DomainException('This entry changed after it was displayed. Reopen the saved entries before deleting.');
-    $target=null;if($loadId!==''){$matches=array_values(array_filter((array)($row['containers']??[]),static fn($r)=>(string)($r['id']??$r['bridgeId']??'')===$loadId));if(count($matches)!==1)throw new DomainException('This loading changed. Reopen the SODA before deleting.');$target=$matches[0];}
+    $target=null;if($loadId!==''){$matches=array_values(array_filter((array)($row['containers']??[]),static fn($r)=>tt_inv_loading_identity($r)===$loadId));if(count($matches)!==1)throw new DomainException('This loading changed. Reopen the SODA before deleting.');$target=$matches[0];}
     mrd_dependencies($values,$books,$key,$target!==null?array_replace($row,['containers'=>[$target]]):$row,$target!==null);
     $next=$values;$remaining=array_values(array_filter($rows,static fn($r)=>mrd_id($key,$r)!==$id));
-    if($loadId!==''){$remaining=$rows;foreach($remaining as &$parent)if(mrd_id($key,$parent)===$id)$parent['containers']=array_values(array_filter($parent['containers'],static fn($r)=>(string)($r['id']??$r['bridgeId']??'')!==$loadId));unset($parent);}
+    if($loadId!==''){$remaining=$rows;foreach($remaining as &$parent)if(mrd_id($key,$parent)===$id)$parent['containers']=array_values(array_filter($parent['containers'],static fn($r)=>tt_inv_loading_identity($r)!==$loadId));unset($parent);}
     if($key==='tt33bagreceipts'){
         require_once __DIR__.'/bag_receipts_core.php';
         $state=bts_state($values);$bagId=(string)($row['bagId']??'');$masters=tt_list_masters();
