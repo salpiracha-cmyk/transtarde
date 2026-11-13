@@ -35,3 +35,17 @@ function tt_telegram_send_pdf(array $report, string $name, string $caption): voi
         'caption'=>$caption."\n\nDownload from Transtrade (valid 7 days)\nhttps://app.transtradeinternational.com/telegram-report.php?file=".$token,
     ]);
 }
+
+/** Preserve every payment and loading line when Telegram's message limit is exceeded. */
+function tt_telegram_send_text_file(string $text,string $name): void {
+    $path=tempnam(TT_DATA_DIR,'.telegram-text-');
+    if($path===false)throw new RuntimeException('Could not prepare the Telegram attachment.');
+    try {
+        if(!chmod($path,0600)||file_put_contents($path,$text)!==strlen($text))
+            throw new RuntimeException('Could not prepare the Telegram attachment.');
+        tt_telegram_deliver('sendDocument',[
+            'document'=>new CURLFile($path,'text/plain',$name),
+            'caption'=>mb_substr($text,0,850,'UTF-8')."\n\nFull update attached.",
+        ]);
+    }finally{unlink($path);}
+}

@@ -123,6 +123,10 @@ function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now):
             $key='mill-entry|'.$source.'|'.$record['id'];
             $hash=tg_hash($record);
             if(($state['observed'][$key]??null)===$hash)continue;
+            if($source==='tt35localsales'){
+                yield ['key'=>$key,'hash'=>$hash,'text'=>tg_local_sale_text($record),'fullTextFile'=>'Mill Local Sale.txt'];
+                continue;
+            }
             $details=[$label.' saved'];
             foreach(['entity'=>'Company','date'=>'Date','millName'=>'Mill','vehicle'=>'Truck','truck'=>'Truck','slip'=>'Pohanch','brand'=>'Brand','party'=>'Party','payee'=>'Paid to','ref'=>'Reference','voucher'=>'Voucher','bags'=>'Bags','qty'=>'Quantity','weight'=>'Weight kg','netWeight'=>'Net kg','amount'=>'Amount','type'=>'Expense','narration'=>'Narration','notes'=>'Notes','createdBy'=>'Saved by'] as $field=>$name) {
                 if(isset($record[$field])&&is_scalar($record[$field])&&(string)$record[$field]!=='')$details[]=$name.' '.$record[$field];
@@ -134,6 +138,54 @@ function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now):
         $report=$job['report'];$report['title']=$job['title'];$report['reference']=$job['ref'];
         yield ['key'=>'completed|'.tg_hash($job['key']),'hash'=>'1','report'=>$report,'caption'=>$job['title'].' | '.$job['ref']];
     }
+}
+
+/** Render committed Mill facts. Payment locations are the masked names saved on the Soda. */
+function tg_local_sale_text(array $sale): string {
+    $kg=static fn(float $value):string=>rtrim(rtrim(number_format($value,3,'.',','),'0'),'.').' kg';
+    $money=static fn(float $value):string=>'PKR '.number_format($value,2);
+    $rate=(float)($sale['rate']??0);
+    $quantity=(float)($sale['tons']??0)*1000;
+    $product=(string)($sale['displayName']??'');
+    if($product==='')$product=implode(' · ',array_filter([$sale['baseVariety']??'',$sale['riceType']??'',$sale['product']??'']));
+    $lines=['Mill local sale saved','Soda '.($sale['soda']??$sale['id']),
+        ($sale['accountEntity']??$sale['entity']??'TTI').' | '.($sale['millName']??'TTI Rice Mills'),
+        'Date '.($sale['date']??'—'),'Buyer '.($sale['party']??'—')];
+    if(!empty($sale['broker']))$lines[]='Broker '.$sale['broker'];
+    $lines[]='Sold: '.($product?:'—');
+    $lines[]='Agreed quantity: '.$kg($quantity).' | Rate: '.rtrim(rtrim(number_format($rate,4,'.',','),'0'),'.').' PKR/kg';
+    $lines[]='Agreed value: '.$money($quantity*$rate);
+    $loaded=0.;$billable=0.;$loadLines=[];
+    foreach((array)($sale['loads']??[]) as $load){
+        $weight=(float)($load['weighbridgeGrossKg']??$load['kg']??0);
+        $billed=$weight;
+        if(empty($sale['byProductSale'])&&($sale['billingWeightBasis']??'')==='NET')$billed-=(float)($load['emptyTareKg']??0);
+        $loaded+=$weight;$billable+=$billed;
+        $loadLines[]=implode(' | ',array_filter([$load['date']??'',!empty($load['truck'])?'Truck '.$load['truck']:'',
+            $kg($weight),!empty($load['bags'])?$load['bags'].' bags':'',!empty($load['printed'])?($load['gatePassRef']??'Gate pass issued'):'']));
+    }
+    $lines[]=$loadLines?'Loaded: '.$kg($loaded).' | Billable: '.$kg($billable).' | Loaded value: '.$money($billable*$rate):'Loading: none recorded';
+    array_push($lines,...$loadLines);
+    $payments=(array)($sale['pay']??[]);$paid=0.;$paymentLines=[];
+    foreach($payments as $payment){
+        $amount=(float)($payment['amount']??0);$paid+=$amount;
+        $method=(string)($payment['type']??'');
+        $where=trim((string)($payment['where']??''));
+        $destination=match($method){
+            'Transtrade Bank'=>'Transtrade bank: '.($where?:'account not recorded'),
+            'Third-Party Account'=>'Third-party bank: '.($where?:'name not recorded'),
+            'Other Adjustment'=>'Adjustment from Soda '.($payment['sourceSoda']??'—'),
+            'Cash'=>'Cash'.($where!==''?' | Reference: '.$where:''),
+            default=>$method.($where!==''?' | '.$where:''),
+        };
+        $paymentLines[]=implode(' | ',array_filter([$payment['date']??'',$money($amount),$destination]));
+    }
+    $lines[]=$paymentLines?'Payments recorded by Mill: '.$money($paid):'Payments: none recorded';
+    array_push($lines,...$paymentLines);
+    if($paymentLines)$lines[]='Payment posting is subject to Accounts approval.';
+    $lines[]=!empty($sale['closed'])?'Mill status: closed':'Mill status: open';
+    if(!empty($sale['doneBy']))$lines[]='Soda done by '.$sale['doneBy'];
+    return implode("\n",$lines);
 }
 
 function tg_mill_event_sources(): array {
@@ -277,7 +329,9 @@ function tg_dispatch(bool $initialize=false,string $platform='telegram'): array 
                 } elseif(isset($job['text'])) {
                     $text=mb_substr($job['text'],0,4000);
                     if($platform==='discord')tt_discord_deliver($job['text'],expectedChannel:$destination);
-                    else tt_telegram_deliver('sendMessage',['text'=>$text]);
+                    elseif(isset($job['fullTextFile'])&&mb_strlen($job['text'],'UTF-8')>4000){
+                        tt_telegram_send_text_file($job['text'],$job['fullTextFile']);
+                    }else tt_telegram_deliver('sendMessage',['text'=>$text]);
                     $delivered++;
                 }
                 unset($state['pending'][$job['key']]);

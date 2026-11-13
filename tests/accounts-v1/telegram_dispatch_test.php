@@ -40,3 +40,26 @@ check(count($pdfs)===1&&$pdfs[0]['report']['totals']['readyKg']===1000.0,'A late
 $todayAtNine=$now->setTime(9,59);
 check(!array_filter(iterator_to_array(tg_notification_jobs($ops,$state,$todayAtNine)),static fn($j)=>str_starts_with($j['key'],'arrival|')||isset($j['morning'])),'Daily reports must respect Pakistan time.');
 echo "PASS Telegram timing, stable arrival retry, running totals, saved Exports user, physical container progress and late production PDF\n";
+
+$sale=['id'=>'fixture-sale','soda'=>'LS-0042','entity'=>'TTI','date'=>'2026-11-07',
+    'party'=>'Fixture buyer','broker'=>'Fixture broker','displayName'=>'IRRI-6 White Rice — Powder',
+    'tons'=>3.592,'rate'=>62,'byProductSale'=>true,'billingWeightBasis'=>'GROSS',
+    'loads'=>[['date'=>'2026-11-07','truck'=>'ABC-123','kg'=>3592,'printed'=>true,'gatePassRef'=>'LGP-42']],
+    'pay'=>[
+        ['date'=>'2026-11-07','type'=>'Transtrade Bank','amount'=>100000,'where'=>'Meezan Bank — •••••48217'],
+        ['date'=>'2026-11-07','type'=>'Third-Party Account','amount'=>122704,'where'=>'Fixture third party'],
+    ]];
+$ops['values']['tt35localsales']=json_encode([$sale]);
+$saleAlerts=static fn(array $state):array=>array_values(array_filter(
+    iterator_to_array(tg_notification_jobs($ops,$state,$now)),
+    static fn(array $job):bool=>str_starts_with($job['key'],'mill-entry|tt35localsales|')
+));
+$alert=$saleAlerts($state)[0];
+foreach(['LS-0042','IRRI-6 White Rice — Powder','3,592 kg','62 PKR/kg','PKR 222,704.00','LGP-42',
+    'Meezan Bank — •••••48217','Third-party bank: Fixture third party','Accounts approval'] as $fact)
+    check(str_contains($alert['text'],$fact),'Local Sale alert should include '.$fact);
+$state['observed'][$alert['key']]=$alert['hash'];
+check($saleAlerts($state)===[],'An unchanged saved sale must not resend after a formatter update.');
+$sale['byProductSale']=false;$sale['billingWeightBasis']='NET';$sale['loads'][0]['emptyTareKg']=12;
+check(str_contains(tg_local_sale_text($sale),'Billable: 3,580 kg'),'Historical net billing keeps its saved tare.');
+echo "PASS Local Sale details, split payments, deposit destinations, legacy weight and alert deduplication\n";
