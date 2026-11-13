@@ -271,7 +271,7 @@ th{background:#f1f6f4}
 #toast{display:none;position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);background:#173f35;color:#fff;padding:14px 20px;border-radius:10px;z-index:10}
 .mini{font-size:12px;color:#60746e}
 @media(max-width:800px){.g4,.g3,.g2{grid-template-columns:1fr 1fr}}
-@media(max-width:520px){.g4,.g3,.g2{grid-template-columns:minmax(0,1fr)}.active-sales-table{table-layout:fixed}.active-sales-table th,.active-sales-table td{padding:5px}.active-sales-table tr:not(#localInlineRow)>:is(:nth-child(3),:nth-child(7),:nth-child(8)){display:none}.active-sales-table th:first-child{width:36px}#workTitle{overflow-wrap:anywhere}}
+@media(max-width:520px){.g4,.g3,.g2{grid-template-columns:minmax(0,1fr)}.active-sales-table{table-layout:fixed}.active-sales-table th,.active-sales-table td{padding:5px}.active-sales-table tr:not(#localInlineRow)&gt;:is(:nth-child(3),:nth-child(7),:nth-child(8)){display:none}.active-sales-table th:first-child{width:36px}#workTitle{overflow-wrap:anywhere}}
 .tt-row-remove{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:#bf3c40;color:white;width:32px;height:32px;min-width:32px;padding:0;font-size:22px;font-weight:800;cursor:pointer}td:has(.tt-row-remove){width:38px;vertical-align:top}body,body label,body input,body textarea,body select,body button,body td,body th,body .sub,body small{font-weight:700!important}
 &lt;/style&gt;
 &lt;/head&gt;
@@ -357,17 +357,21 @@ th{background:#f1f6f4}
     &lt;div id=&quot;pp&quot;&gt;
       &lt;div id=&quot;payEntry&quot;&gt;
         &lt;div class=&quot;g4&quot;&gt;
-          &lt;div&gt;&lt;label&gt;Payment Date&lt;/label&gt;&lt;input id=&quot;payDate&quot; type=&quot;date&quot;&gt;&lt;/div&gt;
-          &lt;div&gt;&lt;label&gt;Amount Received&lt;/label&gt;&lt;input id=&quot;payAmount&quot; inputmode=&quot;decimal&quot;&gt;&lt;/div&gt;
-          &lt;div&gt;&lt;label&gt;Transaction Type&lt;/label&gt;
+          &lt;div&gt;&lt;label for=&quot;payType&quot;&gt;Payment Method&lt;/label&gt;
             &lt;select id=&quot;payType&quot; onchange=&quot;paymentTypeChanged()&quot;&gt;
-              &lt;option&gt;Cash&lt;/option&gt;
-              &lt;option&gt;Transtrade Bank&lt;/option&gt;
-              &lt;option&gt;Third-Party Account&lt;/option&gt;
-              &lt;option&gt;Other Adjustment&lt;/option&gt;
+              &lt;option&gt;Cash&lt;/option&gt;&lt;option&gt;Transtrade Bank&lt;/option&gt;
+              &lt;option value=&quot;Third-Party Account&quot;&gt;Third-Party Bank&lt;/option&gt;&lt;option&gt;Other Adjustment&lt;/option&gt;
             &lt;/select&gt;
           &lt;/div&gt;
-          &lt;div id=&quot;normalRefWrap&quot;&gt;&lt;label id=&quot;payWhereLabel&quot;&gt;Deposited Where / Reference&lt;/label&gt;&lt;input id=&quot;payWhere&quot;&gt;&lt;select id=&quot;payBank&quot; class=&quot;hidden&quot;&gt;&lt;option value=&quot;&quot;&gt;Select Transtrade Bank Account&lt;/option&gt;&lt;option&gt;Meezan Bank — •••••48217&lt;/option&gt;&lt;option&gt;Bank Alfalah — •••••19364&lt;/option&gt;&lt;option&gt;HBL — •••••72510&lt;/option&gt;&lt;/select&gt;&lt;/div&gt;
+          &lt;div id=&quot;payBankWrap&quot; class=&quot;hidden&quot;&gt;&lt;label for=&quot;payBank&quot;&gt;Transtrade Company Account&lt;/label&gt;
+            &lt;select id=&quot;payBank&quot;&gt;&lt;option value=&quot;&quot;&gt;Select company account&lt;/option&gt;&lt;/select&gt;
+          &lt;/div&gt;
+          &lt;div id=&quot;payThirdPartyWrap&quot; class=&quot;hidden&quot;&gt;&lt;label for=&quot;payThirdParty&quot;&gt;Third-Party Type&lt;/label&gt;
+            &lt;select id=&quot;payThirdParty&quot;&gt;&lt;option value=&quot;&quot;&gt;Select third-party type&lt;/option&gt;&lt;option&gt;Freight Forwarder&lt;/option&gt;&lt;option&gt;Broker&lt;/option&gt;&lt;option&gt;Supplier&lt;/option&gt;&lt;/select&gt;
+          &lt;/div&gt;
+          &lt;div&gt;&lt;label for=&quot;payDate&quot;&gt;Payment Date&lt;/label&gt;&lt;input id=&quot;payDate&quot; type=&quot;date&quot;&gt;&lt;/div&gt;
+          &lt;div&gt;&lt;label for=&quot;payAmount&quot;&gt;Amount Received&lt;/label&gt;&lt;input id=&quot;payAmount&quot; inputmode=&quot;decimal&quot;&gt;&lt;/div&gt;
+          &lt;div id=&quot;normalRefWrap&quot;&gt;&lt;label id=&quot;payWhereLabel&quot; for=&quot;payWhere&quot;&gt;Reference (Optional)&lt;/label&gt;&lt;input id=&quot;payWhere&quot;&gt;&lt;/div&gt;
           &lt;div id=&quot;adjustWrap&quot; class=&quot;hidden&quot;&gt;&lt;label&gt;Excess Amount Adjusted Against&lt;/label&gt;&lt;select id=&quot;adjustSource&quot;&gt;&lt;/select&gt;&lt;/div&gt;
         &lt;/div&gt;
         &lt;div class=&quot;actions&quot;&gt;&lt;button onclick=&quot;savePay()&quot;&gt;Save Payment Received&lt;/button&gt;&lt;/div&gt;
@@ -595,10 +599,10 @@ function refresh(){
  paidMetric.textContent=money(p);
  balancePayMetric.textContent=money(Math.max(0,v-p));
  if(window.tqTop)tqTop.textContent=fmtKg(total(sel));if(window.qlTop)qlTop.textContent=fmtKg(l);if(window.bqTop){bqTopLabel.textContent=diff&gt;=0?&#x27;Balance Quantity&#x27;:&#x27;Excess Quantity Loaded&#x27;;bqTop.textContent=fmtKg(Math.abs(diff))}
- if(window.paySummaryDetails)paySummaryDetails.innerHTML=sel.pay.length?sel.pay.slice().sort((a,b)=&gt;String(b.date).localeCompare(String(a.date))).map(p=&gt;`&lt;div class=&quot;mini&quot;&gt;&lt;b&gt;${escHtml(p.date)}&lt;/b&gt; — ${money(p.amount)} — ${escHtml(p.where||p.type||&#x27;—&#x27;)}&lt;/div&gt;`).join(&#x27;&#x27;):&#x27;&lt;div class=&quot;mini&quot;&gt;No payment received yet.&lt;/div&gt;&#x27;;
+ if(window.paySummaryDetails)paySummaryDetails.innerHTML=sel.pay.length?sel.pay.slice().sort((a,b)=&gt;String(b.date).localeCompare(String(a.date))).map(p=&gt;`&lt;div class=&quot;mini&quot;&gt;&lt;b&gt;${escHtml(p.date)}&lt;/b&gt; — ${money(p.amount)} — ${escHtml([p.thirdPartyType,p.where].filter(Boolean).join(&#x27; · &#x27;)||p.type||&#x27;—&#x27;)}&lt;/div&gt;`).join(&#x27;&#x27;):&#x27;&lt;div class=&quot;mini&quot;&gt;No payment received yet.&lt;/div&gt;&#x27;;
  if(window.loadSummaryDetails)loadSummaryDetails.innerHTML=sel.loads.length?sel.loads.slice().sort((a,b)=&gt;String(b.date).localeCompare(String(a.date))).map(x=&gt;`&lt;div class=&quot;mini&quot;&gt;&lt;b&gt;${escHtml(x.date)}&lt;/b&gt; — ${escHtml(x.truck)} — ${fmtKg(x.kg)}&lt;/div&gt;`).join(&#x27;&#x27;):&#x27;&lt;div class=&quot;mini&quot;&gt;No quantity loaded yet.&lt;/div&gt;&#x27;;
  let locked=sel.closed;
- [payDate,payAmount,payType,payWhere,adjustSource,truck,loadDate,loadKg,loadBags,loadTareKg,remarks,saveLoadBtn].forEach(el=&gt;el.disabled=locked);
+ [payDate,payAmount,payType,payWhere,payBank,payThirdParty,adjustSource,truck,loadDate,loadKg,loadBags,loadTareKg,remarks,saveLoadBtn].forEach(el=&gt;el.disabled=locked);
  editSodaBtn.disabled=locked;
  closeBtn.disabled=locked || !(sel.loads.length &amp;&amp; p&gt;=closingValue(sel));
  lockMsg.classList.toggle(&#x27;hidden&#x27;,!locked);
@@ -640,9 +644,10 @@ function paymentTypeChanged(){
  normalRefWrap.classList.toggle(&#x27;hidden&#x27;,adj);
  adjustWrap.classList.toggle(&#x27;hidden&#x27;,!adj);
  let bank=payType.value===&#x27;Transtrade Bank&#x27;;
- payWhere.classList.toggle(&#x27;hidden&#x27;,bank);
- payBank.classList.toggle(&#x27;hidden&#x27;,!bank);
- payWhereLabel.textContent=bank?&#x27;Transtrade Bank Account&#x27;:&#x27;Deposited Where / Reference&#x27;;
+ const thirdParty=payType.value===&#x27;Third-Party Account&#x27;;
+ payBankWrap.classList.toggle(&#x27;hidden&#x27;,!bank);
+ payThirdPartyWrap.classList.toggle(&#x27;hidden&#x27;,!thirdParty);
+ payWhereLabel.textContent=thirdParty?&#x27;Third-Party Name / Reference&#x27;:&#x27;Reference (Optional)&#x27;;
  refreshAdjustmentSources();
 }
 function refreshAdjustmentSources(){
@@ -655,7 +660,7 @@ function refreshAdjustmentSources(){
 }
 
 async function savePay(){
- if(sel.closed)return;const before=structuredClone(sel),draft=structuredClone(sel);
+ localSaleErrorMessage();if(sel.closed)return;const before=structuredClone(sel),draft=structuredClone(sel);
  let a=+payAmount.value||0;
  if(!Number.isFinite(a)||a&lt;=0)return alert(&#x27;Enter a positive Amount Received.&#x27;);
  let rec={date:payDate.value,amount:a,type:payType.value,where:&#x27;&#x27;,accounts:&#x27;Pending&#x27;,sourceSoda:null,sourceProduct:null,sourceParty:null};
@@ -667,19 +672,23 @@ async function savePay(){
    rec.where=`${src.soda} — ${src.product} — ${src.party} (Excess Adjustment)`;
    rec.sourceSoda=src.soda;rec.sourceProduct=src.product;rec.sourceParty=src.party;
  }else{rec.where=payType.value===&#x27;Transtrade Bank&#x27;?payBank.value:payWhere.value.trim();if(payType.value===&#x27;Transtrade Bank&#x27;&amp;&amp;!rec.where)return alert(&#x27;Select the Transtrade Bank account.&#x27;);}
+ if(rec.type===&#x27;Third-Party Account&#x27;){
+   if(!payThirdParty.value)return localSaleErrorMessage(&#x27;Select Freight Forwarder, Broker or Supplier.&#x27;);
+   rec.thirdPartyType=payThirdParty.value;
+ }
  const old=editPayIndex===null?null:sel.pay[editPayIndex];rec.bridgeId=old?.bridgeId||(&#x27;LSP-&#x27;+crypto.randomUUID());
  const bank=payBank.selectedOptions?.[0];if(rec.type===&#x27;Transtrade Bank&#x27;){rec.bankAccountId=bank?.dataset.bankId||&#x27;&#x27;;rec.bankEntity=bank?.dataset.entity||&#x27;&#x27;;draft.accountEntity=rec.bankEntity;}
  else rec.bankEntity=draft.accountEntity||draft.entity||&#x27;TTI&#x27;;
  if(editPayIndex===null)draft.pay.push(rec);else draft.pay[editPayIndex]=rec;
  if(!await commitLocalSale(draft,before))return;editPayIndex=null;
- payDate.value=today();payAmount.value=&#x27;&#x27;;payWhere.value=&#x27;&#x27;;payType.value=&#x27;Cash&#x27;;paymentTypeChanged();
+ payDate.value=today();payAmount.value=&#x27;&#x27;;payWhere.value=&#x27;&#x27;;payBank.value=&#x27;&#x27;;payThirdParty.value=&#x27;&#x27;;payType.value=&#x27;Cash&#x27;;paymentTypeChanged();
  refresh();toastMsg(&#x27;Payment saved&#x27;);return true;
 }
 
 function renderPayments(){
  if(!sel)return;
  payDetails.classList.toggle(&#x27;hidden&#x27;,sel.pay.length===0);
- payDetails.innerHTML=sel.pay.length?`&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Date&lt;/th&gt;&lt;th&gt;Amount&lt;/th&gt;&lt;th&gt;Transaction Type&lt;/th&gt;&lt;th&gt;Details&lt;/th&gt;&lt;th&gt;Accounts&lt;/th&gt;&lt;th&gt;Edit&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${sel.pay.map((p,i)=&gt;`&lt;tr&gt;&lt;td&gt;${escHtml(p.date)}&lt;/td&gt;&lt;td&gt;${money(p.amount)}&lt;/td&gt;&lt;td&gt;${escHtml(p.type)}&lt;/td&gt;&lt;td&gt;${escHtml(p.where||p.type||&#x27;—&#x27;)}&lt;/td&gt;&lt;td&gt;${escHtml(p.accounts)}&lt;/td&gt;&lt;td&gt;${sel.closed?&#x27;Locked&#x27;:`&lt;button class=&quot;sec&quot; onclick=&quot;editPay(${i})&quot;&gt;Edit&lt;/button&gt;`}&lt;/td&gt;&lt;/tr&gt;`).join(&#x27;&#x27;)}&lt;/tbody&gt;&lt;/table&gt;`:&#x27;&#x27;;
+ payDetails.innerHTML=sel.pay.length?`&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Date&lt;/th&gt;&lt;th&gt;Amount&lt;/th&gt;&lt;th&gt;Transaction Type&lt;/th&gt;&lt;th&gt;Details&lt;/th&gt;&lt;th&gt;Accounts&lt;/th&gt;&lt;th&gt;Edit&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${sel.pay.map((p,i)=&gt;`&lt;tr&gt;&lt;td&gt;${escHtml(p.date)}&lt;/td&gt;&lt;td&gt;${money(p.amount)}&lt;/td&gt;&lt;td&gt;${escHtml(p.type)}&lt;/td&gt;&lt;td&gt;${escHtml([p.thirdPartyType,p.where].filter(Boolean).join(&#x27; · &#x27;)||p.type||&#x27;—&#x27;)}&lt;/td&gt;&lt;td&gt;${escHtml(p.accounts)}&lt;/td&gt;&lt;td&gt;${sel.closed?&#x27;Locked&#x27;:`&lt;button class=&quot;sec&quot; onclick=&quot;editPay(${i})&quot;&gt;Edit&lt;/button&gt;`}&lt;/td&gt;&lt;/tr&gt;`).join(&#x27;&#x27;)}&lt;/tbody&gt;&lt;/table&gt;`:&#x27;&#x27;;
 }
 
 function paymentDetails(){
@@ -690,7 +699,10 @@ function paymentDetails(){
 function editPay(i){
  if(sel.closed)return;
  let p=sel.pay[i];editPayIndex=i;payDate.value=p.date;payAmount.value=p.amount;payType.value=p.type;paymentTypeChanged();
- if(p.type===&#x27;Other Adjustment&#x27;)adjustSource.value=p.sourceSoda||&#x27;&#x27;;else payWhere.value=p.where||&#x27;&#x27;;
+ payThirdParty.value=p.thirdPartyType||&#x27;&#x27;;
+ if(p.type===&#x27;Other Adjustment&#x27;)adjustSource.value=p.sourceSoda||&#x27;&#x27;;
+ else if(p.type===&#x27;Transtrade Bank&#x27;)payBank.value=[...payBank.options].find(o=&gt;o.dataset.bankId===p.bankAccountId||o.value===p.where)?.value||&#x27;&#x27;;
+ else payWhere.value=p.where||&#x27;&#x27;;
  window.scrollTo({top:document.getElementById(&#x27;pp&#x27;).offsetTop-20,behavior:&#x27;smooth&#x27;});
 }
 
