@@ -172,9 +172,66 @@ function tt_inv_pending_arrivals(array $values): array {
 /** Physical by-products belong to a mill and variety, independent of the accounting owner.
  * Unknown historical variety remains unassigned. Never infer it from another lot.
  */
+function tt_inv_is_byproduct(string $name): bool {
+    return (bool)preg_match('/^(?:B2(?:\s*[—-].*)?|B2 \/ BROKEN|BROKEN(?:\s*[—-].*)?|B3|CSR|B2 CSR|PADDY|POWDER|SWEEPING|STONE \/ SUTLI \/ DUST)$/iu',trim($name));
+}
+
+/** Sellable quantities use the same variety buckets as the physical ledger. */
+function tt_inv_local_sale_stock(array $values,array $scope): array {
+    $rows=[];
+    foreach(tt_inv_physical_stock($values,$scope) as $name=>$kg){
+        $parts=explode(' — ',$name,2);
+        if(count($parts)!==2||$parts[0]==='UNASSIGNED VARIETY'||!tt_inv_is_byproduct($parts[1]))continue;
+        [$variety,$product]=$parts;
+        if(preg_match('/\b(?:Raw|Ready) Rice$/i',$variety))continue;
+        $rows[]=['key'=>$name,'variety'=>$variety,'baseVariety'=>tt_product_base($variety),
+            'riceType'=>tt_product_type_from_name($variety),'product'=>$product,'kg'=>$kg];
+    }
+    return $rows;
+}
+
+function tt_inv_guard_local_sales(array $values,string $json): void {
+    $after=array_replace($values,['tt35localsales'=>$json]);
+    $previous=[];
+    foreach(tt_inv_rows($values,'tt35localsales') as $r)$previous[(string)($r['id']??$r['soda']??'')]=$r;
+    $stock=[];
+    foreach(tt_inv_rows($after,'tt35localsales') as $r){
+        $old=$previous[(string)($r['id']??$r['soda']??'')]??null;
+        if($r==$old||($old&&empty($r['byProductSale'])&&empty($old['byProductSale'])))continue;
+        $scope=tt_inv_scope($r);
+        $product=trim((string)($r['product']??''));
+        $key=tt_inv_physical_name($product,$r);
+        if(empty($r['byProductSale'])||!tt_inv_is_byproduct($product)||empty($r['baseVariety'])
+            ||($r['stockSourceName']??'')!==$key||($r['billingWeightBasis']??'')!=='GROSS'
+            ||trim((string)($r['party']??''))===''||!is_numeric($r['tons']??null))
+            throw new DomainException('Choose the in-stock variety and by-product, enter Kanta weight in kg and provide the buyer name.');
+        $location=tt_inv_location($scope);
+        $stock[$location]??=array_column(tt_inv_local_sale_stock($values,$scope),'kg','key');
+        $loads=(array)($r['loads']??[]);
+        $used=0.;
+        foreach($loads as $load){
+            $kg=tt_inv_kg($load['kg']??0,false);
+            if($kg<=0||tt_inv_cargo_kg($load,'local')!==$kg||(float)($load['emptyTareKg']??0)!==0.)
+                throw new DomainException('Use the saved Kanta cargo weight in kg for loading.');
+            $used+=$kg;
+        }
+        $planned=tt_inv_kg((float)$r['tons']*1000,false);
+        $sameBucket=($old['stockSourceName']??'')===$key&&tt_inv_location($old)===$location;
+        $oldKg=$sameBucket?array_sum(array_map(static fn($load)=>tt_inv_cargo_kg($load,'local'),(array)($old['loads']??[]))):0.;
+        if($planned<=0)throw new DomainException('Enter a positive Kanta weight in kg.');
+        if($used>$planned*1.05+.001)throw new DomainException('Loading exceeds the allowed 5% above the Soda quantity.');
+        if(!$sameBucket||$used>$oldKg+.001||$planned>(float)($old['tons']??0)*1000+.001){
+            $required=!$sameBucket||$planned>(float)($old['tons']??0)*1000+.001?max($planned,$used):$used;
+            if(!isset($stock[$location][$key])||$required>$stock[$location][$key]+$oldKg+.001)
+                throw new DomainException('The selected variety and by-product do not have enough Kanta stock. Check the current balance.');
+        }
+        $stock[$location][$key]=($stock[$location][$key]??0)+$oldKg-$used;
+    }
+}
+
 function tt_inv_physical_name(string $name,array $record): string {
     $name=trim($name);
-    if(!preg_match('/^(?:B2(?:\s*[—-].*)?|B2 \/ BROKEN|BROKEN(?:\s*[—-].*)?|B3|CSR|B2 CSR|PADDY|POWDER|SWEEPING|STONE \/ SUTLI \/ DUST)$/iu',$name))return $name;
+    if(!tt_inv_is_byproduct($name))return $name;
     $product=preg_match('/^(?:B2(?! CSR)|BROKEN)/iu',$name)?'B2':$name;
     // A return is a same-variety reclassification, not new production. Older
     // returns already retain the exact destination identity; resolve it on read
@@ -434,6 +491,7 @@ function tt_inv_guard_deleted_source(array $values,string $key,string $json): vo
 }
 function tt_inv_prepare_write(array $values,string $key,string $json,array $user,string $now): string {
     tt_inv_guard_deleted_source($values,$key,$json);
+    if($key==='tt35localsales')tt_inv_guard_local_sales($values,$json);
     tt_guard_arrival_collection($key,(string)($values[$key]??'[]'),$json);
     if(in_array($key,['tt30bags','tt33bagreceipts'],true)){require_once __DIR__.'/api/bag_receipts_core.php';$json=br_guard_write($values,$key,$json);}
     if(in_array($key,['tt36bagissues','tt30prodaudit'],true)){
