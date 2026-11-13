@@ -194,6 +194,8 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  # Explicit cost-report reads allocate only the chosen brand and never save books/stock.
  report_books=json.loads(path.read_text());report_books['exporterDeals'][local_id]['brand']='REPORT BRAND';report_books['directorCostings']=[]
  report_books['managementCostingInputs']=[{'entity':'TTI','date':'2026-10-03','variety':'IRRI-6','rawRiceRate':10,'millingRate':3,'byProducts':{}}]
+ report_books.setdefault('events',[]).append({'eventType':'COMMODITY_RECEIPT_ACCEPTED','entity':'TTI','sourceKey':'REPORT-RAW','journalId':'REPORT-RAW'})
+ report_books['journals']['REPORT-RAW']={'id':'REPORT-RAW','entity':'TTI','date':'2026-10-02','status':'Posted','totalDebit':15000,'meta':{'variety':'IRRI-6','locationName':'Own Mill','productStage':'RAW','payableWeightKg':1500}}
  path.write_text(json.dumps(report_books))
  report_ops=json.loads((root/'data/operations.json').read_text())
  report_ops['values']['tt30prod']=json.dumps([{'id':'REPORT-RUN','entity':'TTI','date':'2026-10-03','millName':'Own Mill','sourceVariety':'IRRI-6','recoveryVersion':1,'rawInputs':[{'grossKg':1500}],'rows':[{'id':'A','product':'Ready Rice — REPORT BRAND','bags':10,'bagWeight':50},{'id':'B','product':'Ready Rice — OTHER BRAND','bags':20,'bagWeight':50}]}])
