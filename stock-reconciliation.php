@@ -19,10 +19,10 @@ $sourceLabel=static function(array $row):string{
     if(!$labels&&isset($row['shipment']))$labels[]=(string)$row['shipment'];
     return implode(' / ',array_values(array_unique($labels)));
 };
-$origin=($_GET['origin']??'')==='directors'?'directors':'accounts';$today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
+$origin=($_GET['origin']??'')==='directors'?'directors':'accounts';if($origin==='directors'&&(!tt_user_can_open_module($user,'Directors')||(!in_array($user['role']??'',['Director','Super Admin'],true)&&!tt_inv_has_action($user,'Directors',['reports','stock-reconciliation','ghati'])))){http_response_code(403);exit('Directors access is required.');}$today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
 $escape=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');$number=static fn($v)=>number_format((float)$v,3,'.',',');
 $date=static function($v):string{$s=(string)$v;return preg_match('/^(\d{4})-(\d{2})-(\d{2})/',$s,$m)?$m[3].'-'.$m[2].'-'.$m[1]:$s;};
-try{$values=tt_inv_read_values();$report=tt_inv_statement($values,$entity);$rate=tt_inv_rate($values,$entity,$today);$position=tt_inv_stock_position($values,$entity);$canReview=tt_inv_can_review($user,$entity);$reviewRevision=tt_inv_review_revision($values);}
+try{$values=tt_inv_read_values();$report=tt_inv_statement($values,$entity);$rate=tt_inv_rate($values,$entity,$today);$position=tt_inv_stock_position($values,$entity);$canReview=tt_inv_can_review($user,$entity);$reviewRevision=tt_inv_review_revision($values);$estimatedGhati=null;if($origin==='directors'){require_once __DIR__.'/api/estimated_ghati_core.php';$estimatedGhati=eg_report($values,[$entity],$today);}}
 catch(Throwable $error){error_log('Stock reconciliation: '.$error->getMessage());http_response_code(503);exit('The reconciliation report could not be read. No figures have been assumed.');}
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stock Reconciliation — <?=$escape($entity)?></title>
@@ -33,6 +33,7 @@ catch(Throwable $error){error_log('Stock reconciliation: '.$error->getMessage())
 <p class="note">Management reconciliation; no physical stock adjustment. Gains first offset Ghati; unused gain carries forward. Actual loading is not blocked while current-shift production is pending.</p>
 <div class="summary"><div class="card">Net Ghati / weight loss<strong><?=$number($report['ghatiKg'])?> kg</strong></div><div class="card">Carry-forward gain<strong><?=$number($report['carryForwardGainKg'])?> kg</strong></div><div class="card">10-day weighted Raw Rice rate<strong><?=$rate===null?'Not available':'PKR '.number_format($rate,2).' / kg'?></strong></div></div>
 <?php if($rate!==null):?><p class="note">Indicative weight-loss exposure: PKR <?=number_format($report['ghatiKg']*$rate,2)?>. This is a management valuation, not another booked expense.</p><?php endif;?>
+<?php if($estimatedGhati):?><p data-estimated-ghati><?=$escape(eg_line($estimatedGhati))?></p><?php endif;?>
 <h2>Current stock in the saved books</h2><div class="table"><table><thead><tr><th>Mill / location</th><th>Exact product</th><th>Book kg</th></tr></thead><tbody>
 <?php foreach($position as $r):?><tr><td><?=$escape($r['millName'])?></td><td><?=$escape($r['stockName'])?></td><td><?=$number($r['bookKg'])?></td></tr><?php endforeach;?>
 <?php if(!$position):?><tr><td colspan="3">No stock movements recorded.</td></tr><?php endif;?></tbody></table></div>

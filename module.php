@@ -348,7 +348,7 @@ $sharedBootstrap = <<<'HTML'
       const response=await fetch('/api/mill_record_delete.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({...intent,csrf:access.csrf})});
       const saved=await response.json();
       if(!response.ok||!saved.ok)throw new Error(saved.error||'Deletion could not be confirmed. Retry the same deletion.');
-      if(saved.receipt?.requestKey!==intent.requestKey||saved.receipt?.collection!==intent.collection||saved.receipt?.sourceId!==String(intent.sourceId)||typeof saved.values?.[intent.collection]!=='string')throw new Error('Deletion acknowledgement is incomplete. Retry the same deletion.');
+      if(saved.receipt?.requestKey!==intent.requestKey||saved.receipt?.collection!==intent.collection||saved.receipt?.sourceId!==String(intent.sourceId)||(intent.loadId&&saved.receipt?.loadId!==String(intent.loadId))||typeof saved.values?.[intent.collection]!=='string')throw new Error('Deletion acknowledgement is incomplete. Retry the same deletion.');
       for(const [key,value] of Object.entries(saved.values)){
         if(!keys.includes(key)||typeof value!=='string'||!Number.isInteger(saved.meta?.[key]?.version))throw new Error('Deletion returned incomplete saved entries. Retry the same deletion.');
         if(pending.has(key)||localStorage.getItem(key)!==originals.get(key))throw new Error('The entry was deleted. Reopen saved entries to view the confirmed result.');

@@ -103,8 +103,10 @@ try {
         try{$through=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');$summary=$kind==='DAILY'?gd_summary($record):gm_record_summary($record,$state,$through);}catch(DomainException $e){$summaryError=$e->getMessage();}
         if($kind==='DAILY'&&isset($record['sections']['daily'])&&($record['sections']['daily']['data']['source']['financials']['cashflowBasis']??'')!=='PARTY_V2'){$summary=null;$summaryError='This saved position uses the earlier ledger basis. Prepare and save a new party-wise cash flow; the historical snapshot is retained.';}
         $records=[];foreach((array)($state['groupManagementRecords']??[]) as $r)if(($r['kind']??'')===$kind)$records[]=['id'=>$r['id'],'date'=>$r['date'],'hijriYear'=>$r['sections']['header']['data']['hijriYear']??''];
-        $dailySource=$kind==='DAILY'?gd_sources(array_replace($state,['revision'=>$booksRevision]),gd_read_operations(TT_DATA_DIR.'/operations.json'),$date):null;
+        $dailyOperations=$kind==='DAILY'?gd_read_operations(TT_DATA_DIR.'/operations.json'):null;
+        $dailySource=$kind==='DAILY'?gd_sources(array_replace($state,['revision'=>$booksRevision]),$dailyOperations,$date):null;
         $payload=['dailyRateDefaults'=>dcd_group_rates($state,$date),'dailySource'=>$dailySource,'ok'=>true,'record'=>$record,'source'=>$source,'summary'=>$summary,'summaryError'=>$summaryError,'records'=>$records,'result'=>$result,'revision'=>(int)($state['revision']??0),'canCreate'=>gm_permission($user,$kind,'Create',$origin),'canEdit'=>gm_permission($user,$kind,'Edit',$origin),'canWrite'=>gm_permission($user,$kind,'Create',$origin)||gm_permission($user,$kind,'Edit',$origin)];
+        if($kind==='DAILY'&&$origin==='Directors'){require_once __DIR__.'/estimated_ghati_core.php';$payload['estimatedGhati']=eg_report($dailyOperations['values'],['TTI','BRM'],$date);$payload['estimatedGhati']['line']=eg_line($payload['estimatedGhati']);}
     }finally{if($h){flock($h,LOCK_UN);fclose($h);}}
     gm_out($payload);
 }catch(DomainException|JsonException $e){gm_out(['ok'=>false,'error'=>$e->getMessage()],422);}catch(Throwable $e){error_log('Group management: '.$e->getMessage());gm_out(['ok'=>false,'error'=>'Group report could not be loaded or saved. No success has been confirmed.'],500);}

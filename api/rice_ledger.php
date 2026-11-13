@@ -16,5 +16,8 @@ try{
     foreach(['from','to'] as $k)if($f[$k]!==''&&!mr_valid_date($f[$k]))rl_out(['ok'=>false,'error'=>'Valid report dates are required.'],422);
     if($f['from']!==''&&$f['to']!==''&&$f['from']>$f['to'])rl_out(['ok'=>false,'error'=>'From date cannot follow To date.'],422);
     if(!in_array($f['movement'],['All','Inward','Outward'],true))rl_out(['ok'=>false,'error'=>'Invalid movement filter.'],422);
-    tt_release_read_session();$values=tt_inv_read_values();rl_out(rl_report($values,['entity'=>$e,'millName'=>$f['mill'],'physicalPool'=>$f['pool']==='mill','arrivalEstimates'=>true],$f)+['generatedAt'=>gmdate('c')]);
+    if(($_GET['origin']??'')==='directors'&&(!tt_user_can_open_module($u,'Directors')||(!in_array($u['role']??'',['Director','Super Admin'],true)&&!tt_inv_has_action($u,'Directors',['reports','stock-reconciliation','ghati']))))rl_out(['ok'=>false,'error'=>'Directors access is required.'],403);
+    tt_release_read_session();$values=tt_inv_read_values();$result=rl_report($values,['entity'=>$e,'millName'=>$f['mill'],'physicalPool'=>$f['pool']==='mill','arrivalEstimates'=>true],$f);
+    if(($_GET['origin']??'')==='directors'){require_once __DIR__.'/estimated_ghati_core.php';$g=eg_report($values,$f['pool']==='mill'?['TTI','BRM']:[$e],$f['to']?:date('Y-m-d'),$f['from'],$f['mill']);$result['estimatedGhati']=$g+['line'=>eg_line($g)];}
+    rl_out($result+['generatedAt'=>gmdate('c')]);
 }catch(Throwable $ex){error_log('Rice Ledger: '.$ex->getMessage());rl_out(['ok'=>false,'error'=>'Stock source could not be read. No balance has been estimated.'],500);}

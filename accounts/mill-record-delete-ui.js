@@ -49,10 +49,18 @@
    onDeleted?.();window.showNonBlockingMessage?.('Entry deleted.');
   });
  }
+ function loadingButton(sourceId,loadId){if(!loadId)return '';return '<button type="button" class="tt-row-remove" data-mill-load-delete="'+esc(loadId)+'" data-source-id="'+esc(sourceId)+'" aria-label="Delete loading" title="Delete loading">−</button>';}
+ function removeLoading(sourceId,loadId){
+  const row=get('tt35exportersale',[]).find(r=>String(r.id??r.ref)===String(sourceId));
+  if(!row)return alert('Reopen this SODA before deleting a loading.');
+  const expected=JSON.parse(JSON.stringify(row));
+  dialog('container / truck loading',intent=>window.TT_SHARED_SYNC.deleteMillRecord({...intent,collection:'tt35exportersale',entity:row.entity||'TTI',sourceId:String(sourceId),loadId:String(loadId),expected}),()=>{window.TT_DIRECTOR_EXPORTER_MILL?.confirmed?.();renderSavedExporterSales();window.showNonBlockingMessage?.('Loading deleted. Stock updated.');});
+ }
  document.addEventListener('click',event=>{
+  const load=event.target.closest?.('[data-mill-load-delete]');if(load){event.preventDefault();event.stopImmediatePropagation();removeLoading(load.dataset.sourceId,load.dataset.millLoadDelete);return;}
   const target=event.target.closest?.('[data-mill-delete]');
   if(!target)return;
   event.preventDefault();event.stopImmediatePropagation();remove(target.dataset.millDelete,target.dataset.sourceId);
  },true);
- window.TT_MILL_DELETE={button,dialog,remove};
+ window.TT_MILL_DELETE={button,dialog,remove,loadingButton,removeLoading};
 })();
