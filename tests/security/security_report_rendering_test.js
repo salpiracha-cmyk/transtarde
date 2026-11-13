@@ -7,8 +7,8 @@ const outer=new JSDOM(source),frame=outer.window.document.querySelector('iframe[
 const payload=`'\"><img src=x onerror="window.pwned=1"><svg onload="window.pwned=2">`;
 function safe(document){assert.equal(document.querySelector('img,svg,iframe'),null);for(const el of document.querySelectorAll('*'))for(const a of el.attributes)if(/^on/i.test(a.name))assert.ok(!a.value.includes('window.pwned='),a.value);}
 const dom=new JSDOM(frame,{runScripts:'outside-only',url:'https://fixture.test'}),w=dom.window;
-for(const n of ['escHtml','safeJsToken','render','renderExcess','refreshAdjustmentSources','renderPayments','renderLoads','gate'])w.eval(localFns.get(n));
-w.persistSales=()=>{};w.stat=()=> 'Open';w.money=x=>Number(x).toFixed(2);w.excess=()=>100;
+for(const n of ['escHtml','safeJsToken','refreshPartyChoices','render','renderExcess','refreshAdjustmentSources','renderPayments','renderLoads','gate'])w.eval(localFns.get(n));
+w.total=s=>Number(s.tons)*1000;w.fmtKg=x=>Number(x).toLocaleString();w.persistSales=()=>{};w.stat=()=> 'Open';w.money=x=>Number(x).toFixed(2);w.excess=()=>100;
 w.sales=[{soda:payload,date:payload,party:payload,product:payload,tons:payload,rate:payload,doneBy:payload,pay:[],loads:[]}];w.sel=null;
 w.render();safe(w.document);assert.equal(w.document.querySelectorAll('#activeBody tr').length,1);assert.match(w.document.getElementById('activeBody').textContent,/onerror/);
 function gateFixture(win){

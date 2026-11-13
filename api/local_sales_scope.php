@@ -22,3 +22,19 @@ function lss_location(array $row,array $store,array $values): string {
 function lss_allowed(array $user,array $row,array $store,array $values,string $action='View'): bool {
     return tt_user_business_entity($user,(string)($row['entity']??''),$action)&&os_location($user,lss_location($row,$store,$values));
 }
+
+/** Names on a Mill by-product transaction come from the committed Soda. */
+function lss_byproduct_source(array $values,string $sourceKey,string $collection,string $entity): ?array {
+    $prefix=$collection==='loads'?'LOCAL':'LOCALPAY';
+    $parts=explode('|',$sourceKey);
+    if(count($parts)!==3||$parts[0]!==$prefix||$parts[2]==='')return null;
+    foreach(tt_inv_rows($values,'tt35localsales') as $sale){
+        if(empty($sale['byProductSale'])||(string)($sale['soda']??'')!==$parts[1])continue;
+        if(strtoupper((string)($sale['accountEntity']??$sale['entity']??''))!==$entity)continue;
+        foreach((array)($sale[$collection]??[]) as $row){
+            if(($row['bridgeId']??'')===$parts[2]&&($collection==='pay'||!empty($row['printed'])))
+                return ['sale'=>$sale,'row'=>$row];
+        }
+    }
+    return null;
+}

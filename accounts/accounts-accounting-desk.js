@@ -516,7 +516,7 @@
           try{
             if(row.kind==='LATE')await updateAttention(row,company,'approve_late_pohanch');
             else if(row.kind==='SALE')await window.TT_LOCAL_SALES_CONTROL_UI.review(row.target.candidateId);
-            else if(row.kind==='PAYMENT')return await window.TT_LOCAL_SALES_PAYMENT_UI.review(row.target.paymentId);
+            else if(row.kind==='PAYMENT')return await window.TT_LOCAL_SALES_PAYMENT_UI.review(row.target.paymentId,loadDashboardSummary);
             if(company===entity())await loadDashboardSummary();
           }catch(e){
             if(request===dashboardLoad&&company===entity()){error.textContent=e.message;error.hidden=false;}
@@ -582,11 +582,11 @@
     const details=Object.entries(row.details||{}).filter(([,value])=>value!=='').map(([label,value])=>
       `<dt>${esc(label)}</dt><dd>${esc(label.endsWith('date')?(window.TT_DATE?.display(value)||value):value)}</dd>`).join('');
     const openLabel=row.kind==='HOLD'?'Open payment hold':row.kind==='FREIGHT'?'Open freight bill':
-      row.kind==='PAYMENT'&&row.details?.['Payment type']==='Third-Party Account'?'Open payment details':row.target?.sodaNo?'Open SODA':'';
+      row.kind==='PAYMENT'?'Open payment details':row.kind==='SALE'?'Open sale details':row.target?.sodaNo?'Open SODA':'';
     body.innerHTML=`<div class="tt-form"><h3>${esc(row.reference||row.type)}</h3><p>${esc(row.message)}</p>
       ${row.statement?sodaDeliveryStatement(row.statement):details?`<dl class="tt-attention-details">${details}</dl>`:''}${row.approval?.releaseHold?'<p>Approving releases the automatic late-delivery hold.</p>':''}<p id="ttReviewError" role="alert"></p>
       ${openLabel?`<button type="button" class="btn" id="ttReviewOpen">${openLabel}</button>`:''}
-      <button type="button" class="btn" id="ttReviewDiscard">Discard notice</button></div>`;
+      ${['SALE','PAYMENT'].includes(row.kind)?'':'<button type="button" class="btn" id="ttReviewDiscard">Discard notice</button>'}</div>`;
     const action=async task=>{
       const buttons=qa('button',body);
       buttons.forEach(b=>b.disabled=true);
@@ -597,14 +597,16 @@
       }catch(e){q('#ttReviewError',body).textContent=e.message}
       finally{buttons.forEach(b=>b.disabled=false)}
     };
-    q('#ttReviewDiscard',body).onclick=()=>action(async()=>{
+    const discard=q('#ttReviewDiscard',body);
+    if(discard)discard.onclick=()=>action(async()=>{
       await updateAttention(row,company,'discard');
       await loadDashboardSummary();
     });
     const open=q('#ttReviewOpen',body);
     if(open)open.onclick=()=>action(async()=>{
       if(row.kind==='HOLD')return openHeldReview(row);
-      if(row.kind==='PAYMENT')return window.TT_LOCAL_SALES_PAYMENT_UI.review(row.target.paymentId);
+      if(row.kind==='PAYMENT')return window.TT_LOCAL_SALES_PAYMENT_UI.review(row.target.paymentId,loadDashboardSummary);
+      if(row.kind==='SALE'){await window.TT_LOCAL_SALES_CONTROL_UI.review(row.target.candidateId);return loadDashboardSummary();}
       if(row.kind==='FREIGHT'){
         const state=await json('../api/accounts_workflows_v1.php?entity='+encodeURIComponent(company)+'&section=freight');
         const bill=(state.bills||[]).find(x=>x.id===row.target.billId);

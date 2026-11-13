@@ -10,7 +10,8 @@ $s=['purchaseSodas'=>['S1'=>['id'=>'S1','entity'=>'TTI','sodaNo'=>'R26-001','com
 'localSalesPaymentCandidates'=>['LP1'=>['entity'=>'TTI','status'=>'Pending Accounts Approval','soda'=>'LOCAL-1','amount'=>250,'paymentType'=>'Cash','party'=>'Customer']],
 'freightBillsV1'=>['F1'=>['entity'=>'TG','disputedTotal'=>500,'invoiceNo'=>'TG1']]];
 $items=ar_items($s,'TTI');check(count($items)===3,'Ready rice at minus 5% must not have an overdue balance; include hold, sale and payment only.');check(count(ar_items($s,'TG'))===1,'Company queue separation');
-$first=$items[0];$s['accountsReviewDismissals'][$first['id']]=['fingerprint'=>$first['fingerprint']];check(count(ar_items($s,'TTI'))===2,'Discard stays hidden on reload');check($s['payableHolds']['H1']['active']===true,'Discard cannot release hold');check($s['journals']['J1']['status']==='Posted','Discard cannot remove journal');
+check(array_column($items,'kind')===['SALE','PAYMENT','HOLD'],'Local sale and payment reviews precede other pending work');
+$first=$items[2];$s['accountsReviewDismissals'][$first['id']]=['fingerprint'=>$first['fingerprint']];check(count(ar_items($s,'TTI'))===2,'Discard stays hidden on reload');check($s['payableHolds']['H1']['active']===true,'Discard cannot release hold');check($s['journals']['J1']['status']==='Posted','Discard cannot remove journal');
 $s['payableHolds']['H1']['reason']='New missing document';check(count(ar_items($s,'TTI'))===3,'Changed reason must reappear');
 $s['journals']['J1']['meta']['payableWeightKg']=94999;check(count(ar_items($s,'TTI'))===4,'Ready rice below minus 5% must need review');
 $s['purchaseSodas']['S1']['manualStatus']='Short Closed';check(count(ar_items($s,'TTI'))===3,'Closed Soda should not reappear');

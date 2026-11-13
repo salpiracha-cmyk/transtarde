@@ -4,6 +4,7 @@ declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/arrival_withdrawal_core.php';
 require_once __DIR__.'/exmill_queue_core.php';
+require_once __DIR__.'/local_sales_scope.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -61,7 +62,23 @@ function bo_entity(string $kind, array $body): string {
     return $entity;
 }
 
-function bo_authorize(array $user, string $module, string $entity, bool $write): void {
+function bo_byproduct_allowed(array $user,array $item,bool $write,array $values): bool {
+    $kind=(string)($item['kind']??'');$body=(array)($item['body']??[]);
+    if(!in_array($kind,['localSaleCandidate','localPaymentCandidate'],true))return false;
+    $entity=(string)($item['entity']??'');
+    $source=lss_byproduct_source($values,(string)($body['sourceKey']??''),$kind==='localSaleCandidate'?'loads':'pay',$entity);
+    if(!$source||!os_location($user,(string)($source['sale']['millName']??'')))return false;
+    foreach($write?['Create','Edit']:['View'] as $action)
+        if(tt_user_can_module_action($user,'Mill','local',$action)&&tt_user_business_entity($user,$entity,$action))return true;
+    return false;
+}
+
+function bo_authorize(array $user,string $module,string $entity,bool $write,array $item=[],?array $values=null): void {
+    if(!empty($item['body']['byProductSale'])){
+        if(!bo_byproduct_allowed($user,$item,$write,$values??tt_inv_read_values()))
+            bo_out(['ok'=>false,'error'=>'Mill Local Sales access to this saved transaction is required.'],403);
+        return;
+    }
     if (!bo_can_write($user, $module)) {
         bo_out(['ok' => false, 'error' => $module.' Create or Edit permission required.'], 403);
     }
@@ -105,16 +122,18 @@ try {
     $user = tt_require_login();
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        $read = bo_read_locked(LOCK_SH, function(array $store) use ($user): array {
+        $read = bo_read_locked(LOCK_SH, static fn(array $store):array=>$store['bridgeOutbox']);
+        $values=null;
+        $visible=(static function(array $itemsIn) use ($user,&$values): array {
             $items = [];
             $confirmed = [];
-            foreach ((array)$store['bridgeOutbox'] as $item) {
+            foreach ($itemsIn as $item) {
                 if (!is_array($item)) {
                     continue;
                 }
                 $module = (string)($item['module'] ?? '');
                 $entity = (string)($item['entity'] ?? '');
-                if (!bo_can_write($user, $module) || !tt_user_can_access_entity($user, $entity, 'View')) {
+                if (!empty($item['body']['byProductSale']) ? !bo_byproduct_allowed($user,$item,false,$values??=tt_inv_read_values()) : (!bo_can_write($user, $module) || !tt_user_can_access_entity($user, $entity, 'View'))) {
                     continue;
                 }
                 if (($item['status'] ?? 'Pending') === 'Posted') {
@@ -125,8 +144,8 @@ try {
             }
             usort($items, static fn(array $a, array $b): int => strcmp((string)($a['createdAt'] ?? ''), (string)($b['createdAt'] ?? '')));
             return ['items'=>$items,'confirmed'=>$confirmed];
-        });
-        bo_out(['ok' => true, 'revision' => $read['revision']] + $read['result']);
+        })($read['result']);
+        bo_out(['ok' => true, 'revision' => $read['revision']] + $visible);
     }
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -155,7 +174,7 @@ try {
         if (eq_draft(['kind'=>$kind,'body'=>$body])) bo_out(['ok'=>false,'error'=>'Container-number-only saves are loading drafts. Complete the saved container in Mill; its native save posts Accounts once.'],422);
         $module = bo_module($kind);
         $entity = bo_entity($kind, $body);
-        bo_authorize($user, $module, $entity, true);
+        bo_authorize($user,$module,$entity,true,compact('kind','body','entity'));
         $fingerprint = hash('sha256', json_encode([$kind, $body], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
         $written = bo_read_locked(LOCK_EX, function(array &$store) use ($user, $key, $kind, $body, $module, $entity, $fingerprint): array {
@@ -207,14 +226,15 @@ try {
         bo_out(['ok' => true, 'item' => $written['result'], 'revision' => $written['revision']]);
     }
 
+    if (in_array($action,['mark_sent','record_failure'],true)) $values=tt_inv_read_values();
     if ($action === 'mark_sent') {
         $result = is_array($input['result'] ?? null) ? $input['result'] : [];
-        $written = bo_read_locked(LOCK_EX, function(array &$store) use ($user, $key, $result): array {
+        $written = bo_read_locked(LOCK_EX, function(array &$store) use ($user, $key, $result,$values): array {
             $item = $store['bridgeOutbox'][$key] ?? null;
             if (!is_array($item)) {
                 bo_out(['ok' => false, 'error' => 'Bridge handoff not found.'], 404);
             }
-            bo_authorize($user, (string)$item['module'], (string)$item['entity'], true);
+            bo_authorize($user,(string)$item['module'],(string)$item['entity'],true,$item,$values);
             if (($item['status'] ?? '') === 'Posted') {
                 return $item;
             }
@@ -229,12 +249,12 @@ try {
 
     if ($action === 'record_failure') {
         $message = substr(trim((string)($input['error'] ?? 'Automatic Accounts handoff failed.')), 0, 500);
-        $written = bo_read_locked(LOCK_EX, function(array &$store) use ($user, $key, $message): array {
+        $written = bo_read_locked(LOCK_EX, function(array &$store) use ($user, $key, $message,$values): array {
             $item = $store['bridgeOutbox'][$key] ?? null;
             if (!is_array($item)) {
                 bo_out(['ok' => false, 'error' => 'Bridge handoff not found.'], 404);
             }
-            bo_authorize($user, (string)$item['module'], (string)$item['entity'], true);
+            bo_authorize($user,(string)$item['module'],(string)$item['entity'],true,$item,$values);
             $store['bridgeOutbox'][$key]['tries'] = (int)($item['tries'] ?? 0) + 1;
             $store['bridgeOutbox'][$key]['lastError'] = $message;
             $store['bridgeOutbox'][$key]['lastTriedAt'] = gmdate('c');

@@ -93,7 +93,7 @@ try{
  foreach($attention as &$item){
    $item['canApprove']=match($item['kind']){
      'LATE'=>$lateApproval&&!empty($item['approval']),
-     'SALE','PAYMENT'=>($item['details']['Payment type']??'')!=='Third-Party Account'&&(tt_user_can_access_entity($u,$e,'Edit')||tt_user_can_access_entity($u,$e,'Approve'))&&
+     'SALE','PAYMENT'=>(tt_user_can_access_entity($u,$e,'Edit')||tt_user_can_access_entity($u,$e,'Approve'))&&
         (tt_user_can_module_action($u,'Accounts','customer','Edit')||tt_user_can_module_action($u,'Accounts','customer','Approve')||tt_user_can_module_action($u,'Accounts','customer','Create')),
      default=>false,
    };
