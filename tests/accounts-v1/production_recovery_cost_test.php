@@ -133,3 +133,5 @@ require_once __DIR__.'/../../api/mill_recovery_pdf.php';
 $pdf=mr_pdf_render($recovery);
 ok(str_contains($pdf,'(Local Bags)')&&str_contains($pdf,'(17.500)')&&str_contains($pdf,'(Night / Complete)'),'The PDF displays packing, estimated input bags and saved completion');
 echo "PASS proportional input bags, local B2 stock deduction and completed recovery PDF\n";
+
+$missingRaw=$store;$missingRaw['events']=[];$missingRaw['journals']=[];$missingRaw['commodityBills']=[];$incomplete=mc_build($missingRaw,$ops,'TTI')[0];ok($incomplete['estimatedReadyRiceCostPerKg']===null,'Missing raw cost must not produce a mill-expense-only ready rice rate');near($incomplete['conversionCostPKR'],2000,'Known mill expenses remain visible when raw cost is missing');
