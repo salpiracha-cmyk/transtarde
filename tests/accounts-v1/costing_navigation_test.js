@@ -17,7 +17,7 @@ async function scenario(superUser){
   assert.equal(requests.filter(r=>r.method==='POST'&&r.path.endsWith('management_costing.php')).length,superUser?1:0,'Only explicit permitted estimate preparation writes');
   assert.equal(requests.filter(r=>r.method==='POST'&&r.path.endsWith('management_costing_attach.php')).length,superUser?1:0,'Attachment follows successful explicit estimate preparation');
   requests.length=0;await w.TT_EXPORT_COSTING_UI.sync();await w.TT_LOCAL_SALES_COSTING_UI.sync();
-  assert.equal(requests.filter(r=>r.method==='POST').length,superUser?2:0,'Read-only users cannot invoke costing posting through sync');
+  assert.equal(requests.filter(r=>r.method==='POST').length,0,'Cost refresh must never post for any user, including Super Admin');
   w.close();
 }
 (async()=>{await scenario(false);await scenario(true);require('node:child_process').execFileSync(process.execPath,['tests/accounts-v1/mill_recovery_ui_test.js'],{stdio:'inherit',timeout:60000});console.log('PASS costing navigation is read-only; explicit authorised estimate preparation and save sync remain available')})().catch(error=>{console.error(error);process.exitCode=1});
