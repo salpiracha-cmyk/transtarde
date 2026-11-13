@@ -46,6 +46,7 @@ try {
             if(!$deal||$deal['entity']!==$entity||($deal['status']??'')==='Deleted')throw new DomainException('SODA not found in this company.');
             require_once __DIR__.'/management_costing_core.php';
             if(trim((string)($deal['brand']??''))==='')throw new DomainException('This SODA has no linked production brand for its cost report. Entries can continue.');$report=mc_payload($s,mc_read_ops(),$entity);$report['sheets']=array_values(array_filter($report['sheets'],static fn($row)=>$row['date']<=$asOf&&array_filter($row['readyProducts'],static fn($product)=>mc_norm((string)preg_replace('/^.*[—–]\s*/u','',$product))===mc_norm((string)$deal['brand']))));
+            foreach($report['sheets'] as &$row){$brandKg=0.;foreach((array)($row['readyProductQuantities']??[]) as $product=>$kg)if(mc_norm((string)preg_replace('/^.*[—–]\s*/u','',$product))===mc_norm((string)$deal['brand']))$brandKg+=(float)$kg;$ratio=$row['readyRiceKg']>0?$brandKg/$row['readyRiceKg']:0.;foreach(['rawRiceValue','conversionCostPKR','estimatedReadyRiceValue'] as $field)$row[$field]=round((float)$row[$field]*$ratio,2);$row['brandProductionKg']=$brandKg;}unset($row);
             dt_out($report+['reportOnly'=>true,'note'=>'Production cost estimates for this brand. Not a final shipment profit; quantities, bills and settlement remain separate.']);
         }if(!$write&&!$costOnly&&!$loadingOnly&&!$millOnly&&in_array($_GET['view']??'',['parties','parties_and_mills'],true)){
             $parties=dt_parties($s,$entity);

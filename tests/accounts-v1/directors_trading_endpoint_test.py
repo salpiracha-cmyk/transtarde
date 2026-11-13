@@ -191,3 +191,16 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  assert req({**payload,'sourceKey':'WEIGHT|INVALID','billingWeightBasis':'INVALID'},_endpoint='local')[0]==422
  assert req({**payload,'sourceKey':'WEIGHT|INVALIDTARE','emptyTareKg':1001},_endpoint='local')[0]==422
  print('PASS local Accounts server derives gross/net billing from saved weight facts, retains physical gross and rejects invalid basis/tare')
+ # Explicit cost-report reads allocate only the chosen brand and never save books/stock.
+ report_books=json.loads(path.read_text());report_books['exporterDeals'][local_id]['brand']='REPORT BRAND'
+ report_books['managementCostingInputs']=[{'entity':'TTI','date':'2026-10-03','variety':'IRRI-6','rawRiceRate':10,'millingRate':3,'byProducts':{}}]
+ path.write_text(json.dumps(report_books))
+ report_ops=json.loads((root/'data/operations.json').read_text())
+ report_ops['values']['tt30prod']=json.dumps([{'id':'REPORT-RUN','entity':'TTI','date':'2026-10-03','millName':'Own Mill','sourceVariety':'IRRI-6','recoveryVersion':1,'rawInputs':[{'grossKg':1500}],'rows':[{'id':'A','product':'Ready Rice — REPORT BRAND','bags':10,'bagWeight':50},{'id':'B','product':'Ready Rice — OTHER BRAND','bags':20,'bagWeight':50}]}])
+ report_ops['values']['tt38labourbills']=json.dumps([{'id':'REPORT-LAB','entity':'TTI','date':'2026-10-03','millName':'Own Mill','amount':300}])
+ (root/'data/operations.json').write_text(json.dumps(report_ops));before_books=path.read_bytes();before_ops=(root/'data/operations.json').read_bytes()
+ status,report=req(view='cost_report:'+local_id,origin='accounts');assert status==200,report
+ assert len(report['sheets'])==1 and report['sheets'][0]['brandProductionKg']==500 and report['sheets'][0]['conversionCostPKR']==100,report
+ assert report['sheets'][0]['rawRiceValue']==5000,report
+ assert path.read_bytes()==before_books and (root/'data/operations.json').read_bytes()==before_ops,'Cost report wrote journals or stock'
+ print('PASS explicit cost report: exact brand, pro-rata expenses, no journals or stock changes')

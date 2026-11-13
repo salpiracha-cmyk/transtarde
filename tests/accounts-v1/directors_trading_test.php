@@ -102,3 +102,5 @@ check(serialize($partyBooks)===$before,'SODA historical projections preserve sou
 require_once __DIR__.'/../../api/bank_sales_receipts_core.php';
 near(bsr_balance($partyBooks,'TTI','HISTORICAL','2140','2026-08-01',true),-80000.,'Bank receipt source balance matches Directors SODA');
 echo "PASS Accounts receipt and Directors SODA historical projections agree\n";
+
+$estimateState=['managementCostRates'=>[['entity'=>'TTI','product'=>'Ready Rice','aliases'=>['IRRI-6 — Emrooz'],'effectiveFrom'=>'2026-10-01','costPerKg'=>90,'estimateOnly'=>true]]];$untouched=serialize($estimateState);near(sp_reporting_cost($estimateState,'TTI','IRRI-6 — Emrooz',25000,'2026-10-02'),2250000,'Read-only management rate values shipment quantity');check(sp_reporting_cost($estimateState,'BRM','IRRI-6 — Emrooz',25000,'2026-10-02')===null,'No other-company estimate');check(sp_reporting_cost($estimateState,'TTI','IRRI-6 — Emrooz',25000,'2026-09-30')===null,'No future estimate');check(serialize($estimateState)===$untouched,'Estimate creates no accounting or stock data');
