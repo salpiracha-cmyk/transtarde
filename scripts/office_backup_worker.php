@@ -3,6 +3,7 @@ declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require dirname(__DIR__).'/auth_store.php';
 require dirname(__DIR__).'/backup_lib.php';
+require dirname(__DIR__).'/office_backup_auth.php';
 require dirname(__DIR__).'/office_backup_jobs.php';
 require dirname(__DIR__).'/office_backup_worker.php';
 if (session_status() === PHP_SESSION_ACTIVE) session_write_close();

@@ -20,6 +20,7 @@ jobs:
           php -l office_backup_worker.php
           php -l scripts/office_backup_worker.php
           php tests/security/office_backup_worker_test.php
+          python3 tests/security/office_backup_cli_test.py
           php -l api/office_backup.php
           php tests/security/office_backup_jobs_test.php
           php tests/security/office_backup_compression_test.php
