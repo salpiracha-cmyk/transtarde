@@ -547,8 +547,9 @@ async function saveSoda(){
 function openSale(no){
  if(sel&amp;&amp;sel.soda===no&amp;&amp;!work.classList.contains(&#x27;hidden&#x27;)){back();return;}
  sel=sales.find(s=&gt;s.soda===no);if(!sel)return;
+ const workspace=document.getElementById(&#x27;work&#x27;);
  document.getElementById(&#x27;localInlineRow&#x27;)?.remove();
- let row=document.getElementById(&#x27;saleRow_&#x27;+no),tr=document.createElement(&#x27;tr&#x27;),td=document.createElement(&#x27;td&#x27;);tr.id=&#x27;localInlineRow&#x27;;td.colSpan=9;td.appendChild(work);tr.appendChild(td);row.insertAdjacentElement(&#x27;afterend&#x27;,tr);work.classList.remove(&#x27;hidden&#x27;);
+ let row=document.getElementById(&#x27;saleRow_&#x27;+no),tr=document.createElement(&#x27;tr&#x27;),td=document.createElement(&#x27;td&#x27;);tr.id=&#x27;localInlineRow&#x27;;td.colSpan=9;td.appendChild(workspace);tr.appendChild(td);row.insertAdjacentElement(&#x27;afterend&#x27;,tr);workspace.classList.remove(&#x27;hidden&#x27;);
  workTitle.textContent=sel.soda+&#x27; — &#x27;+sel.party+&#x27; — &#x27;+(sel.displayName||sel.product);
  workSub.textContent=fmtKg(total(sel))+&#x27; @ Rs. &#x27;+sel.rate+&#x27;/kg&#x27;+(sel.byProductSale?&#x27; · Kanta&#x27;:&#x27; · Billing: &#x27;+(sel.billingWeightBasis||&#x27;GROSS&#x27;))+&#x27; • Soda Done By: &#x27;+(sel.doneBy||&#x27;—&#x27;);
  tab(&#x27;p&#x27;); refresh();

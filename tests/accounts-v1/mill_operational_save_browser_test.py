@@ -310,7 +310,7 @@ def run():
                 shared_mill.locator('body[data-tt-local-sales-ready="true"]').wait_for()
                 chooser=shared_mill.get_by_role('button',name='🏭 TTI Rice Mills Own / Default',exact=True)
                 if chooser.count() and chooser.is_visible():chooser.click()
-                shared_mill.frame_locator('iframe[title="Locked Local Party Sale"]').get_by_role('heading',name='Active Local Sales',exact=True).wait_for()
+                shared_mill.frame_locator('iframe[title="Mill Local By-product Sales"]').get_by_role('heading',name='Active Local Sales',exact=True).wait_for()
             except Exception as error:
                 raise AssertionError({'replicaUrl':replica.url,'replicaText':replica.locator('body').inner_text()[:1000],'frames':[(frame.url,frame.locator('body').inner_text()[:1400]) for frame in replica.frames],'errors':errors}) from error
             assert books.read_bytes()==replica_books and (data/'operations.json').read_bytes()==replica_ops,'Replica navigation changed stock or books'

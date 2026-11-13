@@ -395,12 +395,12 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   const sharedMill = page.frameLocator('#millLocalFrame');
   await expect(sharedMill.locator('body')).toHaveAttribute('data-tt-local-sales-ready','true');
   await activate(sharedMill.getByRole('button', {name:'🏭 TTI Rice Mills Own / Default', exact:true}));
-  const localParty = sharedMill.frameLocator('iframe[title="Locked Local Party Sale"]');
+  const localParty = sharedMill.frameLocator('iframe[title="Mill Local By-product Sales"]');
   await expect(localParty.getByRole('heading', {name:'Active Local Sales', exact:true})).toBeVisible({timeout:30_000});
   await activate(localParty.getByRole('button', {name:'➕ New Local Soda', exact:true}));
   await expect(localParty.locator('#newSodaForm')).toBeVisible();
   await expect(localParty.locator('#party')).toBeVisible();
-  await expect(localParty.locator('#qtyTons')).toBeVisible();
+  await expect(localParty.locator('#qtyKg')).toBeVisible();
   // Inspect only: never submit a live operational SODA.
   await activate(page.getByRole('button', {name:'Accounts approvals & receipts · TTI', exact:true}));
   await expect(page.getByRole('heading', {name:'Local SODA', exact:true})).toBeVisible({timeout:30_000});
