@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/soda_cost_status.php';
 require_once __DIR__.'/mill_recovery_core.php';
 require_once __DIR__.'/accounts_subaccounts_core.php';
 
@@ -143,7 +144,7 @@ function gm_financial_source(array $state,string $date,?array $bankMasters=null,
     $bankMasters??=function_exists('tt_list_masters')?(array)(tt_list_masters()['banks']??[]):[];
     $chart=sac_chart();$names=[];$classes=[];
     foreach($chart as $r){$names[(string)$r['code']]=$r['name'];$classes[(string)$r['code']]=$r['class'];}
-    $rows=[];$unclassified=[];$intercompany=[];
+    $rows=[];$unclassified=sc_pending_warnings($state,$date);$intercompany=[];
     foreach((array)($state['journals']??[]) as $postId=>$journal){
         if(!is_array($journal)||!in_array(($journal['status']??''),['Posted','Posted / Bill Pending'],true))continue;
         $entity=(string)($journal['entity']??'');if(!in_array($entity,['TTI','BRM','TG'],true))continue;
