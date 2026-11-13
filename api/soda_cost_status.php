@@ -24,7 +24,7 @@ function sc_payment_summary(array $s,string $id,string $date):array {
     foreach((array)($s['journals']??[]) as $j){
         if(($j['status']??'')!=='Posted'||($j['date']??'')>$date)continue;
         $original=$s['journals'][$j['reversalOf']??$j['meta']['reversalOf']??'']??$j;
-        if(!in_array($original['sourceType']??'',['FELLOW_EXPORTER_ADVANCE','FELLOW_EXPORTER_PAYMENT'],true))continue;
+        if(!in_array($original['sourceType']??'',['FELLOW_EXPORTER_ADVANCE','FELLOW_EXPORTER_PAYMENT'],true)&&($original['meta']['receiptKind']??'')!=='FELLOW_EXPORTER')continue;
         $incoming=0.;foreach((array)($original['lines']??[]) as $l)if(($l['exporterDealId']??'')===$id&&($l['account']??'')==='1230')$incoming+=(float)($l['credit']??0)-(float)($l['debit']??0);
         foreach((array)($j['lines']??[]) as $l)if(($l['exporterDealId']??'')===$id&&($l['account']??'')==='1230'){
             $n=(float)($l['credit']??0)-(float)($l['debit']??0);if($incoming>0)$receipts+=$n;else $refunds-=$n;
