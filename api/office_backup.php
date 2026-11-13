@@ -4,6 +4,7 @@ require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/backup_lib.php';
 require dirname(__DIR__) . '/office_backup_auth.php';
 require dirname(__DIR__) . '/office_backup_jobs.php';
+require dirname(__DIR__) . '/office_backup_worker.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate');
 header('X-Content-Type-Options: nosniff');
@@ -35,15 +36,45 @@ tt_auth_clear_failures('office-backup',$ip,false);
 
 if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
 $action=(string)($_GET['action']??'');
-if(!in_array($action,['prepare','status','chunk','complete'],true))office_backup_error(426,'Install the updated Office Agent for background backup preparation.');
+if(!in_array($action,['info','prepare','status','chunk','complete'],true))office_backup_error(426,'Install the updated Office Agent for background backup preparation.');
 $scope=(string)($body['scope']??'full');if(!in_array($scope,['full','data','software'],true))office_backup_error(400,'Invalid backup scope.');$GLOBALS['ttOfficeBackupScope']=$scope;
+$workerMode=tt_office_worker_enabled();
+if($workerMode&&$scope==='full')office_backup_error(426,'Update the Backup & Recovery app to the daily data plan. Existing ZIPs remain recoverable.');
 $client=hash_hmac('sha256',$password,$token);
 function office_backup_json(array $value,int $status=200):void {
     http_response_code($status);header('Content-Type: application/json; charset=UTF-8');echo json_encode($value,JSON_THROW_ON_ERROR);
 }
+if($action==='info'){
+    $revision=trim((string)@file_get_contents(dirname(__DIR__).'/.transtrade-release'));
+    if(!preg_match('/^[a-f0-9]{40}$/D',$revision))office_backup_error(503,'The deployed software revision is unavailable.');
+    office_backup_json(['ok'=>true,'softwareRevision'=>$revision,'backgroundWorker'=>$workerMode]);exit;
+}
 $jobLock=null;$workLock=null;
 try {
-    if($action==='prepare'){
+    if($action==='prepare'&&$workerMode){
+        $control=tt_office_worker_control();
+        if(time()-(int)($control['heartbeatAt']??0)>180)office_backup_error(503,'The background backup worker is offline. Previous backups are preserved.');
+        if($managedPassword===null)office_backup_error(503,'A managed recovery password is required.');
+        $jobLock=tt_office_job_lock(LOCK_EX);
+        if(!$jobLock){
+            $active=tt_office_job_read();
+            if(!empty($active['worker'])&&($active['state']??'')==='preparing'&&hash_equals((string)($active['client']??''),$client)){
+                office_backup_json(tt_office_job_public($active),202);exit;
+            }
+            office_backup_error(409,'Backup worker is busy. Retry shortly.');
+        }
+        $m=tt_office_job_read();
+        if(($m['state']??'')==='preparing'){
+            if(!hash_equals((string)($m['client']??''),$client))office_backup_error(409,'Another backup is being prepared.');
+            if(empty($m['worker']))office_backup_error(409,'Finish the previous backup before switching.');
+        }elseif(($m['state']??'')==='ready'&&hash_equals((string)($m['client']??''),$client)&&time()-(int)$m['readyAt']<900&&tt_office_job_identity(tt_office_job_dir().'/transfer.zip')===$m['identity']){
+            // Resume a verified transfer after a connection interruption.
+        }else{
+            $m=['id'=>bin2hex(random_bytes(16)),'client'=>$client,'state'=>'preparing','stage'=>'queued','createdAt'=>time(),'worker'=>true];
+            tt_office_job_write($m);
+        }
+        office_backup_json(tt_office_job_public($m),$m['state']==='ready'?200:202);
+    }elseif($action==='prepare'){
         if(!function_exists('litespeed_finish_request')&&!function_exists('fastcgi_finish_request'))office_backup_error(503,'Background preparation is unavailable.');
         $jobLock=tt_office_job_lock(LOCK_EX);$m=tt_office_job_read();
         if(!$jobLock){
@@ -69,7 +100,7 @@ try {
         $m=tt_office_job_read();$id=(string)($body['job']??'');
         if(!tt_office_job_matches($m,$id,$client))office_backup_error(409,'Backup job changed. Start a fresh preparation request.');
         if($action==='status'){
-            if(($m['state']??'')==='preparing'){
+            if(!$workerMode&&($m['state']??'')==='preparing'){
                 $jobLock=tt_office_job_lock(LOCK_EX);
                 if($jobLock){
                     $m=tt_office_job_read();if(!tt_office_job_matches($m,$id,$client))office_backup_error(409,'Backup job changed.');

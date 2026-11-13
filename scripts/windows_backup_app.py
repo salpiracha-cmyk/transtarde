@@ -72,12 +72,13 @@ def task_xml(executable,kind='backup',sid=''):
     repeat='<Repetition><Interval>PT30M</Interval><Duration>PT4H</Duration><StopAtDurationEnd>false</StopAtDurationEnd></Repetition>' if kind=='backup' else '<Repetition><Interval>PT5M</Interval><Duration>P1D</Duration><StopAtDurationEnd>false</StopAtDurationEnd></Repetition>'
     schedule='<ScheduleByWeek><WeeksInterval>1</WeeksInterval><DaysOfWeek><Monday/></DaysOfWeek></ScheduleByWeek>' if kind=='software' else '<ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>'
     if kind=='software':repeat=''
+    enabled='false' if kind=='software' else 'true'
     logon='' if kind=='software' else '<LogonTrigger><Enabled>true</Enabled><UserId>'+escape(sid)+'</UserId></LogonTrigger>'
     return '<?xml version="1.0" encoding="UTF-16"?>'+f'''<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
 <RegistrationInfo><Description>Transtrade verified encrypted backups. Keep this Windows user signed in; locking the screen is fine.</Description></RegistrationInfo>
 <Triggers><CalendarTrigger>{repeat}<StartBoundary>{boundary}</StartBoundary><Enabled>true</Enabled>{schedule}</CalendarTrigger>{logon}</Triggers>
 <Principals><Principal id="Author"><UserId>{escape(sid)}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
-<Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><StartWhenAvailable>true</StartWhenAvailable><WakeToRun>true</WakeToRun><Enabled>true</Enabled><ExecutionTimeLimit>PT4H</ExecutionTimeLimit><RestartOnFailure><Interval>PT30M</Interval><Count>3</Count></RestartOnFailure></Settings>
+<Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><StartWhenAvailable>true</StartWhenAvailable><WakeToRun>true</WakeToRun><Enabled>{enabled}</Enabled><ExecutionTimeLimit>PT4H</ExecutionTimeLimit><RestartOnFailure><Interval>PT30M</Interval><Count>3</Count></RestartOnFailure></Settings>
 <Actions Context="Author"><Exec><Command>{escape(str(executable))}</Command><Arguments>{escape(args)}</Arguments><WorkingDirectory>{escape(str(executable.parent))}</WorkingDirectory></Exec></Actions></Task>'''
 
 
@@ -230,7 +231,7 @@ def install(root,events):
 
 
 def plan_status(config):
-    lines=['Data: '+str(config['backupDestination']),'Software and setup: '+str(config['softwareDestination']),'Daily data: latest 7 successful Pakistan dates. Monthly data: 12 points. No weekly data.','Software and setup: Monday 6 pm Pakistan time; manual Backup Now updates it too.','Keep this Windows user signed in; locking is fine.']
+    lines=['Data: '+str(config['backupDestination']),'Software and setup: '+str(config['softwareDestination']),'Daily data: latest 7 successful Pakistan dates. Monthly data: 12 points. No weekly data.','Software and setup: copied once for each deployed version, before its first daily data backup.','Keep this Windows user signed in; locking is fine.']
     revisions={}
     for label,folder in [('Daily data',Path(config['backupDestination'])/'Daily'),('Monthly data',Path(config['backupDestination'])/'Monthly'),('Software and setup',Path(config['softwareDestination']))]:
         receipt=folder/'latest-verified.json'
@@ -247,7 +248,6 @@ def plan_status(config):
 
 def run_plan(events,refresh=False):
     writer=QueueWriter(events)
-    if call_agent(['--backup-only','--software','--force'],writer):return 1
     return call_agent(['--backup-only','--refresh-tiers' if refresh else '--force'],writer)
 
 
@@ -268,7 +268,7 @@ def upgrade_existing(root,events):
             saved=folder/('task-before-plan-'+hashlib.sha256(row['name'].encode()).hexdigest()[:12]+'.xml')
             if not saved.exists():saved.write_text(row['xml'],encoding='utf-16');agent.protect(saved)
         register_tasks(executable);shortcuts(executable)
-        agent.write_json(folder/'installed.json',{'executable':str(executable),'backupRoot':str(root),'installedAt':datetime.now(PK).isoformat(),'plan':'data7-monthly-software-weekly'},sensitive=True)
+        agent.write_json(folder/'installed.json',{'executable':str(executable),'backupRoot':str(root),'installedAt':datetime.now(PK).isoformat(),'plan':'data7-monthly-software-per-release'},sensitive=True)
     events.put(('log','Settings updated. Old backups and connection preserved. Saving software/setup and daily/monthly data…'))
     if run_plan(events,refresh=True):raise RuntimeError('Settings updated, but a backup needs attention. Previous copies were preserved; see log.')
     prune_installed_apps(folder,executable);events.put(('done','SUCCESS: New backup plan installed; separate software and daily/monthly data verified.'))
@@ -302,7 +302,7 @@ def gui(mode='setup'):
     line=ttk.Frame(setup);line.pack(fill='x',pady=6);ttk.Entry(line,textvariable=folder).pack(side='left',fill='x',expand=True)
     ttk.Button(line,text='Choose folder',command=lambda:folder.set(filedialog.askdirectory() or folder.get())).pack(side='left')
     paths=ttk.Label(setup,text='');paths.pack(anchor='w',pady=5)
-    def folder_label(*_):paths.config(text=str(Path(folder.get())/'SystemBackups')+' → 7 Daily / Monthly\n'+str(Path(folder.get())/'SoftwareBackups')+' → Weekly software and setup\n'+str(Path(folder.get())/'ShipmentArchives')+'\n'+str(Path(folder.get())/'RecoveryTests') if folder.get() else 'Choose a backup folder before installing.')
+    def folder_label(*_):paths.config(text=str(Path(folder.get())/'SystemBackups')+' → 7 Daily / Monthly\n'+str(Path(folder.get())/'SoftwareBackups')+' → Software per released version\n'+str(Path(folder.get())/'ShipmentArchives')+'\n'+str(Path(folder.get())/'RecoveryTests') if folder.get() else 'Choose a backup folder before installing.')
     folder.trace_add('write',folder_label);folder_label()
     ttk.Label(setup,text='6 pm Pakistan time, with catch-up. Keep this Windows user signed in; locking is fine.\nApprove this PC on the website once. Existing backup files stay in place.').pack(anchor='w',pady=8)
     code_label=ttk.Label(setup,textvariable=code,font=('Segoe UI',15,'bold'))
@@ -330,13 +330,13 @@ def gui(mode='setup'):
         result=run_plan(events)
         if result:raise RuntimeError('Backup did not complete. Check the message above. Previous backups were preserved.')
         events.put(('done','SUCCESS: The requested backup run completed.'))
-    ttk.Label(pages['Backup Now'],text='Save fresh data and a separate software/setup archive using your saved password.\nAutomatic plan: 7 daily data points, monthly data, weekly software. No weekly data.').pack(anchor='w')
+    ttk.Label(pages['Backup Now'],text='Save fresh data and a separate software/setup archive using your saved password.\nAutomatic plan: daily data at 6 pm Pakistan time, 7 daily points and 12 monthly points. Software once per released version.').pack(anchor='w')
     b=ttk.Button(pages['Backup Now'],text='Back up now',command=lambda:start(backup_now));b.pack(anchor='w',pady=12);buttons.append(b)
     recovery=pages['Recovery'];ttk.Label(recovery,text='Recover Accounts, Mill, Exports, Directors and a Complete Website Restore folder.\nYour original ZIP and live website stay unchanged.').pack(anchor='w')
     row=ttk.Frame(recovery);row.pack(fill='x',pady=8);ttk.Entry(row,textvariable=backup).pack(side='left',fill='x',expand=True)
     ttk.Button(row,text='Choose backup ZIP',command=lambda:backup.set(filedialog.askopenfilename(filetypes=[('Complete backup ZIP','*.zip')]) or '')).pack(side='left')
     extra=ttk.Frame(recovery);extra.pack(fill='x',pady=3)
-    ttk.Button(extra,text='Add weekly software ZIP for hosting (optional)',command=lambda:software.set(filedialog.askopenfilename(filetypes=[('Software backup ZIP','*.zip')]) or '')).pack(side='left')
+    ttk.Button(extra,text='Add matching software ZIP for hosting (optional)',command=lambda:software.set(filedialog.askopenfilename(filetypes=[('Software backup ZIP','*.zip')]) or '')).pack(side='left')
     ttk.Label(extra,textvariable=software,wraplength=300).pack(side='left',padx=5)
     recovery_folder=tk.StringVar(value=str(Path(folder.get())/'RecoveryTests') if folder.get() else '')
     ttk.Label(recovery,text='Create the new recovery folder inside:').pack(anchor='w')

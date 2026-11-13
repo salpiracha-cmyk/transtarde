@@ -213,9 +213,28 @@ with mod.backup_run_lock(Path(sys.argv[2])) as acquired:
             root=Path(folder);config=root/'office-backup.json';config.write_text(json.dumps({'destination':str(root),'scope':'data'}))
             daily=root/'Daily/legacy.zip';daily.parent.mkdir();daily.write_bytes(b'previous full backup')
             state=root/'office-backup-state.json';state.write_text(json.dumps({'last_success':999999,'last_file':daily.name}))
-            with patch.object(agent.sys,'argv',['agent','--config',str(config),'--backup-only']),patch.object(agent.time,'time',return_value=1000000),patch.object(agent,'pull',return_value=(daily,'a'*64))as pull:
-                self.assertEqual(agent.main(),0);self.assertEqual(pull.call_count,1)
+            with patch.object(agent.sys,'argv',['agent','--config',str(config),'--backup-only']),patch.object(agent.time,'time',return_value=1000000),patch.object(agent,'backup_job_json',return_value={'softwareRevision':'a'*40}),patch.object(agent,'validate_zip',return_value={'softwareRevision':'a'*40}),patch.object(agent,'pull',return_value=(daily,'a'*64))as pull:
+                self.assertEqual(agent.main(),0);self.assertEqual(pull.call_count,2)
             self.assertEqual(json.loads(state.read_text())['scope'],'data')
+
+    def test_software_copy_is_reused_by_revision_and_checksum(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);software=root/'SoftwareBackups';software.mkdir()
+            archive=software/'verified.zip';archive.write_bytes(b'verified software fixture')
+            digest=agent.sha256_file(archive)
+            config=root/'office-backup.json'
+            config.write_text(json.dumps({'backupDestination':str(root/'SystemBackups'),'softwareDestination':str(software),'scope':'data'}))
+            state=root/'software-backup-state.json'
+            state.write_text(json.dumps({'last_success':1,'last_file':archive.name,'sha256':digest,'scope':'software','softwareRevision':'a'*40}))
+            argv=['agent','--config',str(config),'--backup-only','--software']
+            with patch.object(agent.sys,'argv',argv), patch.object(agent,'backup_job_json',return_value={'softwareRevision':'a'*40}), patch.object(agent,'pull') as pull:
+                self.assertEqual(agent.main(),0)
+                pull.assert_not_called()
+            # A new release requires a new software copy even on the same day.
+            with patch.object(agent.sys,'argv',argv), patch.object(agent,'backup_job_json',return_value={'softwareRevision':'b'*40}), patch.object(agent,'validate_zip',return_value={'softwareRevision':'b'*40}), patch.object(agent,'pull',return_value=(archive,digest)) as pull:
+                self.assertEqual(agent.main(),0)
+                pull.assert_called_once()
+            self.assertEqual(json.loads(state.read_text())['softwareRevision'],'b'*40)
 
     def test_manual_refresh_uses_pakistan_month_even_on_a_pc_in_another_timezone(self):
         contents=io.BytesIO()

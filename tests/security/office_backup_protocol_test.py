@@ -36,6 +36,14 @@ class ProtocolTest(unittest.TestCase):
         self.assertEqual(bytes(result), payload)
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0][1]['offset'], calls[1][1]['offset'])
+    def test_worker_poll_interval_is_honoured_without_overlap(self):
+        preparing={'ok':True,'job':'a'*32,'state':'preparing','pollAfterSeconds':30}
+        ready=dict(preparing,state='ready',length=1,sha256='b'*64)
+        with patch.object(agent,'backup_job_json',side_effect=[preparing,ready]) as fetch, patch.object(agent.time,'sleep') as wait:
+            agent.open_backup_response({})
+        wait.assert_called_once_with(30)
+        self.assertEqual([c.args[1] for c in fetch.call_args_list],['prepare','status'])
+
     def test_failed_job_and_corrupt_chunks_refused(self):
         with patch.object(agent, 'backup_job_json', return_value={'ok': True, 'state': 'failed'}):
             with self.assertRaises(RuntimeError): agent.open_backup_response({})

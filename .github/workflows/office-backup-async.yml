@@ -3,10 +3,10 @@ name: Verify office background backup preparation
 # current release after QA; this workflow validates the backup protocol only.
 on:
   pull_request:
-    paths: ['office_backup_jobs.php', 'api/office_backup.php', 'scripts/office_backup_agent.py', 'tests/security/office_backup*', '.github/scripts/office_backup_async_deploy.php', '.github/workflows/office-backup-async.yml']
+    paths: ['office_backup_jobs.php', 'office_backup_worker.php', 'scripts/office_backup_worker.php', 'api/office_backup.php', 'scripts/office_backup_agent.py', 'tests/security/office_backup*', '.github/scripts/office_backup_async_deploy.php', '.github/workflows/office-backup-async.yml']
   push:
     branches: [main]
-    paths: ['office_backup_jobs.php', 'api/office_backup.php', '.github/scripts/office_backup_async_deploy.php', '.github/workflows/office-backup-async.yml']
+    paths: ['office_backup_jobs.php', 'office_backup_worker.php', 'scripts/office_backup_worker.php', 'api/office_backup.php', '.github/scripts/office_backup_async_deploy.php', '.github/workflows/office-backup-async.yml']
 permissions:
   contents: read
 jobs:
@@ -17,6 +17,9 @@ jobs:
       - run: |
           php -l .github/scripts/office_backup_async_deploy.php
           php -l office_backup_jobs.php
+          php -l office_backup_worker.php
+          php -l scripts/office_backup_worker.php
+          php tests/security/office_backup_worker_test.php
           php -l api/office_backup.php
           php tests/security/office_backup_jobs_test.php
           php tests/security/office_backup_compression_test.php

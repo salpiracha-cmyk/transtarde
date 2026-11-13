@@ -51,6 +51,7 @@ class UniversalAppTest(unittest.TestCase):
         software=ET.fromstring(app.task_xml(Path('C:/fixture/Backup.exe'),'software','S-1-5-21-123'))
         self.assertIsNotNone(software.find('.//t:ScheduleByWeek/t:DaysOfWeek/t:Monday',n))
         self.assertIsNone(software.find('.//t:LogonTrigger',n))
+        self.assertEqual(software.find('.//t:Settings/t:Enabled',n).text,'false')
         self.assertIn('--software --force',software.find('.//t:Arguments',n).text)
     def test_untrusted_paths_refused(self):
         for value in ['../escape','/absolute','x\\y','C:/outside','a/../b','a//b','a./file','CON.txt','x/NUL','x\x00y']:
