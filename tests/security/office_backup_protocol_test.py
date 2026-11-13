@@ -44,6 +44,11 @@ class ProtocolTest(unittest.TestCase):
         wait.assert_called_once_with(30)
         self.assertEqual([c.args[1] for c in fetch.call_args_list],['prepare','status'])
 
+    def test_failed_job_preserves_server_reference(self):
+        with patch.object(agent, 'backup_job_json', return_value={'ok':True, 'state':'failed', 'error':'Reference: SOURCE_CHANGED'}):
+            with self.assertRaisesRegex(agent.BackupPreparationError, 'SOURCE_CHANGED'):
+                agent.open_backup_response({})
+
     def test_failed_job_and_corrupt_chunks_refused(self):
         with patch.object(agent, 'backup_job_json', return_value={'ok': True, 'state': 'failed'}):
             with self.assertRaises(RuntimeError): agent.open_backup_response({})

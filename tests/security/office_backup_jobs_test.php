@@ -36,6 +36,7 @@ try{
  $staged=tt_office_job_generate($m,$password,static fn($pw)=>job_fixture($root.'/bad.zip',$pw,true));
  $partial=tt_office_job_verify_step($staged,$password,2);ensure_job($partial['state']==='preparing','tamper in a later batch must not be skipped');
  $failed=tt_office_job_verify_step($partial,$password,1);ensure_job($failed['state']==='failed'&&file_get_contents($target)===$payload,'late authentication failure preserves previous archive');
+ ensure_job(is_file(tt_office_job_dir().'/last-failure.json'),'failed build diagnostic survives next attempt');
  $staged=tt_office_job_generate($m,$password,$build);$candidate=tt_office_job_dir().'/candidate.zip';file_put_contents($candidate,'changed');
  ensure_job(tt_office_job_verify_step($staged,$password)['state']==='failed'&&file_get_contents($target)===$payload,'changed candidate is refused');
  $staged=tt_office_job_generate($m,$password,$build);ensure_job(tt_office_job_verify_step($staged,'wrong-password-123')['state']==='failed','wrong password refused');

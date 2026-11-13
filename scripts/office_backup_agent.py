@@ -287,6 +287,10 @@ class PreparedBackupResponse:
             print('Local backup verified; server transfer cleanup acknowledgement failed.', flush=True)
 
 
+class BackupPreparationError(RuntimeError):
+    """A server build failed; repeating the entire archive is not a network retry."""
+
+
 def open_backup_response(config):
     result = backup_job_json(config, 'prepare')
     deadline = time.monotonic() + 1200
@@ -305,7 +309,9 @@ def open_backup_response(config):
         delay = result.get('pollAfterSeconds', 10)
         time.sleep(max(10, min(60, delay)) if isinstance(delay, (int, float)) else 30)
         result = backup_job_json(config, 'status', {'job': job})
-    if result.get('state') != 'ready': raise RuntimeError('Server could not prepare a verified recovery archive.')
+    if result.get('state') != 'ready':
+        detail = str(result.get('error') or 'Server could not prepare a verified recovery archive.')
+        raise BackupPreparationError(detail[:500] + ' No automatic rebuild was started.')
     return PreparedBackupResponse(config, result)
 
 
@@ -753,7 +759,7 @@ def run(args):
                 path, digest = pull(config, destination, **options)
                 break
             except (error.URLError, OSError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
-                if attempt == 2: raise
+                if isinstance(exc, BackupPreparationError) or attempt == 2: raise
                 detail = f'HTTP {exc.code}' if isinstance(exc, error.HTTPError) else str(exc)
                 print('Backup attempt failed; retrying shortly:', type(exc).__name__, detail, file=sys.stderr, flush=True)
                 time.sleep(2 ** attempt * 5)

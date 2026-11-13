@@ -8,9 +8,13 @@ function batch_clean($path){if(is_dir($path)){foreach(scandir($path)as$n)if($n!=
 try{
  file_put_contents($root.'/auth.json','{"users":[]}');file_put_contents($root.'/large.pdf',str_repeat('source document ',200000));file_put_contents($root.'/code.php','<?php '.str_repeat('// fixture software text'.PHP_EOL,10000));
  $source=fn()=>[['Accounts/report.csv'=>str_repeat("date,amount\n",1000)],[],['auth.json'=>$root.'/auth.json'],['code.php'=>$root.'/code.php'],['Documents/large.pdf'=>$root.'/large.pdf']];
- tt_backup_build_init($root.'/work','full',$source);$password='fixture-batch-password';$steps=0;
+ tt_backup_build_init($root.'/work','full',$source);
+ // Normal application writes after capture must not abort or alter recovery.
+ $originalAuth=hash_file('sha256',$root.'/auth.json');
+ file_put_contents($root.'/auth.json','{"users":[{"name":"later user"}]}');
+ $password='fixture-batch-password';$steps=0;
  do{$path=tt_backup_build_step($root.'/work',$password,1048576);$steps++;if($steps>30)throw new RuntimeException('Unbounded work');}while($path===null);
- batch_check($steps>2,'Archive must span several requests');$manifest=tt_backup_verify_full($path,$password);batch_check($manifest['encryptedEntries']['Documents/large.pdf']['sha256']===hash_file('sha256',$root.'/large.pdf'),'Full source hash preserved');
+ batch_check($steps>2,'Archive must span several requests');$captured=tt_backup_verify_full($path,$password);batch_check($captured['encryptedEntries']['System_Recovery/private/auth.json']['sha256']===$originalAuth,'Mutable records retain captured bytes after live changes');$manifest=tt_backup_verify_full($path,$password);batch_check($manifest['encryptedEntries']['Documents/large.pdf']['sha256']===hash_file('sha256',$root.'/large.pdf'),'Full source hash preserved');
  batch_check(($manifest['encryptedEntries']['Application_Code/code.php']['chunks'][0]['compression']??'')==='deflate','Software text compressed before encryption');
  batch_check(count($manifest['encryptedEntries']['Documents/large.pdf']['chunks'])>1,'Large source chunked');batch_check(!str_contains(file_get_contents($root.'/work/build-plan.json'),$password),'No persisted recovery password');
  $lock=tt_backup_work_lock();batch_check(is_resource($lock)&&tt_backup_work_lock()===null,'Cross-scope generation exclusion');flock($lock,LOCK_UN);fclose($lock);

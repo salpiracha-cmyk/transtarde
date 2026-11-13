@@ -64,6 +64,11 @@ try {
             office_backup_error(409,'Backup worker is busy. Retry shortly.');
         }
         $m=tt_office_job_read();
+        if(($m['state']??'')==='failed'&&time()-(int)($m['failedAt']??0)<1800&&hash_equals((string)($m['client']??''),$client)){
+            // Older PC apps retry every failure. Return the same failure without
+            // starting another expensive build during the cooling-off period.
+            office_backup_json(tt_office_job_public($m));exit;
+        }
         if(($m['state']??'')==='preparing'){
             if(!hash_equals((string)($m['client']??''),$client))office_backup_error(409,'Another backup is being prepared.');
             if(empty($m['worker']))office_backup_error(409,'Finish the previous backup before switching.');

@@ -84,6 +84,17 @@ with mod.backup_run_lock(Path(sys.argv[2])) as acquired:
             child = subprocess.run([sys.executable, '-c', code, str(SCRIPT), str(config)], capture_output=True, text=True, timeout=20)
             self.assertEqual(child.returncode, 0, child.stderr)
 
+    def test_server_build_failure_does_not_restart_archive(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            config = root / 'office-backup.json'
+            config.write_text(json.dumps({'destination': str(root)}))
+            argv = ['agent', '--config', str(config), '--backup-only', '--force']
+            with patch.object(agent.sys, 'argv', argv), patch.object(agent, 'pull', side_effect=agent.BackupPreparationError('fixture server build failed')) as pull, patch.object(agent.time, 'sleep') as sleep:
+                self.assertEqual(agent.main(), 1)
+            self.assertEqual(pull.call_count, 1)
+            sleep.assert_not_called()
+
     def test_state_write_failure_never_repeats_verified_download(self):
         for preflight_fails in (False, True):
             with self.subTest(preflight=preflight_fails), tempfile.TemporaryDirectory() as folder:

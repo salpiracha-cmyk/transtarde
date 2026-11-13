@@ -38,6 +38,14 @@ function tt_office_job_public(array $m):array {
 }
 function tt_office_job_failure(array $m,Throwable $error):array {
     $m['state']=$m['stage']='failed';$m['errorCode']=get_class($error).':'.basename($error->getFile()).':'.$error->getLine();
+    $m['failedAt']=time();
+    // Keep one bounded diagnostic record even if a later request starts a new job.
+    $diagnostic=['job'=>$m['id']??'', 'failedAt'=>$m['failedAt'], 'errorCode'=>$m['errorCode']];
+    $file=tt_office_job_dir().'/last-failure.json';
+    if(!is_link($file)){
+        $tmp=tempnam(tt_office_job_dir(),'.failure-');
+        if($tmp!==false){chmod($tmp,0600);file_put_contents($tmp,json_encode($diagnostic,JSON_THROW_ON_ERROR));if(!rename($tmp,$file)&&is_file($tmp))unlink($tmp);}
+    }
     tt_office_job_write($m);return $m;
 }
 function tt_office_job_shutdown_guard(array $m,bool &$finished,string &$reserve):void {

@@ -1,3 +1,14 @@
+# Failed background archives — 13 November 2026
+
+Mutable private JSON/text records are staged under a shared source lock before the
+long archive pass. Capture checks the source identity and size, yields on large
+files, and refuses a changing capture. Uploaded document bytes retain source-change
+checks. This does not promise a transactionally consistent cross-file snapshot.
+A server preparation failure is terminal in the new PC agent; network piece
+retries remain enabled. Older agents receive the same failed job for 30 minutes
+instead of triggering another full build. One private last-failure.json retains
+the job/reference/time across retries. Existing verified backups are preserved.
+
 # Replacement office plan — 13 November 2026 (activation pending)
 
 Owner-approved: daily business data at 18:00 Asia/Karachi; software once per deployed

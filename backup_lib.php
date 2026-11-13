@@ -1055,6 +1055,27 @@ function tt_backup_build_identity(string $path):array {
     clearstatcache(true,$path);if(is_link($path)||!is_file($path))throw new RuntimeException('Archive source unavailable.');
     return array_intersect_key(stat($path),array_flip(['dev','ino','size','mtime','ctime']));
 }
+/** Freeze mutable private records before the long archive pass. Never copy torn writes. */
+function tt_backup_stage_record(string $source,string $target):void {
+    $before=tt_backup_build_identity($source);
+    $input=fopen($source,'rb');if(!$input)throw new RuntimeException('Snapshot source unavailable.');
+    $output=null;
+    try {
+        if(!flock($input,LOCK_SH|LOCK_NB))throw new RuntimeException('Snapshot source busy.');
+        $output=fopen($target,'wb');if(!$output)throw new RuntimeException('Cannot stage snapshot.');
+        chmod($target,0600);$copied=0;
+        while(!feof($input)){
+            $chunk=fread($input,1048576);if($chunk===false)throw new RuntimeException('Cannot read snapshot source.');
+            if($chunk==='')break;
+            $length=strlen($chunk);$written=0;
+            while($written<$length){$n=fwrite($output,substr($chunk,$written));if($n===false||$n===0)throw new RuntimeException('Cannot write snapshot.');$written+=$n;}
+            $copied+=$length;
+            // Yield during large record capture, as well as during archive building.
+            if($length===1048576)usleep(250000);
+        }
+        if(!fflush($output)||$copied!==$before['size']||tt_backup_build_identity($source)!==$before)throw new RuntimeException('Snapshot source changed during capture.');
+    } finally {if(is_resource($output))fclose($output);flock($input,LOCK_UN);fclose($input);}
+}
 /** Capture canonical inputs once, then encrypt at most 64 MiB per status request. No key is persisted. */
 function tt_backup_build_init(string $dir,string $scope,?callable $sources=null):void {
     $old=tt_backup_build_state($dir);tt_backup_build_cleanup($dir,$old);
@@ -1069,11 +1090,17 @@ function tt_backup_build_init(string $dir,string $scope,?callable $sources=null)
             tt_backup_require_space($dir,($bytes!==null?strlen($bytes):(filesize($original)?:0))*2);
             $plan['owned'][]=$path;tt_backup_build_state($dir,$plan);
             if($bytes!==null){if(file_put_contents($path,$bytes)!==strlen($bytes))throw new RuntimeException('Cannot stage generated report.');}
-            elseif(!copy($original,$path))throw new RuntimeException('Cannot stage snapshot.');
+            else tt_backup_stage_record($original,$path);
             chmod($path,0600);return $path;
         };
         foreach($business as $logical=>$bytes)$files[$logical]=[$own($bytes,null),true];
-        $snapshot=[];foreach($private as $logical=>$path){$snapshot[$path]=in_array($path,$temps,true)?$own(null,$path):$path;}
+        $snapshot=[];foreach($private as $logical=>$path){
+            if(isset($snapshot[$path]))continue;
+            // JSON records, indexes, logs and queues can change during normal use.
+            // Immutable uploaded documents keep their existing identity checks.
+            $mutable=(bool)preg_match('/\.(json|jsonl|ndjson|log|txt|csv|sql)$/i',$path);
+            $snapshot[$path]=(in_array($path,$temps,true)||$mutable)?$own(null,$path):$path;
+        }
         foreach($documents+tt_backup_module_documents($private) as $logical=>$path)$files[$logical]=[$snapshot[$path]??$path,(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i',$path)];
         foreach($private as $logical=>$path)$files['System_Recovery/private/'.$logical]=[$snapshot[$path],(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i',$path)];
         foreach($app as $logical=>$path)$files['Application_Code/'.$logical]=[$path,(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|mjs|css|html|htm|svg|xml|md|yml|yaml|py|ps1|sh)([.-]|$)/i',$path)];
