@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/soda_cost_status.php';
 /** Additional arrangements retain the existing agreement, journal and stock identities. */
 function dt_validate_arrangement(array &$d,array $b):void {
     $local=$d['arrangement']==='EX_MILL';$private=$d['arrangement']==='PARTNERSHIP_MARGIN';$partnership=$private||$d['arrangement']==='PARTNERSHIP';
@@ -26,6 +27,7 @@ function dt_validate_arrangement(array &$d,array $b):void {
     if($d['partnerSharePct']>100)throw new DomainException('Partner share cannot exceed 100%.');
 }
 function dt_local_review_hash(array $s,array $d,array $native):string {
+    if(($d['localReviewVersion']??1)>=2)return hash('sha256',json_encode([$native,array_intersect_key($d,array_flip(['price','bagDeductionPKR','bagRatePKRPerKg','bagDeductionLoadedMT','quantityMT','terms','packing','billingWeightBasis']))],JSON_THROW_ON_ERROR));
     return hash('sha256',json_encode([$native,dt_sale_cost($s,$d,$native,$native['loadedMT']),array_intersect_key($d,array_flip(['price','bagDeductionPKR','bagRatePKRPerKg','bagDeductionLoadedMT','quantityMT','terms','packing','billingWeightBasis']))],JSON_THROW_ON_ERROR));
 }
 function dt_local_loadings(array $d,array $w):array {
@@ -40,10 +42,12 @@ function dt_local_working(array $s,array $d,string $date,array $nativeSales):arr
         $rows[]=['loadingId'=>$load['id'],'sourceReady'=>$native['known'],'invoice'=>$load['ref'],'quantityMT'=>$load['quantityMT'],'invoiceQuantityMT'=>$load['quantityMT'],'sharePct'=>100.,'grossPKR'=>$value,'expensesPKR'=>$deduction,'adjustmentsPKR'=>0.,'settlementPKR'=>round($value-$deduction,2),'actualFOBUSDPerMT'=>0.,'actualBills'=>[],'creditAdvices'=>[],'expensesComplete'=>$reviewed,'creditAdviceCoveragePct'=>100.,'settlementFX'=>1.];
     }
     $remaining=dc_remaining((float)$d['quantityMT'],(float)$loaded,$native['known'],in_array(strtolower((string)($d['status']??'')),['closed','completed','cancelled'],true))??max(0,$d['quantityMT']-$loaded);$warnings=array_merge($native['issues'],$own['issues']);
-    if(!$reviewed&&$loaded>0)$warnings[]='Review the actual bags deduction and current dispatch/stock costs before posting.';
+    if(!$reviewed&&$loaded>0)$warnings[]='Confirm the final delivered quantities and actual bags amount before final billing.';
     if($bags>$gross+.005)$warnings[]='Bags deduction exceeds the loaded sale value.';
     $yield=$d['recoveryPct']??null;
-    return ['ownDispatch'=>$native,'ownStockCost'=>$own,'rows'=>$rows,'loadedMT'=>$loaded,'remainingMT'=>$remaining,'grossPKR'=>round($gross,2),'bagsDeductionPKR'=>round($bags,2),'settlementPKR'=>round($gross-$bags,2),'unloadedForecastPKR'=>round($remaining*($d['price']-1000*($d['bagRatePKRPerKg']??0)),2),'rawRequiredBeforeStockMT'=>$yield?round($remaining/($yield/100),6):null,'warnings'=>array_values(array_unique($warnings)),'direction'=>'RECEIVABLE'];
+    $result=['ownDispatch'=>$native,'ownStockCost'=>$own,'costPending'=>$own['totalPKR']===null,'profitPKR'=>$own['totalPKR']===null?null:round($gross-$bags-$own['totalPKR'],2),'rows'=>$rows,'loadedMT'=>$loaded,'remainingMT'=>$remaining,'grossPKR'=>round($gross,2),'bagsDeductionPKR'=>round($bags,2),'settlementPKR'=>round($gross-$bags,2),'unloadedForecastPKR'=>round($remaining*($d['price']-1000*($d['bagRatePKRPerKg']??0)),2),'rawRequiredBeforeStockMT'=>$yield?round($remaining/($yield/100),6):null,'warnings'=>array_values(array_unique($warnings)),'direction'=>'RECEIVABLE'];
+    $result['billingFinal']=$reviewed&&!empty($d['settlementPosts'])&&!dt_settlement_deltas($s,$d,$result);
+    return $result;
 }
 /** Receipt before delivery is a credit in this customer's control, never sales income. */
 function dt_advance(array &$s,array &$d,array $b,array $u,string $date):array {
@@ -59,7 +63,7 @@ function dt_advance(array &$s,array &$d,array $b,array $u,string $date):array {
 function dt_soda_account(array $s,array $d,string $date):array {
     $s=alv_amendment_books($s);
     $out=[];foreach((array)($s['journals']??[]) as $j){if(($j['entity']??'')!==$d['entity']||($j['status']??'')!=='Posted'||($j['date']??'')>$date)continue;
-        foreach((array)($j['lines']??[]) as $l)if(($l['exporterDealId']??'')===$d['id']&&in_array($l['account']??'',['1230','2140'],true))$out[]=['date'=>$j['date'],'postId'=>$j['id'],'reference'=>$j['reference']??'','narration'=>$j['narration']??'','debit'=>(float)($l['debit']??0),'credit'=>(float)($l['credit']??0)];
+        foreach((array)($j['lines']??[]) as $l)if(($l['exporterDealId']??'')===$d['id']&&in_array($l['account']??'',['1230','2140'],true))$out[]=['date'=>$j['date'],'postId'=>$j['id'],'reference'=>$j['reference']??'','sourceType'=>$j['sourceType']??'','narration'=>$j['narration']??'','debit'=>(float)($l['debit']??0),'credit'=>(float)($l['credit']??0)];
     }usort($out,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strcmp($a['postId'],$b['postId']));return $out;
 }
 /** Use the shared coverage plan so two SODAs cannot each claim the same stock. */
@@ -81,3 +85,26 @@ function dt_loaded_cashflow(array $source,array $s,array $root,array $values,str
 }
 
 require_once __DIR__.'/directors_soda_production.php';
+
+/** Only missing valuation may wait. Broken sources and duplicate sales remain errors. */
+function dt_cost_can_wait(array $d,array $w):bool {
+    if(($d['arrangement']??'')!=='EX_MILL'||empty($w['ownDispatch']['known']))return false;
+    $issues=(array)($w['ownStockCost']['issues']??[]);
+    if(!$issues)return false;
+    foreach($issues as $issue)if(!str_starts_with($issue,'Approved Accounts stock cost is missing for '))return false;
+    return true;
+}
+/** Cost-only completion cannot recognise new sales, bags, or physical stock. */
+function dt_post_local_cost(array &$s,array &$d,array $w,array $u,string $date):array {
+    if(($d['arrangement']??'')!=='EX_MILL'||empty($d['settlementPosts']))throw new DomainException('Post the final rice bill first.');
+    if(($w['ownStockCost']['totalPKR']??null)===null)throw new DomainException('Rice cost is still pending. Approve the production stock cost in Accounts first.');
+    if(dt_settlement_deltas($s,$d,$w))throw new DomainException('Delivered quantities or bags changed. Review and post the final bill adjustment first.');
+    $previous=[];$last=null;foreach((array)$d['settlementPosts'] as $p){$j=$s['journals'][$p['postId']]??[];if(($j['status']??'')!=='Posted'||!empty($j['reversedByPostId']))continue;$last=$p;foreach((array)($p['costDeltaByAccount']??[]) as $account=>$amount)$previous[$account]=($previous[$account]??0)+$amount;}
+    $changed=false;foreach(array_unique(array_merge(array_keys($previous),array_keys($w['ownStockCost']['byAccount']))) as $account)if(abs(($previous[$account]??0)-($w['ownStockCost']['byAccount'][$account]??0))>=.005)$changed=true;
+    if(!$changed&&$last&&!empty($last['costPending'])){
+        foreach((array)($d['costReviews']??[]) as $r)if(($r['settlementPostId']??'')===$last['postId'])throw new DomainException('This approved cost is already recorded.');
+        $d['costReviews'][]=['date'=>$date,'settlementPostId'=>$last['postId'],'sources'=>$w['ownStockCost']['sources'],'by'=>$u['username']??'Accounts'];
+        return ['costReviewed'=>true,'message'=>'Approved rice cost already matches the books. No duplicate journal was needed.'];
+    }
+    return dt_post_settlement($s,$d,$w,$u,$date);
+}

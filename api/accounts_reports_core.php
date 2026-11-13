@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/soda_cost_status.php';
 require_once __DIR__.'/accounts_subaccounts_core.php';
 require_once __DIR__.'/tg_native_currency.php';
 function ar_amount(mixed $value): float {
@@ -144,8 +145,9 @@ function ar_build_report(array $sourceStore,array $sourceMaster,string $entity,s
     $statementBalances=$balances;
     foreach($zakatStatement['adjustments'] as $code=>$amount)$statementBalances[$code]=($statementBalances[$code]??0)+$amount;
     $zakatClassificationComplete=!$zakatStatement['warnings']&&abs(($statementBalances['7210']??0)-$zakatAllPaid['totalPKR'])<.005;
-    $statementWarnings=$zakat['warnings'];
-    $balanceSheetWarnings=$zakatStatement['warnings'];
+    $riceCostWarnings=sc_pending_warnings($store,$asOf,$entity);
+    $statementWarnings=array_merge($zakat['warnings'],$riceCostWarnings);
+    $balanceSheetWarnings=array_merge($zakatStatement['warnings'],$riceCostWarnings);
 
     $income = [];
     $expenses = [];
@@ -218,10 +220,10 @@ function ar_build_report(array $sourceStore,array $sourceMaster,string $entity,s
         'profitAndLoss' => [
             'income' => $income,
             'expenses' => $expenses,
-            'profit' => $zakat['warnings']?null:round($profit, 2),
+            'profit' => $statementWarnings?null:round($profit, 2),
             'warnings' => $statementWarnings,
         ],
-        'zakatReporting' => ['basis'=>'Actual paid Zakat less verified refunds; unpaid assessments and financial opening balances are excluded from expense.','bookNetPeriod'=>$zakatBookNet,'paidExpense'=>$zakat['warnings']?null:$zakat['totalPKR'],'verifiedPaidSubtotal'=>$zakat['totalPKR'],'paymentRows'=>$zakat['rows'],'warnings'=>$statementWarnings,'controlBookNet'=>$zakatControlNet,'classificationComplete'=>$zakatClassificationComplete],
+        'zakatReporting' => ['basis'=>'Actual paid Zakat less verified refunds; unpaid assessments and financial opening balances are excluded from expense.','bookNetPeriod'=>$zakatBookNet,'paidExpense'=>$zakat['warnings']?null:$zakat['totalPKR'],'verifiedPaidSubtotal'=>$zakat['totalPKR'],'paymentRows'=>$zakat['rows'],'warnings'=>$zakat['warnings'],'controlBookNet'=>$zakatControlNet,'classificationComplete'=>$zakatClassificationComplete],
         'balanceSheet' => [
             'basis' => 'Paid Zakat is donation expense in earnings; opening and unpaid Zakat remain in the separate annual control only. Original Trial Balance and General Ledger are unchanged.',
             'zakatPresentationAdjustments' => $zakatStatement['sources'],

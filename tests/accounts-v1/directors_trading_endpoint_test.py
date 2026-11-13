@@ -122,7 +122,8 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  local_native={'ref':local_id+'|MILL|M1','exporterDealId':local_id,'entity':'TTI','millId':'M1','millName':'Own Mill','date':'2026-10-01','qty':3500000,'displayName':'IRRI READY','containers':[{'id':'HK-TRUCK1','date':'2026-10-02','net':40000}]}
  operations['values']['tt35exportersale']=json.dumps([own,local_native]);(root/'data/operations.json').write_text(json.dumps(operations));local_ops_before=(root/'data/operations.json').read_bytes()
  status,d=req({'action':'review_local','id':local_id,'version':2,'bagDeductionPKR':40000,'reviewConfirmed':True},origin='accounts');assert status==200,d
- status,d=req({'action':'post_settlement','id':local_id,'version':3,'exceptionNote':'Director-reviewed local SODA'},origin='accounts');assert status==200,d
+ assert req({'action':'post_settlement','id':local_id,'version':3,'exceptionNote':'Reviewed'},origin='accounts')[0]==422,'Final quantities require explicit confirmation'
+ status,d=req({'action':'post_settlement','id':local_id,'version':3,'finalQuantitiesConfirmed':True,'exceptionNote':'Director-reviewed local SODA'},origin='accounts');assert status==200,d
  deal=next(x for x in d['deals'] if x['id']==local_id);assert deal['bookBalancePKR']==-680000,deal
  assert len(deal['account'])==2 and deal['loadings']==[],deal
  assert (root/'data/operations.json').read_bytes()==local_ops_before,'Advance/settlement changed Mill stock'
