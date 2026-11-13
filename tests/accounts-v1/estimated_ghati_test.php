@@ -1,0 +1,8 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/../../api/estimated_ghati_core.php';
+function near($a,$b,$label){if(abs($a-$b)>.0001)throw new RuntimeException($label.': '.$a.' != '.$b);}
+$scope=['entity'=>'TTI','millName'=>'TTI Rice Mills'];
+$rows=['tt30slips'=>[$scope+['date'=>'2026-11-01','karachiWeight'=>100000,'payableWeight'=>99000],$scope+['date'=>'2026-12-01','karachiWeight'=>9000],$scope+['date'=>'2026-11-02','karachiWeight'=>5000,'commodity'=>'CORN'],['entity'=>'BRM','millName'=>'Other Mill','date'=>'2026-11-01','karachiWeight'=>10000]],'tt30prod'=>[$scope+['date'=>'2026-11-01','rawRiceKg'=>10000]],'tt32stockadj'=>[$scope+['date'=>'2026-11-01','arrivalKg'=>7000]],'tt34ghati'=>[$scope+['date'=>'2026-11-02','kind'=>'shortage','kg'=>100],$scope+['date'=>'2026-12-01','kind'=>'shortage','kg'=>800]]];
+$v=array_map('json_encode',$rows);$before=serialize($v);$r=eg_report($v,['TTI'],'2026-11-13','','TTI Rice Mills');near($r['inwardKg'],100000,'Only dated rice weighbridge arrivals');near($r['estimatedKg'],250,'0.25 percent');near($r['permanentKg'],100,'Permanent included');near($r['remainingEstimateKg'],150,'Remaining allowance');near($r['totalKg'],250,'No double count');near(eg_report($v,['TTI'],'2026-11-13','2026-11-03')['totalKg'],0,'Date range');near(eg_report($v,['TTI','BRM'],'2026-11-13')['estimatedKg'],275,'Group scope');near(eg_report($v,['TTI'],'2026-12-02')['totalKg'],900,'Actual exceeding estimate retained');if($before!==serialize($v)||$r!==eg_report($v,['TTI'],'2026-11-13','','TTI Rice Mills'))throw new RuntimeException('Repeated report mutated sources');
+echo "PASS estimated Ghati: scope, dates, gross arrival, internal movements excluded, permanent within allowance, repeated read only\n";

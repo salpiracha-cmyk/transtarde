@@ -36,7 +36,7 @@ function gd_read_operations(string $path):array {
     if($host!==''||$name!==''||$user!==''){
         if($host===''||$name===''||$user==='')throw new RuntimeException('The operational database configuration is incomplete.');
         $db=new PDO('mysql:host='.$host.';dbname='.$name.';charset=utf8mb4',$user,$config('PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
-        $keys=array_merge(array_slice(TT_INV_SOURCE_KEYS,0,6),['transtrade_export_v3_operational','tt35exload','tt35exmill','tt40exinstructions','tt30bags','tt33bagreceipts','tt41bagtransfers']);$db->beginTransaction();
+        $keys=array_merge(array_slice(TT_INV_SOURCE_KEYS,0,6),['tt34ghati','transtrade_export_v3_operational','tt35exload','tt35exmill','tt40exinstructions','tt30bags','tt33bagreceipts','tt41bagtransfers']);$db->beginTransaction();
         try{$q=$db->prepare('SELECT storage_key,payload,version FROM tt_operation_records WHERE storage_key IN ('.implode(',',array_fill(0,count($keys),'?')).')');$q->execute($keys);$values=[];$versions=[];$revision=0;foreach($q->fetchAll() as $row){$key=(string)$row['storage_key'];$values[$key]=(string)$row['payload'];$versions[$key]=(int)$row['version'];$revision=max($revision,(int)$row['version']);}$db->commit();return ['values'=>$values,'versions'=>$versions,'revision'=>$revision,'sourceBackend'=>'mysql'];}
         catch(Throwable $error){if($db->inTransaction())$db->rollBack();throw $error;}
     }

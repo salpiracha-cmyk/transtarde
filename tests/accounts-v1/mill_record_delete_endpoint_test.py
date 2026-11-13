@@ -146,6 +146,31 @@ if($argv[1]==='seed'){
     seed({**initial,'tt35localsales':json.dumps([unprinted]),'tt39accountsoutbox':json.dumps([{'entity':'TTI','sourceKey':'LOCAL|LS-00001|LSL-UNPRINTED-12345','status':'Pending'}])});before=snapshot()
     status,result=req('tt35localsales',unprinted,requestKey='queued-local-sale-delete')
     assert status==422 and 'handoff' in result['error'] and snapshot()==before,result
+    # Removing one linked loading retains the SODA and its other truck; exact retries are read-only.
+    linked=dict(id='SODA-PARENT',ref='EXP-SODA-1',exporterDealId='DEAL-ORIGINAL',entity='TTI',millName='TTI Rice Mills',date='2026-10-17',product='Ready Rice',containers=[dict(id='LOAD-FIRST',g=500,net=499),dict(id='LOAD-SECOND',g=600,net=599)])
+    seed({**initial,'tt35exportersale':json.dumps([linked])})
+    status,result=req('tt35exportersale',linked,loadId='LOAD-FIRST',requestKey='child-loading-delete-123')
+    assert status==200,(status,result)
+    remaining=json.loads(result['values']['tt35exportersale'])[0]
+    assert remaining['exporterDealId']=='DEAL-ORIGINAL' and remaining['containers']==[linked['containers'][1]]
+    before=snapshot()
+    status,retry=req('tt35exportersale',linked,loadId='LOAD-FIRST',requestKey='child-loading-delete-123')
+    assert status==200 and before==snapshot(),(status,retry)
+    # Parent remains editable; a stale source cannot resurrect the deleted load.
+    (root/'child_guard.php').write_text("<?php require __DIR__.'/inventory_reconciliation.php';$v=json_decode(stream_get_contents(STDIN),true);tt_inv_guard_deleted_source($v,'tt35exportersale',"+json.dumps(json.dumps([remaining]))+");try{tt_inv_guard_deleted_source($v,'tt35exportersale',"+json.dumps(json.dumps([linked]))+");exit(1);}catch(DomainException $e){echo 'BLOCKED';}")
+    guard=subprocess.run(['php',str(root/'child_guard.php')],input=json.dumps(stored()['values']),env=env,text=True,capture_output=True,check=True)
+    assert guard.stdout=='BLOCKED',guard.stdout
+    status,result=req('tt35exportersale',remaining,loadId='LOAD-SECOND',requestKey='second-loading-delete-123')
+    assert status==200 and json.loads(result['values']['tt35exportersale'])[0]['containers']==[],(status,result)
+    assert books.read_bytes()==financial
+    legacy=copy.deepcopy(linked);legacy['containers']=[dict(date='2026-10-17',c='TGC243205-0',t='GLT-8230',b=625,g=25070,net=25007.5),dict(date='2026-10-17',c='BREAK BULK',t='ABC-123',b=100,g=5000,net=4990)]
+    seed({**initial,'tt35exportersale':json.dumps([legacy])})
+    status,result=req('tt35exportersale',legacy,loadId='legacy:2026-10-17|TGC243205-0|GLT-8230|625|25070',requestKey='legacy-container-delete')
+    assert status==200,(status,result)
+    remainder=json.loads(result['values']['tt35exportersale'])[0]
+    assert remainder['containers']==[legacy['containers'][1]]
+    status,result=req('tt35exportersale',remainder,loadId='legacy:2026-10-17|BREAK BULK|ABC-123|100|5000',requestKey='legacy-truck-delete-123')
+    assert status==200 and json.loads(result['values']['tt35exportersale'])[0]['containers']==[],(status,result)
     # Return to the earlier successful source deletion state.
     seed(deleted_state)
     # A local sale without downstream handoffs can be removed.

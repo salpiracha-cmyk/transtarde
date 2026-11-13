@@ -1,0 +1,9 @@
+# Directors Ghati and SODA loading
+
+Estimated Ghati is a read-only 0.25% allowance on dated rice arrivals with a saved Karachi cargo weighbridge weight. It follows the report cutoff/range and company/mill scope. Missing dates/weights are disclosed, not inferred from supplier payable weight. Opening stocks, production and Paltai are excluded. Recorded permanent net Ghati is included within the allowance: display max(estimate, actual), with the remaining estimate disclosed. Viewing/printing/exporting never creates stock or accounting movements. Mill requests do not receive this allowance, including when Super Admin opens Milling.
+
+Directors Stock & Commitments, stock reconciliation and the linked stock ledger show one allowance line. Costing adds 0.25% of the applicable rice cash/udhaar purchase price, converted through the recipe recovery to finished MT. Corn is unchanged. The purchase-price target includes this cost. Saved historical costing snapshots and journals are retained.
+
+Mill SODA rows expand with arrows; internal refs stay backend-only. Current Directors gross/net terms drive loading tables and totals. Gross shows Final Weight; net keeps tare and net columns. Individual loading deletion preserves the parent SODA and other trucks, checks permissions/current source/downstream dependencies, records the reason and before image, retires the deleted loading identity, and is idempotent on retry. It does not reverse an Accounts posting. Existing downstream review requirements still apply.
+
+Validation: isolated PHP stock/costing/endpoint fixtures; PHP/JS costing parity and independent arithmetic; JSDOM gross/net/current-term controls and immutable saved preconditions; deletion/retry/stale-source protection; report scope/access/print/CSV and stored-text escaping. Production data is not used for destructive tests.

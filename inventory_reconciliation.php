@@ -415,14 +415,20 @@ function tt_inv_guard_arrival_bags(array $before,array $after,array $affected): 
         }
     }
 }
+/** Older saved loadings have no UUID. Match their recorded facts, never a shifting row index. */
+function tt_inv_loading_identity(array $r):string {
+    if(!empty($r['id'])||!empty($r['bridgeId']))return (string)(($r['id']??'')?:$r['bridgeId']);
+    return 'legacy:'.implode('|',array_map(static fn($k)=>(string)($r[$k]??''),['date','c','t','b','g']));
+}
 /** Explicitly deleted source identities stay retired when an older tab saves. */
 function tt_inv_guard_deleted_source(array $values,string $key,string $json): void {
     if($key===TT_MILL_DELETIONS)throw new DomainException('Deletion history is maintained by the server.');
     if(!in_array($key,['tt30queue','tt30prod','tt33bagreceipts','tt35localsales','tt35exportersale'],true))return;
-    $deleted=[];
-    foreach(tt_inv_rows($values,TT_MILL_DELETIONS) as $receipt)if(($receipt['collection']??'')===$key)$deleted[(string)$receipt['sourceId']]=true;
+    $deleted=[];$deletedLoads=[];
+    foreach(tt_inv_rows($values,TT_MILL_DELETIONS) as $receipt)if(($receipt['collection']??'')===$key){if(!empty($receipt['loadId']))$deletedLoads[(string)$receipt['sourceId']][(string)$receipt['loadId']]=true;else $deleted[(string)$receipt['sourceId']]=true;}
     foreach(tt_inv_rows([$key=>$json],$key) as $row){
         $id=(string)($row['id']??$row['soda']??$row['ref']??'');
+        foreach((array)($row['containers']??[]) as $load)if(isset($deletedLoads[$id][tt_inv_loading_identity($load)]))throw new DomainException('This loading was deleted. Reopen the SODA before saving.');
         if(isset($deleted[$id]))throw new DomainException('This entry was deleted. Reload the saved entries before saving again.');
     }
 }

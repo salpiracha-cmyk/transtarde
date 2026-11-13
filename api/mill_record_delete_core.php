@@ -16,7 +16,7 @@ function mrd_authorize(array $user,string $key,array $row,array $values): void {
         break;
     }
 }
-function mrd_dependencies(array $values,array $books,string $key,array $row): void {
+function mrd_dependencies(array $values,array $books,string $key,array $row,bool $loading=false): void {
     $id=mrd_id($key,$row);
     if($key==='tt30queue')foreach(tt_inv_rows($values,'tt30slips') as $slip)if((string)($slip['queueId']??'')===$id)throw new DomainException('This arrival already has a Pohanch. Review its Pohanch before deleting the arrival.');
     if($key==='tt30prod'){
@@ -32,7 +32,7 @@ function mrd_dependencies(array $values,array $books,string $key,array $row): vo
     }
     if(in_array($key,['tt35localsales','tt35exportersale'],true)){
         if(!empty($row['closed'])||!empty($row['approved'])||!empty($row['gate']))throw new DomainException('This sale has been closed or dispatched. Reopen and review its original workflow before deletion.');
-        if(!empty($row['_ttBridge'])||!empty($row['exporterDealId']))throw new DomainException('This sale is linked to its originating SODA. Reverse it from that workflow first.');
+        if(!$loading&&(!empty($row['_ttBridge'])||!empty($row['exporterDealId'])))throw new DomainException('This sale is linked to its originating SODA. Reverse it from that workflow first.');
         foreach((array)($row['loads']??$row['containers']??[]) as $load)if(!empty($load['printed'])||!empty($load['gatePassSerial'])||!empty($load['gate']))throw new DomainException('A gate pass was issued for this sale. Review its dispatch before deletion.');
         if(!empty($row['pay'])||!empty($row['payments'])||!empty($row['approvedPayment']))throw new DomainException('This sale has payment entries. Review the linked payments before deletion.');
     }
@@ -40,7 +40,7 @@ function mrd_dependencies(array $values,array $books,string $key,array $row): vo
     $loadingRefs=[];
     if(in_array($key,['tt35localsales','tt35exportersale'],true))foreach((array)($row['loads']??$row['containers']??[]) as $load)if(!empty($load['bridgeId']))$loadingRefs[]=(string)$load['bridgeId'];
     // Posted accounting links must be reversed at their owning workflow.
-    $tokens=array_filter([$id,(string)($row['bridgeId']??''),(string)($row['soda']??''),(string)($row['ref']??''),...$loadingRefs],static fn($v)=>strlen($v)>=5);
+    $tokens=array_filter([$id,(string)($row['bridgeId']??''),(string)($row['soda']??''),(string)($row['ref']??''),(string)($row['exporterDealId']??''),...$loadingRefs],static fn($v)=>strlen($v)>=5);
     foreach((array)($books['journals']??[]) as $journal){
         if(($journal['entity']??'')!==($row['entity']??'TTI')||($journal['status']??'')!=='Posted')continue;
         $facts=json_encode([$journal['reference']??'', $journal['meta']??[], $journal['lines']??[]],JSON_THROW_ON_ERROR);
@@ -61,8 +61,9 @@ function mrd_dependencies(array $values,array $books,string $key,array $row): vo
 function mrd_apply(array $values,array $books,array $user,array $body,string $now): array {
     $key=(string)($body['collection']??'');$id=(string)($body['sourceId']??'');$request=(string)($body['requestKey']??'');$reason=trim((string)($body['reason']??''));
     if(!isset(MRD_KINDS[$key])||$id===''||!preg_match('/^[A-Za-z0-9_-]{16,120}$/D',$request)||mb_strlen($reason)<5||mb_strlen($reason)>300)throw new DomainException('Select a saved entry and enter a deletion reason of 5 to 300 characters.');
+    $loadId=(string)($body['loadId']??'');if($loadId!==''&&($key!=='tt35exportersale'||strlen($loadId)>512))throw new DomainException('Choose a valid saved loading.');
     $archive=tt_inv_rows($values,MRD_ARCHIVE);
-    foreach($archive as $receipt)if(($receipt['collection']??'')===$key&&(string)$receipt['sourceId']===$id){
+    foreach($archive as $receipt)if(($receipt['collection']??'')===$key&&(string)$receipt['sourceId']===$id&&(string)($receipt['loadId']??'')===$loadId){
         mrd_authorize($user,$key,$receipt['authorization']??$receipt['before'],$values);
         if(($receipt['requestKey']??'')!==$request||($receipt['reason']??'')!==$reason||(int)($receipt['userId']??0)!==(int)$user['id'])throw new DomainException('This entry was already deleted. Reload saved entries.');
         return ['values'=>$values,'receipt'=>$receipt];
@@ -78,8 +79,10 @@ function mrd_apply(array $values,array $books,array $user,array $body,string $no
     mrd_authorize($user,$key,$authority,$values);
     $shown=os_project($user,[$key=>tt_inv_json([$row])]+$values)['values'][$key]??'[]';
     if(!operations_same_value(json_decode($shown,true,512,JSON_THROW_ON_ERROR)[0]??null,$body['expected']??null))throw new DomainException('This entry changed after it was displayed. Reopen the saved entries before deleting.');
-    mrd_dependencies($values,$books,$key,$row);
+    $target=null;if($loadId!==''){$matches=array_values(array_filter((array)($row['containers']??[]),static fn($r)=>tt_inv_loading_identity($r)===$loadId));if(count($matches)!==1)throw new DomainException('This loading changed. Reopen the SODA before deleting.');$target=$matches[0];}
+    mrd_dependencies($values,$books,$key,$target!==null?array_replace($row,['containers'=>[$target]]):$row,$target!==null);
     $next=$values;$remaining=array_values(array_filter($rows,static fn($r)=>mrd_id($key,$r)!==$id));
+    if($loadId!==''){$remaining=$rows;foreach($remaining as &$parent)if(mrd_id($key,$parent)===$id)$parent['containers']=array_values(array_filter($parent['containers'],static fn($r)=>tt_inv_loading_identity($r)!==$loadId));unset($parent);}
     if($key==='tt33bagreceipts'){
         require_once __DIR__.'/bag_receipts_core.php';
         $state=bts_state($values);$bagId=(string)($row['bagId']??'');$masters=tt_list_masters();
@@ -105,7 +108,7 @@ function mrd_apply(array $values,array $books,array $user,array $body,string $no
         foreach($afterStock as $stock=>$qty)if($qty<-.001&&$qty<(float)($beforeStock[$stock]??0)-.001)throw new DomainException('Deleting production would leave insufficient '.$stock.' stock. Review the later loading or sales first.');
     }
     if(in_array($key,TT_INV_SOURCE_KEYS,true))$next=tt_inv_reconcile($next,$now);
-    $receipt=['collection'=>$key,'sourceId'=>$id,'requestKey'=>$request,'reason'=>$reason,'at'=>$now,'userId'=>(int)$user['id'],'user'=>(string)($user['full_name']??$user['username']??''),'before'=>$row,'authorization'=>tt_inv_scope($authority)];
+    $receipt=['loadId'=>$loadId,'removedLoading'=>$target,'collection'=>$key,'sourceId'=>$id,'requestKey'=>$request,'reason'=>$reason,'at'=>$now,'userId'=>(int)$user['id'],'user'=>(string)($user['full_name']??$user['username']??''),'before'=>$row,'authorization'=>tt_inv_scope($authority)];
     $archive[]=$receipt;$next[MRD_ARCHIVE]=tt_inv_json($archive);
     return ['values'=>$next,'receipt'=>$receipt];
 }
