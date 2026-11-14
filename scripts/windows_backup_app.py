@@ -24,6 +24,7 @@ from scripts import office_backup_agent as agent
 from scripts.backup_recovery_reader import recover_copy
 
 APP_TITLE='Transtrade Backup & Recovery'
+SHIPMENT_DESTINATION=agent.OFFICE_SHIPMENT_DESTINATION
 TASK_NAME='Transtrade_Office_Backup'
 SHIPMENT_TASK='Transtrade_Office_Shipments'
 SOFTWARE_TASK='Transtrade_Software_Weekly'
@@ -114,7 +115,7 @@ def pair_call(action,device):
 def validate_root(root):
     root=Path(root)
     if not root.is_absolute() or root.is_symlink():raise ValueError('Choose a regular full backup folder path.')
-    for name in ['SystemBackups/Daily','SystemBackups/Monthly','SoftwareBackups','ShipmentArchives','RecoveryTests']:
+    for name in ['SystemBackups/Daily','SystemBackups/Monthly','SoftwareBackups','RecoveryTests']:
         folder=root/name
         if folder.is_symlink():raise ValueError('Linked backup folders are not supported.')
         folder.mkdir(parents=True,exist_ok=True)
@@ -127,7 +128,7 @@ def configure(root,token,previous=None):
     root=validate_root(root)
     config=dict(previous or {})
     config.update({'backupUrl':'https://app.transtradeinternational.com/api/office_backup.php','officeAgentUrl':'https://app.transtradeinternational.com/api/office_agent.php',
-        'backupDestination':str(root/'SystemBackups'),'shipmentArchiveDestination':str(root/'ShipmentArchives'),'token':token,'scope':'data','softwareDestination':str(root/'SoftwareBackups'),'retention':{'daily':7,'monthly':12}})
+        'backupDestination':str(root/'SystemBackups'),'shipmentArchiveDestination':SHIPMENT_DESTINATION,'token':token,'scope':'data','softwareDestination':str(root/'SoftwareBackups'),'retention':{'daily':7,'monthly':12}})
     config.setdefault('password','') # New PCs use the owner's server-managed password.
     agent.write_json(agent.config_path(),config,sensitive=True)
     return config
@@ -231,7 +232,7 @@ def install(root,events):
 
 
 def plan_status(config):
-    lines=['Data: '+str(config['backupDestination']),'Software and setup: '+str(config['softwareDestination']),'Daily data: latest 7 successful Pakistan dates. Monthly data: 12 points. No weekly data.','Software and setup: copied once for each deployed version, before its first daily data backup.','Keep this Windows user signed in; locking is fine.']
+    lines=['Shipment documents: '+str(config.get('shipmentArchiveDestination','')),'Data: '+str(config['backupDestination']),'Software and setup: '+str(config['softwareDestination']),'Daily data: latest 7 successful Pakistan dates. Monthly data: 12 points. No weekly data.','Software and setup: copied once for each deployed version, before its first daily data backup.','Keep this Windows user signed in; locking is fine.']
     revisions={}
     for label,folder in [('Daily data',Path(config['backupDestination'])/'Daily'),('Monthly data',Path(config['backupDestination'])/'Monthly'),('Software and setup',Path(config['softwareDestination']))]:
         receipt=folder/'latest-verified.json'
@@ -302,7 +303,7 @@ def gui(mode='setup'):
     line=ttk.Frame(setup);line.pack(fill='x',pady=6);ttk.Entry(line,textvariable=folder).pack(side='left',fill='x',expand=True)
     ttk.Button(line,text='Choose folder',command=lambda:folder.set(filedialog.askdirectory() or folder.get())).pack(side='left')
     paths=ttk.Label(setup,text='');paths.pack(anchor='w',pady=5)
-    def folder_label(*_):paths.config(text=str(Path(folder.get())/'SystemBackups')+' → 7 Daily / Monthly\n'+str(Path(folder.get())/'SoftwareBackups')+' → Software per released version\n'+str(Path(folder.get())/'ShipmentArchives')+'\n'+str(Path(folder.get())/'RecoveryTests') if folder.get() else 'Choose a backup folder before installing.')
+    def folder_label(*_):paths.config(text=str(Path(folder.get())/'SystemBackups')+' → 7 Daily / Monthly\n'+str(Path(folder.get())/'SoftwareBackups')+' → Software per released version\n'+SHIPMENT_DESTINATION+'\n'+str(Path(folder.get())/'RecoveryTests') if folder.get() else 'Choose a backup folder before installing.')
     folder.trace_add('write',folder_label);folder_label()
     ttk.Label(setup,text='6 pm Pakistan time, with catch-up. Keep this Windows user signed in; locking is fine.\nApprove this PC on the website once. Existing backup files stay in place.').pack(anchor='w',pady=8)
     code_label=ttk.Label(setup,textvariable=code,font=('Segoe UI',15,'bold'))

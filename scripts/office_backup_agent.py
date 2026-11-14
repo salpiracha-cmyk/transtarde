@@ -597,7 +597,10 @@ def clean_legacy_bank_outputs(final_dir, job, verified):
 
 
 def process_shipment_job(config, job):
-    root = Path(config['shipmentArchiveDestination']).expanduser().resolve()
+    destination = Path(config['shipmentArchiveDestination']).expanduser()
+    if any(path.is_symlink() or (hasattr(path, 'is_junction') and path.is_junction()) for path in [destination, *destination.parents]):
+        raise ValueError('Linked office destination refused.')
+    root = destination.resolve()
     root.mkdir(parents=True, exist_ok=True)
     parts = [safe_component(x) for x in job.get('folderParts') or []]
     if len(parts) != 3: raise ValueError('Shipment archive folder structure is invalid.')
@@ -627,7 +630,7 @@ def process_shipment_job(config, job):
             verified.append({'name': row['name'], 'folder': folder, 'sha256': actual, 'size': target.stat().st_size})
         clean_legacy_bank_outputs(final_dir, job, verified)
         cleanup_verified_folders(final_dir, job.get('cleanupFolders') if job.get('finalize') else [])
-        office_agent_request(config, 'ack', {'id': job['id'], 'status': 'COMPLETE', 'host': host_name(), 'files': verified, 'layoutVersion': 2})
+        office_agent_request(config, 'ack', {'id': job['id'], 'status': 'COMPLETE', 'host': host_name(), 'files': verified, 'layoutVersion': 2, 'officeDestination': office_shipment_destination(config)})
         return final_dir, len(verified)
     except Exception as exc:
         office_agent_request(config, 'ack', {'id': job.get('id'), 'status': 'ERROR', 'host': host_name(), 'error': str(exc)})
@@ -636,9 +639,20 @@ def process_shipment_job(config, job):
         if temp_dir.exists(): shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+OFFICE_SHIPMENT_DESTINATION = r'E:\TTI DOCS\Transtrade software shipment documents'
+
+
+def office_shipment_destination(config):
+    destination = os.path.normcase(os.path.normpath(config.get('shipmentArchiveDestination', '')))
+    expected = os.path.normcase(os.path.normpath(OFFICE_SHIPMENT_DESTINATION))
+    return destination == expected
+
+
 def process_shipments(config):
     if not config.get('shipmentArchiveDestination'): return 0
-    result = office_agent_request(config, 'poll')
+    if not office_shipment_destination(config):
+        raise ValueError('Update the office PC settings to deliver shipment documents to ' + OFFICE_SHIPMENT_DESTINATION)
+    result = office_agent_request(config, 'poll', query={'officeDestination': '1'})
     processed = 0
     for job in result.get('jobs', []):
         if job.get('type') != 'shipment_archive': continue

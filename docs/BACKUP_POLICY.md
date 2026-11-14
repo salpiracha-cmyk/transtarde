@@ -1,3 +1,10 @@
+## Office shipment document copies — 14 November 2026
+
+TTI-SERVER writes shipment office copies to `E:\TTI DOCS\Transtrade software shipment documents`.
+The Windows backup app updates that destination without replacing the connection.
+Downloaded backups exclude the office delivery queue and its generated copies.
+The Exports records and canonical uploads used for application recovery follow the existing data backup rules. Prior recovery ZIPs remain available.
+
 # Failed background archives — 13 November 2026
 
 Mutable private JSON/text records are staged under a shared source lock before the

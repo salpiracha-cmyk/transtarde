@@ -86,7 +86,8 @@ This rule applies across Super Admin, Milling, Exports, Accounts, Directors, sta
 - Commercial Invoice Save Draft and Print / Save must explicitly server-save the entered invoice fields and refresh the Accounts source before copying or printing. Printing preserves Final status on an issued invoice. Saved drafts copy as Commercial Invoice - Draft.pdf, without replacing the issued final invoice.
 - Place EDIT FOR RETENTION and PRINT RETENTION INVOICE together below the main invoice print controls. Retention versions save separately and never alter the buyer invoice. Include saved retention invoices in office-folder copies.
 - Completion recognises external certificates in either uploaded-document or certificate records. A missing dispatch original quantity must name its document; a fumigation supplier bill is not an export certificate.
-- The Office Agent destination is Transtrade software shipment documents on the TTI share. A hosted queue acknowledgement means queued, not verified office delivery; report agent delivery separately.
+- Issuing a Sales Contract queues its saved PDF to Customer / SHIPMENT # / LOT #01. The first lot uses the same folder. Copy approved marking files directly into the lot folder. Office Document Refresh includes issued contracts before a lot exists.
+- The Office Agent writes to `E:\TTI DOCS\Transtrade software shipment documents` on TTI-SERVER. The Windows backup installer does not create a shipment copy folder under the backup root.  A hosted queue acknowledgement means queued, not verified office delivery; report agent delivery separately.
 
 - Windows and Mac use the same office share hierarchy. Windows agents use \\tti-server\TTI DOCS\Transtrade software shipment documents; Mac agents use the mounted smb://tti-server/TTI DOCS share. Browser downloads must not substitute for Office Agent delivery.
 

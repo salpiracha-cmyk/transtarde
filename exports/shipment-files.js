@@ -47,33 +47,44 @@ async function pdf(markup,fit){
 async function postJob(manifest,files){
  const access=window.TT_MODULE_ACCESS||{};
  if(!access.csrf)throw new Error('Your login session expired. Refresh and retry LOT COMPLETE.');
- const body=new FormData();body.append('csrf',access.csrf);body.append('action','enqueue-shipment');body.append('manifest',JSON.stringify(manifest));
+ const body=new FormData();body.append('csrf',access.csrf);body.append('action','enqueue-shipment');body.append('manifest',JSON.stringify({...manifest,officeDestination:true}));
  files.forEach((file,index)=>body.append('files[]',file.blob,file.storedName||('file-'+index)));
  const response=await fetch('/api/office_agent.php',{method:'POST',credentials:'same-origin',headers:{Accept:'application/json'},body});
  const raw=await response.text();let result;try{result=JSON.parse(raw)}catch{throw new Error('Office archive job was not accepted. Please retry LOT COMPLETE.')}
  if(!response.ok||!result.ok)throw new Error(result.error||'Office archive job was not accepted. Please retry LOT COMPLETE.');
  return result.job;
 }
-async function queueBagMarkings({customer,contract,shipmentId,order}){
+async function markingFiles(orders,onMissing){
  const files=[];
- for(const [index,line] of order.lines.entries()){
+ for(const order of orders)for(const [index,line] of (order.lines||[]).entries()){
   const markings=[['Bag Marking',line]];
   if(line.masterBag?.enabled&&line.masterBag.printed)markings.push(['Master Bag Marking',line.masterBag]);
   for(const [label,marking] of markings){
    const doc=marking.artworkDocument;
-   if(!doc)throw new Error('The original marking file is unavailable. Upload it again in Update Same PO.');
+   if(!doc){const message='The original marking for '+(line.brand||order.poNo||'this PO')+' is unavailable. Upload it again in Update Same PO.';if(!onMissing)throw new Error(message);onMissing(message);continue;}
    const extension=({'image/png':'.png','image/jpeg':'.jpg','image/webp':'.webp'})[doc.mime];
    if(!extension)throw new Error('Upload the marking as PNG, JPEG or WebP.');
    const stem=component([index+1,label,order.poNo,line.brand].join(' - ')).slice(0,110);
    const blob=await uploadBlob(doc);
    const name=stem+extension.toLowerCase();
-   files.push({name,folder:'BAGS',blob,storedName:name});
+   files.push({name,folder:'',blob,storedName:name});
   }
  }
- if(!files.length)return;
- const lot='PRE-SHIPMENT';
+ return files;
+}
+async function queueContractFolder({customer,contract,shipmentId,lot,markup,orders=[]}){
+ const warnings=[];
+ const files=[{name:'Sales Contract.pdf',folder:'',blob:await pdf(markup)},...await markingFiles(orders,message=>warnings.push(message))];
+ const job=await queueOfficeFiles({customer,contract,shipmentId,lot,purpose:'contract-folder'},files);
+ return {...job,warnings};
+}
+async function queueBagMarkings({customer,contract,shipmentId,lot,order}){
+ const files=await markingFiles([order]);
+ if(files.length)return queueOfficeFiles({customer,contract,shipmentId,lot,purpose:'bag-markings'},files);
+}
+function queueOfficeFiles({customer,contract,shipmentId,lot,purpose},files){
  return postJob({
-  type:'shipment_archive',purpose:'bag-markings',layoutVersion:2,customer,contract,lot,shipmentId,
+  type:'shipment_archive',purpose,layoutVersion:2,customer,contract,lot,shipmentId,
   folderParts:folderParts(customer,contract,lot),finalize:false,
   files:files.map(({name,folder,blob})=>({name,folder,size:blob.size,type:blob.type}))
  },files);
@@ -235,7 +246,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 }
 	 return out
 	}
-	async function save({customer,contract,lot,rows,uploads,fit,optional=false,committedSnapshot=null,strictFinal=false,onProgress=null,bankDocumentRows=null,refreshExisting=false,customsOnly=false}){
+	async function save({customer,contract,lot,rows,uploads,fit,optional=false,committedSnapshot=null,strictFinal=false,onProgress=null,bankDocumentRows=null,refreshExisting=false,customsOnly=false,bagOrders=[]}){
 	 if(busy&&!legacyQa())throw new Error('Shipment files are already being prepared.');
 	 if(busy&&legacyQa())busy=false;
 	 busy=true;
@@ -244,18 +255,19 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	  const c=contractSnapshot(committedSnapshot,contract),isTG=String(c?.seller||'').toUpperCase()==='TG'||rows.some(row=>/^tg/.test(row.key||''));
 	  const bankCover=rows.find(row=>row.key==='tgCover')||rows.find(row=>row.key==='cover');
 	  const hasTgBank=isTG&&(rows.some(row=>/^tg(?:Invoice|Packing)$/.test(row.key||'')&&row.ready)||!!bankCover?.ready);
-	  if(hasTgBank&&!(bankCover?.render&&bankCover.ready))throw new Error('Save the TG bank covering letter before preparing Bank Shipment Documents. No incomplete bank PDF was queued.');
-    if(refreshExisting&&!bankCover?.ready)throw new Error('Save the bank covering letter before refreshing this lot.');
+	  if(hasTgBank&&!(bankCover?.render&&bankCover.ready)&&!refreshExisting)throw new Error('Save the TG bank covering letter before preparing Bank Shipment Documents. No incomplete bank PDF was queued.');
+
 	  // Reuse only identical markup inside this confirmed snapshot; never cache across saves.
       const renderedPdfs=new Map(),renderPdf=markup=>{if(!renderedPdfs.has(markup))renderedPdfs.set(markup,pdf(markup,fit));return renderedPdfs.get(markup)};
       const needsCustomerContract=!isTG&&(bankDocumentRows||(isLcContract(c)?documentRows(c):[])).some(row=>docCategory(row.name)==='salesContract');
-      const generatedRows=rows.filter(row=>row.render&&row.ready&&(!strictFinal||docCategory(row.name,row.key)!=='salesContract'||needsCustomerContract));let prepared=0;const progress=stage=>{try{onProgress?.({stage,completed:prepared,total:generatedRows.length})}catch{}};
+      const generatedRows=rows.filter(row=>row.render&&row.ready&&(!strictFinal||docCategory(row.name,row.key)!=='salesContract'||needsCustomerContract||row.key==='salesContract'));let prepared=0;const progress=stage=>{try{onProgress?.({stage,completed:prepared,total:generatedRows.length})}catch{}};
 	  for(const row of generatedRows){
 	   progress('Preparing '+row.name);
 	   const kind=separate(row.name,row.key),markup=row.render(),folder=row.folder?component(normalizedFolder(row.folder)):'',category=docCategory(row.name,row.key);
 	   const pdfBlob=await renderPdf(markup),blob=pdfBlob;
 	   prepared++;docs.push({category,name:row.name,key:row.key,folder,blob:pdfBlob,render:row.render});
        if(folder==='CUSTOM DOCUMENTS')files.push({folder,name:component(row.name)+'.pdf',blob:pdfBlob});
+       else if(strictFinal&&row.key==='salesContract')files.push({folder:'',name:'Sales Contract.pdf',blob:pdfBlob});
        else if(category==='tgProforma')files.push({folder:'BANK DOCUMENTS',name:'Sales Contract - Proforma '+component(c?.ref||contract)+'.pdf',blob:pdfBlob});
        else if(!strictFinal&&!['cover','tgInvoice','tgPacking','relationship'].includes(category)&&(kind||folder||row.key==='commercialDraft'))files.push({folder:folder||'BANK DOCUMENTS',name:component(row.name)+'.pdf',blob:pdfBlob});
 	  }
@@ -281,7 +293,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	  if(master.length)files.unshift({folder:'',name:'Master Shipment Documents.pdf',blob:await mergedPdf(master)});
 	  progress('Preparing bank document copies');
     const bank=[],enclosures=Array.isArray(bankDocumentRows)?bankDocumentRows:null;
-    if((!isTG&&bankCover?.ready)||hasTgBank){
+    if(bankCover?.ready&&(!isTG||hasTgBank)){
      appendDoc(bank,firstDoc(docs,'cover'));
      if(enclosures){
       const combined=new Set();
@@ -313,7 +325,10 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
     for(const file of files)if(file.folder==='BANK DOCUMENTS'&&file.name.startsWith('Sales Contract - Proforma '))file.name='Sales Contract - Proforma '+component(invoiceReference)+'.pdf';
     if(bank.length)files.unshift({folder:'BANK DOCUMENTS',name:'Bank Shipment Documents '+component(invoiceReference)+'.pdf',blob:await mergedPdf(bank)});
 	  if(!files.length)throw new Error('No saved documents are available for this lot.');
-  if(warnings.length){const escape=text=>text.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));files.push({folder:'BANK DOCUMENTS',name:'Bank documents - attention required.pdf',blob:await pdf('<section class="docPage"><h1>Bank document checks</h1>'+warnings.map(w=>'<p>'+escape(w)+'</p>').join('')+'</section>')});}
+  const bankWarnings=warnings.filter(message=>message.startsWith('Missing bank enclosure:'));
+  if(bankWarnings.length){const escape=text=>text.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));files.push({folder:'BANK DOCUMENTS',name:'Bank documents - attention required.pdf',blob:await pdf('<section class="docPage"><h1>Bank document checks</h1>'+bankWarnings.map(w=>'<p>'+escape(w)+'</p>').join('')+'</section>')});}
+  progress('Reading approved bag markings');
+  files.push(...await markingFiles(bagOrders,message=>warnings.push(message)));
   progress('Assembling office package');
   let archiveFiles=files,cleanupFolders=[];
   if(!optional)({files:archiveFiles,cleanupFolders}=await finalizeFolderZips(files));
@@ -330,5 +345,5 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
  }finally{busy=false}
 }
 
-window.TT_SHIPMENT_FILES={choose,access,save,queueBagMarkings,pdf,word,asPdf,mergedPdf,folderParts,officeLocation};
+window.TT_SHIPMENT_FILES={choose,access,save,queueBagMarkings,queueContractFolder,pdf,word,asPdf,mergedPdf,folderParts,officeLocation};
 })();
