@@ -85,7 +85,8 @@ try{
     $fullResult=tt_restore_complete_backup($full['path'],'test-backup-password-2026');
     backup_expect($fullResult['restoredFiles']>=3&&file_get_contents(TT_DATA_DIR.'/documents/large-fixture.txt')===$payload,'Chunk-encrypted complete backup must restore documents.');
     backup_expect(tt_recovery_code_valid($currentRecovery)&&!tt_recovery_code_valid($fullOldRecovery)&&tt_office_backup_token_valid($currentOffice)&&!tt_office_backup_token_valid($fullOldOffice),'Complete restore reactivated historical credentials.');
-    backup_expect(file_get_contents(TT_DATA_DIR.'/gemini.key')===$legacyAI&&file_get_contents($jobPath)===$jobBytes,'Complete recovery lost its legacy reader key or archived Office job.');
+    backup_expect(file_get_contents(TT_DATA_DIR.'/gemini.key')===$legacyAI,'Complete recovery lost its legacy reader key.');
+    backup_expect(file_get_contents($jobPath)==='changed','A new download backup must leave current Office delivery files alone.');
     backup_expect(file_get_contents(tt_office_policy_file())===$currentOfficePolicy,'Complete restore replaced the current Office password binding.');
     foreach(['snapshot','complete'] as $mode){
         if($mode==='snapshot')$snapshot=tt_create_server_snapshot('manual');
