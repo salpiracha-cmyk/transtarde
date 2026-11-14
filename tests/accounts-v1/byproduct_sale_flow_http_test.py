@@ -91,6 +91,16 @@ require $argv[1];
     x=initial();x['localSalesPaymentCandidates']['PAY']['amount']=100000;seed(x);approve_sale();approve_pay();assert balance('1220')==122704 and balance('2510')==0
     print('PASS partial payment: 122704 buyer balance, no advance.')
 
+    # A historical handoff with an unsaved transient ID cannot become a second sale.
+    seed(initial());posted=approve_sale();historical=json.loads(books.read_text())
+    old_key=next(iter(historical['localSalesCandidates']));row=historical['localSalesCandidates'].pop(old_key);row['sourceKey']='LOCAL|QA|UNSAVED-OLD-ID';row['id']='OLD-ID';historical['localSalesCandidates']['OLD-ID']=row
+    historical['journals'][row['journalId']]['meta']['localSaleCandidateId']='OLD-ID'
+    books.write_text(json.dumps(historical));before=books.read_bytes()
+    status,view=request('local_sales_control',{},method='GET');c=view['pending'][0];assert c['reviewHold']
+    status,d=request('local_sales_control',{'entity':'TTI','action':'approve_candidate','candidateId':c['id'],'sourceFingerprint':c['sourceFingerprint']});assert status==409,(status,d)
+    assert books.read_bytes()==before
+    print('PASS unmatched historical loading blocks a duplicate sale pending reconciliation.')
+
     # Stale review cannot approve a changed rate; a reopened review uses current facts.
     seed(initial());status,view=request('local_sales_control',{},method='GET');c=view['pending'][0]
     sale_source['rate']=63;ops.write_text(json.dumps({'values':{'tt35localsales':json.dumps([sale_source])}}))

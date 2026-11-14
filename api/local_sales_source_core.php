@@ -36,6 +36,14 @@ function lsc_payment_candidates(array $values,array $books): array {
         }
     }
     foreach($out as $id=>$p)if(!empty($p['sourceDerived'])&&empty($p['journalId'])&&!isset($current[$id]))unset($out[$id]);
+    foreach($out as &$c){
+        if(empty($c['sourceDerived'])||!empty($c['journalId']))continue;
+        foreach((array)($books['localSalesPaymentCandidates']??[]) as $old){
+            if(empty($old['journalId'])||($old['entity']??'')!==$c['entity']||($old['soda']??'')!==$c['soda'])continue;
+            $matched=false;foreach($current as $source)if($source['entity']===$old['entity']&&$source['sourceKey']===($old['sourceKey']??'')){$matched=true;break;}
+            if(!$matched)$c['reviewHold']='A historical receipt for this Soda has an unmatched source. Reconcile it before approving another receipt.';
+        }
+    }unset($c);
     return $out;
 }
 
@@ -98,6 +106,13 @@ function lsc_candidates(array $values,array $books): array {
         $old=$out[$id]??[];
         if(!empty($old['journalId']))continue;
         if(($old['status']??'')==='Returned / Rejected by Accounts'&&(!isset($old['sourceFingerprint'])||$old['sourceFingerprint']===$c['sourceFingerprint']))continue;
+        // Older browser handoffs could assign an ID without saving it back to
+        // Mill. Never mistake that same loading for a new sale.
+        foreach((array)($books['localSalesCandidates']??[]) as $prior){
+            if(empty($prior['journalId'])||($prior['entity']??'')!==$c['entity']||($prior['soda']??'')!==$c['soda'])continue;
+            $matched=false;foreach($current as $source)if($source['entity']===$prior['entity']&&$source['sourceKey']===($prior['sourceKey']??'')){$matched=true;break;}
+            if(!$matched)$c['reviewHold']='A historical sale for this Soda has an unmatched loading. Reconcile it before approving another sale.';
+        }
         // Unknown historical postings require review, never a guessed second sale.
         foreach((array)($books['journals']??[]) as $j){
             if(($j['status']??'')!=='Posted'||($j['entity']??'')!==$c['entity']||($j['sourceType']??'')!=='LOCAL_SALE_RECOGNIZED'||($j['meta']['soda']??'')!==$c['soda'])continue;
