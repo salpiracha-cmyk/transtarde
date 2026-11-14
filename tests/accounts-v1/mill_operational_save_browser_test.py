@@ -28,6 +28,18 @@ file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['revision'=>0,'journ
 file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$password,'dataDir'=>TT_DATA_DIR]));
 '''
 
+def assert_phone_fields(scope, selectors):
+    for selector in selectors:
+        field=scope.locator(selector)
+        field.wait_for()
+        geometry=field.evaluate("""field => {
+          const bounds=field.getBoundingClientRect();
+          return [bounds.left,bounds.right,document.documentElement.clientWidth,document.documentElement.scrollWidth];
+        }""")
+        left,right,width,document_width=geometry
+        assert left>=0 and right<=width+1 and document_width<=width+1,(selector,geometry)
+
+
 def run():
     root=Path(tempfile.mkdtemp(prefix='tti-mill-handoff-'));server=None;log=None
     env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
@@ -84,6 +96,10 @@ def run():
             op=context.request.get(base+'/api/operations.mysql.php').json();queue=json.loads(op['values']['tt30queue']);assert len(queue)==1 and queue[0]['vehicle']=='QA-101'
             mill.locator('#qVehicle').fill('QA-101');mill.locator('#qBags').fill('10');mill.locator('#qWeight').fill('1000');mill.locator('#queueSaveBtn').click();mill.wait_for_function("document.querySelector('#duplicateAlert').textContent.includes('Directors alert created')")
             op=context.request.get(base+'/api/operations.mysql.php').json();alerts=json.loads(op['values']['tt30directoralerts']);assert len(alerts)==1 and alerts[0]['requestedByUser']==1000
+            # Use a narrow phone viewport for both Local Sales workflows.
+            mill.set_viewport_size({'width':360,'height':780})
+            container_no=mill.evaluate("`TGCU233430-${containerCheckDigit('TGCU233430-0')}`")
+            invalid_no=container_no[:-1]+str((int(container_no[-1])+1)%10)
             # The embedded Local Sales form saves only final actions and retains failed drafts.
             mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click();mill.evaluate("openPanel('local')")
             local=mill.frame_locator('#partySaleWrap iframe');local.get_by_role('button',name='➕ New Local Soda',exact=True).click()
@@ -98,13 +114,24 @@ def run():
             op=context.request.get(base+'/api/operations.mysql.php').json();sales=json.loads(op['values']['tt35localsales']);assert len(sales)==1 and sales[0]['millName']=='TTI Rice Mills' and sales[0]['tons']==1 and sales[0]['broker']=='Fixture by-product broker'
             local.locator('#payAmount').fill('10000');local.locator('[onclick="savePay()"]').click();mill.wait_for_function("document.querySelector('#partySaleWrap iframe').contentDocument.querySelector('#payAmount').value === ''")
             op=context.request.get(base+'/api/operations.mysql.php').json();sales=json.loads(op['values']['tt35localsales']);assert len(sales[0]['pay'])==1 and sales[0]['pay'][0]['bridgeId']
-            local.locator('[onclick="tab(\'l\')"]').click();local.locator('#truck').fill('QA-202');local.locator('#loadKg').fill('1000');local.locator('#loadBags').fill('20');local.locator('[onclick="saveLoad()"]').click();mill.wait_for_function("document.querySelector('#partySaleWrap iframe').contentDocument.querySelector('#loadKg').value === ''")
-            op=context.request.get(base+'/api/operations.mysql.php').json();sales=json.loads(op['values']['tt35localsales']);assert len(sales[0]['loads'])==1 and sales[0]['loads'][0]['bridgeId']
-            with context.expect_page() as printed:local.get_by_role('button',name='Print Gate Pass',exact=True).click()
+            local.locator('[onclick="tab(\'l\')"]').click()
+            assert_phone_fields(local,['#truck','#loadContainer','#loadBags','#loadKg','#saveLoadBtn'])
+            for truck,weight in [('QA-202','600'),('QA-203','400')]:
+                local.locator('#truck').fill(truck);local.locator('#loadKg').fill(weight);local.locator('#loadBags').fill('10')
+                if truck=='QA-202':
+                    local.locator('#loadContainer').fill(invalid_no);local.locator('#saveLoadBtn').click()
+                    local.locator('#localSaleError').filter(has_text='correct check digit').wait_for()
+                local.locator('#loadContainer').fill(container_no);local.locator('#saveLoadBtn').click()
+                mill.wait_for_function("document.querySelector('#partySaleWrap iframe').contentDocument.querySelector('#loadKg').value === ''")
+            op=context.request.get(base+'/api/operations.mysql.php').json();sales=json.loads(op['values']['tt35localsales'])
+            assert [row['container'] for row in sales[0]['loads']]==[container_no,container_no]
+            assert len({row['bridgeId'] for row in sales[0]['loads']})==2
+            assert_phone_fields(local,['#truck','#loadContainer','#loadBags','#loadKg','#saveLoadBtn'])
+            with context.expect_page() as printed:local.get_by_role('button',name='Print Gate Pass',exact=True).first.click()
             popup=printed.value;
             try:popup.locator('body').filter(has_text='Fixture local buyer').wait_for()
             except Exception:raise AssertionError({'dialogs':dialogs,'errors':errors})
-            assert 'Fixture local buyer' in popup.locator('body').inner_text();assert '1,000' in popup.locator('body').inner_text();assert 'Fixture local buyer' in popup.title() and not re.search(r'\d{4}-\d{2}-\d{2}',popup.locator('body').inner_text());popup.close()
+            assert 'Fixture local buyer' in popup.locator('body').inner_text();assert '600' in popup.locator('body').inner_text() and container_no in popup.locator('body').inner_text();assert 'Fixture local buyer' in popup.title() and not re.search(r'\d{4}-\d{2}-\d{2}',popup.locator('body').inner_text());popup.close()
             local.locator('[onclick="closeMill()"]').click();local.locator('#activeBody').filter(has_text='Closed by Mill').wait_for()
             mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click()
             mill.locator(".tile[onclick=\"openPanel('local')\"]").click()
@@ -130,21 +157,42 @@ def run():
             try:mill.locator('#savedExporterSales').filter(has_text='Fixture fellow exporter').wait_for(timeout=10000)
             except Exception:raise AssertionError({'handoff':mill.locator('#directorExporterStatus').inner_text(),'errors':errors,'dialogs':dialogs})
             director.close()
-            mill.locator('#exTruck').fill('QA-303');mill.locator('#exBags').fill('10');mill.locator('#exGross').fill('501');mill.locator('[onclick="addExporterContainer()"]').click();mill.wait_for_function("document.querySelector('#exTruck').value === ''")
-            op=context.request.get(base+'/api/operations.mysql.php').json();exporter=json.loads(op['values']['tt35exportersale']);assert len(exporter)==1 and len(exporter[0]['containers'])==1 and exporter[0]['containers'][0]['net']==500 and exporter[0]['exporterDealId']==soda_id
+            assert_phone_fields(mill,['#exCont','#exTruck','#exBags','#exGross','[onclick="addExporterContainer()"]'])
+            for truck,weight in [('QA-303','300.5'),('QA-304','200.5')]:
+                mill.locator('#exTruck').fill(truck);mill.locator('#exBags').fill('5');mill.locator('#exGross').fill(weight)
+                if truck=='QA-303':
+                    mill.locator('#exCont').fill(invalid_no);mill.locator('[onclick="addExporterContainer()"]').click()
+                    mill.locator('#exLoadFeedback').filter(has_text='correct check digit').wait_for()
+                mill.locator('#exCont').fill(container_no);mill.locator('[onclick="addExporterContainer()"]').click()
+                mill.wait_for_function("document.querySelector('#exTruck').value === ''")
+                assert_phone_fields(mill,['#exCont','#exTruck','#exBags','#exGross','[onclick="addExporterContainer()"]'])
+            op=context.request.get(base+'/api/operations.mysql.php').json();exporter=json.loads(op['values']['tt35exportersale'])
+            loads=exporter[0]['containers'];assert len(exporter)==1 and [c['c'] for c in loads]==[container_no,container_no]
+            assert len({c['id'] for c in loads})==2 and sum(c['net'] for c in loads)==500 and exporter[0]['exporterDealId']==soda_id
             assert mill.evaluate("computedStockRows('TTI').find(r=>r.name==='QA BRAND').kg")==499,'Net billing must still deduct 501 kg gross from stock'
-            mill.locator('#exTruck').fill('QA-304');mill.locator('#exBags').fill('1');mill.locator('#exGross').fill('1.1');mill.locator('[onclick="addExporterContainer()"]').click();mill.get_by_text('Loading exceeds the SODA quantity.',exact=False).first.wait_for();assert len(json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt35exportersale'])[0]['containers'])==1,'Excess loading was saved'
+            mill.locator('#exTruck').fill('QA-305');mill.locator('#exBags').fill('1');mill.locator('#exGross').fill('1.1');mill.locator('[onclick="addExporterContainer()"]').click();mill.get_by_text('Loading exceeds the SODA quantity.',exact=False).first.wait_for();assert len(json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt35exportersale'])[0]['containers'])==2,'Excess loading was saved'
             for selector in ['#exTruck','#exBags','#exGross']:mill.locator(selector).fill('')
             saved=context.request.get(base+'/api/directors_trading.php?entity=TTI').json();linked=next(d for d in saved['deals'] if d['id']==soda_id);assert linked['working']['loadedMT']==.5 and linked['working']['remainingMT']==0 and linked['bookBalancePKR']==0,linked
-            with context.expect_page() as printed:mill.locator('#exContainerTable').get_by_role('button',name='Print Gate Pass',exact=True).click()
+            with context.expect_page() as printed:mill.locator('#exContainerTable').get_by_role('button',name='Print Gate Pass',exact=True).first.click()
             popup=printed.value;popup.locator('.serial').filter(has_text='GP-000002').wait_for();body=popup.locator('body').inner_text().lower();assert 'local sale to exporter gate pass' in body and 'fixture fellow exporter' in body,body;assert popup.locator('.pass').evaluate('e=>e.getBoundingClientRect().height*25.4/96')<140;popup.close()
+            with context.expect_page() as printed:mill.locator('#exContainerTable').get_by_role('button',name='Print Gate Pass',exact=True).last.click()
+            popup=printed.value;popup.locator('.serial').filter(has_text='GP-000003').wait_for();assert 'QA-304' in popup.locator('body').inner_text();popup.close()
             mill.locator('[onclick="closeExporterSale()"]').click();mill.locator('#savedExporterSales').filter(has_text='Closed').wait_for()
             mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click()
             mill.locator(".tile[onclick=\"openPanel('local')\"]").click()
             mill.get_by_role('button',name='Other Exporter Sales',exact=True).click()
             mill.locator('#savedExporterSales').filter(has_text='Closed').wait_for()
+            # Check the existing mobile entry points alongside the Local Sales forms.
+            mill.evaluate("openPanel('queue')")
+            assert_phone_fields(mill,['#qVehicle','#qBags','#qWeight'])
+            mill.evaluate("openPanel('arrival')")
+            assert_phone_fields(mill,['#arrivalQueue','#karachiWeight'])
             # PALTAI commits the physical source and labour together, then a lost acknowledgement replays once.
-            mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click();mill.evaluate("openPanel('production');togglePaltai()")
+            mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click();mill.evaluate("openPanel('production')")
+            assert_phone_fields(mill,['#prodTable tr:first-child [data-output-bags]','#prodTable tr:first-child [data-output-weight]','#prodTable tr:first-child [data-output-kg]'])
+            mill.evaluate("togglePaltai()")
+            assert_phone_fields(mill,['#paltaiOutputBags','#paltaiOutputSize'])
+            mill.set_viewport_size({'width':1280,'height':720})
             mill.locator('#paltaiFrom').select_option('IRRI-6 White Rice — SOURCE');mill.locator('#paltaiOutputBags').fill('10');mill.locator('#paltaiOutputSize').fill('50');mill.locator('#paltaiSourceSize').fill('100');mill.locator('#paltaiSweepingKg').fill('10');mill.locator('#paltaiStandaloneRate').fill('8')
             context.unroute('**/api/operations.mysql.php?asset_refs=1',intercept);lost=[True]
             def lose_ack(route):

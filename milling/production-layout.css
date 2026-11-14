@@ -60,7 +60,7 @@
 #production #productionShiftSummary{grid-template-columns:repeat(3,minmax(0,1fr));margin:18px 0}
 @media(max-width:650px){#production #productionShiftSummary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
-/* One row per product; the same five columns remain on phone and desktop. */
+/* Keep one entry per product, with named fields stacked below on phones. */
 #production .production-table-scroll>table{min-width:600px;table-layout:fixed}
 #production .production-table-scroll th:first-child{width:34%}
 #production .production-table-scroll input{width:100%;min-width:0;text-align:right}
@@ -72,3 +72,18 @@
 #production .production-bag-tools>details{width:100%;font-size:13px;margin:8px 0}
 #production .metrics{display:flex;flex-wrap:wrap;gap:16px;padding:12px 18px;background:#edf3e9;border-radius:10px}
 #production .metrics .metric{background:none;border:0;padding:0;flex:1;min-width:130px}
+
+@media(max-width:650px){
+ #production .production-output-tools,#production .prod-head{grid-template-columns:minmax(0,1fr)}
+ #production .production-table-scroll{overflow:visible}
+ #production .production-table-scroll>table{min-width:0;width:100%;display:block}
+ #production .production-table-scroll :is(tbody,tfoot){display:block}
+ #production .production-table-scroll thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+ #production .production-table-scroll tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;border-bottom:1px solid #e1e7df;padding:12px 0}
+ #production .production-table-scroll :is(td,th){display:block;width:auto;min-width:0;padding:0;border:0}
+ #production .production-output-table td:first-child,#production .production-output-table tfoot th:first-child{grid-column:1/-1;width:auto}
+ #production .production-table-scroll td[data-label]:not(:first-child)::before{content:attr(data-label);display:block;color:#566273;font-size:12px;margin-bottom:4px}
+ #production .production-table-scroll tfoot th{padding:6px}
+ #production .production-table-scroll input,#production .production-table-scroll .tt-number-display{text-align:left!important}
+ #production .production-raw-table td:first-child,#production .production-raw-table td:nth-child(5){grid-column:1/-1}
+}

@@ -162,6 +162,7 @@ function tg_local_sale_text(array $sale): string {
         if(empty($sale['byProductSale'])&&($sale['billingWeightBasis']??'')==='NET')$billed-=(float)($load['emptyTareKg']??0);
         $loaded+=$weight;$billable+=$billed;
         $loadLines[]=implode(' | ',array_filter([$load['date']??'',!empty($load['truck'])?'Truck '.$load['truck']:'',
+            !empty($load['container'])?'Container '.$load['container']:'',
             $kg($weight),!empty($load['bags'])?$load['bags'].' bags':'',!empty($load['printed'])?($load['gatePassRef']??'Gate pass issued'):'']));
     }
     $lines[]=$loadLines?'Loaded: '.$kg($loaded).' | Billable: '.$kg($billable).' | Loaded value: '.$money($billable*$rate):'Loading: none recorded';
