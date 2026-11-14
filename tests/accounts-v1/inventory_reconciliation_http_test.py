@@ -250,7 +250,7 @@ def run() -> None:
 
 def browser_checks(base,clients,request,get,post,private,scope,output):
     from playwright.sync_api import sync_playwright
-    post('tt30mills',[{'id':1,'name':'TTI Rice Mills','type':'Own Mill'},{'id':2,'name':'QA Second Mill','type':'Own Mill'}],user='qaowner')
+    post('tt30mills',[{'id':1,'name':'TTI Rice Mills','type':'Own Mill'},{'id':2,'name':'QA Second Mill','millName':'QA Second Mill','entity':'TTI','type':'Own Mill'}],user='qaowner')
     # A separate fresh brand deliberately has no matching production yet.
     shipments=json.loads(get()['values']['tt30ship']);shipments.append({'id':301,'entity':'TTI','millId':1,'mill':'TTI Rice Mills','millName':'TTI Rice Mills','baseVariety':'IRRI-6','riceType':'White','brand':'QA FRESH','containers':[],'audit':[],'status':'Loading','ref':'QA-LOT','contractRef':'QA-CONTRACT','totalContainers':1,'bagsPerContainer':500,'bagSize':50,'emptyRequired':0})
     post('tt30ship',shipments,user='qaowner')
@@ -314,7 +314,7 @@ def browser_checks(base,clients,request,get,post,private,scope,output):
             mp.wait_for_function("typeof chooseMill==='function' && !!window.TT_SHARED_SYNC.commitMillAction && !!window.TT_MILL_ACTION_SAVE?.commit")
             original_bags=private()['tt30bags'];original_ids={r['id'] for r in json.loads(private()['tt39physicalconfirmations'])}
             cached=json.loads(original_bags);cached[0]['received']=999
-            mp.evaluate("x=>{chooseMill(2);openPanel('stock');localStorage.setItem('tt30bags',x);openNilConfirm('IRRI-6 White Rice — ASAS',0,{entity:'TTI'});}",json.dumps(cached))
+            mp.evaluate("x=>{chooseMill(get(STORE_MILLS,[]).find(m=>m.name==='QA Second Mill').id);openPanel('stock');localStorage.setItem('tt30bags',x);openNilConfirm('IRRI-6 White Rice — ASAS',0,{entity:'TTI'});}",json.dumps(cached))
             mp.locator('#nilConfirmPanel button.warn').click()
             mp.wait_for_function("document.getElementById('nilConfirmPanel').classList.contains('hidden')",timeout=15000)
             created=[r for r in json.loads(private()['tt39physicalconfirmations']) if r['id'] not in original_ids]
