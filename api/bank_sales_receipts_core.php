@@ -49,7 +49,7 @@ function bsr_sources(array $s,string $e,string $kind,array $u,string $date='9999
             $key=strtoupper($id);if(isset($blocked[$key]))continue;if(isset($rows[$key])&&strcasecmp($rows[$key]['party'],$party)!==0)throw new DomainException('Local SODA '.$id.' has conflicting parties. Review its source before receiving money.');
             $open=max(0,bsr_balance($s,$e,$id,'1220',$date));$advance=max(0,-bsr_balance($s,$e,$id,'2510',$date));
             if(!empty($sale['closed'])&&$open<=0)continue;
-            if(!isset($rows[$key]))$rows[$key]=['id'=>$id,'soda'=>$id,'partyId'=>$party,'party'=>$party,'product'=>$sale['displayName']??$sale['product']??'','date'=>$sale['saleDate']??'','stockLocation'=>lss_location($sale,$s,$values),'openReceivable'=>$open,'customerAdvance'=>$advance];
+            if(!isset($rows[$key]))$rows[$key]=['id'=>$id,'soda'=>$id,'partyId'=>$party,'party'=>$party,'product'=>$sale['displayName']??$sale['product']??'','byProductSale'=>tt_inv_is_byproduct((string)($sale['product']??'')),'date'=>$sale['saleDate']??'','stockLocation'=>lss_location($sale,$s,$values),'openReceivable'=>$open,'customerAdvance'=>$advance];
         }
         $rows=array_values($rows);
     }
@@ -87,7 +87,7 @@ function bsr_post(array &$s,string $e,array $b,array $u,array $bank,string $date
         $extra=['soda'=>$sale['soda'],'party'=>$sale['party'],'counterparty'=>$sale['party'],'stockLocation'=>$sale['stockLocation']??''];
         $meta+=$extra+['product'=>$sale['product'],'receiptType'=>'BANK','customerAdvance'=>$advance/100];$lines=[ben_bank_line($bank,$amount,1,true)];
         if($applied>0)$lines[]=ben_line('1220',0,$applied,$extra);
-        if($advance>0)$lines[]=ben_line('2510',0,$advance,$extra+['advanceMove'=>'To']);
+        if($advance>0){require_once __DIR__.'/local_sales_source_core.php';$advanceExtra=(!empty($sale['byProductSale'])||tt_inv_is_byproduct((string)($sale['product']??'')))?lsc_buyer_advance_extra($s,$e,$u):[];$lines[]=ben_line('2510',0,$advance,$extra+['advanceMove'=>'To']+$advanceExtra);}
     }
     $narration=($kind==='LOCAL_SALE'?'Local sales receipt':'Fellow exporter receipt').' — '.$sale['party'].' — SODA '.$sale['soda'].($advance>0?' · Includes advance PKR '.number_format($advance/100,2,'.',''):'').($note!==''?' — '.$note:'');
     $j=ben_journal($s,$e,$date,$ref,$narration,$lines,$u,$meta);
