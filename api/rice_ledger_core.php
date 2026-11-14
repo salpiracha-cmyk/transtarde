@@ -24,6 +24,16 @@ function rl_report(array $values,array $scope,array $filters):array {
         $remaining=$row['kg'];$last=count($parts)-1;
         foreach($parts as $i=>$part){$kg=$i===$last?$remaining:round($part['kg'],3);$remaining=round($remaining-$kg,3);if($kg==0)continue;$copy=$row;$copy['kg']=$kg;$copy['date']=mr_valid_date($part['date'])?$part['date']:'';$copy['part']=$i+1;$moves[]=$copy;}
     });
+    // Bind physical rows to unchanged company stock identities. A legacy identity
+    // spanning varieties must never clear a different row through a NIL action.
+    $confirmationSources=[];
+    if(!empty($scope['physicalPool']))foreach($moves as $row){
+        $entity=$row['sourceEntity'];$name=$row['sourceStockName'];$key=$entity."\0".$name;
+        if(!isset($confirmationSources[$key]))$confirmationSources[$key]=['entity'=>$entity,'stockName'=>$name,'kg'=>0.,'products'=>[],'eligible'=>true];
+        $target=&$confirmationSources[$key];$target['kg']=round($target['kg']+$row['kg'],3);$target['products'][$row['product']]=true;
+        if($row['date']===''||!empty($row['arrivalEstimate']))$target['eligible']=false;
+        unset($target);
+    }
     foreach($moves as $i=>&$row)$row['order']=$i;unset($row);
     usort($moves,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strcmp($a['sourceId'],$b['sourceId'])?:($a['order']<=>$b['order']));
     $products=array_keys($stock);usort($products,static fn($a,$b)=>(rl_product_order($a)<=>rl_product_order($b))?:strnatcasecmp($a,$b));$selected=(string)($filters['product']??'');
@@ -42,9 +52,17 @@ function rl_report(array $values,array $scope,array $filters):array {
         if($movement==='All'||($movement==='Inward'&&$row['kg']>0)||($movement==='Outward'&&$row['kg']<0))$rows[]=$row;unset($s);
     }
     foreach($summaries as $p=>&$s){$s['closingKg']=$balances[$p];$issues=[];if($s['undatedCount'])$issues[]='Unverified — undated movements excluded';if($s['scopeUnverifiedCount'])$issues[]='Unverified — source company/mill not recorded';if($s['provisional'])$issues[]='Provisional — historical input inferred';$s['status']=$issues?implode('; ',$issues):'Recorded quantities';}unset($s);
+    $confirmationTargets=[];
+    if(!empty($scope['physicalPool'])&&$from===''&&$to==='')foreach($summaries as $p=>&$s){
+        $confirmationTargets[$p]=[];
+        foreach($confirmationSources as $target){
+            if(!$target['eligible']||count($target['products'])!==1||!isset($target['products'][$p])||abs($target['kg'])<.001)continue;
+            unset($target['products'],$target['eligible']);$confirmationTargets[$p][]=$target;
+        }
+    }unset($s);
     foreach($rows as &$row)$row['status']=!empty($row['arrivalEstimate'])?TT_INV_POHANCH_ESTIMATE:$summaries[$row['product']]['status'];unset($row);
     foreach($summaries as &$summary){
         if($summary['arrivalEstimate'])$summary['status']=TT_INV_POHANCH_ESTIMATE.($summary['status']==='Recorded quantities'?'':'; '.$summary['status']);
     }unset($summary);
-    return ['ok'=>true,'scope'=>$scope,'filters'=>$filters,'products'=>$products,'summaries'=>array_values($summaries),'rows'=>$rows,'undated'=>$undated,'note'=>(!empty($scope['physicalPool'])?'Physical stock pools TTI and BRM at this mill. By-products combine only within the same rice variety and product; unknown historical varieties remain unassigned. Original company/source references are retained. ':'').'Stock arrivals and dispatches use saved Karachi cargo weighbridge weight without deducting bag tare. Historical rows without a saved gross weight retain their recorded quantity. Internal production and transfers retain their recorded output quantities. Balances are separate for each product and include all dated movements, regardless of the Movement display filter. Undated history is excluded from dated balances. Inferred production consumption remains provisional. Legacy movements without recorded company/mill retain the existing quantity projection but their ownership is unverified. Source references identify operational records, not accounting Post IDs.'];
+    return ['ok'=>true,'scope'=>$scope,'filters'=>$filters,'products'=>$products,'summaries'=>array_values($summaries),'rows'=>$rows,'undated'=>$undated,'confirmationTargets'=>$confirmationTargets,'note'=>(!empty($scope['physicalPool'])?'Physical stock pools TTI and BRM at this mill. By-products combine only within the same rice variety and product; unknown historical varieties remain unassigned. Original company/source references are retained. ':'').'Stock arrivals and dispatches use saved Karachi cargo weighbridge weight without deducting bag tare. Historical rows without a saved gross weight retain their recorded quantity. Internal production and transfers retain their recorded output quantities. Balances are separate for each product and include all dated movements, regardless of the Movement display filter. Undated history is excluded from dated balances. Inferred production consumption remains provisional. Legacy movements without recorded company/mill retain the existing quantity projection but their ownership is unverified. Source references identify operational records, not accounting Post IDs.'];
 }

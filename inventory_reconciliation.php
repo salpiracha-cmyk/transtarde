@@ -268,7 +268,7 @@ function tt_inv_physical_stock(array $values,array $scope,?callable $observe=nul
             $record=$records[$event['source']][$event['sourceId']]??[];
             $name=tt_inv_physical_name($event['product'],$record);
             $total[$name]=round(($total[$name]??0)+(float)$event['kg'],3);
-            if($observe){$event['product']=$name;$event['sourceEntity']=$entity;$observe($event);}
+            if($observe){$event['sourceStockName']=$event['product'];$event['product']=$name;$event['sourceEntity']=$entity;$observe($event);}
         });
     }
     return $total;

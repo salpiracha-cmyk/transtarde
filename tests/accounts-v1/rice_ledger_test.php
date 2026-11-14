@@ -93,3 +93,18 @@ eq(tt_inv_physical_name('Sweeping',['type'=>'Stock adjustment']),'UNASSIGNED VAR
 eq(rl_product_order('IRRI-6 White Rice — B2 CSR'),2,'Byproduct is not a ready brand');
 eq(rl_product_order('Ready Rice — LOCAL'),1,'Legacy ready brand ordering');
 echo "PASS Sweeping return variety, no duplicate raw, historical date ranges and raw/brand/by-product order\n";
+
+// NIL links retain exact source identities; pooling never widens the write scope.
+$one=['tt30prod'=>[$poolRows[0]]];
+$single=rl_report(values($one),$scope+['physicalPool'=>true],[]);
+$t=$single['confirmationTargets']['IRRI-6 White Rice — Powder'];
+eq(count($t),1,'One unambiguous physical row has one NIL target');
+eq($t[0],['entity'=>'TTI','stockName'=>'Powder','kg'=>35.0],'Target retains original company, name and balance');
+eq($physical['confirmationTargets']['IRRI-6 White Rice — Powder'],[['entity'=>'BRM','stockName'=>'Powder','kg'=>35.0]],'TTI legacy Powder spanning varieties cannot clear only one variety');
+$one['tt30prod'][]=$poolRows[1];
+$both=rl_report(values($one),$scope+['physicalPool'=>true],[]);
+eq(array_column($both['confirmationTargets']['IRRI-6 White Rice — Powder'],'entity'),['TTI','BRM'],'Pooled row retains separate company targets');
+$one['tt30prod'][0]['date']='';
+$undatedTargets=rl_report(values($one),$scope+['physicalPool'=>true],[]);
+eq(array_column($undatedTargets['confirmationTargets']['IRRI-6 White Rice — Powder'],'entity'),['BRM'],'Undated excluded quantity cannot silently be cleared');
+echo "PASS stock NIL targets: exact source identities, cross-variety isolation, distinct owners and undated safety.\n";
