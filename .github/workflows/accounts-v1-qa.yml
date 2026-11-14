@@ -381,6 +381,7 @@ jobs:
           python3 tests/accounts-v1/ledger_catalog_identity_test.py
           python3 tests/accounts-v1/admin_audit_test.py
           python3 tests/accounts-v1/local_sales_entry_http_test.py
+          python3 tests/accounts-v1/byproduct_sale_flow_http_test.py
           python3 tests/accounts-v1/brokerage_scope_test.py
           node tests/accounts-v1/brokerage_readonly_ui_test.js
           node tests/accounts-v1/admin_audit_ui_test.js
