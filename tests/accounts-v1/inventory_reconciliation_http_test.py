@@ -307,8 +307,9 @@ def browser_checks(base,clients,request,get,post,private,scope,output):
             # An unrelated dirty bag cache must not be submitted by a stock confirmation.
             manager=browser.new_context(viewport={'width':390,'height':844})
             jar=next(h.cookiejar for h in clients['qamanager'].handlers if isinstance(h,urllib.request.HTTPCookieProcessor))
-            manager.add_cookies([{'name':c.name,'value':c.value,'url':base}for c in jar]);mp=manager.new_page();writes=[]
+            manager.add_cookies([{'name':c.name,'value':c.value,'url':base}for c in jar]);mp=manager.new_page();writes=[];acks=[]
             mp.on('request',lambda r:writes.append(r.post_data_json) if r.method=='POST' and '/api/operations.mysql.php' in r.url else None)
+            mp.on('response',lambda r:acks.append(r.json()) if r.request.method=='POST' and '/api/operations.mysql.php' in r.url else None)
             mp.goto(base+'/module_release.php?id=milling',wait_until='networkidle')
             mp.wait_for_function("typeof chooseMill==='function' && !!window.TT_SHARED_SYNC.commitMillAction && !!window.TT_MILL_ACTION_SAVE?.commit")
             original_bags=private()['tt30bags'];original_ids={r['id'] for r in json.loads(private()['tt39physicalconfirmations'])}
@@ -319,6 +320,8 @@ def browser_checks(base,clients,request,get,post,private,scope,output):
             created=[r for r in json.loads(private()['tt39physicalconfirmations']) if r['id'] not in original_ids]
             check(len(created)==1 and created[0]['createdBy']=='qamanager' and created[0]['millName']=='QA Second Mill','Mill Manager completes the real NIL save with unrelated dirty bags',created)
             check(writes and all(w.get('key')=='tt39physicalconfirmations' for w in writes),'NIL submits only its own collection',writes)
+            current=get('qamanager');related=acks[0]['related']['tt32stockadj']
+            check(related['version']==current['meta']['tt32stockadj']['version'] and related['value']==current['values']['tt32stockadj'],'Stock acknowledgement includes the current scoped adjustment and version')
             check(private()['tt30bags']==original_bags,'NIL never changes protected bag instructions')
             check(json.loads(mp.evaluate("localStorage.getItem('tt30bags')"))[0]['received']==999,'Unrelated local draft is preserved rather than discarded')
             c,d=request('qamanager','/api/operations.mysql.php',{'key':'tt39physicalconfirmations','value':json.dumps([{**scope,'entity':'TTI','millId':1,'millName':'TTI Rice Mills','id':'OUTSIDE-NIL','stockName':'IRRI-6 White Rice — QA FRESH','physicalKg':0}]),'baseVersion':get('qamanager')['meta']['tt39physicalconfirmations']['version'],'sourceModule':'Mill'})

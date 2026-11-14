@@ -960,6 +960,10 @@ try {
     else $beforeValues[$key]=$oldPayload;
     if($key==='tt30queue')foreach(['tt30queue','tt30directoralerts'] as $dependentKey)if(isset($scopeValues[$dependentKey]))$beforeValues[$dependentKey]=$scopeValues[$dependentKey];
     $productionMeta=[];
+    if($key===TT_INV_CONFIRMATIONS){
+        $select->execute(['tt32stockadj']);$adjustmentRow=$select->fetch();
+        $productionMeta['tt32stockadj']=['version'=>(int)($adjustmentRow['version']??0)];
+    }
     if($arrivalBefore!==null){
         $select->execute(['tt30queue']);
         $arrivalRow=$select->fetch();
@@ -984,7 +988,7 @@ try {
         if(($beforeValues[$changedKey]??'')===$changedValue)continue;
         $select->execute([$changedKey]);$record=$select->fetch();$newVersion=(int)($record['version']??0)+1;
         if($changedKey===$key)$version=$newVersion;
-        if(in_array($changedKey,['tt30prodaudit','tt36bagissues','tt32labourfeed','tt30queue'],true))$productionMeta[$changedKey]=['version'=>$newVersion];
+        if(in_array($changedKey,['tt30prodaudit','tt36bagissues','tt32labourfeed','tt30queue','tt32stockadj'],true))$productionMeta[$changedKey]=['version'=>$newVersion];
         $writer=$changedKey===$key?$sourceModule:'System';
         $upsert=$db->prepare('INSERT INTO tt_operation_records (storage_key,payload,version,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload),version=VALUES(version),updated_at=VALUES(updated_at),updated_by=VALUES(updated_by),updated_by_user=VALUES(updated_by_user),updated_by_module=VALUES(updated_by_module)');
         $upsert->execute([$changedKey,$changedValue,$newVersion,$now,$name,$userId,$writer]);
