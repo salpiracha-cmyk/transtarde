@@ -97,17 +97,36 @@ function office_agent_enqueue_shipment(): never {
     $user = tt_current_user();
     if (!$user) office_agent_error(401, 'Your login session expired. Please sign in again.');
     if (tt_managed_qa_write_blocked($user)) office_agent_error(403, 'The production QA account is read-only.');
-    if (!tt_user_can_open_module($user, 'Exports') || !(ep_can($user,'print','Create')||ep_can($user,'print','Edit'))) office_agent_error(403, 'Exports Create or Edit permission is required.');
+    if (!tt_user_can_open_module($user, 'Exports')) office_agent_error(403, 'Exports permission is required.');
     if (!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) office_agent_error(419, 'Your session expired. Refresh and try again.');
 
     $manifestRaw=(string)($_POST['manifest']??'');if(strlen($manifestRaw)>262144)office_agent_error(422,'Office archive metadata is too large.');
     $manifest = json_decode($manifestRaw, true);
     if (!is_array($manifest) || ($manifest['type'] ?? '') !== 'shipment_archive') office_agent_error(422, 'Invalid shipment archive package.');
     $markingsOnly=($manifest['purpose']??'')==='bag-markings';
+    $contractFolder=($manifest['purpose']??'')==='contract-folder';
     $customsOnly=($manifest['purpose']??'')==='customs-documents';
-    if($customsOnly&&(!empty($manifest['finalize'])||!empty($manifest['refreshExisting'])||!empty($manifest['cleanupFolders'])||empty($manifest['lot'])))office_agent_error(422,'A Customs archive can only copy documents for one shipment lot.');
-    if($markingsOnly&&(($manifest['lot']??'')!=='PRE-SHIPMENT'||empty($manifest['shipmentId'])))office_agent_error(422,'Select the saved shipment for these bag markings.');
-    ep_require_document_target($user,(string)($manifest['contract']??''),(string)($markingsOnly?$manifest['shipmentId']:($manifest['lot']??'')),$markingsOnly?'bag-marking':'custom-output','View');
+    $contract=(string)($manifest['contract']??'');$lot=(string)($manifest['lot']??'');
+    $icon=$markingsOnly?'bags':($contractFolder?'contracts':'print');
+    if(!(ep_can($user,$icon,'Create')||ep_can($user,$icon,'Edit')||(($markingsOnly||$contractFolder)&&(ep_can($user,'print','Create')||ep_can($user,'print','Edit')))))office_agent_error(403,'Exports Create or Edit permission is required.');
+    if($customsOnly&&(!empty($manifest['finalize'])||!empty($manifest['refreshExisting'])||!empty($manifest['cleanupFolders'])||$lot===''))office_agent_error(422,'A Customs archive can only copy documents for one shipment lot.');
+    if($contractFolder||$markingsOnly){
+        $root=ep_operations_root();$processId=(string)($manifest['shipmentId']??'');$process=null;
+        foreach((array)($root['shipments']??[]) as $row)if($processId!==''&&($row['id']??'')===$processId&&($row['contractRef']??'')===$contract&&($row['kind']??'')!=='lot'&&empty($row['cancelled']))$process=$row;
+        if(!$process)office_agent_error(422,'Select the saved shipment process for this office copy.');
+        $issued=null;foreach((array)($root['contracts']??[]) as $row)if(($row['ref']??'')===$contract)$issued=$row;
+        if(!$issued||!empty($issued['cancelled'])||(empty($issued['issued'])&&empty($issued['received'])))office_agent_error(422,'Issue the Sales Contract before copying to the office folder.');
+        $entity=strtoupper((string)($issued['seller']??'TTI'));
+        if(!tt_user_business_entity($user,$entity,'Edit')&&!tt_user_business_entity($user,$entity,'Create'))office_agent_error(403,'Company document access is required.');
+
+        $category=$contractFolder?'sales-contract':'bag-marking';
+        ep_require_document_target($user,$contract,$processId,$category,'View',$root);
+        if($lot!==$contract.'/L01'){
+            $linked=false;
+            foreach((array)($root['shipments']??[]) as $row)if(($row['kind']??'')==='lot'&&($row['contractRef']??'')===$contract&&($row['lotId']??'')===$lot&&empty($row['cancelled']))$linked=true;
+            if(!$linked)office_agent_error(422,'Select a saved lot on this shipment.');
+        }
+    }else ep_require_document_target($user,$contract,$lot,'custom-output','View');
     $files = $_FILES['files'] ?? null;
     if (!is_array($files) || !is_array($files['name'] ?? null)) office_agent_error(422, 'Shipment archive package has no files.');
     $count = count($files['name']);
@@ -134,7 +153,10 @@ function office_agent_enqueue_shipment(): never {
             $folder = trim((string)($row['folder'] ?? ''));
             if ($folder !== '') office_document_name($folder);
             if($customsOnly&&($folder!=='CUSTOM DOCUMENTS'||!in_array($name,['Customs Invoice.pdf','Customs Packing List.pdf','Phytosanitary Invoice.pdf'],true)))throw new InvalidArgumentException('A Customs archive accepts only the three generated Customs PDFs.');
-            if($markingsOnly&&($folder!=='BAGS'||!preg_match('/\.(png|jpe?g|webp)$/iD',$name)))throw new InvalidArgumentException('The Bag Order archive accepts only marking images in BAGS.');
+            if($markingsOnly||$contractFolder){
+                $marking=preg_match('/^\d+ - (?:Master )?Bag Marking - .+\.(png|jpe?g|webp)$/iD',$name);
+                if($folder!==''||(!$marking&&!($contractFolder&&$name==='Sales Contract.pdf')))throw new InvalidArgumentException('Save the sales contract and original marking images directly in the lot folder.');
+            }
             $destination=($folder!==''?office_document_name($folder).'/':'').office_document_name($name);if(isset($destinations[$destination]))throw new InvalidArgumentException('Archive repeats a Windows document destination.');$destinations[$destination]=true;
             $tmp = (string)$files['tmp_name'][$index];
             $size = (int)($files['size'][$index] ?? 0);
@@ -164,7 +186,8 @@ function office_agent_enqueue_shipment(): never {
             'layoutVersion' => (int)($manifest['layoutVersion'] ?? 1) === 2 ? 2 : 1,
             'refreshExisting' => !empty($manifest['refreshExisting']),
         ];
-        if($markingsOnly)$job['purpose']='bag-markings';
+        if($markingsOnly||$contractFolder){$job['purpose']=$manifest['purpose'];$job['shipmentId']=$processId;}
+        if(!empty($manifest['officeDestination']))$job['officeDestination']=true;
         if($customsOnly)$job['purpose']='customs-documents';
         office_agent_write_job($job);
         // A refreshed lot replaces pending generated packages; preserve their audit metadata.
@@ -180,6 +203,7 @@ function office_agent_enqueue_shipment(): never {
 
 function office_agent_poll(): never {
     office_agent_require_token();
+    if(($_GET['officeDestination']??'')!=='1')office_agent_respond(['ok'=>true,'jobs'=>[],'destinationUpdateRequired'=>true]);
     $jobs=[];$validationBytes=0;$paths=array_slice(glob(office_agent_root().DIRECTORY_SEPARATOR.'*/job.json')?:[],0,1000);
     $cursorFile=office_agent_root().'/.poll.lock';if(is_link($cursorFile))office_agent_error(503,'Office queue cursor requires review.');$cursor=fopen($cursorFile,'c+b');if($cursor===false||!flock($cursor,LOCK_EX))office_agent_error(503,'Office queue cursor unavailable.');
     $rawCursor=stream_get_contents($cursor,20);$start=$paths&&ctype_digit((string)$rawCursor)?(int)$rawCursor%count($paths):0;$next=$start;$paths=array_merge(array_slice($paths,$start),array_slice($paths,0,$start));
@@ -187,6 +211,7 @@ function office_agent_poll(): never {
         if(is_link($path)||is_link(dirname($path))||filesize($path)>524288)continue;
         $job = json_decode((string)file_get_contents($path), true);
         if (!is_array($job) || !in_array((string)($job['status'] ?? ''), ['PENDING','ERROR','COPIED_LAYOUT_PENDING'], true)) continue;
+        if(($job['lot']??'')==='PRE-SHIPMENT')continue;
         try{$jobBytes=array_sum(array_map(static fn($f)=>(int)($f['size']??0),(array)($job['files']??[])));if($jobBytes<1||$jobBytes>OFFICE_JOB_MAX_BYTES)continue;if($validationBytes+$jobBytes>OFFICE_JOB_MAX_BYTES){$next=($start+$index)%count($paths);break;}$validationBytes+=$jobBytes;office_job_document_paths($job,dirname($path).'/files');}catch(Throwable){continue;}
         $jobs[] = [
             'id' => (string)$job['id'],
@@ -236,7 +261,10 @@ function office_agent_shipment_status(): never {
     $id=strtolower(trim((string)($_GET['id']??'')));$contract=trim((string)($_GET['contract']??''));$lot=trim((string)($_GET['lot']??''));
     $root=rtrim((string)TT_DATA_DIR,DIRECTORY_SEPARATOR).'/office_agent_jobs';$found=null;
     if($id!==''&&!preg_match('/^[a-f0-9]{32}$/D',$id))office_agent_error(422,'Invalid office package reference.');
-    if($id==='')ep_require_document_target($user,$contract,$lot,'custom-output','View');
+    if($id===''){
+        if($lot===$contract.'/L01')ep_require_document_target($user,$contract,'','custom-output','View');
+        else ep_require_document_target($user,$contract,$lot,'custom-output','View');
+    }
     if(is_dir($root)&&!is_link($root)){
         $paths=$id!==''?[$root.'/'.$id.'/job.json']:(glob($root.'/*/job.json')?:[]);
         if(count($paths)>5000)office_agent_error(409,'Select the exact package reference to check delivery.');
@@ -250,7 +278,9 @@ function office_agent_shipment_status(): never {
         }
     }
     if(!$found){if($id!=='')office_agent_error(404,'Office package not found.');tt_release_read_session();office_agent_respond(['ok'=>true,'found'=>false]);}
-    ep_require_document_target($user,(string)($found['contract']??''),(string)($found['lot']??''),'custom-output','View');
+    $purpose=$found['purpose']??'';
+    $category=$purpose==='contract-folder'?'sales-contract':($purpose==='bag-markings'?'bag-marking':'custom-output');
+    ep_require_document_target($user,(string)($found['contract']??''),(string)($found['shipmentId']??$found['lot']??''),$category,'View');
     tt_release_read_session();office_agent_respond(['ok'=>true,'found'=>true,'job'=>office_delivery_public_status($found)]);
 }
 
@@ -265,6 +295,8 @@ function office_agent_ack(): never {
     if($status==='COMPLETE'&&!office_delivery_receipt_matches($job,is_array($body['files']??null)?$body['files']:[]))office_agent_error(422,'Office delivery receipt does not match every expected file.');
     $layoutReady=(int)($job['layoutVersion']??1)<2||(int)($body['layoutVersion']??0)===2;
     $job['status'] = $status === 'COMPLETE' ? ($layoutReady?'VERIFIED':'COPIED_LAYOUT_PENDING') : 'ERROR';
+    if($status==='COMPLETE'&&!empty($job['officeDestination'])&&($body['officeDestination']??false)!==true)office_agent_error(422,'Update the Office Agent before confirming delivery.');
+    $job['officeDestinationVerified']=$status==='COMPLETE'&&($body['officeDestination']??false)===true;
     $job['agentLayoutVersion']=(int)($body['layoutVersion']??0);
     $job['updatedAt'] = gmdate('c');
     $job['attempts'] = (int)($job['attempts'] ?? 0) + 1;

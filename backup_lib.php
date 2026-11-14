@@ -640,6 +640,8 @@ function tt_backup_portable_database_files(array $private,array $tables,array &$
 
 function tt_backup_download_sources(bool $full,string $scope,array &$portableTemps):array {
     [$business,$datasets]=$scope==='software'?[[],[]]:tt_backup_business_payloads();$private=tt_backup_portable_database_files(tt_backup_snapshot_private_files($portableTemps),tt_backup_database_rows(),$portableTemps);$appFiles=$full&&$scope!=='data'?tt_backup_app_files():[];$documents=[];
+    // Office delivery packages are working copies, kept outside downloaded backups.
+    $private=array_filter($private,static fn($path,$rel)=>!str_starts_with($rel,'office_agent_jobs/'),ARRAY_FILTER_USE_BOTH);
     if($scope==='software')$private=array_filter($private,static fn($path,$rel)=>$rel==='auth.json'||str_starts_with($rel,'master-documents/')||preg_match('/(^|[_.-])(settings|config|master)([_.-]|$)/i',$rel),ARRAY_FILTER_USE_BOTH);
     if($scope==='software'){
         // Masters embedded in operational stores are references, never journals.

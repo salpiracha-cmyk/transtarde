@@ -40,9 +40,9 @@ const root=path.resolve(__dirname,'../..'),out=path.join(root,'tmp/qa/package-20
        try{return await TT_SHIPMENT_FILES.save({...window.__args,strictFinal:true})}finally{window.html2canvas=native}
      });
      const renders=await page.evaluate(()=>window.__rendered);
-     assert.ok(!renders.some(text=>text.includes('SEPARATE SALES CONTRACT')),'Strict output never renders the unused customer contract');
+     assert.ok(renders.some(text=>text.includes('SEPARATE SALES CONTRACT')),'The issued customer contract is copied to the lot root');
      assert.equal(renders.filter(text=>text.includes('TG PACK INVOICE')).length,1,'Identical bank invoice markup is rendered once per save');
-		 assert.equal(strictResult.count,7,'final lot archive should only queue master PDF, bank PDF and three custom documents');
+		 assert.equal(strictResult.count,8,'The final lot copies retain the issued sales contract');
 		 const strictFiles=await page.evaluate(()=>Object.keys(window.__files).sort());
 		 assert.deepEqual(strictFiles,[
 		  prefix+'CUSTOM DOCUMENTS/Customs Invoice.pdf',
@@ -51,8 +51,9 @@ const root=path.resolve(__dirname,'../..'),out=path.join(root,'tmp/qa/package-20
 		  prefix+'BANK DOCUMENTS/Sales Contract - Proforma INV-TG-0042.pdf',
           prefix+'BANK DOCUMENTS/Phyto.pdf',
 		  prefix+'Master Shipment Documents.pdf',
+          prefix+'Sales Contract.pdf',
 		  prefix+'BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf'
-		 ].sort(),'strict final archive must not leave loose originals, Sales Contract, GD copies, TG docs or Word files');
+		 ].sort(),'Final office copies keep the Sales Contract at lot root and retain the bank and Customs layout');
 		 const lcResult=await page.evaluate(async()=>{
 		  window.__files={};
 	  const args={...window.__args,customer:'LC Customer',contract:'TTI/LC/01',lot:'TTI/LC/01/L01'};

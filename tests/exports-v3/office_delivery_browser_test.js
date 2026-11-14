@@ -100,6 +100,18 @@ assert.notEqual(app,source);
   await page.evaluate(async()=>{__deliveryQA.root().shipments=[];__deliveryQA.save();await TT_SHARED_SYNC.saveNow();posts=[];reads=[];__deliveryQA.render()});
   await check.click();assert.equal(await page.locator('#officeRefreshProgress').innerText(),'No saved shipment lots to check.');
   assert.equal(await page.evaluate(()=>reads.length+posts.length),0);
+  await page.evaluate(async()=>{
+   const root=__deliveryQA.root();
+   root.contracts=[{id:'C2',ref:'TG/MGT/02',seller:'TG',issued:true,customerId:'CU2'}];
+   root.customers=[{id:'CU2',name:'MOUMIN'}];
+   root.shipments=[{id:'P2',kind:'process',contractRef:'TG/MGT/02',buyer:'MOUMIN',bagOrders:[]}];
+   __deliveryQA.save();await TT_SHARED_SYNC.saveNow();
+   window.TT_SHIPMENT_FILES={queueContractFolder:async options=>{window.firstOfficeCopy=options;return {id:'FIRST'}}};
+   __deliveryQA.render();
+  });
+  await page.locator('#officeRefreshFilter').fill('MOUMIN');
+  await page.locator('#startOfficeRefresh').click();await page.waitForFunction(()=>!document.getElementById('startOfficeRefresh').disabled);
+  assert.deepEqual(await page.evaluate(()=>[window.firstOfficeCopy?.customer,window.firstOfficeCopy?.lot]),['MOUMIN','TG/MGT/02/L01']);
   console.log('PASS connection errors, package-specific warnings, preparation failures and explicit empty state');
  }finally{await browser.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});
