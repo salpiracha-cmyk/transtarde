@@ -1078,15 +1078,17 @@ function refreshReprocessingStock(){
  const old=input.value;input.innerHTML='<option value="">Select actual input stock</option>'+computedStockRows(document.getElementById('prodEntity')?.value).filter(r=>r.kg>0&&!/RAW RICE$/i.test(r.name)).map(r=>`<option value="${escHtml(r.name)}">${escHtml(r.name)}</option>`).join('');input.value=old;
 }
 async function savePhysicalStockConfirmation(stockName,physicalKg,source={}){
- if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server save is not available. Reload before confirming physical stock.');
- await window.TT_SHARED_SYNC.saveNow();
- const scope=operationalStockScope(source),records=get('tt39physicalconfirmations',[]);
+ if(!window.TT_SHARED_SYNC?.commitMillAction)throw new Error('Server save is not available. Reload before confirming physical stock.');
+ const scope=operationalStockScope(source),userId=window.TT_MODULE_ACCESS?.userId;
+ if(!userId)throw new Error('Reload Milling before confirming physical stock.');
+ const token='tt_ui_physical_confirmation_'+userId+'_'+scope.entity+'_'+scope.millId;
  let record=stockConfirmationPending;
- if(record&&(record.stockName!==stockName||record.physicalKg!==physicalKg||record.entity!==scope.entity||String(record.millId)!==String(scope.millId)))throw new Error('Finish or retry the pending physical confirmation before entering a different one.');
- if(!record){record={id:'PC-'+(globalThis.crypto?.randomUUID?.()||Date.now()+'-'+Math.random().toString(36).slice(2)),...scope,stockName,physicalKg,sourceShipmentId:String(source.id||'')};stockConfirmationPending=record;}
- if(!records.some(r=>r.id===record.id))records.push(record);set('tt39physicalconfirmations',records);
- await window.TT_SHARED_SYNC.saveNow();
- stockConfirmationPending=null;await(window.TT_SHARED_SYNC?.refresh?.()||Promise.resolve());return record;
+ if(!record){try{record=JSON.parse(localStorage.getItem(token)||'null');}catch{throw new Error('The previous physical confirmation needs review before another can be saved.');}}
+ if(record&&(record.stockName!==stockName||record.physicalKg!==physicalKg||record.entity!==scope.entity||String(record.millId)!==String(scope.millId)||record.sourceShipmentId!==String(source.id||'')))throw new Error('Finish or retry the pending physical confirmation before entering a different one.');
+ if(!record)record={id:'PC-'+(globalThis.crypto?.randomUUID?.()||Date.now()+'-'+Math.random().toString(36).slice(2)),...scope,stockName,physicalKg,sourceShipmentId:String(source.id||'')};
+ localStorage.setItem(token,JSON.stringify(record));stockConfirmationPending=record;
+ const saved=await window.TT_SHARED_SYNC.commitMillAction('tt39physicalconfirmations',record);
+ localStorage.removeItem(token);stockConfirmationPending=null;return saved;
 }
 
 function defaultMills(){return [{id:1,name:'TTI Rice Mills',type:'Own / Default'}]}
