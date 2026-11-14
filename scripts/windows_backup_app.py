@@ -225,7 +225,7 @@ def install(root,events):
         register_tasks(executable);shortcuts(executable)
         agent.write_json(folder/'installed.json',{'executable':str(executable),'backupRoot':str(root),'installedAt':datetime.now(PK).isoformat()},sensitive=True)
     events.put(('log','Installation and connection complete. Starting the first verified daily / monthly data and separate software backups…'))
-    result=run_plan(events,refresh=True)
+    result=call_agent(['--backup-only','--refresh-tiers'],QueueWriter(events))
     if result:raise RuntimeError('Installed and connected, but the first backup needs attention. The details remain in this window. Use Backup Now to retry.')
     prune_installed_apps(folder,executable)
     events.put(('done','SUCCESS: Installed, connected, scheduled and daily / monthly data and separate software backups completed.'))
@@ -243,13 +243,20 @@ def plan_status(config):
         good=file.is_file() and agent.sha256_file(file)==proof.get('sha256')
         lines+=['',label+': '+file.name,'Checksum: '+('VERIFIED now' if good else 'Missing or changed; needs attention.')]
     if revisions.get('Daily data') and revisions.get('Daily data')!=revisions.get('Software and setup'):
-        lines+=['','Software changed since the latest software backup. Use Backup Now to refresh the matching software copy.']
+        lines+=['','Software changed since the latest software backup. Select Software and setup in Backup Now to refresh the matching copy.']
     return '\n'.join(lines)
 
 
-def run_plan(events,refresh=False):
+def run_manual_backup(events,daily,monthly,software):
+    if not (daily or monthly or software):
+        raise ValueError('Select at least one backup to download.')
     writer=QueueWriter(events)
-    return call_agent(['--backup-only','--refresh-tiers' if refresh else '--force'],writer)
+    if software and call_agent(['--backup-only','--software','--force'],writer):
+        raise RuntimeError('Software and setup backup did not finish. Previous copies were preserved.')
+    if daily or monthly:
+        tier='both' if daily and monthly else ('daily' if daily else 'monthly')
+        if call_agent(['--backup-only','--manual-data',tier],writer):
+            raise RuntimeError('The selected data backup did not finish. Check the log for any completed copies.')
 
 
 def upgrade_existing(root,events):
@@ -270,9 +277,8 @@ def upgrade_existing(root,events):
             if not saved.exists():saved.write_text(row['xml'],encoding='utf-16');agent.protect(saved)
         register_tasks(executable);shortcuts(executable)
         agent.write_json(folder/'installed.json',{'executable':str(executable),'backupRoot':str(root),'installedAt':datetime.now(PK).isoformat(),'plan':'data7-monthly-software-per-release'},sensitive=True)
-    events.put(('log','Settings updated. Old backups and connection preserved. Saving software/setup and daily/monthly data…'))
-    if run_plan(events,refresh=True):raise RuntimeError('Settings updated, but a backup needs attention. Previous copies were preserved; see log.')
-    prune_installed_apps(folder,executable);events.put(('done','SUCCESS: New backup plan installed; separate software and daily/monthly data verified.'))
+    prune_installed_apps(folder,executable)
+    events.put(('done','SUCCESS: PC settings updated. The existing connection and backup schedule are ready.'))
 
 
 def icon_file(path):
@@ -327,12 +333,23 @@ def gui(mode='setup'):
         if folder.get():start(lambda:install(Path(folder.get()),events))
     b=ttk.Button(setup,text='Install / Reconnect this PC',command=install_click);b.pack(anchor='w',pady=8);buttons.append(b)
     b=ttk.Button(setup,text='Update existing PC settings (keep connection)',command=lambda:start(lambda:upgrade_existing(Path(folder.get()),events)));b.pack(anchor='w',pady=4);buttons.append(b)
-    def backup_now():
-        result=run_plan(events)
-        if result:raise RuntimeError('Backup did not complete. Check the message above. Previous backups were preserved.')
-        events.put(('done','SUCCESS: The requested backup run completed.'))
-    ttk.Label(pages['Backup Now'],text='Save fresh data and a separate software/setup archive using your saved password.\nAutomatic plan: daily data at 6 pm Pakistan time, 7 daily points and 12 monthly points. Software once per released version.').pack(anchor='w')
-    b=ttk.Button(pages['Backup Now'],text='Back up now',command=lambda:start(backup_now));b.pack(anchor='w',pady=12);buttons.append(b)
+    ttk.Label(setup,text='Updating this PC applies settings only. Use Backup Now for downloads.').pack(anchor='w',pady=(4,0))
+    selections=[tk.BooleanVar(value=False) for _ in range(3)]
+    manual=pages['Backup Now']
+    ttk.Label(manual,text='Choose which backups to download now.').pack(anchor='w')
+    for title,choice in zip(['Daily data','Monthly data','Software and setup'],selections):
+        ttk.Checkbutton(manual,text=title,variable=choice).pack(anchor='w')
+    ttk.Label(manual,text='For website recovery, keep data and software from the same release.\nAutomatic backups follow the existing schedule.').pack(anchor='w',pady=8)
+    def backup_click():
+        selected=tuple(choice.get() for choice in selections)
+        if not any(selected):
+            message.set('Select at least one backup to download.')
+            return
+        def download():
+            run_manual_backup(events,*selected)
+            events.put(('done','SUCCESS: The selected backups were verified and saved.'))
+        start(download)
+    b=ttk.Button(manual,text='Download selected backups',command=backup_click);b.pack(anchor='w',pady=4);buttons.append(b)
     recovery=pages['Recovery'];ttk.Label(recovery,text='Recover Accounts, Mill, Exports, Directors and a Complete Website Restore folder.\nYour original ZIP and live website stay unchanged.').pack(anchor='w')
     row=ttk.Frame(recovery);row.pack(fill='x',pady=8);ttk.Entry(row,textvariable=backup).pack(side='left',fill='x',expand=True)
     ttk.Button(row,text='Choose backup ZIP',command=lambda:backup.set(filedialog.askopenfilename(filetypes=[('Complete backup ZIP','*.zip')]) or '')).pack(side='left')
@@ -386,7 +403,7 @@ def gui(mode='setup'):
     if mode=='restore':tabs.select(pages['Recovery'])
     elif mode=='status':tabs.select(pages['Status']);root.after(200,lambda:start(lambda:events.put(('done',status_text()))))
     elif mode=='backup-now':
-        if agent.config_path().exists():tabs.select(pages['Backup Now']);root.after(200,lambda:start(backup_now))
+        if agent.config_path().exists():tabs.select(pages['Backup Now'])
     root.mainloop()
 
 

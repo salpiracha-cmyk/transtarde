@@ -1,3 +1,7 @@
+## Manual backup selection
+
+Update existing PC settings keeps the saved connection and makes no immediate backup download. Backup Now offers separate Daily data, Monthly data and Software and setup selections. Selecting both data folders downloads one verified data archive and saves it in both places. Manual data selection does not mark the scheduled run complete. The automatic 18:00 Pakistan-time tasks, compatible software policy and retention remain in effect.
+
 ## Office shipment document copies — 14 November 2026
 
 TTI-SERVER writes shipment office copies to `E:\TTI DOCS\Transtrade software shipment documents`.

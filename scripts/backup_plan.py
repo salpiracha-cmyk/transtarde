@@ -6,18 +6,19 @@ import re
 import zipfile
 
 
-def commit_received(agent,temp,destination,digest,scope,stamp,refresh_month=False,data_destination=None):
-    destination=Path(destination);folder=destination if scope=='software' else destination/'Daily'
-    folder.mkdir(parents=True,exist_ok=True)
-    prefix='TRANSTRADE_SOFTWARE_' if scope=='software' else 'TRANSTRADE_DATA_'
-    target=folder/(prefix+stamp.strftime('%Y-%m-%d_%H%M')+'_'+digest[:12]+'.zip')
+def commit_received(agent,temp,destination,digest,scope,stamp,refresh_month=False,data_destination=None,manual_tiers=None):
+    destination=Path(destination)
     manifest=agent.validate_zip(temp)
     if manifest.get('scope')!=scope:raise ValueError('The server returned a different backup type. Previous copies were preserved.')
-    os.replace(temp,target)
-    agent.write_json(destination/'latest-verified.json',{'name':target.name,'sha256':digest,'scope':scope,'createdAt':manifest.get('createdAt'),'softwareRevision':manifest.get('softwareRevision')})
+    proof={'sha256':digest,'scope':scope,'createdAt':manifest.get('createdAt'),'softwareRevision':manifest.get('softwareRevision')}
+    prefix='TRANSTRADE_SOFTWARE_' if scope=='software' else 'TRANSTRADE_DATA_'
+    name=prefix+stamp.strftime('%Y-%m-%d_%H%M')+'_'+digest[:12]+'.zip'
     if scope=='software':
+        destination.mkdir(parents=True,exist_ok=True)
+        target=destination/name
+        os.replace(temp,target)
+        agent.write_json(destination/'latest-verified.json',{'name':target.name,**proof})
         # Retain compatible application versions for every surviving data point.
-        # An unreadable data manifest holds software copies rather than guessing.
         required=set();hold=False
         data_root=Path(data_destination) if data_destination else destination.parent/'SystemBackups'
         for tier in ('Daily','Monthly'):
@@ -27,16 +28,31 @@ def commit_received(agent,temp,destination,digest,scope,stamp,refresh_month=Fals
                     if not revision:hold=True
                     else:required.add(revision)
                 except (OSError,ValueError,zipfile.BadZipFile):hold=True
-        if not hold:prune(agent,folder,prefix,target,digest,2,required_revisions=required)
-    else:
-        month=destination/'Monthly';month.mkdir(exist_ok=True)
-        current=list(month.glob(prefix+stamp.strftime('%Y-%m')+'_*.zip'))
-        # Match the existing first-weekday/catch-up policy; manual first setup may seed now.
-        if refresh_month or (stamp.weekday()<5 and not current):
-            monthly=month/(prefix+stamp.strftime('%Y-%m_%H%M')+'_'+digest[:12]+'.zip');agent.copy_verified(target,monthly,digest)
-            agent.write_json(month/'latest-verified.json',{'name':monthly.name,'sha256':digest,'scope':scope})
-            prune(agent,month,prefix,monthly,digest,12,monthly=True)
-        prune(agent,folder,prefix,target,digest,7)
+        if not hold:prune(agent,destination,prefix,target,digest,2,required_revisions=required)
+        return target
+
+    month=destination/'Monthly'
+    current=list(month.glob(prefix+stamp.strftime('%Y-%m')+'_*.zip'))
+    daily_selected=manual_tiers is None or 'daily' in manual_tiers
+    monthly_selected=(refresh_month or (stamp.weekday()<5 and not current)) if manual_tiers is None else 'monthly' in manual_tiers
+    if not daily_selected and not monthly_selected:raise ValueError('Select a data backup destination.')
+
+    if daily_selected:
+        daily=destination/'Daily';daily.mkdir(parents=True,exist_ok=True)
+        target=daily/name
+        os.replace(temp,target)
+        agent.write_json(destination/'latest-verified.json',{'name':target.name,**proof})
+    if monthly_selected:
+        month.mkdir(parents=True,exist_ok=True)
+        monthly=month/(prefix+stamp.strftime('%Y-%m_%H%M')+'_'+digest[:12]+'.zip')
+        if daily_selected:
+            agent.copy_verified(target,monthly,digest)
+        else:
+            os.replace(temp,monthly)
+            target=monthly
+        agent.write_json(month/'latest-verified.json',{'name':monthly.name,**proof})
+        prune(agent,month,prefix,monthly,digest,12,monthly=True)
+    if daily_selected:prune(agent,daily,prefix,target,digest,7)
     return target
 
 
