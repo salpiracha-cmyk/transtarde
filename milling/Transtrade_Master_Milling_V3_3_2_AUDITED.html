@@ -765,7 +765,8 @@ async function saveLoad(){
 
  let tare=sel.byProductSale?0:Number(loadTareKg.value||0);if(!Number.isFinite(tare)||tare&lt;0||tare&gt;=q||(sel.billingWeightBasis===&#x27;NET&#x27;&amp;&amp;!loadTareKg.value.trim()))return alert(&#x27;Enter total empty bag weight in kg. It must be less than the Karachi weighbridge weight. Enter 0 for loose cargo.&#x27;);
  const old=editLoadIndex===null?null:sel.loads[editLoadIndex];
- const container=parent.containerFormat(loadContainer.value.trim());
+ const enteredContainer=loadContainer.value.trim();
+ const container=enteredContainer?parent.containerFormat(enteredContainer):&#x27;&#x27;;
  if(container&amp;&amp;container!==old?.container&amp;&amp;!parent.validContainer(container))return localSaleErrorMessage(&#x27;Enter a valid container number with its correct check digit or leave it blank.&#x27;);
  let rec={...(old?.id?{id:old.id}:{}),truck:t,...(container?{container}:{}),date:loadDate.value,kg:q,weighbridgeGrossKg:q,emptyTareKg:tare,bags:+loadBags.value||0,remarks:remarks.value.trim(),printed:false};
  rec.bridgeId=old?.bridgeId||(&#x27;LSL-&#x27;+crypto.randomUUID());rec.gatePassRef=old?.gatePassRef||(&#x27;LGP-&#x27;+sel.soda+&#x27;-&#x27;+(editLoadIndex===null?sel.loads.length+1:editLoadIndex+1));

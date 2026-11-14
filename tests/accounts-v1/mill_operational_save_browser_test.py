@@ -330,9 +330,9 @@ def run():
             shipment={'id':'QA-GATE-SHIP','entity':'TTI','millName':'TTI Rice Mills','brand':'Fixture','contractRef':'QA-CONTRACT','lotRef':'QA-LOT','brokenPct':5,'containers':[container]}
             operations=json.loads((data/'operations.json').read_text());operations['values']['tt30ship']=json.dumps([shipment]);(data/'operations.json').write_text(json.dumps(operations))
             with context.expect_page() as printed:mill.evaluate("s=>printGate(s.containers[0],s)",shipment)
-            popup=printed.value;popup.locator('.pass').wait_for();body=popup.locator('body').inner_text();assert 'Weighbridge weight (kg)' in body and '27,000' in body and '26,950' in body and 'Packing deduction (kg)' in body and '50' in body;assert '5% BROKEN' in body and 'QA-LOT' in body and 'GP-000003' in body;assert popup.title();assert popup.locator('.pass').evaluate('e=>e.getBoundingClientRect().height*25.4/96')<140;popup.close()
+            popup=printed.value;popup.locator('.pass').wait_for();body=popup.locator('body').inner_text();assert 'Weighbridge weight (kg)' in body and '27,000' in body and '26,950' in body and 'Packing deduction (kg)' in body and '50' in body;assert '5% BROKEN' in body and 'QA-LOT' in body and 'GP-000004' in body;assert popup.title();assert popup.locator('.pass').evaluate('e=>e.getBoundingClientRect().height*25.4/96')<140;popup.close()
             with context.expect_page() as printed:mill.evaluate("s=>printGate(s.containers[0],s)",shipment)
-            popup=printed.value;popup.locator('.serial').filter(has_text='GP-000003').wait_for();popup.close()
+            popup=printed.value;popup.locator('.serial').filter(has_text='GP-000004').wait_for();popup.close()
             # Separate phone and PC storage contexts: a saved phone arrival becomes live while PC keeps its draft.
             mill.evaluate("openPanel('queue')");mill.locator('#qVehicle').fill('DRAFT-901')
             phone_context=browser.new_context(storage_state=context.storage_state(),viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
