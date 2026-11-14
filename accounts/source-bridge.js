@@ -83,6 +83,7 @@
 
   function showOutboxAttention(){
     document.getElementById('ttAccountsOutboxBadge')?.remove();
+    if(access.moduleId==='milling')return;
     const pending=outbox().filter(item=>item.status!=='Posted');if(!pending.length)return;
     const box=document.createElement('div');box.id='ttAccountsOutboxBadge';box.setAttribute('role','alert');box.style.cssText='padding:12px 18px;background:#fee2e2;color:#991b1b;border-bottom:1px solid #fca5a5';
     const title=document.createElement('strong');title.textContent=pending.length+' Accounts handoff'+(pending.length===1?'':'s')+' awaiting confirmation';box.append(title);
