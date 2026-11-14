@@ -1,6 +1,6 @@
 /* Explicit, isolated saves for the remaining operational Milling forms. */
 (()=>{'use strict';
- const keys=new Set(['tt30queue','tt30slips','tt30directoralerts','tt37usedbags','tt33pettyexp','tt32stockadj','tt35localsales','tt35exportersale']);
+ const keys=new Set(['tt30queue','tt30slips','tt30directoralerts','tt37usedbags','tt33pettyexp','tt32stockadj','tt35localsales','tt35exportersale','tt39physicalconfirmations']);
  const canonical=x=>JSON.stringify(x&&typeof x==='object'?Array.isArray(x)?x.map(v=>JSON.parse(canonical(v))):Object.fromEntries(Object.keys(x).sort().map(k=>[k,JSON.parse(canonical(x[k]))])):x);
  const same=(a,b)=>canonical(a)===canonical(b);
  const confirms=(found,want)=>found&&Object.keys(want).every(k=>same(found[k],want[k]));
@@ -15,7 +15,7 @@
   const baseVersion=absent?0:snapshot.meta[key].version;
   const current=rows(absent?'[]':snapshot.values[key]),matches=current.filter(r=>String(identity(r))===String(identity(record)));
   const comparable=r=>{const x={...r};if(prefix)delete x[refField];return x;};
-  const related=source=>Object.fromEntries((key==='tt32stockadj'?['tt32labourfeed']:arrivalBefore?['tt30queue']:[]).filter(k=>typeof source.values?.[k]==='string').map(k=>[k,{value:source.values[k],version:Number(source.meta?.[k]?.version||0)}]));
+  const related=source=>Object.fromEntries((key==='tt32stockadj'?['tt32labourfeed']:key==='tt39physicalconfirmations'?['tt32stockadj']:arrivalBefore?['tt30queue']:[]).filter(k=>typeof source.values?.[k]==='string').map(k=>[k,{value:source.values[k],version:Number(source.meta?.[k]?.version||0)}]));
   if(matches.length===1&&confirms(comparable(matches[0]),comparable(record)))return {record:matches[0],value:JSON.stringify(current),version:Number(snapshot.meta?.[key]?.version||0),related:related(snapshot)};
   if(matches.length>1||(before?!same(matches[0],before):matches.length))throw Object.assign(Error('This record changed elsewhere. Reload and review it before amending.'),{editable:true});
   const candidate=JSON.parse(JSON.stringify(record));

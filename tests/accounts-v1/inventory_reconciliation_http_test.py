@@ -14,6 +14,7 @@ SEED = r'''<?php
 $root=__DIR__;if(!str_starts_with(basename($root),'tti-stock-http-'))throw new RuntimeException('Unsafe fixture root');
 require $root.'/repo/auth_store.php';$pw=bin2hex(random_bytes(20));$users=[];$rw=['View','Create','Edit'];
 foreach(['qaowner'=>['Super Admin',['Mill'=>'all','Accounts'=>'all','Directors'=>'all','Exports'=>'all']],
+'qamanager'=>['Mill Manager',['Mill'=>['stock'=>$rw]]],
 'qamill'=>['Mill Operator',['Mill'=>['stock'=>$rw,'production'=>$rw,'export'=>$rw,'arrival'=>$rw,'queue'=>$rw,'newbags'=>$rw,'reports'=>['View']]]],
 'qaaccountswrite'=>['Accounts Writer',['Accounts'=>['reports'=>['View'],'expenses'=>['View','Create','Edit']]]],
 'qaaccounts'=>['Accounts Operator',['Accounts'=>['reports'=>['View'],'entity-tti'=>['View']]]],
@@ -22,6 +23,7 @@ foreach(['qaowner'=>['Super Admin',['Mill'=>'all','Accounts'=>'all','Directors'=
 'qaexport'=>['Export Operator',['Exports'=>'all']],
 'qaview'=>['Mill Viewer',['Mill'=>['stock'=>['View'],'production'=>['View']]]]] as $name=>[$role,$p])
 $users[]=['id'=>1000+count($users),'username'=>$name,'full_name'=>$name,'role'=>$role,'permissions'=>$p,'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT),'master_access'=>false];
+foreach($users as &$u)if($u['username']==='qamanager')$u['location']='QA Second Mill';unset($u);
 $masters=tt_default_masters();$masters['mills'][]=['id'=>'QA-MILL-2','values'=>['QA Second Mill','','Own Mill','','','Active','','TTI']];$masters['business_parties'][]=['id'=>'QA-BROKER','values'=>['QA Broker','QA','Broker','','','','','','','','Active','','{"buying":[],"selling":[]}']];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>$users,'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]]));
 // This integration fixture represents an initialized installation with valid books.
@@ -248,7 +250,7 @@ def run() -> None:
 
 def browser_checks(base,clients,request,get,post,private,scope,output):
     from playwright.sync_api import sync_playwright
-    post('tt30mills',[{'id':1,'name':'TTI Rice Mills','type':'Own Mill'},{'id':2,'name':'QA Second Mill','type':'Own Mill'}],user='qaowner')
+    post('tt30mills',[{'id':1,'name':'TTI Rice Mills','type':'Own Mill'},{'id':2,'name':'QA Second Mill','millName':'QA Second Mill','entity':'TTI','type':'Own Mill'}],user='qaowner')
     # A separate fresh brand deliberately has no matching production yet.
     shipments=json.loads(get()['values']['tt30ship']);shipments.append({'id':301,'entity':'TTI','millId':1,'mill':'TTI Rice Mills','millName':'TTI Rice Mills','baseVariety':'IRRI-6','riceType':'White','brand':'QA FRESH','containers':[],'audit':[],'status':'Loading','ref':'QA-LOT','contractRef':'QA-CONTRACT','totalContainers':1,'bagsPerContainer':500,'bagSize':50,'emptyRequired':0})
     post('tt30ship',shipments,user='qaowner')
@@ -260,11 +262,11 @@ def browser_checks(base,clients,request,get,post,private,scope,output):
             context.add_cookies([{'name':c.name,'value':c.value,'url':base}for c in jar]);page=context.new_page();errors=[];dialogs=[]
             page.on('pageerror',lambda error:errors.append(error.stack))
             page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.accept()))
-            page.goto(base+'/module_release.php?id=milling',wait_until='domcontentloaded')
-            page.wait_for_function("typeof chooseMill==='function' && !!window.TT_SHARED_SYNC",timeout=20000)
+            page.goto(base+'/module_release.php?id=milling',wait_until='networkidle')
+            page.wait_for_function("typeof chooseMill==='function' && !!window.TT_SHARED_SYNC && !!window.TT_MILL_ACTION_SAVE?.save",timeout=20000)
             page.evaluate("chooseMill(1);openPanel('queue')")
             page.locator('#qVehicle').fill('QA-901');page.locator('#qBags').fill('100');page.locator('#qWeight').fill('5000');page.locator('#qBroker').fill('QA Broker');page.locator('#qBroken').fill('10')
-            page.locator('#queueSaveBtn').click();page.evaluate('window.TT_SHARED_SYNC.saveNow()')
+            page.locator('#queueSaveBtn').click();page.wait_for_function("JSON.parse(localStorage.getItem('tt30queue')||'[]').some(r=>r.vehicle==='QA-901')",timeout=15000)
             saved=json.loads(get()['values'].get('tt30queue','[]'))
             check(any(r.get('vehicle')=='QA-901' for r in saved),'Fresh Mill arrival saves without pressing Clear first',dialogs)
             check(page.locator('#ghatiStatementBody').count()==0,'Mill browser contains no Ghati report')
@@ -295,13 +297,36 @@ def browser_checks(base,clients,request,get,post,private,scope,output):
             # Direct management URL remains blocked even from the authenticated Mill browser.
             r=page.request.get(base+'/stock-reconciliation.php?entity=TTI');check(r.status==403,'Mill browser cannot open management report by URL')
             owner_context=browser.new_context();jar=next(h.cookiejar for h in clients['qaowner'].handlers if isinstance(h,urllib.request.HTTPCookieProcessor));owner_context.add_cookies([{'name':c.name,'value':c.value,'url':base}for c in jar]);owner_page=owner_context.new_page();owner_errors=[];owner_page.on('pageerror',lambda error:owner_errors.append(error.stack))
-            owner_page.goto(base+'/module_release.php?id=milling',wait_until='domcontentloaded');owner_page.wait_for_selector('#ttConsoleTop',timeout=15000)
+            owner_page.goto(base+'/module_release.php?id=milling',wait_until='networkidle');owner_page.wait_for_selector('#ttConsoleTop',timeout=15000)
             check(not owner_errors,'Owner header insertions use the correct parent',owner_errors)
             account_context=browser.new_context(viewport={'width':1440,'height':1100});jar=next(h.cookiejar for h in clients['qaaccounts'].handlers if isinstance(h,urllib.request.HTTPCookieProcessor));account_context.add_cookies([{'name':c.name,'value':c.value,'url':base}for c in jar]);account_page=account_context.new_page()
             account_page.goto(base+'/stock-reconciliation.php?entity=TTI',wait_until='domcontentloaded')
             check('15,000.000' in account_page.locator('body').inner_text(),'Accounts browser sees the reconciled private result')
             check('Production quantities changed after reconciliation' not in account_page.locator('body').inner_text(),'Browser report does not falsely flag zero or unrelated subsequent production')
             if output:account_page.screenshot(path=str(Path(output)/'accounts-private-reconciliation.png'),full_page=True)
+            # An unrelated dirty bag cache must not be submitted by a stock confirmation.
+            manager=browser.new_context(viewport={'width':390,'height':844})
+            jar=next(h.cookiejar for h in clients['qamanager'].handlers if isinstance(h,urllib.request.HTTPCookieProcessor))
+            manager.add_cookies([{'name':c.name,'value':c.value,'url':base}for c in jar]);mp=manager.new_page();writes=[]
+            mp.on('request',lambda r:writes.append(r.post_data_json) if r.method=='POST' and '/api/operations.mysql.php' in r.url else None)
+            mp.goto(base+'/module_release.php?id=milling',wait_until='networkidle')
+            mp.wait_for_function("typeof chooseMill==='function' && !!window.TT_SHARED_SYNC.commitMillAction && !!window.TT_MILL_ACTION_SAVE?.commit")
+            original_bags=private()['tt30bags'];original_ids={r['id'] for r in json.loads(private()['tt39physicalconfirmations'])}
+            cached=json.loads(original_bags);cached[0]['received']=999
+            mp.evaluate("x=>{chooseMill(get(STORE_MILLS,[]).find(m=>m.name==='QA Second Mill').id);openPanel('stock');localStorage.setItem('tt30bags',x);openNilConfirm('IRRI-6 White Rice — ASAS',0,{entity:'TTI'});}",json.dumps(cached))
+            with mp.expect_response(lambda r:r.request.method=='POST' and '/api/operations.mysql.php' in r.url) as saved_response:
+                mp.locator('#nilConfirmPanel button.warn').click()
+            acknowledgement=saved_response.value.json()
+            mp.wait_for_function("document.getElementById('nilConfirmPanel').classList.contains('hidden')",timeout=15000)
+            created=[r for r in json.loads(private()['tt39physicalconfirmations']) if r['id'] not in original_ids]
+            check(len(created)==1 and created[0]['createdBy']=='qamanager' and created[0]['millName']=='QA Second Mill','Mill Manager completes the real NIL save with unrelated dirty bags',created)
+            check(writes and all(w.get('key')=='tt39physicalconfirmations' for w in writes),'NIL submits only its own collection',writes)
+            current=get('qamanager');related=acknowledgement['related']['tt32stockadj']
+            check(related['version']==current['meta']['tt32stockadj']['version'] and related['value']==current['values']['tt32stockadj'],'Stock acknowledgement includes the current scoped adjustment and version')
+            check(private()['tt30bags']==original_bags,'NIL never changes protected bag instructions')
+            check(json.loads(mp.evaluate("localStorage.getItem('tt30bags')"))[0]['received']==999,'Unrelated local draft is preserved rather than discarded')
+            c,d=request('qamanager','/api/operations.mysql.php',{'key':'tt39physicalconfirmations','value':json.dumps([{**scope,'entity':'TTI','millId':1,'millName':'TTI Rice Mills','id':'OUTSIDE-NIL','stockName':'IRRI-6 White Rice — QA FRESH','physicalKg':0}]),'baseVersion':get('qamanager')['meta']['tt39physicalconfirmations']['version'],'sourceModule':'Mill'})
+            check(c==403,'Manager cannot confirm stock outside assigned mill',(c,d))
             check(not errors,'No unhandled Mill browser errors in repaired workflow',errors)
         finally:browser.close()
 

@@ -16,5 +16,12 @@ const save=r=>w.TT_MILL_ACTION_SAVE.save('tt37usedbags',r,{label:'Used bags',onS
  w.draft.value='third draft';incomplete=true;const oldClears=clears;await save({...rec,qty:8});assert.equal(clears,oldClears,'Incomplete server acknowledgement cleared the form');assert.equal(w.draft.value,'third draft');assert(w.localStorage.length>0);incomplete=false;const sentBeforeRetry=posts;await save({...rec,qty:8});assert.equal(posts,sentBeforeRetry,'Retry duplicated a record saved before an incomplete acknowledgement');assert.equal(clears,oldClears+1);
  const before=JSON.parse(JSON.stringify(remote[0]));remote[0].qty=99;
  await assert.rejects(()=>w.TT_MILL_ACTION_SAVE.commit({endpoint:'/fixture',access:w.TT_MODULE_ACCESS,key:'tt37usedbags',record:{...before,qty:8},before}),/changed elsewhere/);
- assert.equal(remote[0].qty,99);assert.equal(remote[1].qty,6);dom.window.close();console.log('PASS isolated operational saves, failed form retention, lost acknowledgement replay, changed-draft recovery and stale amendment rejection');
+ assert.equal(remote[0].qty,99);assert.equal(remote[1].qty,6);
+ // Confirmation retries accept server-computed fields without posting twice.
+ let confirmations=[],confirmationPosts=0,confirmationVersion=0,loseConfirmation=true;
+ w.fetch=async(url,opts={})=>{if(!opts.method)return {ok:true,json:async()=>({ok:true,values:{tt39physicalconfirmations:JSON.stringify(confirmations)},meta:{tt39physicalconfirmations:{version:confirmationVersion}}})};const body=JSON.parse(opts.body);assert.equal(body.key,'tt39physicalconfirmations');confirmationPosts++;confirmations=JSON.parse(body.value).map(r=>({...r,status:'Awaiting current-shift production',date:'2026-11-14'}));confirmationVersion++;if(loseConfirmation){loseConfirmation=false;throw Error('ack lost');}return {ok:true,json:async()=>({ok:true,value:JSON.stringify(confirmations),keyVersion:confirmationVersion})};};
+ const confirmation={id:'PC-retry',entity:'TTI',millId:1,millName:'Fixture Mill',locationId:'',stockName:'Powder',physicalKg:0,sourceShipmentId:''};
+ const submit=()=>w.TT_MILL_ACTION_SAVE.commit({endpoint:'/fixture',access:w.TT_MODULE_ACCESS,key:'tt39physicalconfirmations',record:confirmation});
+ await assert.rejects(submit,/ack lost/);const confirmed=await submit();assert.equal(confirmationPosts,1);assert.equal(confirmed.record.id,'PC-retry');assert.equal(confirmed.record.status,'Awaiting current-shift production');
+ dom.window.close();console.log('PASS isolated operational saves, failed form retention, lost acknowledgement replay, changed-draft recovery and stale amendment rejection');
 })().catch(e=>{console.error(e);dom.window.close();process.exitCode=1;});
