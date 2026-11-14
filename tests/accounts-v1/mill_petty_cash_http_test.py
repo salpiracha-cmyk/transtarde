@@ -52,6 +52,11 @@ with tempfile.TemporaryDirectory(prefix='petty-cash-') as directory:
         state['journals']['FUTURE-OFFICE']={'id':'FUTURE-OFFICE','entity':'TTI','status':'Posted','date':'2026-08-10','lines':[{'account':'6900','debit':900,'credit':0},{'account':'1120','debit':0,'credit':900}]};books.write_text(json.dumps(state));post({**b,'requestKey':'mill-backdated-unfund','revision':get()['revision']},422)
         expense={'entity':'TTI','locationId':'M1','revision':get()['revision'],'requestKey':'mill-negative-spend','type':'Milling Expense','date':'2026-08-02','amount':150,'payee':'Fixture Payee','expenseType':'Mill repair','narration':'Actual mill expense before funding'}
         st,expense_result=request('/api/mill_cash_ledger.php',expense);assert st==200 and expense_result['balance']==-150,(st,expense_result)
+        stable_books=books.read_bytes()
+        st,details=request('/api/mill_cash_ledger.php?entity=TTI&locationId=M1');assert st==200,(st,details)
+        detail=next(r for r in details['rows'] if r.get('journalId')==expense_result['result']['journalId'])
+        assert detail['payee']=='Fixture Payee' and detail['expensePurposes']==['Mill repair'] and detail['narration']=='ACTUAL MILL EXPENSE BEFORE FUNDING',detail
+        assert books.read_bytes()==stable_books,'Reading particulars must not change postings'
         st,again=request('/api/mill_cash_ledger.php',expense);assert st==200 and again['balance']==-150 and again['result']==expense_result['result']
         funded=post({**b,'requestKey':'mill-partial-funding','revision':get()['revision'],'amount':50,'date':'2026-08-03'})
         assert funded['mills'][0]['balance']==-100,funded

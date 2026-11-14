@@ -521,6 +521,7 @@ jobs:
           node tests/accounts-v1/costing_navigation_test.js
           node tests/accounts-v1/payables_draft_stability_test.js
           node tests/accounts-v1/tg_navigation_scope_test.js
+          node tests/accounts-v1/mill_recent_particulars_test.js
           node tests/accounts-v1/expense_forms_browser_test.js
           node tests/accounts-v1/cancellation_reason_ui_test.js
           node tests/accounts-v1/post_register_browser_test.js
