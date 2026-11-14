@@ -44,7 +44,7 @@ echo "PASS Telegram timing, stable arrival retry, running totals, saved Exports 
 $sale=['id'=>'fixture-sale','soda'=>'LS-0042','entity'=>'TTI','date'=>'2026-11-07',
     'party'=>'Fixture buyer','broker'=>'Fixture broker','displayName'=>'IRRI-6 White Rice — Powder',
     'tons'=>3.592,'rate'=>62,'byProductSale'=>true,'billingWeightBasis'=>'GROSS',
-    'loads'=>[['date'=>'2026-11-07','truck'=>'ABC-123','kg'=>3592,'printed'=>true,'gatePassRef'=>'LGP-42']],
+    'loads'=>[['date'=>'2026-11-07','truck'=>'ABC-123','container'=>'TGCU233430-4','kg'=>3592,'printed'=>true,'gatePassRef'=>'LGP-42']],
     'pay'=>[
         ['date'=>'2026-11-07','type'=>'Transtrade Bank','amount'=>100000,'where'=>'Meezan Bank — •••••48217'],
         ['date'=>'2026-11-07','type'=>'Third-Party Account','amount'=>122704,'where'=>'Fixture third party'],
@@ -55,7 +55,7 @@ $saleAlerts=static fn(array $state):array=>array_values(array_filter(
     static fn(array $job):bool=>str_starts_with($job['key'],'mill-entry|tt35localsales|')
 ));
 $alert=$saleAlerts($state)[0];
-foreach(['LS-0042','IRRI-6 White Rice — Powder','3,592 kg','62 PKR/kg','PKR 222,704.00','LGP-42',
+foreach(['LS-0042','IRRI-6 White Rice — Powder','3,592 kg','62 PKR/kg','PKR 222,704.00','LGP-42','Container TGCU233430-4',
     'Meezan Bank — •••••48217','Third-party bank: Fixture third party','Accounts approval'] as $fact)
     check(str_contains($alert['text'],$fact),'Local Sale alert should include '.$fact);
 $state['observed'][$alert['key']]=$alert['hash'];
