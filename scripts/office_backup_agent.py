@@ -315,7 +315,7 @@ def open_backup_response(config):
     return PreparedBackupResponse(config, result)
 
 
-def pull(config, destination, scheduled_for=None, refresh_tiers=False):
+def pull(config, destination, scheduled_for=None, refresh_tiers=False, manual_tiers=None):
     url = config.get('backupUrl') or config.get('url')
     require_endpoint(url, '/api/office_backup.php')
     destination.mkdir(parents=True, exist_ok=True)
@@ -354,7 +354,7 @@ def pull(config, destination, scheduled_for=None, refresh_tiers=False):
         stamp = datetime.now(timezone(timedelta(hours=5)))
         if config.get('scope') in ('data','software'):
             from scripts.backup_plan import commit_received
-            target=commit_received(sys.modules[__name__],temp,destination,expected,config['scope'],stamp,refresh_tiers,config.get('backupDestination'))
+            target=commit_received(sys.modules[__name__],temp,destination,expected,config['scope'],stamp,refresh_tiers,config.get('backupDestination'),manual_tiers)
             temp=None
             if hasattr(response,'acknowledge'):response.acknowledge()
             return target,expected
@@ -670,6 +670,7 @@ def main():
     parser.add_argument('--init', action='store_true', help='Save backup-only credentials and destination securely')
     parser.add_argument('--retention-only', action='store_true', help='Apply verified weekly/monthly replacement cleanup without downloading')
     parser.add_argument('--refresh-tiers', action='store_true', help='Make one fresh verified backup and fresh current weekly/monthly copies, such as after a password change')
+    parser.add_argument('--manual-data', choices=['daily','monthly','both'], help='Save data in only the chosen backup folders')
     parser.add_argument('--force', action='store_true', help='Pull now even if a daily backup succeeded recently')
     parser.add_argument('--shipments-only', action='store_true', help='Only process pending shipment archive jobs')
     parser.add_argument('--backup-only', action='store_true', help='Only pull the encrypted system backup')
@@ -677,7 +678,9 @@ def main():
     parser.add_argument('--scheduled', action='store_true', help='Once per 18:00 Pakistan-time slot, catching up missed runs')
     parser.add_argument('--log-file', type=Path, help='Write the latest scheduled run output to this file')
     args = parser.parse_args()
-    if args.refresh_tiers: args.force = True
+    if args.manual_data and (not args.backup_only or args.scheduled or args.software or args.refresh_tiers):
+        parser.error('Manual data selection requires --backup-only.')
+    if args.refresh_tiers or args.manual_data: args.force = True
     try:
         # Lock before opening the shared log so a skipped duplicate cannot
         # truncate or interleave the active run's evidence. Shipment-only
@@ -686,7 +689,7 @@ def main():
         with lock as acquired:
             if not acquired:
                 print('Another backup run is active; this duplicate run was skipped.')
-                return 1 if args.connect_setup or args.refresh_tiers or getattr(args,'software',False) else 0
+                return 1 if args.connect_setup or args.refresh_tiers or args.manual_data or args.software else 0
             if args.log_file is None:
                 return run(args)
             with args.log_file.open('w',encoding='utf-8',buffering=1) as log, redirect_stdout(log), redirect_stderr(log):
@@ -730,7 +733,10 @@ def run(args):
             if not isinstance(release, str) or not re.fullmatch(r'[a-f0-9]{40}', release):
                 raise ValueError('The deployed software version could not be checked.')
             config = dict(config, expectedSoftwareRevision=release)
-        if config.get('scope') == 'data':
+        manual_data = getattr(args,'manual_data',None)
+        if manual_data and config.get('scope')!='data':
+            raise ValueError('Update the existing PC settings before choosing a split data backup.')
+        if config.get('scope') == 'data' and not manual_data:
             # Capture each deployed version once; ordinary days do not rebuild it.
             software_args = argparse.Namespace(**vars(args))
             software_args.software = True
@@ -740,7 +746,9 @@ def run(args):
             software_args.refresh_tiers = False
             if run(software_args):
                 raise RuntimeError('The matching software copy is not verified; previous recovery points were preserved.')
-        state_path = args.config.with_name('software-backup-state.json' if config.get('scope')=='software' else 'office-backup-state.json')
+        state_file='software-backup-state.json' if config.get('scope')=='software' else 'office-backup-state.json'
+        if manual_data:state_file='office-manual-data-state.json'
+        state_path = args.config.with_name(state_file)
         state = json.loads(state_path.read_text(encoding='utf-8')) if state_path.exists() else {}
         now = time.time()
         last_success = float(state.get('last_success', 0))
@@ -770,6 +778,7 @@ def run(args):
                 options = {}
                 if scheduled_for is not None: options['scheduled_for'] = scheduled_for
                 if args.refresh_tiers: options['refresh_tiers'] = True
+                if manual_data: options['manual_tiers'] = ('daily','monthly') if manual_data=='both' else (manual_data,)
                 path, digest = pull(config, destination, **options)
                 break
             except (error.URLError, OSError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:

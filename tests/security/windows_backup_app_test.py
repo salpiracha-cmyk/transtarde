@@ -33,6 +33,30 @@ class UniversalAppTest(unittest.TestCase):
             sentinel=root/'SystemBackups/Daily/existing.zip';sentinel.write_bytes(b'keep')
             with patch.object(app.agent,'config_path',return_value=path):app.configure(root,'b'*64,value)
             self.assertEqual(sentinel.read_bytes(),b'keep')
+    def test_manual_backup_downloads_only_requested_scopes(self):
+        for daily,monthly,software,expected in [
+            (True,False,False,[['--backup-only','--manual-data','daily']]),
+            (False,True,False,[['--backup-only','--manual-data','monthly']]),
+            (False,False,True,[['--backup-only','--software','--force']]),
+            (True,True,True,[['--backup-only','--software','--force'],['--backup-only','--manual-data','both']]),
+        ]:
+            with self.subTest(daily=daily,monthly=monthly,software=software),patch.object(app,'call_agent',return_value=0) as call:
+                app.run_manual_backup(None,daily,monthly,software)
+                self.assertEqual([args.args[0] for args in call.call_args_list],expected)
+        with patch.object(app,'call_agent') as call,self.assertRaises(ValueError):
+            app.run_manual_backup(None,False,False,False)
+        call.assert_not_called()
+    def test_settings_only_update_never_calls_backup_agent(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);config=root/'config.json';program=root/'current.exe'
+            config.write_text(json.dumps({'token':'existing','password':'existing'}))
+            program.write_bytes(b'program')
+            with patch.object(sys,'frozen',True,create=True):
+                with patch.object(sys,'executable',str(program)),patch.object(app.agent,'config_path',return_value=config),patch.object(app,'app_dir',return_value=root/'app'),patch.object(app,'tasks_preflight',return_value=[]),patch.object(app,'register_tasks'),patch.object(app,'shortcuts'),patch.object(app,'call_agent') as call:
+                    app.upgrade_existing(root/'backup',app.queue.Queue())
+            call.assert_not_called()
+            self.assertEqual(json.loads(config.read_text())['token'],'existing')
+            self.assertFalse(list((root/'backup').rglob('*.zip')))
     def test_program_cleanup_is_bounded_and_never_touches_backup_or_unknown_files(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);known=[]

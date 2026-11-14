@@ -90,6 +90,18 @@ class RetentionTest(unittest.TestCase):
                 now=stamp+timedelta(days=day);p,h=self.incoming(root,now,'software','new-version');commit_received(agent,p,software,h,'software',now)
             self.assertTrue(old.exists(),'The monthly data point must retain compatible software')
             self.assertEqual(len(list(software.glob('TRANSTRADE_SOFTWARE_*.zip'))),3)
+    def test_manual_data_only_touches_selected_folders(self):
+        for selected in [('daily',),('monthly',),('daily','monthly')]:
+            with self.subTest(selected=selected),tempfile.TemporaryDirectory() as folder:
+                root=Path(folder);dest=root/'SystemBackups'
+                stamp=datetime(2026,1,5,18,tzinfo=timezone(timedelta(hours=5)))
+                p,h=self.incoming(root,stamp,'data')
+                result=commit_received(agent,p,dest,h,'data',stamp,manual_tiers=selected)
+                self.assertEqual(result.parent.name,'Daily' if 'daily' in selected else 'Monthly')
+                self.assertEqual((dest/'Daily').exists(),'daily' in selected)
+                self.assertEqual((dest/'Monthly').exists(),'monthly' in selected)
+                self.assertEqual((dest/'latest-verified.json').exists(),'daily' in selected)
+                self.assertFalse(p.exists())
     def test_wrong_scope_cannot_replace_current_data(self):
         with tempfile.TemporaryDirectory()as folder:
             root=Path(folder);stamp=datetime(2026,1,1,tzinfo=timezone.utc);p,h=self.incoming(root,stamp,'software')
