@@ -156,6 +156,7 @@ def run() -> None:
         c,html=request('qamill','/accounts/production-reports.php?entity=TTI');check(c==200 and '/module.php?id=milling' in html,'Mill report return uses the actual module route')
         c,html=request('qaaccounts','/accounts/production-reports.php?entity=TTI');check(c==200 and '/accounts/?return=production-report' in html,'Accounts report return retains Reports origin')
         c,html=request('qadirector','/accounts/production-reports.php?entity=TTI');check(c==200 and '/accounts/?return=production-report' in html,'Full-access Director can return through Accounts')
+        c,html=request('qadirector','/accounts/production-reports.php?entity=TTI&mode=production&origin=directors');check(c==200 and 'href="/directors/index.php"' in html and '"mode":"production"' in html,'Directors Mill Performance opens Daily Production and returns to Directors')
         c,html=request('qareports','/accounts/production-reports.php?entity=TTI');check(c==200 and '/directors/index.php' in html,'Granular reports-only user returns to the authorized Directors module')
         c,html=request('qaexport','/accounts/production-reports.php?entity=TTI');check(c==403,'Unrelated module cannot open the production report page')
         # Final current-shift entry contains no further ASAS: only 15,000kg remains unexplained.

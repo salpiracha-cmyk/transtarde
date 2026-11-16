@@ -8,7 +8,14 @@ $mill=tt_user_can_open_module($user,'Mill')&&tt_inv_has_action($user,'Mill',['re
 $entities=array_values(array_filter(['TTI','BRM'],static fn($e)=>($accounts?tt_user_can_access_entity($user,$e,'View'):true)&&(tt_inv_can_report($user,$e)||$mill)));
 if(!$entities){http_response_code(403);exit('Production report access is required.');}
 $entity=is_string($_GET['entity']??null)?$_GET['entity']:'';if(!in_array($entity,$entities,true))$entity=$entities[0];
-$backLabel=$accounts?'Accounts':($mill?'Milling':'Directors');$backUrl=$accounts?'/accounts/?return=production-report':($mill?'/module.php?id=milling':'/directors/index.php');
+$fromDirectors = ($_GET['origin'] ?? '') === 'directors' && tt_user_can_open_module($user, 'Directors');
+if ($fromDirectors) {
+    $backLabel = 'Directors';
+    $backUrl = '/directors/index.php';
+} else {
+    $backLabel = $accounts ? 'Accounts' : ($mill ? 'Milling' : 'Directors');
+    $backUrl = $accounts ? '/accounts/?return=production-report' : ($mill ? '/module.php?id=milling' : '/directors/index.php');
+}
 $mode=$_GET['mode']??'daily';
 if(!in_array($mode,['production','daily','brand','contract'],true))$mode='daily';
 $config=['entity'=>$entity,'entities'=>$entities,'mode'=>$mode];tt_release_read_session();
