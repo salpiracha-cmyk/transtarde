@@ -3,6 +3,12 @@ declare(strict_types=1);
 require_once __DIR__.'/accounts_subaccounts_core.php';
 require_once __DIR__.'/accounts_reference.php';
 
+/** Utilities are company-borne, including Home and Mill bills. Ignore obsolete personal selectors. */
+function ev1_company_utility(array $body): array {
+    return array_replace($body,['accountingTreatment'=>'BUSINESS_EXPENSE','personAccount'=>'',
+        'expenseFor'=>'SHARED','personalTreatment'=>'COMPANY']);
+}
+
 /** Capture a supplier obligation once; payments use the existing settlement engine. */
 function eiv_capture(array &$s,string $entity,array $b,array $u,array $names,bool $utility=false): array {
     if(!empty($b['paymentAccountId'])||!empty($b['bankPaymentMethod']))throw new InvalidArgumentException('Record the full invoice first; make payments through Party Payments.');
@@ -25,6 +31,7 @@ function eiv_capture(array &$s,string $entity,array $b,array $u,array $names,boo
     $narration=trim((string)($b['paymentNarration']??$old['paymentNarration']??''));if(strlen($narration)>900)throw new InvalidArgumentException('Narration is too long.');
     $extra=['notes'=>$notes,'paymentNarration'=>$narration];
     if($utility){
+        $b=ev1_company_utility($b);
         $type=ev1_utility_type((string)($b['utilityType']??''));$owned=ev1_bill_location($b,$entity);$month=ev1_month((string)($b['billMonth']??''));$master=trim((string)($b['utilityMasterId']??''));
         ev1_validate_utility_provider($payee);
         if($master!==''){$m=$s['utilityMasters'][$master]??null;if(!$m||($m['entity']??'')!==$entity||($m['status']??'Active')!=='Active'||($m['utilityType']??'')!==$type||strcasecmp(trim((string)$m['payee']),$payee)!==0||(!empty($m['locationId'])?$m['locationId']!==$owned['id']:tt_location_identity((string)$m['locationName'])!==tt_location_identity($owned['name'])))throw new InvalidArgumentException('The invoice must match the saved utility provider and company location.');}

@@ -28,7 +28,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
   assert.equal(await page.locator('#evUtilityFor').inputValue(),'SHARED');
   assert.equal(await page.locator('#evUtilityPersonal').inputValue(),'COMPANY');
   assert.equal(await page.locator('#evTreatment').inputValue(),'BUSINESS_EXPENSE');
-  assert.equal(await page.locator('#evUtilityFor').isVisible(),true);
+  assert.equal(await page.locator('#evUtilityFor').isVisible(),false,'Home utilities are company-borne without personal allocation');assert.equal(await page.locator('#evPerson').count(),0);
   await page.evaluate(()=>{expenseData.utilityMasters=[{id:'HOME-REMINDER',utilityType:'ELECTRICITY',location:'HOME',locationId:'HOME|TTI',locationName:'Home',payee:'Home Electricity Provider',status:'Active'}];});
   await page.click('[data-expense="utility"]');await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evPayMaster');
   await page.selectOption('#evPayMaster','HOME-REMINDER');
