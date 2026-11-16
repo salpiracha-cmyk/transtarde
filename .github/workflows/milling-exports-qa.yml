@@ -94,16 +94,25 @@ jobs:
           cp api/operations.mysql.php api/export_documents.php tests/main/api/
       - name: Install browser and DOM test dependencies
         run: |
+          sudo cp -a /etc/apt "$RUNNER_TEMP/apt-before-mirror"
           sudo python3 .github/scripts/browser-download-setup.py
+          with_apt_fallback() {
+            if "$@"; then return; fi
+            echo "The independent Ubuntu mirror failed. Retrying with the runner's original signed sources."
+            sudo cp -a "$RUNNER_TEMP/apt-before-mirror/." /etc/apt/
+            "$@"
+          }
+          install_pdf_tools() {
+            sudo apt-get update && sudo apt-get install -y poppler-utils
+          }
           npm install --no-save jsdom@27 playwright@1.55.0
           npx playwright install chromium
           if ! node .github/scripts/browser-runtime-smoke.cjs; then
-            npx playwright install-deps chromium
+            with_apt_fallback npx playwright install-deps chromium
             node .github/scripts/browser-runtime-smoke.cjs
           fi
           if ! command -v pdftoppm >/dev/null || ! command -v pdfinfo >/dev/null; then
-            sudo apt-get update
-            sudo apt-get install -y poppler-utils
+            with_apt_fallback install_pdf_tools
           fi
       - name: Verify live credential artifact boundary with disposable login
         run: node tests/security/live_credential_artifact_browser_test.js
