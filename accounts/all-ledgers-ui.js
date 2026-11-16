@@ -125,9 +125,10 @@
   function cancellationReason(id){
     return new Promise(resolve=>{
       const dialog=document.createElement('dialog');dialog.setAttribute('aria-label','Cancel posting');dialog.style.cssText='max-width:520px;width:90%;border:1px solid #bbcdca;border-radius:12px;padding:22px';
-      dialog.innerHTML='<form><h2>Cancel '+esc(displayRef(id))+'</h2><p>The linked posting will be cancelled and retained in audit history.</p><label>Cancellation reason<textarea name="reason" required minlength="5" maxlength="300" rows="4" style="display:block;width:100%"></textarea></label><div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px"><button type="button" data-back>Keep posting</button><button type="submit">Review cancellation</button></div></form>';
+      dialog.innerHTML='<form method="dialog"><h2>Cancel '+esc(displayRef(id))+'</h2><p>The linked posting will be cancelled and retained in audit history.</p><label>Cancellation reason<textarea name="reason" required minlength="5" maxlength="300" rows="4" style="display:block;width:100%"></textarea></label><div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px"><button type="button" data-back>Keep posting</button><button type="submit">Review cancellation</button></div></form>';
       const finish=value=>{dialog.close();dialog.remove();resolve(value)};
       dialog.querySelector('[data-back]').onclick=()=>finish(null);dialog.addEventListener('cancel',event=>{event.preventDefault();finish(null)});
+      dialog.addEventListener('close',()=>{dialog.remove();resolve(null)},{once:true});
       dialog.querySelector('form').onsubmit=event=>{event.preventDefault();const value=dialog.querySelector('textarea').value.trim();if(value.length>=5)finish(value)};
       document.body.appendChild(dialog);dialog.showModal();dialog.querySelector('textarea').focus();
     });
@@ -143,16 +144,18 @@
     const dialog=document.createElement('dialog');dialog.setAttribute('aria-label','TG currency and bank charge corrections');dialog.style.cssText='width:min(950px,95vw);max-height:90vh;padding:20px;border:1px solid #92aaa0;border-radius:12px';dialog.innerHTML='<h2>TG currency and bank charge corrections</h2><div data-repair-body>Reviewing saved source entries…</div><button class="btn" data-close>Close</button>';dialog.querySelector('[data-close]').onclick=()=>{dialog.close();dialog.remove()};document.body.append(dialog);dialog.showModal();
     const content=dialog.querySelector('[data-repair-body]');try{const response=await fetch('../api/tg_ledger_repair.php',{credentials:'same-origin'}),body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||'TG correction review failed.');const plan=body.plan;content.innerHTML=`<p>${plan.native.length} postings have native currency details to update. ${plan.npss.length} NPSS payments have charges to reclassify. Principal payments, dates and public Post IDs are retained.</p><ul>${plan.native.map(r=>`<li>${esc(r.postId)} · ${esc(r.date)} · ${r.changes.length} native currency lines</li>`).join('')}${plan.npss.map(r=>`<li>${esc(r.postId)} · ${esc(r.date)} · ${esc(r.payee)} · principal AED ${number(r.principal)} · Online Banking Charges AED ${number(r.charge)} · VAT AED ${number(r.vat)}</li>`).join('')}</ul>${plan.review.length?'<h3>Need source evidence</h3><ul>'+plan.review.map(r=>`<li>${esc(r.postId)} · ${esc(r.reason)}</li>`).join('')+'</ul>':''}<button class="btn green" data-apply-repairs ${plan.native.length+plan.npss.length?'':'disabled'}>Apply reviewed corrections</button><div data-repair-result></div>${tgCorrectionSummary(body.history?.at(-1))}`;content.querySelector('[data-apply-repairs]').onclick=async()=>{const button=content.querySelector('[data-apply-repairs]');button.disabled=true;try{const r=await fetch('../api/tg_ledger_repair.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'apply',csrf:window.TT_ACCOUNT_ACCESS?.csrf,fingerprint:plan.fingerprint})}),saved=await r.json();if(!r.ok||!saved.ok)throw Error(saved.error||'Corrections were not applied.');content.querySelector('[data-repair-result]').innerHTML=tgCorrectionSummary(saved.result);await load();}catch(e){content.querySelector('[data-repair-result]').textContent=e.message;button.disabled=false;}};}catch(e){content.textContent=e.message;}
   }
-  async function deletePost(id,fromSource=false,publicId=''){
-    publicId=publicId||(data?.rows||[]).find(row=>row.voucher===id)?.publicPostId||id;
+  async function deletePost(id,fromSource=false,publicId='',postingCompany=''){
+    const row=(data?.rows||[]).find(row=>row.voucher===id);
+    publicId=publicId||row?.publicPostId||id;
+    const entity=postingCompany||row?.entity||company();
     rememberPosition();const reason=await cancellationReason(publicId||id);if(reason===null)return;
-    const entity=(data?.rows||[]).find(row=>row.voucher===id)?.entity||company();const request={csrf:window.TT_ACCOUNT_ACCESS?.csrf,entity,action:'delete_post',postId:id,reason};
+    const request={csrf:window.TT_ACCOUNT_ACCESS?.csrf,entity,action:'delete_post',postId:id,reason};
     const send=async preview=>{const response=await fetch('../api/accounts_post_amend.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({...request,...(preview?{preview:true}:{})})}),body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||'Deletion failed.');return body;};
     try{const preview=await send(true);if(!Array.isArray(preview.previews)||!preview.previews.length)throw Error('Cancellation details unavailable. No deletion was saved.');if(!await reviewDeletion(preview,publicId||id))return;request.deletionFingerprint=preview.deletionFingerprint||'';const body=await send(false);if(!fromSource)await load();alert('Post ID '+displayRef(body.result.publicPostId)+' deleted from the books. Audit history retained.');return body.result;}catch(error){alert(error.message)}
   }
 
   document.addEventListener?.('click',event=>{const button=event.target.closest?.('[data-delete-id]');if(!button)return;event.preventDefault();event.stopImmediatePropagation();void deletePost(button.dataset.deleteId)},true);
-  window.TT_ALL_LEDGERS={deletePosting:(id,publicId)=>deletePost(id,true,publicId),open,openPosting:async id=>{const owner=company();await open('POSTS');if(owner===company()&&q('#tt-all-ledgers'))return showPost(id);},showPost,editPosting,returnToLedger:()=>load(),ledgerWorkbook,displayRef};
+  window.TT_ALL_LEDGERS={deletePosting:(id,publicId,postingCompany)=>deletePost(id,true,publicId,postingCompany),open,openPosting:async id=>{const owner=company();await open('POSTS');if(owner===company()&&q('#tt-all-ledgers'))return showPost(id);},showPost,editPosting,returnToLedger:()=>load(),ledgerWorkbook,displayRef};
 })();
 
 

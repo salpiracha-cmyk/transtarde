@@ -4,6 +4,7 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__.'/accounts_reference.php';
 require_once __DIR__.'/accounts_read_policy.php';
+require_once __DIR__.'/accounts_post_delete_core.php';
 require_once __DIR__.'/fi_credit_advice_link.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -97,7 +98,10 @@ try {
     $store = $raw ? json_decode($raw, true) : null;
     if (!is_array($store)) as_out(['ok'=>true, 'results'=>[]]);
     $store=tt_fi_advice_project($store,tt_fi_advice_root());
+    $postingStore=$store;
+    $deleteRecordIndex=apd_record_index($postingStore);
     $store=acr_project($user,$store);
+    $canEditCompany=tt_user_can_access_entity($user,$entity,'Edit');
     $results = []; $needle = strtolower($query);
     foreach ($store as $collection => $records) {
         // Private asset details are served only by the permission-filtered registry.
@@ -123,8 +127,23 @@ try {
             if($amend&&$collection!=='journals')$row['postingJournalIds']=$amend['postingJournalIds'];
             $postIds = as_linked_posting_ids($store, (string)$collection, (string)$key, $row);
             $primaryPostId = $collection === 'journals' ? (string)($row['id'] ?? $key) : (string)($postIds[0] ?? '');
+            $postingActions=null;
+            if($collection==='journals'){
+                $active=($row['status']??'')==='Posted'&&empty($row['reversalOf'])&&empty($row['amendedByPostId'])
+                    &&empty($row['reversedByPostId'])&&empty($row['meta']['reversedByPostId'])&&empty($row['meta']['deletedFromBooks']);
+                $canEdit=$active&&$canEditCompany&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$row)
+                    &&empty($row['meta']['tgBankTransactionId'])
+                    &&!in_array($row['sourceType']??'',['EX_MILL_PURCHASE_LIABILITY','EX_MILL_LIFTING_REVERSAL'],true);
+                $postingActions=[
+                    'entity'=>$entity,
+                    'publicPostId'=>tt_accounts_public_post($store,$row),
+                    'canEdit'=>$canEdit,
+                    'canDelete'=>$active&&apd_delete_reason($postingStore,$row,$user,$deleteRecordIndex)==='',
+                ];
+            }
             $results[] = [
                 'amendRecord'=>$amend,
+                'postingActions'=>$postingActions,
                 'title'=>$primaryPostId !== '' ? $primaryPostId : as_title((string)$collection, (string)$key, $row),
                 'type'=>as_type((string)$collection, $row),
                 'postId'=>$primaryPostId,

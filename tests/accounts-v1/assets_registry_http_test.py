@@ -6,6 +6,8 @@ with tempfile.TemporaryDirectory(prefix='assets-registry-qa-') as temp:
     for folder in ['api','accounts','data']:(root/folder).mkdir()
     for name in ['accounts_posting_preview.php','tg_remittance_core.php', 'receipt_invoice_links.php', 'fi_credit_advice_link.php', 'assets_registry.php','assets_registry_core.php','accounts_bank_payment.php','accounts_search.php','accounts_read_policy.php','accounts_reference.php','fi_credit_advice_link.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
     for name in ['accounting_master_v1.json','assets-registry-ui.js','post-confirmation-ui.js']:shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
+    for name in ['accounts_post_delete_core.php','accounts_post_delete_tg.php','supplier_opening_core.php','tg_native_currency.php']:
+        shutil.copy(ROOT/'api'/name,root/'api'/name)
     (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');define('TT_DB_HOST','');define('TT_DB_NAME','');define('TT_DB_USER','');function tt_ensure_data_dir(){}
 function tt_require_login(){
