@@ -7,7 +7,6 @@ const path = require('node:path');
 const app = fs.readFileSync(path.join(__dirname, '../../exports/app.js'), 'utf8');
 
 assert.match(app, /x\.contracts=x\.contracts\.filter\(c=>c&&c\.status!=='Cancelled'&&!c\.cancelled\)/, 'cancelled contracts must be removed from active state');
-assert.match(app, /while\(used\.has\(sequence\)\)sequence\+\+/, 'contract references must reuse the first available sequence');
 assert.match(app, /Cancelled and removed; reference released/, 'cancellation must leave an audit event while releasing the reference');
 assert.doesNotMatch(app.slice(app.lastIndexOf('function renderContracts'), app.indexOf('function restartShipmentData', app.lastIndexOf('function renderContracts'))), /data-reopen|Request Reopen|Director/, 'Sales Contract list must not retain the Director reopen gate');
 assert.doesNotMatch(app.slice(app.lastIndexOf('function saveContract'), app.indexOf('function applyNewCustomerContractDefaults', app.lastIndexOf('function saveContract'))), /approved Director reopen|reopenAuthorized/, 'Save / Print must not require Director approval');

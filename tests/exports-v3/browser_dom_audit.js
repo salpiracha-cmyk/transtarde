@@ -12,6 +12,40 @@ const w=dom.window,d=w.document,t=w.__DOM_AUDIT__;
 (async()=>{
 assert.ok(t,'test API is available: '+errors.join(' | '));
 assert.equal(t.state.contracts.length,0,'release must start without dummy contracts');
+
+const numberingCustomer={id:'AMT-NUMBERING',name:'AMT Numbering Buyer',code:'AMT',nextSeq:1};
+t.state.customers.push(numberingCustomer);
+const numberingRows=[
+ {id:'NUMBERING-TG13',ref:'tg/amt/13',seller:'TG'},
+ {id:'NUMBERING-TTI32',ref:'TTI/AMT/32',seller:'TTI'},
+ {id:'NUMBERING-ADJ',ref:'TG/AMT/99-ADD-01',seller:'TG'},
+ {id:'NUMBERING-TG14',ref:'TG/AMT/14',seller:'TG'}
+].map(row=>({...row,customerId:numberingCustomer.id,status:'Draft',issued:false}));
+t.state.contracts.push(...numberingRows);
+d.getElementById('newContract').click();
+const buyerSearch=d.getElementById('cCustomerSearch');
+buyerSearch.value=numberingCustomer.name;
+buyerSearch.dispatchEvent(new w.Event('input',{bubbles:true}));
+d.querySelector('[data-customer-pick="AMT-NUMBERING"]').click();
+const contractReference=()=>d.getElementById('cRef').value;
+assert.equal(contractReference(),'TG/AMT/15','AMT continues from the highest TG reference even with 01–12 absent');
+for(const [entity,expected] of [['TTI','TTI/AMT/33'],['BRM','BRM/AMT/01'],['TG','TG/AMT/15']]){
+ const seller=d.getElementById('cSeller');
+ seller.value=entity;
+ seller.dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.equal(contractReference(),expected);
+}
+d.getElementById('closeContract').click();
+t.openContract('NUMBERING-TG14');
+d.querySelector('[data-step="1"]').click();
+assert.equal(contractReference(),'TG/AMT/14','Reopening an existing contract keeps its saved reference');
+d.getElementById('closeContract').click();
+assert.deepEqual(t.state.contracts.map(row=>row.ref),numberingRows.map(row=>row.ref));
+t.state.contracts.splice(0,numberingRows.length);
+t.state.customers.pop();
+t.showHome();
+console.log('PASS Sales Contract reference continues the highest saved buyer and entity sequence');
+
 const beforeFI=JSON.stringify(t.state.fi);t.openFI();
 const fiType=d.getElementById('mFIType'),lcNo=d.getElementById('mFILC'),lcDate=d.getElementById('mFILCDate'),fiCustomer=d.getElementById('mFICustomer');
 assert.equal(lcNo.closest('.field').hidden,true,'Advance FI must not show L/C-only fields');

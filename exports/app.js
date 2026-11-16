@@ -288,7 +288,21 @@ async function startShipmentFromContract(contractId){
   currentShipmentId=p.id;view='shipments';activeWorkspace='';renderShipmentWorkspace();
  }catch(error){showExportSaveError((error.message||'The shipment was not saved.')+' Retry Start Shipment before continuing.',buttons[0]);buttons.forEach(button=>button.disabled=false)}
 }
-function nextContractRef(custId,seller='TTI'){const cu=customer(custId)||{code:'CUS'},prefix=`${seller}/${cu.code||'CUS'}/`,used=new Set(state.contracts.filter(c=>!c.cancelled&&c.status!=='Cancelled'&&String(c.ref||'').startsWith(prefix)).map(c=>num(String(c.ref).slice(prefix.length))).filter(Boolean));let sequence=1;while(used.has(sequence))sequence++;return prefix+String(sequence).padStart(2,'0')}
+function nextContractRef(custId,seller='TTI'){
+ const prefix=`${seller}/${customer(custId)?.code||'CUS'}/`;
+ const normalizedPrefix=prefix.toUpperCase();
+ let highest=0n;
+ for(const contract of state.contracts){
+  if(contract.cancelled||contract.status==='Cancelled')continue;
+  const reference=String(contract.ref||'').trim();
+  if(!reference.toUpperCase().startsWith(normalizedPrefix))continue;
+  const suffix=reference.slice(prefix.length);
+  if(!/^\d+$/.test(suffix))continue;
+  const sequence=BigInt(suffix);
+  if(sequence>highest)highest=sequence;
+ }
+ return prefix+String(highest+1n).padStart(2,'0');
+}
 function newContractShape__legacy_v0(){return{id:uid('CT'),ref:'',seller:'TTI',customerId:'',date:'',product:'',productIdentityCode:'',variety:'',riceType:'',productStage:'FINISHED',saleThrough:'Direct',indentor:'',indentorCommissionPerMT:0,broken:0,brokenText:'',finish:'',cropYear:currentCropYear(),standardBasis:'AS PER ORIGIN STANDARD',quality:'',additionalQuality:DEFAULT_QUALITY,specMode:'Contract Specific',specRows:[],shipmentMode:'FCL',containers:0,weightPer:0,qty:0,tolerance:0,pol:'',shipmentDate:'',podPort:'',podCountry:'',destPort:'',destPortManual:false,packingUnit:'',packings:[],currency:'',incoterm:'',inspection:'',insurance:'',paymentCode:'',advancePct:0,usanceDays:0,customPayment:'',paymentText:'',signedDeadline:'',paymentDeadline:'',docs:[],documentsPresented:[],terms:[],showAllPrices:false,status:'Draft',issued:false,received:false,versions:[],sourceDocument:null}}
 function reusableContractTemplate(customerId){return[...state.contracts].reverse().find(c=>c.customerId===customerId&&c.status!=='Cancelled')||null}
 function applyBuyerTemplate(customerId){const previous=reusableContractTemplate(customerId),date=TODAY(),cu=customer(customerId)||{},next=Object.assign(newContractShape(),{id:contractDraft.id,seller:previous?.seller||'TTI',customerId,date,tolerance:5,pol:'Port Qasim, Pakistan or Karachi Port, Pakistan',packingUnit:cu.packingDefault||'KG',currency:'USD',incoterm:'FOB',inspection:'No',insurance:"Buyer's Account",paymentCode:'ADV_SCAN',advancePct:20,usanceDays:90,buyerDetails:{address:cu.address||'',country:cu.country||'',email:cu.email||'',phone:cu.phone||'',tax:cu.tax||'',showCountry:!!cu.showCountry,showEmail:!!cu.showEmail,showPhone:!!cu.showPhone,showTax:!!cu.showTax}});if(previous){const reusable=['seller','product','productIdentityCode','saleThrough','indentor','variety','riceType','broken','brokenText','finish','standardBasis','additionalQuality','specMode','specRows','shipmentMode','containers','weightPer','qty','tolerance','podPort','podCountry','destPort','destPortManual','packingUnit','packings','currency','incoterm','inspection','insurance','paymentCode','advancePct','usanceDays','customPayment','docs','documentsPresented','terms','showAllPrices'];for(const key of reusable)if(previous[key]!==undefined)next[key]=structuredClone(previous[key]);next.cropYear=currentCropYear();if(next.productIdentityCode)applyProductMaster(next,next.productIdentityCode)}if(['USD','EUR','GBP','AED','PKR'].includes(cu.defaultCurrency))next.currency=cu.defaultCurrency;next.customerInstructions=String(cu.customerInstructions||'');next.ref=nextContractRef(customerId,next.seller);next.date=date;next.shipmentDate='';next.signedDeadline=addDays(date,2);defaultPaymentPreset(next,previous);next.paymentDeadline=addBankDays(date,String(next.paymentCode).startsWith('LC_')?5:4);if(!next.docs.length)next.docs=defaultDocsFor(next);contractDraft=next;activePackingIndex=-1;packingDraft=null}
