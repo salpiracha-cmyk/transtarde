@@ -4,15 +4,20 @@
 const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
 const dom=new JSDOM('<div id="app"></div><div id="printRoot"></div>',{url:'https://fixture.test/exports/',runScripts:'outside-only'}),w=dom.window;
 w.structuredClone=structuredClone;
+w.TextEncoder=TextEncoder;
+let capturePrint;
+w.print=()=>capturePrint(w.document.title);
+w.eval(fs.readFileSync('document-filenames.js','utf8'));
 w.TT_MODULE_ACCESS={user:'Document fixture',masters:{}};
 let source=fs.readFileSync('exports/app.js','utf8');
 assert(source.includes('mount();restoreContractCheckpoint();'));
-source=source.replace('mount();restoreContractCheckpoint();','window.documentFixture={state,makeShipment,paymentText,salesContractPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,shipmentFolderDocuments};');
+source=source.replace('mount();restoreContractCheckpoint();','window.documentFixture={state,makeShipment,paymentText,salesContractPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,shipmentFolderDocuments,printSavedSalesContract}; waitForPrintImages=async()=>{};');
 w.eval(source);
 const t=w.documentFixture,buyer={id:'BUYER',name:'Fixture Buyer',address:'Fixture buyer address',notifies:[{name:'Fixture Notify',address:'Fixture notify address'}]};
 t.state.customers=[buyer];
 let cases=0,outputs=0;
-try{
+(async()=>{
+ try{
  for(const seller of ['TTI','BRM','TG'])for(const paymentCode of ['ADV_SCAN','ADV_CAD','ADV100','LC_SIGHT','LC_USANCE','CAD100','CUSTOM'])for(const size of [25,50]){
   const count=paymentCode==='LC_USANCE'?30:2;
   const c={id:'C',ref:seller+'/FIXTURE/01',seller,customerId:buyer.id,date:'2026-10-01',buyerDetails:{address:buyer.address},product:'White Rice',variety:'IRRI-6',riceType:'White Rice',brokenText:'5%',hsCode:'1006.30',qty:count*27,containers:count,weightPer:27,tolerance:5,pol:'Port Qasim, Pakistan',podPort:'Fixture Port',podCountry:'Fixture Country',packingUnit:'KG',currency:'USD',incoterm:'CFR',paymentCode,advancePct:20,usanceDays:120,customPayment:'FIXTURE CUSTOM PAYMENT TERMS',terms:[],termsInitialized:true,docs:['Commercial Invoice','Packing List'],packings:[{size,type:'P.P. Bags',brand:'FIXTURE',tare:100,containers:count,weightPer:27,price:400,masterBag:{enabled:false}}]};
@@ -30,6 +35,8 @@ try{
    assert.doesNotMatch(html,/\b(?:NaN|undefined)\b/,name+' has no missing-value output');
    const holder=w.document.createElement('div');holder.innerHTML=html;assert(holder.textContent.includes('FIXTURE'),name+' retains source identity');outputs++;
   }
+  const total=(count*27*400).toLocaleString('en-US',{minimumFractionDigits:2});
+  assert(docs.contract.includes(`× USD 400.00 = USD. ${total}/=`),'Sales Contract shows the equals sign between the calculation and its total');
   assert(t.paymentText(c).length>10,'Each payment branch has readable terms');
   if(paymentCode==='CUSTOM')assert(docs.contract.includes('FIXTURE CUSTOM PAYMENT TERMS'));
   if(paymentCode==='LC_USANCE')assert(docs.contract.includes('120'),'Saved usance days retained');
@@ -47,4 +54,10 @@ try{
   assert.equal(JSON.stringify({c,s}),before,'Document generation never changes its original sources');cases++;
  }
  console.log('PASS document variants: '+cases+' exporter/payment/packing cases, '+outputs+' original-source-preserving rendered outputs, including 30-container and multi-GD fixtures.');
-}finally{w.close();}
+ const printedName=new Promise(resolve=>{capturePrint=resolve;});
+ t.printSavedSalesContract(t.state.contracts[0].id);
+ w.document.getElementById('printWith').click();
+ assert.equal(await printedName,'Fixture Buyer - TG-FIXTURE-01','Sales Contract reprint names the importer and reference only');
+ console.log('PASS Sales Contract PDF title uses the importer and contract reference');
+ }finally{w.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});
