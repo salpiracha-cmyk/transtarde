@@ -27,7 +27,7 @@ $shipment=['id'=>1,'contractRef'=>'C1','lotRef'=>'LOT1','brand'=>'Emrooz','total
 ]];
 $ops['values']['tt30ship']=json_encode([$shipment]);
 $jobs=iterator_to_array(tg_notification_jobs($ops,$state,$now));
-$out=array_values(array_filter($jobs,static fn($j)=>str_starts_with($j['key'],'container|')));
+$out=array_values(array_filter($jobs,static fn($j)=>str_starts_with($j['key'],'loading-row|')));
 check(count($out)===1&&str_contains($out[0]['text'],'1 containers loaded out of 2'),'Unfinished containers must not count as out.');
 $run=['id'=>1,'entity'=>'TTI','date'=>'2026-11-06','shift'=>'Night','inputBasis'=>'OUTPUT_DERIVED','shiftEntriesComplete'=>true,'rows'=>[['product'=>'Ready Rice — Emrooz','bags'=>20,'bagWeight'=>50],['product'=>'B2','bags'=>10,'bagWeight'=>50]]];
 $run['updatedAt']='2026-11-07T05:00:00Z';
@@ -63,3 +63,56 @@ check($saleAlerts($state)===[],'An unchanged saved sale must not resend after a 
 $sale['byProductSale']=false;$sale['billingWeightBasis']='NET';$sale['loads'][0]['emptyTareKg']=12;
 check(str_contains(tg_local_sale_text($sale),'Billable: 3,580 kg'),'Historical net billing keeps its saved tare.');
 echo "PASS Local Sale details, split payments, deposit destinations, legacy weight and alert deduplication\n";
+
+
+// Reused equipment must not alternate one sent fingerprint forever.
+$loads=[
+ ['id'=>'load-a','date'=>'2026-11-11','c'=>'HPCU242094-4','t'=>'E-8717','b'=>625,'net'=>25007.5],
+ ['id'=>'load-b','date'=>'2026-11-14','c'=>'HPCU242094-4','t'=>'CAX-5430','b'=>625,'net'=>25017.5],
+];
+$repeatOps=['values'=>['tt35exportersale'=>json_encode([['id'=>'sale-one','brand'=>'emrooz','containers'=>$loads]]),
+ 'transtrade_export_v3_operational'=>'{}']];
+$repeatState=['since'=>$state['since'],'sent'=>[],'observed'=>[]];
+$loadingJobs=static fn(array $ops,array $state):array=>array_values(array_filter(
+ iterator_to_array(tg_notification_jobs($ops,$state,$now)),
+ static fn(array $job):bool=>str_starts_with($job['key'],'loading-row|')
+));
+$simulate=static function(array $jobs,array &$state):int {
+ $sent=0;
+ foreach($jobs as $job) {
+  if(($state['sent'][$job['key']]['hash']??null)===$job['hash'])continue;
+  if(isset($state['pending'][$job['key']])||isset($state['pending'][$job['legacyKey']??'']))continue;
+  if(empty($job['markOnly']))$sent++;
+  $state['sent'][$job['key']]=['hash'=>$job['hash']];
+ }
+ return $sent;
+};
+$initial=$loadingJobs($repeatOps,$repeatState);
+check(count(array_unique(array_column($initial,'key')))===2,'Two saved loads using the same equipment need separate delivery identities.');
+check(str_contains($initial[0]['text'],'Loading date 2026-11-11'),'Repeated equipment alerts must identify the loading date.');
+check(!str_contains($initial[0]['text'],'? planned'),'An unknown loading target must not be printed as a broken reference.');
+check($simulate($initial,$repeatState)===2,'Both new loads should notify once.');
+for($i=0;$i<3;$i++)check($simulate($loadingJobs($repeatOps,$repeatState),$repeatState)===0,'Unchanged reused containers must not repeat on later worker runs.');
+$repeatOps['values']['tt35exportersale']=json_encode([['id'=>'sale-one','containers'=>array_reverse($loads)]]);
+check($simulate($loadingJobs($repeatOps,$repeatState),$repeatState)===0,'Reordering loads must not resend them.');
+$loads[0]['net']=25010;
+$repeatOps['values']['tt35exportersale']=json_encode([['id'=>'sale-one','containers'=>$loads]]);
+check($simulate($loadingJobs($repeatOps,$repeatState),$repeatState)===1,'A genuine weight amendment must notify only its saved loading.');
+check($simulate($loadingJobs($repeatOps,$repeatState),$repeatState)===0,'The amended loading must not notify repeatedly.');
+$loads[]=array_replace($loads[0],['id'=>'load-c','date'=>'2026-11-16']);
+$repeatOps['values']['tt35exportersale']=json_encode([['id'=>'sale-one','containers'=>$loads]]);
+check($simulate($loadingJobs($repeatOps,$repeatState),$repeatState)===1,'A new load of previously used equipment must still notify.');
+$legacyState=['since'=>$state['since'],'observed'=>[],'sent'=>[$initial[1]['legacyKey']=>['hash'=>$initial[1]['hash']]]];
+$jobs=$loadingJobs($repeatOps,$legacyState);
+check(!empty($jobs[1]['markOnly'])&&empty($jobs[0]['markOnly'])&&empty($jobs[2]['markOnly']),'Only an exact previously confirmed legacy row may migrate silently.');
+$pendingState=$legacyState;
+$pendingState['pending'][$initial[1]['legacyKey']]=['hash'=>$initial[1]['hash']];
+check($simulate($loadingJobs($repeatOps,$pendingState),$pendingState)===0,'Uncertain legacy delivery must remain held for review.');
+check($simulate($jobs,$legacyState)===2,'Migration must not suppress other unconfirmed loads with the same equipment.');
+check($simulate($loadingJobs($repeatOps,$legacyState),$legacyState)===0,'After migration, all loading identities must remain stable.');
+$aLegacy=['container'=>'HPCU242094-4','date'=>'2026-11-11','truck'=>'E-8717','weight'=>25000];
+$bLegacy=array_replace($aLegacy,['date'=>'2026-11-14','truck'=>'CAX-5430']);
+check(tg_loading_key('s',$aLegacy)!==tg_loading_key('s',$bLegacy),'ID-less historical trips must remain separate.');
+check(tg_loading_key('s',$aLegacy)===tg_loading_key('s',array_replace($aLegacy,['weight'=>25100])),'Legacy weight edits must keep their loading identity.');
+check(tg_loading_key('s',$aLegacy)!==tg_loading_key('another-sale',$aLegacy),'Different sales must not share a loading identity.');
+echo "PASS reused-container delivery, repeated runs, edits, new loads, legacy migration and uncertain-delivery hold\n";

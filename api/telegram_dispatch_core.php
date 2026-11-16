@@ -46,6 +46,16 @@ function tg_loading_sources(array $ops): array {
     }
     return array_merge($shipments,array_values($outside));
 }
+/** A container can return on another truck/date. Track the saved loading, not the equipment. */
+function tg_loading_key(string $shipmentId,array $container): string {
+    foreach(['id','bridgeId','gatePassRef'] as $field) {
+        if(isset($container[$field])&&(string)$container[$field]!=='')
+            return 'loading-row|'.tg_hash([$shipmentId,$field,(string)$container[$field]]);
+    }
+    // Historical rows have no ID. Preserve identity across array reordering and weight edits.
+    return 'loading-row|'.tg_hash([$shipmentId,'legacy',(string)($container['container']??''),
+        (string)($container['date']??$container['gateTime']??''),(string)($container['truck']??'')]);
+}
 function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now): iterable {
     $today=$now->format('Y-m-d');$clock=$now->format('H:i');
     $arrivals=array_values(array_filter(tg_rows($ops,'tt30queue'),static fn($r)=>($r['date']??'')===$today&&empty($r['deleted'])));
@@ -108,13 +118,22 @@ function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now):
         $containers=(array)($shipment['containers']??[]);
         $sid=(string)($shipment['_ttShipmentId']??$shipment['id']??'');
         if($sid===''||!$containers)continue;
-        $identity=($shipment['contractRef']??'').' | '.($shipment['lotRef']??$shipment['lotId']??'').' | '.($shipment['brand']??'');
+        $identity=implode(' | ',array_filter([$shipment['contractRef']??'',
+            $shipment['lotRef']??$shipment['lotId']??'',$shipment['brand']??''],static fn($value)=>trim((string)$value)!==''));
         $loaded=array_values(array_filter($containers,static fn($c)=>($c['loadingComplete']??false)===true||(!array_key_exists('loadingComplete',$c)&&!empty($c['container'])&&!empty($c['seal'])&&!empty($c['truck'])&&($c['weight']??0)>0)));
-        $progress=count($loaded).' containers loaded out of '.($shipment['totalContainers']??'?').' planned in this lot';
+        $planned=$shipment['totalContainers']??null;
+        $progress=count($loaded).' containers loaded'.(is_numeric($planned)&&(float)$planned>0?' out of '.$planned.' planned in this lot':'');
         yield ['key'=>'loading-start|'.$sid,'hash'=>'1','text'=>"Mill loading started\n".$identity."\n".$progress];
         foreach($loaded as $c) {
             $number=(string)($c['container']??'');if($number==='')continue;
-            yield ['key'=>'container|'.$sid.'|'.$number,'hash'=>tg_hash($c),'text'=>"Mill container out\n".$identity."\nContainer ".$number."\nBags ".($c['bags']??'—')." | Net kg ".($c['weight']??'—')."\nTruck ".($c['truck']??'—')." | Seal ".($c['seal']??'—')."\n".$progress];
+            $key=tg_loading_key($sid,$c);$hash=tg_hash($c);$legacyKey='container|'.$sid.'|'.$number;
+            // Carry forward confirmed delivery only when the old fingerprint matches this row.
+            // Never assume a new loading was sent merely because its container number was used before.
+            $migrated=!isset($state['sent'][$key])&&($state['sent'][$legacyKey]['hash']??null)===$hash;
+            yield ['key'=>$key,'legacyKey'=>$legacyKey,'hash'=>$hash,'markOnly'=>$migrated,
+                'text'=>"Mill container out\n".$identity."\nContainer ".$number
+                    .(!empty($c['date'])?"\nLoading date ".$c['date']:'')
+                    ."\nBags ".($c['bags']??'—')." | Net kg ".($c['weight']??'—')."\nTruck ".($c['truck']??'—')." | Seal ".($c['seal']??'—')."\n".$progress];
         }
     }
     foreach(tg_mill_event_sources() as $source=>$label) {
@@ -285,7 +304,7 @@ function tg_dispatch(bool $initialize=false,string $platform='telegram'): array 
                 $sid=(string)($shipment['_ttShipmentId']??$shipment['id']??'');
                 if(!empty($shipment['containers']))$state['sent']['loading-start|'.$sid]=['hash'=>'1','at'=>$now->format(DATE_ATOM)];
                 foreach($shipment['containers']??[] as $c)if(!empty($c['container'])&&(($c['loadingComplete']??false)===true||(!array_key_exists('loadingComplete',$c)&&!empty($c['seal'])&&!empty($c['truck'])&&($c['weight']??0)>0)))
-                    $state['sent']['container|'.$sid.'|'.$c['container']]=['hash'=>tg_hash($c),'at'=>$now->format(DATE_ATOM)];
+                    $state['sent'][tg_loading_key($sid,$c)]=['hash'=>tg_hash($c),'at'=>$now->format(DATE_ATOM)];
             }
             tg_state_save($path,$state);
         }
@@ -306,7 +325,7 @@ function tg_dispatch(bool $initialize=false,string $platform='telegram'): array 
         foreach($jobs as $job) {
             if(($state['sent'][$job['key']]['hash']??null)===$job['hash'])continue;
             if($delivered>=20||tt_social_config($platform)!==$config)break;
-            if(isset($state['pending'][$job['key']])) {
+            if(isset($state['pending'][$job['key']])||isset($state['pending'][$job['legacyKey']??''])) {
                 if(str_starts_with($job['key'],'arrivals-summary|'))break;
                 continue;
             }
@@ -327,7 +346,7 @@ function tg_dispatch(bool $initialize=false,string $platform='telegram'): array 
                     if($platform==='discord')tt_discord_send_pdf($r,$name,$job['caption'],$destination);
                     else tt_telegram_send_pdf($r,$name,$job['caption']);
                     $delivered++;
-                } elseif(isset($job['text'])) {
+                } elseif(isset($job['text'])&&empty($job['markOnly'])) {
                     $text=mb_substr($job['text'],0,4000);
                     if($platform==='discord')tt_discord_deliver($job['text'],expectedChannel:$destination);
                     elseif(isset($job['fullTextFile'])&&mb_strlen($job['text'],'UTF-8')>4000){
