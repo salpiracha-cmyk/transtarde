@@ -29,23 +29,26 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    env:
+      HOSTINGER_HOST: 151.106.116.33
+      HOSTINGER_PORT: '65002'
+      HOSTINGER_USER: u831010370
+      HOSTINGER_DEPLOY_PATH: /home/u831010370/domains/app.transtradeinternational.com/public_html
     steps:
       - uses: actions/checkout@v4
       - name: Verify the Mill source and align the existing Accounts postings
         env:
-          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
-          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
-          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
-          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
-          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           case "$HOSTINGER_DEPLOY_PATH" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
           install -m 700 -d "$RUNNER_TEMP/ssh"
           trap 'rm -rf "$RUNNER_TEMP/ssh"' EXIT
           printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
-          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          ssh-keyscan -T 15 -p "$HOSTINGER_PORT" -t ed25519 "$HOSTINGER_HOST" 2>/dev/null > "$RUNNER_TEMP/ssh/known_hosts"
+          expected_fingerprint='SHA256:Bid0atNrqK2cVKyC84j8BnqToKfMokX5myGJkNCvBsg'
+          actual_fingerprint=$(ssh-keygen -lf "$RUNNER_TEMP/ssh/known_hosts" -E sha256 | awk '{print $2}' | sort -u)
+          test "$actual_fingerprint" = "$expected_fingerprint"
           chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
           target=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
           ssh -o ConnectTimeout=20 -o BatchMode=yes -o StrictHostKeyChecking=yes \
