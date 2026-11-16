@@ -66,6 +66,10 @@
     if(code!=='1110'){
       const named=[line.personName,line.person,line.party,line.counterparty,line.supplier,line.customer,line.vendor,line.broker,line.subledger].find(value=>value&&String(value)!==String(line.accountName)&&!/^\d{4}$/.test(String(value)));
       if(named)return String(named);
+      if(m.billId||journal.sourceType==='COMMODITY_BILL_VERIFIED'){
+        const commodityParty=m.commodityDisplayParties?.[code]||(code==='2110'?(m.payee||m.relationshipName):code==='2120'?m.broker:code==='2210'?m.supplier:'');
+        if(commodityParty)return String(commodityParty);
+      }
       const trade=['1210','1220','1230','1240','1250','1400','2110','2120','2130','2140','2150','2160','2170','2190','2210','2230','2500','2510','2520'];
       const party=trade.includes(code)?m.payee||m.supplier||m.vendor||m.customer||m.broker||m.person||m.party||m.paymentRecipient:'';
       if(party)return String(party);

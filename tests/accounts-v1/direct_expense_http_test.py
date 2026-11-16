@@ -413,7 +413,7 @@ require $argv[1];
     family_journal('PERSONAL', [{'account':'1230','debit':20000,'credit':0,'expenseFor':'FAM-SALMAN','personalRecovery':True},{'account':'6910','debit':0,'credit':20000,'personalRecovery':True}], 'Personal cost recoverable from Salman')
     family_journal('PAY', [{'account':'2230','debit':10000,'credit':0,'salaryMasterId':'D'},{'account':'1120','debit':0,'credit':10000}], 'Allowance paid to Salman')
     family_journal('INTERNAL', [{'account':'2230','debit':20000,'credit':0,'salaryMasterId':'D'},{'account':'1230','debit':0,'credit':20000,'salaryMasterId':'D'}], 'Internal adjustment, no second payment')
-    family_journal('SAMAD', [{'account':'6910','debit':30000,'credit':0,'expenseArea':'HOME','counterparty':'ABDUL SAMAD ABDUL AZIZ'},{'account':'1120','debit':0,'credit':30000}], 'SRP household costs')
+    family_journal('SAMAD', [{'account':'6910','debit':30000,'credit':0,'expenseArea':'HOME','expenseFor':'FAM-SALMAN','counterparty':'ABDUL SAMAD ABDUL AZIZ'},{'account':'1120','debit':0,'credit':30000}], 'SRP household costs')
     family_journal('ARP', [{'account':'6910','debit':600,'credit':0,'expenseFor':'FAM-ABU','personalTreatment':'COMPANY'},{'account':'1120','debit':0,'credit':600}], 'ARP medical cost')
     family_journal('REIMBURSE', [{'account':'REIMB-SALMAN','debit':0,'credit':5000},{'account':'6900','debit':5000,'credit':0}], 'Company expense paid personally by Salman')
     family_journal('COMBINED', [{'account':'6210','debit':7000,'credit':0,'salaryMasterId':'D'},{'account':'2230','debit':0,'credit':7000,'salaryMasterId':'D'},{'account':'2230','debit':7000,'credit':0,'salaryMasterId':'D'},{'account':'1120','debit':0,'credit':7000}], 'Monthly entitlement and payment on one voucher')
@@ -421,7 +421,7 @@ require $argv[1];
     family_journal('OTHER-SALMAN', [{'account':'2230','debit':0,'credit':900,'salaryMasterId':'OFFICE-SALMAN'},{'account':'6200','debit':900,'credit':0,'salaryMasterId':'OFFICE-SALMAN'}], 'Different staff member sharing first name')
     family_journal('ZERO', [{'account':'2230','debit':0,'credit':0,'salaryMasterId':'D'}], 'Zero line for review')
     books.write_text(json.dumps(family_fixture));family_stable=books.read_bytes()
-    for code,expected in [('FAMILY|SALMAN|REMUNERATION',-50000),('FAMILY|SALMAN|HOME',330000),('FAMILY|ARP|EXPENSE',600)]:
+    for code,expected in [('FAMILY|SALMAN|REMUNERATION',-50000),('FAMILY|SALMAN|HOME',30000),('FAMILY|ARP|EXPENSE',600)]:
         status,statement=request('accounts_ledger_browser','?entity=TTI&category=other&account='+code+'&from=2027-01-01&to=2027-12-31');assert status==200,(status,statement)
         assert statement['familyStatement'] and statement['closing']==expected,(code,statement)
         assert all((r['debit']>0) != (r['credit']>0) for r in statement['rows'])
