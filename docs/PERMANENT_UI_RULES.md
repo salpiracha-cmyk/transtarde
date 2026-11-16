@@ -151,6 +151,11 @@ Every request requiring Director approval must also appear in the Super Admin Co
 - The Post ID Register has aligned columns and affected party names. Stockbroker transactions show Date separately from Post ID.
 - Post is the final posting action. After successful posting, show a compact centred confirmation with Post ID, debit/credit lines, Print and Close. Print opens the browser printer dialog in the same tab using an isolated print frame; never open a new printing tab or window, or print automatically on Post.
 
+## 16 November 2026 utility and expense allocation clarification
+
+- Utilities are paid by and borne by the company. Do not offer personal/family allocation or remuneration/cash recovery on Utility payments or invoices, including Home utilities. Preserve the location-based expense/production classification. Existing journals remain unchanged until explicitly corrected; new utility posts and previews ignore obsolete personal fields from older clients.
+- Ordinary expenses offer Allocate to (Company, Salman, Talha, Tayyab, ARP), with personal treatment when a person is chosen. Home and ARP expense types retain their existing beneficiary-ledger selectors; tax deposits and salary advances retain their dedicated accounting. Credit-card bills retain their optional personal-amount allocations. This supersedes the earlier instruction to hide Expense For for ordinary expenses.
+
 ## 8 October 2026 beneficiary and credit-card agreement
 
 - Paid to is the actual recipient. Classification and beneficiary are stored as reporting dimensions derived from the selected expense type and Home/subsidiary ledger; do not show separate Expense Area or Expense For controls. Production posting retains its dedicated workflow. A CAS school fee can appear in Talha’s Home report without changing CAS as recipient. Reporting dimensions never add monetary debits.
