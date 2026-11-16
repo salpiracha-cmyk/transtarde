@@ -19,11 +19,12 @@ const wait=()=>new Promise(r=>setTimeout(r,240)),change=(name,value)=>{d.querySe
  assert.equal(d.querySelector('[name=rate6]').value,'37','A shared price fills the B3 scenario row');
  assert.equal(d.querySelector('dialog [name=yield0]'),null);
  assert.equal(d.querySelector('[name=yield0]').readOnly,false);
- change('yield0','59');assert.match(d.getElementById('dtYieldTotal').textContent,/1% to allocate/);
+ change('yield5','1');assert.equal(Number(d.querySelector('[name=yield0]').value),59,'Changing a by-product keeps the existing automatic finished recovery');
+ change('yield0','58');change('yield5','0');assert.equal(Number(d.querySelector('[name=yield0]').value),58,'Manual finished recovery stays fixed when another row changes');assert.match(d.getElementById('dtYieldTotal').textContent,/2% to allocate/);
  d.querySelector('[data-balance-recovery=waste]').click();
  await wait();
  assert.equal(d.getElementById('dtYieldTotal').textContent,'Total 100%');
- assert.equal(Number(d.querySelector('[name=yield0]').value),59);
+ assert.equal(Number(d.querySelector('[name=yield0]').value),58);
  assert.equal(writes,0);
  d.querySelector('[data-edit-rates]').click();
  change('byproduct1','40');
@@ -33,5 +34,5 @@ const wait=()=>new Promise(r=>setTimeout(r,240)),change=(name,value)=>{d.querySe
  assert.equal(writes,1);
  assert.equal(lastRateBody.byproductRates.B3,'40');
  assert.equal(d.querySelector('[name=rate6]').value,'40');
- assert.equal(Number(d.querySelector('[name=yield0]').value),59,'Saving daily rates preserves edited recoveries');
+ assert.equal(Number(d.querySelector('[name=yield0]').value),58,'Saving daily rates preserves edited recoveries');
  w.close();console.log('PASS simple 1 MT costing: dated daily rates/unit conversion, persisted packing, payload, CIF-only insurance, ticks, exact additions and zero typing writes');})().catch(e=>{console.error(e);w.close();process.exitCode=1});

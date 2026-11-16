@@ -192,14 +192,32 @@ function renderCosting(){
  $('dtYieldTotal').textContent='Total '+money(total)+'%' +(balanced?'':' · '+money(Math.abs(remaining))+'% '+(remaining>0?'to allocate':'over 100%'));
  $('dtYieldTotal').className='sheetNote '+(balanced?'':'dtError');
  }
- function onCostEdit(){dirty=true;preview();}
- form.querySelectorAll('[data-balance-recovery]').forEach(button=>{button.onclick=()=>{
-  const index=c.outputs.findIndex(row=>row.kind===button.dataset.balanceRecovery);
+ let manualFinishedRecovery=false;
+ function balanceRecovery(kind){
+  const index=c.outputs.findIndex(row=>row.kind===kind);
   const remaining=100-c.outputs.reduce((sum,row,i)=>sum+(i===index?0:Number(form.elements['yield'+i].value||0)),0);
-  if(index<0||remaining<-.0000001||(button.dataset.balanceRecovery==='finished'&&remaining<=0)){msg('Reduce the other recovery percentages before balancing this row.',true);return;}
+  if(index<0||remaining<-.0000001||(kind==='finished'&&remaining<=0))return false;
   form.elements['yield'+index].value=Math.max(0,remaining).toFixed(6);
-  onCostEdit();
- };button.hidden=!c.outputs.some(row=>row.kind===button.dataset.balanceRecovery);});
+  return true;
+ }
+ function onCostEdit(event){
+  const yieldIndex=/^yield(\d+)$/.exec(event?.target?.name||'');
+  if(yieldIndex){
+   if(c.outputs[Number(yieldIndex[1])].kind==='finished')manualFinishedRecovery=true;
+   else if(!manualFinishedRecovery)balanceRecovery('finished');
+  }
+  dirty=true;
+  preview();
+ }
+ form.querySelectorAll('[data-balance-recovery]').forEach(button=>{
+  const kind=button.dataset.balanceRecovery;
+  button.hidden=!c.outputs.some(row=>row.kind===kind);
+  button.onclick=()=>{
+   if(!balanceRecovery(kind)){msg('Reduce the other recovery percentages before balancing this row.',true);return;}
+   if(kind==='finished')manualFinishedRecovery=false;
+   onCostEdit();
+  };
+ });
  function paint(result){$('dtPurchaseSummary').textContent='Purchase: cash '+money(c.cashPrice)+' / udhaar '+(c.creditPrice===''||c.creditPrice==null?'not set':money(c.creditPrice))+' PKR/'+({KG:'kg',MAUND:'40 kg',MT:'MT'}[c.purchaseUnit]||'kg')+(c.dailyRateDate?' · rate date '+c.dailyRateDate:' · saved recipe assumptions');$('dtLiveCost').innerHTML=[['cash','Cash'],['udhaar','Udhaar'],['financedCash','Cash + financing']].filter(([k])=>k!=='financedCash'||c.finance?.enabled).map(([k,title])=>'<div class="costResult"><span>'+title+'</span><strong>'+ (k==='financedCash'&&!c.finance?.enabled?'—':result.costs[k]?money(result.costs[k].costUSDPerMT):'—')+' <small>USD/MT</small></strong><span>'+ (k==='financedCash'&&!c.finance?.enabled?'Financing is off':result.costs[k]?money(result.costs[k].costPKRPerMT)+' PKR/MT':'Enter udhaar purchase rate')+'</span></div>').join('')+'<details><summary>Cost breakdown</summary><dl class="costBreakdown"><dt>Net exchange rate</dt><dd>'+money(result.effectiveFX)+'</dd><dt>Milling PKR/input kg</dt><dd>'+money(result.millingPKRPerInputKg||0)+'</dd><dt>Processing PKR/input kg</dt><dd>'+money(result.processingPKRPerInputKg||0)+'</dd><dt>Material PKR/MT</dt><dd>'+money(result.costs.cash.materialPKRPerMT)+'</dd><dt>Ghati (0.25% of rice price), PKR/finished MT</dt><dd>'+money(result.costs.cash.ghatiPKRPerMT||0)+'</dd><dt>By-product credit / input MT</dt><dd>'+money(result.byproductCreditPKRPerInputMT)+'</dd><dt>Bank financing PKR</dt><dd>'+money(result.finance.costPKR)+'</dd></dl></details>';$('dtPreviewStatus').textContent='Up to date · not saved';$('dtPreviewStatus').className='';}
  function preview(){toggle();collect();delete c.calculation;clearTimeout(previewTimer);const sequence=++previewSequence;$('dtSavedState').textContent='Unsaved changes · Save when ready';$('dtPreviewStatus').textContent='Updating…';$('dtLiveCost').innerHTML='<p class="muted">Updating costs…</p>';previewTimer=setTimeout(async()=>{try{if($('dtEntity').value!==data.entity||$('dtDate').value!==data.asOf)throw Error('Refresh saved data for the selected company and date.');const r=window.TT_COSTING_ENGINE?{calculation:window.TT_COSTING_ENGINE.calculate(c,data)}:await api({action:'preview_costing',input:c});if(sequence!==previewSequence||!$('dtLiveCost'))return;c.calculation=r.calculation;paint(r.calculation);}catch(e){if(sequence!==previewSequence||!$('dtLiveCost'))return;delete c.calculation;$('dtLiveCost').innerHTML='<p class="dtError">'+esc(e.message)+'</p>';$('dtPreviewStatus').textContent='Check costing inputs';$('dtPreviewStatus').className='dtError';}},180);}
  form.addEventListener('input',onCostEdit);form.addEventListener('change',onCostEdit);toggle();if(c.calculation){paint(c.calculation);$('dtPreviewStatus').textContent=c.id?'Saved result':'Up to date · not saved';}else preview();
