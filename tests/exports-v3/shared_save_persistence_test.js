@@ -75,6 +75,7 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
 
  // Exercise the active amendment handler with a failed print after a successful save.
  const app=fs.readFileSync(require('node:path').join(__dirname,'../../exports/app.js'),'utf8');
+ const filenameMetadata=app.slice(app.indexOf('function salesContractDownloadMeta('),app.indexOf('function printSavedSalesContract('));
  const handler=app.slice(app.indexOf('function saveContract(print)'),app.indexOf('function nextBagPoNo()'));
  const original={id:'CONTRACT-1',ref:'QA/001',status:'Awaiting Customer Confirmation',issued:true,qty:25};
  const shipment={id:'PROCESS-1',kind:'process',contractRef:original.ref};
@@ -85,13 +86,13 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
   document:{getElementById:id=>id==='issueContract'?button:feedback},
   window:{TT_SHARED_SYNC:{}},validateContractStep:()=>'',contractNeedsPaymentDeadline:()=>false,
   documentsPresented:()=>[],incotermBase:()=> 'FOB',syncDocumentSources(){},paymentText:()=> '100% CAD',
-  customer:()=>({name:'QA Buyer'}),shipmentModeOf:()=> 'FCL',isBreakBulk:()=>false,
+  customer:()=>({name:'QA Buyer'}),buyerOf:()=>({name:'QA Buyer'}),shipmentModeOf:()=> 'FCL',isBreakBulk:()=>false,
   refreshContractMillHandoffs(){},audit(){},save:()=>JSON.stringify(state),
   confirmSalesContract:async(payload,contract,processId)=>saves.push({payload,contract,processId}),
   clearContractCheckpoint(){},salesContractPrint:()=>'<p>Contract</p>',
   directPrint:async(...args)=>{prints.push(args);return prints.length>1;},render(){}
  });
- const saveAndPrint=vm.runInContext(handler+';saveContract(true)',ctx);
+ const saveAndPrint=vm.runInContext(filenameMetadata+handler+';saveContract(true)',ctx);
  assert.equal(await saveAndPrint,false);
  assert.equal(saves[0].processId,'PROCESS-1');
  assert.equal(JSON.parse(saves[0].payload).contracts[0].qty,26);
@@ -102,6 +103,7 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
  assert.equal(state.contracts[0].versions.length,1);
  assert.equal(state.shipments.length,1);
  assert(prints.every(args=>args[3]===true),'Printing an amendment must not start another save');
+ assert(prints.every(([, , , , meta])=>meta.party==='QA Buyer'&&meta.reference===original.ref&&meta.format==='party-reference'),'The original print and retry use the saved importer and reference');
  const large='X'.repeat(17*1024*1024);
  const full={contracts:[original],shipments:[{...shipment,bagOrders:[{artwork:large}]}],audits:[],customers:[{id:'BUYER',nextSeq:1}]};
  const scoped=fixture({initial:JSON.stringify(full),quota:true});
