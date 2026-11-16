@@ -15,6 +15,17 @@ $access=[
     'module'=>'Directors','user'=>(string)($user['full_name']??''),'role'=>(string)($user['role']??''),
     'permissions'=>$user['permissions']['Directors']??[], 'super'=>(($user['role']??'')==='Super Admin'), 'csrf'=>tt_csrf()
 ];
+$canSeeDaily = gm_permission($user, 'DAILY', 'View', 'Directors');
+$canSeeCosting = dt_cost_permission($user);
+$canSeeFellowExporters = dt_permission($user);
+$canSeeMillPerformance = false;
+foreach (['TTI', 'BRM'] as $entity) {
+    if (tt_user_can_access_entity($user, $entity, 'View') && tt_inv_can_report($user, $entity)) {
+        $canSeeMillPerformance = true;
+        break;
+    }
+}
+$today = new DateTimeImmutable('today', new DateTimeZone('Asia/Karachi'));
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') tt_release_read_session();
 ob_start();
 ?>
@@ -23,24 +34,65 @@ ob_start();
 <style>
 :root{--navy:#102a46;--ink:#152134;--muted:#6f7a89;--line:#dde4eb;--soft:#f4f7fa;--card:#fff;--green:#147a5b;--amber:#a86b00;--red:#a93a34;--shadow:0 8px 28px rgba(19,40,65,.09)}*{box-sizing:border-box}body{margin:0;background:#eef2f6;color:var(--ink);font:14px/1.45 Arial,Helvetica,sans-serif}.top{height:68px;background:var(--navy);color:#fff;display:flex;align-items:center;padding:0 22px;gap:13px;position:sticky;top:0;z-index:30}.brand{width:40px;height:40px;border-radius:11px;background:#fff;color:var(--navy);display:grid;place-items:center;font-weight:900}.top b{letter-spacing:.6px}.top small{display:block;opacity:.72}.sp{flex:1}.power{width:34px;height:34px;border-radius:0;background:transparent;color:inherit;display:grid;place-items:center;text-decoration:none;font-size:18px;font-weight:900}.shell{max-width:1440px;margin:auto;padding:24px}.hero{display:flex;gap:16px;align-items:flex-start;justify-content:space-between}.hero h1{margin:0 0 5px;font-size:29px}.hero p{margin:0;color:var(--muted)}.alertBadge{display:none;padding:8px 11px;border-radius:999px;background:#fff0ee;color:#9c2f28;font-weight:800}.alertBadge.on{display:inline-block}.homeGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-top:20px}.tile{border:1px solid var(--line);background:#fff;border-radius:17px;padding:17px;min-height:145px;cursor:pointer;box-shadow:var(--shadow);text-align:left}.tile:hover{transform:translateY(-2px)}.ico{width:46px;height:46px;border-radius:13px;background:#edf3f8;display:grid;place-items:center;font-size:23px;margin-bottom:17px}.tile h3{margin:0 0 5px;font-size:15px}.tile p{margin:0;color:var(--muted);font-size:12px}.panel{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:17px;box-shadow:var(--shadow);overflow:hidden}.panelHead{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:10px}.panelHead h2{margin:0}.panelHead p{margin:3px 0 0;color:var(--muted);font-size:12px}.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 11px;font-weight:800;cursor:pointer}.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}.hidden{display:none!important}#tgMasterRoot,#brokerageMasterRoot{min-height:150px}.homeAlerts{margin-top:18px}.alarm{padding:11px 13px;border-radius:11px;border:1px solid #ead29a;background:#fff8e8;margin-top:8px}.alarm.critical{border-color:#e0aaa6;background:#fff0ee;color:#8d2a24}.alarm b{display:block}.alarm small{display:block;margin-top:3px}.empty{color:var(--muted);padding:12px 0}@media(max-width:900px){.homeGrid{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.shell{padding:14px}.homeGrid{grid-template-columns:1fr}.hero{display:block}.alertBadge{margin-top:12px}}
  .console{height:34px;padding:0 11px;border:1px solid #ffffff55;border-radius:9px;background:#ffffff12;color:#fff;display:inline-flex;align-items:center;text-decoration:none;font-weight:800}
- @media(min-width:1150px){#directorHome>.homeGrid{grid-template-columns:repeat(5,minmax(0,1fr))}} .directorSettings{margin-top:20px;border:1px solid #d8e2e7;border-radius:10px;padding:12px;background:#fff}.directorSettings>summary{font-weight:bold;cursor:pointer}.directorSettings .tile{min-height:115px}.directorSettings .ico{margin-bottom:8px}.homeGrid .tile{min-height:125px}.homeGrid .ico{margin-bottom:10px}
+ .directorSettings{margin-top:20px;border:1px solid #d8e2e7;border-radius:10px;padding:12px;background:#fff}.directorSettings>summary{font-weight:bold;cursor:pointer}.directorSettings .tile{min-height:115px}.directorSettings .ico{margin-bottom:8px}.homeGrid .tile{min-height:125px}.homeGrid .ico{margin-bottom:10px}
 a.tile{text-decoration:none;color:inherit}
-</style><link rel="stylesheet" href="daily-rates.css"><link rel="stylesheet" href="/brand-theme.css">
+</style><link rel="stylesheet" href="daily-rates.css"><link rel="stylesheet" href="/brand-theme.css"><link rel="stylesheet" href="home.css">
 <script>window.TT_DIRECTORS_ACCESS=<?=json_encode($access,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;</script></head>
-<body><header class="top"><div class="brand">TT</div><div><b>TRANSTRADE</b><small>Directors</small></div><div class="sp"></div><?php if(tt_user_can_master($user,'business_parties','View')): ?><a class="console" href="/index.php?view=masters&amp;from=directors" title="Master Records">Master Records</a><?php endif; ?><?php if (($user['role'] ?? '') === 'Super Admin'): ?><a class="console" href="../index.php" title="Return to Control Centre">Console</a><?php elseif(count(tt_user_workspaces($user))>1): ?><a class="console" href="/staff-home.php" title="Your authorised workspaces">Home</a><?php endif; ?><div><?=htmlspecialchars((string)($user['full_name']??''))?> · <?=htmlspecialchars((string)($user['role']??''))?></div><a class="power" href="../logout.php" title="Log out" aria-label="Log out">⏻</a></header>
-<main class="shell"><section id="directorHome"><div class="hero"><div><h1>Directors</h1><p>Daily position, trading decisions and approvals.</p></div><span id="tgAlertBadge" class="alertBadge"></span></div>
-<div id="directorDailyRates" class="directorRateStrip"><div class="rateStripHead"><b>Daily rates</b><small>Loading saved rates…</small></div><div class="dailyRateCards"><div><span>USD / PKR</span><strong>—</strong></div><div><span>IRRI cash</span><strong>—</strong></div><div><span>IRRI udhaar</span><strong>—</strong></div><div><span>Broken rate</span><strong>—</strong></div></div></div>
-<div class="homeGrid" id="directorMainGrid">
-<?php if(gm_permission($user,'DAILY','View','Directors')): ?>
-<a class="tile" href="../accounts/business-reports.php?report=arp&amp;origin=directors"><div class="ico">☀</div><h3>ARP Morning Overview</h3><p>Group balances, SODAs, exports, loading and importer receivables.</p></a>
-<a class="tile" href="../accounts/business-reports.php?report=shipment&amp;origin=directors"><div class="ico">▤</div><h3>Shipment Profit &amp; Loss</h3><p>Contract realization, expenses and optional goods cost.</p></a>
-<a class="tile" href="../accounts/cash-flow.php?origin=directors"><div class="ico">▥</div><h3>Cash Flow</h3><p>Cash, recorded balances and changes since the previous saved position.</p></a>
-<?php endif; if(dt_cost_permission($user)): ?><a class="tile" href="costing.php"><div class="ico">$</div><h3>Costing</h3><p>Cash, udhaar and bank-financed costs, packing and shipment expenses.</p></a><?php endif; ?>
-<?php if(dt_permission($user)): ?><a class="tile" href="exporter-trading.php"><div class="ico">↔</div><h3>Fellow-exporter SODAs</h3><p>Local ex-mill sales, shipment partnerships and their accounts.</p></a><?php endif; ?>
-<?php if(gm_permission($user,'DAILY','View','Directors')): ?><a class="tile" href="../accounts/cash-flow.php?view=stock&amp;origin=directors"><div class="ico">MT</div><h3>Stock &amp; Commitments</h3><p>Shared bank balances, stock and original purchase/sale commitments.</p></a><?php endif; ?>
-<?php if(far_permission($user,'Directors','View')): ?><button class="tile" id="openDirectorAssets"><div class="ico">▣</div><h3>Assets &amp; Investments</h3><p>Properties, company broker funds and share holdings.</p></button><?php endif; ?>
-</div>
+<body><header class="top"><div class="brand">TT</div><div><b>TRANSTRADE</b><small>Directors</small></div><div class="sp"></div><?php if(tt_user_can_master($user,'business_parties','View')): ?><a class="console" href="/index.php?view=masters&amp;from=directors" title="Master Records">Master Records</a><?php endif; ?><?php if (($user['role'] ?? '') === 'Super Admin'): ?><a class="console" href="../index.php" title="Return to Control Centre">Console</a><?php elseif(count(tt_user_workspaces($user))>1): ?><a class="console" href="/staff-home.php" title="Your authorised workspaces">Home</a><?php endif; ?><div class="directorIdentity"><?=htmlspecialchars((string)($user['full_name']??''))?> · <?=htmlspecialchars((string)($user['role']??''))?></div><a class="power" href="../logout.php" title="Log out" aria-label="Log out">⏻</a></header>
+<main class="shell">
+<section id="directorHome">
+    <div class="directorBrief">
+        <div>
+            <time datetime="<?= $today->format('Y-m-d') ?>"><?= $today->format('l, j F Y') ?></time>
+            <h1>Directors</h1>
+        </div>
+        <span id="tgAlertBadge" class="alertBadge"></span>
+    </div>
+    <?php if ($canSeeDaily || $canSeeFellowExporters): ?>
+    <nav class="directorPrimary" aria-label="Morning Overview and Fellow Exporter">
+        <?php if ($canSeeDaily): ?>
+        <a class="tile" href="../accounts/business-reports.php?report=arp&amp;origin=directors"><div class="ico">☀</div><h3>ARP Morning Overview</h3><p>Group balances, SODAs, exports, loading and importer receivables.</p></a>
+        <?php endif; if ($canSeeFellowExporters): ?>
+        <a class="tile" href="exporter-trading.php"><div class="ico">↔</div><h3>Fellow-exporter SODAs</h3><p>Local ex-mill sales, shipment partnerships and their accounts.</p></a>
+        <?php endif; ?>
+    </nav>
+    <?php endif; ?>
+
+    <?php if ($canSeeDaily || $canSeeCosting || $canSeeMillPerformance): ?>
+    <section class="directorReports" aria-labelledby="directorReportsHeading">
+        <h2 id="directorReportsHeading">Reports &amp; costing</h2>
+        <nav class="homeGrid" id="directorMainGrid" aria-labelledby="directorReportsHeading">
+            <?php if ($canSeeCosting): ?>
+            <a class="tile directorReport" href="costing.php">
+                <span class="ico" aria-hidden="true">$</span>
+                <h3>Costing</h3><p>Cash, udhaar and financed costs per MT.</p>
+            </a>
+            <?php endif; if ($canSeeMillPerformance): ?>
+            <a class="tile directorReport directorReportMill" href="../accounts/production-reports.php?mode=production&amp;origin=directors">
+                <span class="ico" aria-hidden="true">↗</span>
+                <h3>Mill Performance</h3><p>Production and recovery by shift, brand or contract.</p>
+            </a>
+            <?php endif; if ($canSeeDaily): ?>
+            <a class="tile directorReport directorReportShipment" href="../accounts/business-reports.php?report=shipment&amp;origin=directors">
+                <span class="ico" aria-hidden="true">▤</span>
+                <h3>Shipment Profit &amp; Loss</h3><p>Realization, goods cost and expenses by shipment.</p>
+            </a>
+            <a class="tile directorReport directorReportCash" href="../accounts/cash-flow.php?origin=directors">
+                <span class="ico" aria-hidden="true">⇄</span>
+                <h3>Cash Flow</h3><p>Bank balances, receivables and payments due.</p>
+            </a>
+            <a class="tile directorReport directorReportStock" href="../accounts/cash-flow.php?view=stock&amp;origin=directors">
+                <span class="ico" aria-hidden="true">MT</span>
+                <h3>Stock &amp; Commitments</h3><p>Stock on hand and outstanding purchases and sales.</p>
+            </a>
+            <?php endif; ?>
+        </nav>
+    </section>
+    <?php endif; ?>
+
+    <div id="directorDailyRates" class="directorRateStrip"><div class="rateStripHead"><b>Daily rates</b><small>Loading saved rates…</small></div><div class="dailyRateCards"><div><span>USD / PKR</span><strong>—</strong></div><div><span>IRRI cash</span><strong>—</strong></div><div><span>IRRI udhaar</span><strong>—</strong></div><div><span>Broken rate</span><strong>—</strong></div></div></div>
 <details class="directorSettings"><summary>Settings &amp; annual reviews</summary><div class="homeGrid" id="directorSettingsGrid">
+<?php if(far_permission($user,'Directors','View')): ?><button class="tile" type="button" id="openDirectorAssets"><div class="ico">▣</div><h3>Assets &amp; Investments</h3><p>Properties, company broker funds and share holdings.</p></button><?php endif; ?>
 <?php if(tt_user_can_master($user,'business_parties','View')): ?><a class="tile" href="/index.php?view=masters&amp;master=business_parties&amp;from=directors"><div class="ico">FE</div><h3>Business Parties</h3><p>Add, edit and delete fellow-exporter parties.</p></a><?php endif; ?>
 <?php if(gm_permission($user,'ZAKAT','View','Directors')): ?><a class="tile" href="../accounts/group-management.php?kind=ZAKAT&amp;origin=directors"><div class="ico">Z</div><h3>Annual Zakat</h3><p>Yearly group assessment, TTI control ledger and payment carry-forward.</p></a><?php endif; ?>
 <?php require_once __DIR__.'/../api/opening_balance_core.php'; if(job_authorized($user)): ?><a class="tile" href="../accounts/opening-balances.php"><div class="ico">JV</div><h3>Opening Balances</h3><p>Record balances brought forward at 1 July 2026.</p></a><?php endif; ?>
@@ -49,13 +101,36 @@ a.tile{text-decoration:none;color:inherit}
 <button class="tile" id="openBrokerageMaster"><div class="ico">%</div><h3>Brokerage Master</h3><p>Product-wise rates and withholding, effective by SODA date.</p></button>
 <button class="tile" id="openFreightMaster"><div class="ico">⚓</div><h3>Freight</h3><p>Agreed ocean freight rates by forwarder, shipping line and destination.</p></button>
 </div></details>
-<?php if(dt_permission($user)): ?><div class="homeAlerts"><h3 style="margin:0">Shipment cost reviews</h3><button class="btn" id="refreshDirectorCostAlerts">Refresh cost reviews</button><div id="directorCostAlerts" class="empty">Loading cost reviews…</div></div><?php endif; ?>
-<div class="homeAlerts"><h3 style="margin:0">TG Renewal Alerts</h3><div id="tgHomeAlerts" class="empty">Loading TG compliance status…</div></div>
-<div class="homeAlerts"><h3 style="margin:0">Bank Account Deletion Approvals</h3><div id="bankDeletionApprovals" class="empty">Loading bank approval requests…</div></div></section>
+<details class="directorSettings directorAttention">
+    <summary>Approvals &amp; alerts</summary>
+    <div class="directorAttentionGrid">
+        <section class="homeAlerts">
+            <h3>Bag and second-trip approvals</h3>
+            <button id="refreshBagApprovals" class="btn" type="button">Refresh approvals</button>
+            <div id="bagAcceptanceApprovals" class="empty">Loading…</div>
+        </section>
+        <section class="homeAlerts">
+            <h3>Bank account deletion approvals</h3>
+            <div id="bankDeletionApprovals" class="empty">Loading bank approval requests…</div>
+        </section>
+        <?php if ($canSeeFellowExporters): ?>
+        <section class="homeAlerts">
+            <h3>Shipment cost reviews</h3>
+            <button class="btn" id="refreshDirectorCostAlerts" type="button">Refresh cost reviews</button>
+            <div id="directorCostAlerts" class="empty">Loading cost reviews…</div>
+        </section>
+        <?php endif; ?>
+        <section class="homeAlerts">
+            <h3>TG renewal alerts</h3>
+            <div id="tgHomeAlerts" class="empty">Loading TG compliance status…</div>
+        </section>
+    </div>
+</details>
+</section>
 <section id="tgWorkspace" class="hidden"><div class="panel"><div class="panelHead"><div><button class="btn" id="backDirectors">← Go Back to Main</button><h2 style="margin-top:12px">TG Master</h2><p>Restricted TG company, banking, exchange/closing and compliance control.</p></div></div><div id="tgMasterRoot"></div></div></section>
 <section id="brokerageWorkspace" class="hidden"><div class="panel"><div class="panelHead"><div><button class="btn" id="backBrokerageDirectors">← Go Back to Main</button><h2 style="margin-top:12px">Brokerage Master</h2></div></div><div id="brokerageMasterRoot"></div></div></section></main>
 <script src="cost-alerts.js"></script><script src="../accounts/print-dialog.js"></script><script src="../accounts/bank-payment-details.js"></script><script src="../accounts/post-confirmation-ui.js"></script><script src="../accounts/company-investments-ui.js"></script><script src="../accounts/assets-registry-ui.js?v=20261001-properties-1"></script><script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script><script src="tg-master.js?v=20260927-close-navigation-1"></script><script src="brokerage-master.js?v=20260909-1"></script><script src="freight-master.js?v=20260927-close-navigation-1"></script><script src="daily-rates.js"></script><script src="home-summary.js"></script>
-<section class="shell"><div class="card"><h2>Bag and second-trip approvals</h2><button id="refreshBagApprovals" class="btn">Refresh approvals</button><div id="bagAcceptanceApprovals">Loading…</div></div></section><script src="../mill-duplicate-approvals.js"></script><script src="bag-acceptance-approvals.js"></script>
+<script src="../mill-duplicate-approvals.js"></script><script src="bag-acceptance-approvals.js"></script>
 <script>
 (()=>{'use strict';
  const access=window.TT_DIRECTORS_ACCESS||{},root=document.getElementById('bankDeletionApprovals');
