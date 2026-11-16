@@ -21,14 +21,16 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     define('TT_DATA_DIR',__DIR__.'/data');
     function tt_require_login(){return ['id'=>1,'role'=>'Staff','permissions'=>['Accounts'=>'all']];}
     function tt_user_can_open_module($u,$m){return ($_GET['denyModule']??'')!=='1';}
-    function tt_user_can_access_entity($u,$e,$a){return $e!=='BRM';}
-    function tt_user_accounts_entities($u){return ['TTI','TG'];}
+    function tt_user_can_access_entity($u,$e,$a){return ($e!=='BRM'||isset($_GET['postingActions']))&&($a==='View'||!isset($_GET['viewOnly']));}
+    function tt_user_accounts_entities($u){return isset($_GET['postingActions'])?['TTI','TG','BRM']:['TTI','TG'];}
     function tt_list_masters(){return ['business_parties'=>[['id'=>'P1','values'=>['ACME Rice','HKM']]]];}
     ''')
     # Exercise the actual production permission helper with this disposable identity.
     import re
-    permission_helper=re.search(r'function tt_user_can_module_action\([^\n]*\n.*?\n}',(ROOT/'auth_store.php').read_text(),re.S).group(0)
-    with (root/'auth_store.php').open('a') as auth_fixture: auth_fixture.write('\n'+permission_helper+'\n')
+    auth_source=(ROOT/'auth_store.php').read_text()
+    with (root/'auth_store.php').open('a') as auth_fixture:
+        for name in ['tt_user_can_module_action','tt_post_workflow_icons','tt_post_correction_allowed']:
+            auth_fixture.write('\n'+re.search(r'function '+name+r'\([^\n]*\n.*?\n}',auth_source,re.S).group(0)+'\n')
     def line(account, debit=0, credit=0, **extra):
         return dict(account=account, debit=debit, credit=credit, **extra)
     def journal(id, date, lines, entity='TTI', **extra):
@@ -108,6 +110,22 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
             assert any(r['data'].get('id')==j['id'] for r in searched['results']),(term,searched)
 
         assert path.read_bytes()==snapshot,'Suffix search must not change saved vouchers'
+        path.write_bytes(original)
+
+        brm_post='POST-2026-98761'
+        tg_post='POST-2026-98762'
+        books['journals'][brm_post]=journal(brm_post,'2026-07-15',[line('6910',debit=100),line('1110',credit=100)],entity='BRM',sourceType='DIRECT_EXPENSE_PAYMENT',meta={'generalExpenseId':'EXP1','directExpense':True})
+        books['generalExpenses']={'EXP1':{'entity':'BRM','journalId':brm_post,'expenseType':'DIRECT'}}
+        books['journals'][tg_post]=journal(tg_post,'2026-07-15',[line('6910',debit=100),line('1110',credit=100)],entity='TG',sourceType='BANK_ENTRY')
+        path.write_text(json.dumps(books));action_fixture=path.read_bytes()
+        for company,post_id in [('BRM',brm_post),('TG',tg_post)]:
+            for view_only in [False,True]:
+                params={'entity':company,'q':post_id,'postingActions':'1'}
+                if view_only:params['viewOnly']='1'
+                url=f'http://127.0.0.1:{port}/api/accounts_search.php?'+urllib.parse.urlencode(params)
+                with urllib.request.urlopen(url,timeout=5) as response: actions=json.load(response)['results'][0]['postingActions']
+                assert actions=={'entity':company,'publicPostId':post_id,'canEdit':not view_only,'canDelete':not view_only},actions
+        assert path.read_bytes()==action_fixture,'Loading posting actions must preserve both company books'
         path.write_bytes(original)
 
         assert get(party='ACME Rice',postId='POST-2026-00002')[1]['post']['lines'][1]['account']=='1110'

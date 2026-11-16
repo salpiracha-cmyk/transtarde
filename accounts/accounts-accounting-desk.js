@@ -1009,10 +1009,14 @@
 
   async function runSearch(host, term) {
     const results = q('#ttSearchResults', host);
-    if (!term.trim()) { results.innerHTML = '<div class="tt-record-card">Type a voucher, bill, Soda, truck, cheque, shipment, container, B/L, party, date, amount or narration.</div>'; return; }
+    const query=term.trim(), company=entity(), marker={};
+    results.searchMarker=marker;
+    const current=()=>results.isConnected&&results.searchMarker===marker&&!host.hidden&&entity()===company;
+    if (!query) { results.innerHTML = '<div class="tt-record-card">Type a voucher, bill, Soda, truck, cheque, shipment, container, B/L, party, date, amount or narration.</div>'; return; }
     results.innerHTML = '<div class="tt-record-card">Searching…</div>';
     try {
-      const data = await json(`${searchApi}?entity=${encodeURIComponent(entity())}&q=${encodeURIComponent(term.trim())}`);
+      const data = await json(`${searchApi}?${new URLSearchParams({entity:company,q:query})}`);
+      if(!current())return;
       const detailHtml = record => {
         const lines = Array.isArray(record.data?.lines) ? record.data.lines : [];
         if (!lines.length) return `<p class="tt-note">${esc(record.data?.narration || record.data?.remarks || 'Open the linked record to see its saved details.')}</p>`;
@@ -1020,13 +1024,30 @@
       };
       results.innerHTML = data.results.length ? data.results.map((record, i) => {
         const ref = record.reference && record.reference !== record.title ? ` · Ref ${esc(displayRef(record.reference))}` : '';
-        const heading = record.postId ? `Post ID ${esc(displayRef(record.postId))}` : `${esc(record.type)} ${esc(record.title)}`;
-        return `<article class="tt-record-card"><b>${heading}</b><div class="tt-note">${esc(record.type)} · ${esc(record.date || '')}${ref} · ${esc(record.party || '')} · PKR ${esc(money(record.amount || record.data?.totalDebit || 0))}</div><div class="tt-record-actions"><button class="btn" data-view-record="${i}">View entries</button>${record.printable ? `<button class="btn" data-print-record="${i}">Print Voucher</button>` : ''}${record.amendRecord?`<button class="btn" data-amend-record="${i}">AMEND BILL</button>`:''}</div><div data-record-detail="${i}" hidden>${detailHtml(record)}</div></article>`;
+        const actions=record.postingActions;
+        const heading = record.postId ? `Post ID ${esc(displayRef(actions?.publicPostId||record.postId))}` : `${esc(record.type)} ${esc(record.title)}`;
+        const edit=record.amendRecord?`<button type="button" class="btn" data-amend-record="${i}">AMEND BILL</button>`:actions?.canEdit?`<button type="button" class="btn" data-edit-search-post="${i}">Edit posting</button>`:'';
+        const remove=actions?.canDelete?`<button type="button" class="btn" data-tt-control-style="action" data-cancel-search-post="${i}">Delete posting</button>`:'';
+        return `<article class="tt-record-card"><b>${heading}</b><div class="tt-note">${esc(record.type)} · ${esc(record.date || '')}${ref} · ${esc(record.party || '')} · PKR ${esc(money(record.amount || record.data?.totalDebit || 0))}</div><div class="tt-record-actions"><button class="btn" data-view-record="${i}">View entries</button>${record.printable ? `<button class="btn" data-print-record="${i}">Print Voucher</button>` : ''}${edit}${remove}</div><div data-record-detail="${i}" hidden>${detailHtml(record)}</div></article>`;
       }).join('') : '<div class="tt-record-card">No matching previous record.</div>';
       qa('[data-view-record]', results).forEach(button => button.onclick = () => { const detail=q(`[data-record-detail="${button.dataset.viewRecord}"]`, results); detail.hidden=!detail.hidden; button.textContent=detail.hidden?'View entries':'Hide entries'; });
       qa('[data-amend-record]',results).forEach(button=>button.onclick=()=>openSavedBill(data.results[Number(button.dataset.amendRecord)]).catch(error=>alert(error.message)));
       qa('[data-print-record]', results).forEach(button => button.onclick = () => printVoucher(data.results[Number(button.dataset.printRecord)]));
-    } catch (error) { results.innerHTML = `<div class="tt-record-card">${esc(error.message)}</div>`; }
+      qa('[data-edit-search-post]',results).forEach(button=>button.onclick=async()=>{
+        const record=data.results[Number(button.dataset.editSearchPost)];
+        if(!current()||record.postingActions.entity!==company)return;
+        q('.tt-window-close',host).click();
+        const ledgers=window.TT_ALL_LEDGERS;
+        await ledgers.open('POSTS');
+        if(entity()===company)await ledgers.editPosting(record.postId);
+      });
+      qa('[data-cancel-search-post]',results).forEach(button=>button.onclick=async()=>{
+        const record=data.results[Number(button.dataset.cancelSearchPost)];
+        if(!current()||record.postingActions.entity!==company)return;
+        const saved=await window.TT_ALL_LEDGERS.deletePosting(record.postId,record.postingActions.publicPostId,company);
+        if(saved&&current()){await runSearch(host,query);loadDashboardSummary();}
+      });
+    } catch (error) { if(current())results.innerHTML = `<div class="tt-record-card">${esc(error.message)}</div>`; }
   }
 
   function openSearch(initial = '') {
