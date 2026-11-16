@@ -247,7 +247,7 @@ function sac_expense_activity(array $s,string $e,string $from,string $to):array 
    $monthly=$code==='3200'&&($l['category']??$meta['category']??$master['category']??'')==='HOME_MONTHLY_GIVE';
    if(!$monthly&&(($chart[$code]['class']??'')!=='Expense'||(str_starts_with($code,'5')&&$code!=='5550')))continue;
    // The saved Allocate To value owns the expense; recipient names are only a legacy fallback.
-   if($monthly){$person=trim((string)($l['expenseFor']??$meta['expenseFor']??''));if($person==='')$person=sac_home_person((string)($l['person']??$meta['person']??$master['name']??''));$l['expenseFor']=$person;$l['expenseForName']=match($person){'FAM-SALMAN'=>'Salman','FAM-TALHA'=>'Talha','FAM-TAYYAB'=>'Tayyab',default=>'Shared–Common'};$l['expenseArea']='HOME';}
+   if($monthly){$person=trim((string)($l['expenseFor']??$meta['expenseFor']??''));if($person==='')$person=sac_home_person((string)($l['person']??$meta['person']??$master['name']??''));$l['expenseFor']=$person;$l['expenseForName']=match($person){'FAM-SALMAN'=>'Salman','FAM-TALHA'=>'Talha','FAM-TAYYAB'=>'Tayyab','FAM-ABU'=>'ARP',default=>'Shared–Common'};$l['expenseArea']='HOME';}
    $home=($l['expenseArea']??$l['location']??'')==='HOME'||$code==='6910';
    $homeId=$home&&($l['expenseFor']??'SHARED')!=='FAM-ABU'?sac_home_id($e,(string)($l['expenseFor']??'SHARED')):'';
    $id=(string)($l['expenseRecipientId']??$l['paymentPayeeId']??$meta['payeeId']??$source['payeeId']??'');

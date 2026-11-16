@@ -4,7 +4,7 @@ require __DIR__.'/../../api/accounts_subaccounts_core.php';
 
 // A recipient, purpose, or current master name must not override Allocate To.
 $s=['journals'=>[]];
-foreach(['FAM-SALMAN','FAM-TALHA','FAM-TAYYAB','SHARED'] as $i=>$owner){
+foreach(['FAM-SALMAN','FAM-TALHA','FAM-TAYYAB','SHARED','FAM-ABU'] as $i=>$owner){
  $id='ALLOC-'.$i;
  $s['journals'][$id]=['id'=>$id,'entity'=>'TTI','date'=>'2026-11-01','status'=>'Posted',
   'narration'=>'Private household purpose', 'lines'=>[
@@ -18,10 +18,11 @@ $s['journals']['LEGACY']=['id'=>'LEGACY','entity'=>'TTI','date'=>'2026-11-01','s
 ]];
 $before=serialize($s);
 $rows=array_column(sac_expense_activity($s,'TTI','2026-11-01','2026-11-30'),null,'voucher');
-foreach(['FAM-SALMAN','FAM-TALHA','FAM-TAYYAB','SHARED'] as $i=>$owner){
+foreach(['FAM-SALMAN','FAM-TALHA','FAM-TAYYAB','SHARED','FAM-ABU'] as $i=>$owner){
  if($rows['ALLOC-'.$i]['expenseFor']!==$owner||$rows['ALLOC-'.$i]['amount']!==100.0)
   throw new RuntimeException('Saved allocation was replaced or split: '.$owner);
 }
+if($rows['ALLOC-4']['expenseForName']!=='ARP')throw new RuntimeException('ARP allocation mislabeled as shared');
 if($rows['LEGACY']['expenseFor']!=='FAM-TAYYAB')throw new RuntimeException('Unallocated legacy Mrs identity was lost');
 if(serialize($s)!==$before)throw new RuntimeException('A report mutated original journals');
 $home=['journals'=>[]];
