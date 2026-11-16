@@ -39,7 +39,10 @@ rows.unshift({id:'P3',entity:'TTI',sodaNo:'26003',sodaDate:'2026-10-01',broker:'
  assert.match(await report.locator('tbody tr').nth(1).innerText(),/81\.000 MT/);
  await report.locator('[name=from]').fill('2026-09-11');
  await report.getByRole('button',{name:'Apply dates'}).click();
- assert.equal(await report.locator('tbody tr').count(),1);
+ assert.deepEqual(await report.locator('tbody tr').evaluateAll(rows=>rows.map(row=>row.cells[1].textContent)),['26003','26002']);
+ await report.locator('[name=to]').fill('2026-09-11');
+ await report.getByRole('button',{name:'Apply dates'}).click();
+ assert.deepEqual(await report.locator('tbody tr').evaluateAll(rows=>rows.map(row=>row.cells[1].textContent)),['26002']);
  await page.evaluate(()=>window.TT_ACCOUNTING_DESK.openSodaSummary(true));
  report=page.locator('#ttSodaSummaryLayer');
  assert.equal(await report.locator('tbody tr').count(),1);
