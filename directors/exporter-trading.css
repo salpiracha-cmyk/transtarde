@@ -49,3 +49,13 @@
 .outsideLoadingWorkspace form{margin:16px 0;padding:16px;border:1px solid #dce4ed;border-radius:10px}.outsideLoadingWorkspace .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:12px}.outsideLoadingWorkspace label{display:grid;gap:6px}.outsideLoadingWorkspace input:not([type=checkbox]),.outsideLoadingWorkspace select,.outsideLoadingWorkspace textarea{box-sizing:border-box;width:100%;padding:8px;font:inherit}.outsideLoadingWorkspace .tableWrap{overflow:auto}.outsideLoadingWorkspace table{width:100%;border-collapse:collapse}.outsideLoadingWorkspace th,.outsideLoadingWorkspace td{padding:8px;text-align:left;border-bottom:1px solid #e2e8f0}
 
 #dtPartnerStatement{display:none}@media print{body.printPartnerStatement main>*:not(#dtWorkspace),body.printPartnerStatement #dtWorkspace>*:not(#dtPartnerStatement){display:none!important}body.printPartnerStatement #dtPartnerStatement{display:block!important}}
+#dtWorkspace .costInputs{align-content:start}
+#dtWorkspace .recoveryPanel{grid-column:1/-1;min-width:0}
+.recoveryHeading,.recoveryActions{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px}
+#dtWorkspace .recoveryHeading h2,#dtWorkspace .recoveryHeading p{margin:0 0 6px}
+#dtWorkspace .recoveryPanel table{width:100%;table-layout:fixed}
+#dtWorkspace .recoveryPanel td input,#dtWorkspace .recoveryPanel td .tt-number-entry{width:100%;min-width:0}
+.recoveryActions{justify-content:flex-start;margin-top:8px}
+.recoveryActions button{font-size:11px;padding:5px 8px}
+@media print{.recoveryActions{display:none!important}}
+#dtWorkspace .costResults{align-self:start}

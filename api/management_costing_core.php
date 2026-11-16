@@ -63,7 +63,17 @@ function mc_director_input(array $s,string $entity,string $date,string $vk):?arr
  foreach((array)($s['directorCostings']??[]) as $r){$i=(array)($r['input']??[]);$v='';foreach(['millVariety','marketRawProduct','name'] as $field)if(trim((string)($i[$field]??''))!==''){$v=$i[$field];break;}if($v==='')$v=(string)($r['name']??'');if($v===''||($i['commodity']??'RICE')!=='RICE')continue;$by=[];foreach((array)($i['outputs']??[]) as $o)if(($o['kind']??'')==='byproduct'&&is_numeric($o['ratePKRPerKg']??null))$by[mc_product($o['product'])]=(float)$o['ratePKRPerKg'];$factor=match($i['purchaseUnit']??'KG'){'MAUND'=>40.,'MT'=>1000.,default=>1.};$rows[]=['entity'=>$r['entity']??'','date'=>$r['date']??'','variety'=>$v,'rawRiceRate'=>(float)($i['cashPrice']??0)/$factor,'byProducts'=>$by];}
  $best=null;foreach($rows as $x){if(!is_array($x)||($x['entity']??'')!==$entity||($x['date']??'')>$date)continue;if(mc_variety((string)($x['variety']??$x['varietyKey']??''))!==$vk)continue;if($best===null||$x['date']>=$best['date'])$best=$x;}
  $result=$best??['entity'=>$entity,'date'=>'','variety'=>$vk,'rawRiceRate'=>0];$by=$defaults;foreach((array)($best['byProducts']??[]) as $name=>$rate)if(is_numeric($rate))$by[mc_product((string)$name)]=(float)$rate;
- if($vk==='IRRI-6'){$daily=null;foreach((array)($s['directorMarketRates']??[]) as $r)if(($r['date']??'')<=$date&&(!$daily||$r['date']>$daily['date']))$daily=$r;if($daily&&$daily['date']>=($best['date']??'')){$factor=match($daily['purchaseUnit']??'KG'){'MAUND'=>40.,'MT'=>1000.,default=>1.};if(is_numeric($daily['cashPrice']??null))$result['rawRiceRate']=(float)$daily['cashPrice']/$factor;$factor=match($daily['brokenUnit']??'KG'){'MAUND'=>40.,'MT'=>1000.,default=>1.};if(is_numeric($daily['brokenPrice']??null))$by['B2']=(float)$daily['brokenPrice']/$factor;}}
+ $daily=null;
+ foreach((array)($s['directorMarketRates']??[]) as $r)if(($r['date']??'')<=$date&&(!$daily||$r['date']>$daily['date']))$daily=$r;
+ if($daily&&$daily['date']>=($best['date']??'')){
+     foreach((array)($daily['byproductRates']??[]) as $name=>$rate)if(is_numeric($rate))$by[mc_product((string)$name)]=(float)$rate;
+     if($vk==='IRRI-6'){
+         $factor=match($daily['purchaseUnit']??'KG'){'MAUND'=>40.,'MT'=>1000.,default=>1.};
+         if(is_numeric($daily['cashPrice']??null))$result['rawRiceRate']=(float)$daily['cashPrice']/$factor;
+         $factor=match($daily['brokenUnit']??'KG'){'MAUND'=>40.,'MT'=>1000.,default=>1.};
+         if(is_numeric($daily['brokenPrice']??null))$by['B2']=(float)$daily['brokenPrice']/$factor;
+     }
+ }
  $result['byProducts']=$by;return $result;
 }
 

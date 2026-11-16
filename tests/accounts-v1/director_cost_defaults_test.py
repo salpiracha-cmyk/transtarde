@@ -28,6 +28,15 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  assert call({**rates,'fx':281})[0]==409
  assert call({**rates,'requestKey':'stale-version-0002'})[0]==409
  assert call(date='2026-10-23')[1]['rates'] is None,'Future daily rate leaked backwards'
+ quote={**rates,'version':1,'byproductRates':{'CSR':31,'B2 CSR':56,'B3':41,'Powder':19,'B1':65,'Paddy':22,'Sweeping':0},'requestKey':'byproduct-rates-0001'}
+ code,result=call(quote);assert code==200,result
+ assert result['rates']['byproductRates']==quote['byproductRates']
+ assert call(quote)[1]['replay'] is True
+ assert call({**quote,'version':2,'byproductRates':{'B3':-1},'requestKey':'byproduct-invalid-0002'})[0]==422
+ assert call({**quote,'version':2,'byproductRates':{'Unknown':12},'requestKey':'byproduct-unknown-0003'})[0]==422
+ older_client={**rates,'version':2,'fx':281,'requestKey':'older-client-save-0004'}
+ assert call(older_client)[1]['rates']['byproductRates']==quote['byproductRates']
+ assert call({**quote,'version':3,'byproductRates':{'B3':''},'requestKey':'byproduct-clear-0005'})[1]['rates']['byproductRates']=={k:v for k,v in quote['byproductRates'].items() if k!='B3'}
  pack={'action':'save_packing','name':'25 kg PP','amount':4,'masterBagAmount':1.5,'date':'2026-10-24','version':0,'csrf':'fixture','requestKey':'packing-save-0001'}
  code,result=call(pack);assert code==200,result
  assert next(p for p in result['packings'] if p['name']=='25 kg PP')['amount']==4
