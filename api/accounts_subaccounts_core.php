@@ -10,8 +10,13 @@ function sac_chart():array {
  foreach(['settlement_policy_v1.json','export_realization_policy_v1.json'] as $file){$path=__DIR__.'/../accounts/'.$file;if(!is_file($path))continue;$policy=json_decode((string)file_get_contents($path),true);foreach((array)($policy['accounts']??[]) as $r)if(is_array($r)&&isset($r['code'])&&!isset($out[(string)$r['code']]))$out[(string)$r['code']]=$r;}
  foreach($out as $code=>&$a){if(!empty($a['parent'])||($a['level']??'')==='heading')continue;if(ctype_digit((string)$code)){$control=(string)(intdiv((int)$code,100)*100);$heading=(string)(intdiv((int)$code,1000)*1000);if($control!==(string)$code&&isset($out[$control]))$a['parent']=$control;elseif($heading!==(string)$code&&isset($out[$heading]))$a['parent']=$heading;elseif(($a['class']??'')==='Expense')$a['parent']='6000';}}unset($a);return $out;
 }
+/** Owner's operational chart presentation; saved account codes and journals stay intact. */
+function sac_account_display_name(string $code,string $entity,string $fallback):string {
+ if(!in_array($entity,['TTI','BRM'],true))return $fallback;
+ return match($code){'1240'=>'Customer / Export Receivables — Overseas','4500'=>'Export Sales — Overseas',default=>$fallback};
+}
 function sac_entity_chart(array $store,string $entity):array {
- $chart=sac_chart();foreach((array)($store['accountHierarchy'][$entity]??[]) as $code=>$parent)if(isset($chart[$code],$chart[$parent]))$chart[$code]['parent']=(string)$parent;if($entity==='TG'){$used=[];foreach((array)($store['journals']??[]) as $j)if(($j['entity']??'')==='TG')foreach((array)($j['lines']??[]) as $l)$used[(string)($l['account']??'')]=true;foreach($chart as $code=>$row)if(((string)$code==='6910'||str_starts_with((string)$code,'FAM-')||str_starts_with((string)$code,'REIMB-'))&&!isset($used[$code]))unset($chart[$code]);}return $chart;
+ $chart=sac_chart();foreach($chart as $code=>&$row)$row['name']=sac_account_display_name((string)$code,$entity,(string)$row['name']);unset($row);foreach((array)($store['accountHierarchy'][$entity]??[]) as $code=>$parent)if(isset($chart[$code],$chart[$parent]))$chart[$code]['parent']=(string)$parent;if($entity==='TG'){$used=[];foreach((array)($store['journals']??[]) as $j)if(($j['entity']??'')==='TG')foreach((array)($j['lines']??[]) as $l)$used[(string)($l['account']??'')]=true;foreach($chart as $code=>$row)if(((string)$code==='6910'||str_starts_with((string)$code,'FAM-')||str_starts_with((string)$code,'REIMB-'))&&!isset($used[$code]))unset($chart[$code]);}return $chart;
 }
 function sac_descendants(string $head,array $store=[],string $entity=''):array {
  $chart=sac_entity_chart($store,$entity);$codes=[$head];foreach($chart as $code=>$a){$parent=(string)($a['parent']??'');$seen=[];while($parent!==''&&!isset($seen[$parent])){if($parent===$head){$codes[]=(string)$code;break;}$seen[$parent]=true;$parent=(string)($chart[$parent]['parent']??'');}}return $codes;
@@ -241,13 +246,14 @@ function sac_expense_activity(array $s,string $e,string $from,string $to):array 
    $master=(array)($s['salaryMasters'][(string)($l['salaryMasterId']??$meta['salaryMasterId']??'')]??[]);
    $monthly=$code==='3200'&&($l['category']??$meta['category']??$master['category']??'')==='HOME_MONTHLY_GIVE';
    if(!$monthly&&(($chart[$code]['class']??'')!=='Expense'||(str_starts_with($code,'5')&&$code!=='5550')))continue;
-   if($monthly){$person=sac_home_person((string)($l['person']??$meta['person']??$master['name']??''));$l['expenseFor']=$person;$l['expenseForName']=match($person){'FAM-SALMAN'=>'Salman','FAM-TALHA'=>'Talha','FAM-TAYYAB'=>'Tayyab',default=>'Shared–Common'};$l['expenseArea']='HOME';}
+   // The saved Allocate To value owns the expense; recipient names are only a legacy fallback.
+   if($monthly){$person=trim((string)($l['expenseFor']??$meta['expenseFor']??''));if($person==='')$person=sac_home_person((string)($l['person']??$meta['person']??$master['name']??''));$l['expenseFor']=$person;$l['expenseForName']=match($person){'FAM-SALMAN'=>'Salman','FAM-TALHA'=>'Talha','FAM-TAYYAB'=>'Tayyab',default=>'Shared–Common'};$l['expenseArea']='HOME';}
    $home=($l['expenseArea']??$l['location']??'')==='HOME'||$code==='6910';
    $homeId=$home&&($l['expenseFor']??'SHARED')!=='FAM-ABU'?sac_home_id($e,(string)($l['expenseFor']??'SHARED')):'';
    $id=(string)($l['expenseRecipientId']??$l['paymentPayeeId']??$meta['payeeId']??$source['payeeId']??'');
    $recipient=(string)($s['paymentPayees'][$e.'|'.$id]['name']??$l['counterparty']??$l['party']??$l['person']??$meta['payee']??$meta['beneficiary']??$source['payee']??'');
    $asset=(array)($s['managedAssets'][(string)($l['assetId']??'')]??[]);
-   $out[]=['homeLedgerId'=>$homeId,'homeLedgerName'=>$homeId!==''?sac_home_name((string)($l['expenseFor']??'SHARED')):'','date'=>$j['date'],'voucher'=>$j['id'],'journalId'=>$j['id'],'publicPostId'=>tt_accounts_public_post($s,$j),'sourceType'=>$j['sourceType']??'','account'=>$code,'accountName'=>$l['accountName']??$chart[$code]['name'],'expenseFor'=>$l['expenseFor']??'SHARED','expenseForName'=>$l['expenseForName']??'Shared–Common','expenseArea'=>$l['expenseArea']??$l['location']??$meta['location']??'','personalTreatment'=>$l['personalTreatment']??'COMPANY','recipient'=>$recipient,'recipientId'=>$id,'assetId'=>$l['assetId']??'','assetName'=>$l['assetName']??$asset['name']??'','registrationNo'=>$l['registrationNo']??$asset['registrationNo']??'','purpose'=>$l['expensePurpose']??$j['narration']??'','reference'=>$j['reference']??'','amount'=>round((float)($l['debit']??0)-(float)($l['credit']??0),2),'reversal'=>!empty($j['reversalOf'])];
+   $out[]=['homeMonthlyEntitlement'=>fhp_identity($s,$j,$l)['monthly'],'homeLedgerId'=>$homeId,'homeLedgerName'=>$homeId!==''?sac_home_name((string)($l['expenseFor']??'SHARED')):'','date'=>$j['date'],'voucher'=>$j['id'],'journalId'=>$j['id'],'publicPostId'=>tt_accounts_public_post($s,$j),'sourceType'=>$j['sourceType']??'','account'=>$code,'accountName'=>$l['accountName']??$chart[$code]['name'],'expenseFor'=>$l['expenseFor']??'SHARED','expenseForName'=>$l['expenseForName']??'Shared–Common','expenseArea'=>$l['expenseArea']??$l['location']??$meta['location']??'','personalTreatment'=>$l['personalTreatment']??'COMPANY','recipient'=>$recipient,'recipientId'=>$id,'assetId'=>$l['assetId']??'','assetName'=>$l['assetName']??$asset['name']??'','registrationNo'=>$l['registrationNo']??$asset['registrationNo']??'','purpose'=>$l['expensePurpose']??$j['narration']??'','reference'=>$j['reference']??'','amount'=>round((float)($l['debit']??0)-(float)($l['credit']??0),2),'reversal'=>!empty($j['reversalOf'])];
   }
  }
  // Separated payroll payments settle a liability and contain no second expense
@@ -484,8 +490,57 @@ function sac_family_person(string $name):string {
 function sac_family_catalog():array {
  $out=[];foreach(['SALMAN','TALHA','TAYYAB'] as $p){$out['FAMILY|'.$p.'|REMUNERATION']=ucfirst(strtolower($p)).' Remuneration';$out['FAMILY|'.$p.'|HOME']=($p==='SALMAN'?'SRP':ucfirst(strtolower($p))).' Home Expenses';}$out['FAMILY|ARP|EXPENSE']='ARP Expenses';return $out;
 }
+
+
+/** Saved allocation wins. No inference from children, narration, or shared percentages. */
+function fhp_identity(array $s,array $j,array $line):array {
+ $meta=(array)($j['meta']??[]);
+ $master=(array)($s['salaryMasters'][(string)($line['salaryMasterId']??$meta['salaryMasterId']??'')]??[]);
+ $category=(string)($line['category']??$meta['category']??$master['category']??'');
+ $saved=trim((string)($line['expenseFor']??$meta['expenseFor']??''));
+ $owner=$saved!==''?sac_family_person($saved):sac_family_person((string)($line['person']??$meta['person']??$master['name']??''));
+ return ['monthly'=>$category==='HOME_MONTHLY_GIVE','owner'=>$owner,
+  'key'=>(string)($line['salaryMasterId']??$meta['salaryMasterId']??$line['person']??$meta['person']??''),
+  'recipient'=>(string)($line['person']??$meta['person']??$master['name']??'')];
+}
+
+/** Reporting only: actual Mrs payments/advances, separately from unpaid entitlement. */
+function fhp_projection(array $s,string $entity,string $person,string $to):array {
+ $out=[];$unpaid=0.0;$warnings=[];$hidden=alv_hidden($s,$to);
+ foreach((array)($s['journals']??[]) as $j){
+  if(!is_array($j)||($j['entity']??'')!==$entity||!alv_posted($j)||isset($hidden[(string)($j['id']??'')])||!zp_valid_date((string)($j['date']??''))||$j['date']>$to)continue;
+  $cash=0.0;$groups=[];
+  foreach((array)($j['lines']??[]) as $l){
+   $code=(string)($l['account']??'');$dr=(float)($l['debit']??0);$cr=(float)($l['credit']??0);
+   if(in_array($code,['1110','1120'],true))$cash+=$cr-$dr;
+   $who=fhp_identity($s,$j,$l);if(!$who['monthly']||$who['owner']!==$person)continue;
+   $k=$who['key'];$groups[$k]??=['recipient'=>$who['recipient'],'debit'=>0.0,'credit'=>0.0,'advance'=>0.0,'cost'=>0.0];
+   if($code==='2230'){$unpaid+=$cr-$dr;$groups[$k]['debit']+=$dr;$groups[$k]['credit']+=$cr;}
+   if($code==='1230')$groups[$k]['advance']+=$dr-$cr;
+   if(in_array($code,['3200','6210','6220','6910'],true))$groups[$k]['cost']+=$dr-$cr;
+  }
+  if(abs($cash)<.005||!$groups)continue;
+  $source=(string)($j['sourceType']??'');
+  $original=$s['journals'][(string)($j['reversalOf']??'')]??null;
+  if(is_array($original)&&($original['entity']??'')===$entity)$source=(string)($original['sourceType']??$source);
+  $supported=in_array($source,['SALARY_PAYMENT','SALARY_BATCH_PAYMENT','SALARY_ALLOCATED_PAYMENT','SALARY_MONTH_COMPLETED','SALARY_ADVANCE'],true);
+  $sum=0.0;$pending=[];
+  foreach($groups as $g){
+   $amount=$source==='SALARY_ADVANCE'?$g['advance']:($cash>0?$g['debit']:-$g['credit']);
+   // A prepared month's advance adjustment is an internal transfer, not new cash.
+   if($source==='SALARY_MONTH_COMPLETED'&&abs($g['cost'])<.005)$amount+=$g['advance'];
+   if(abs($amount)<.005)continue;
+   $sum+=$amount;$pending[]=['journal'=>$j,'amount'=>round($amount,2),'recipient'=>$g['recipient']];
+  }
+  if(!$pending)continue;
+  if(!$supported||$sum*$cash<0||abs($sum)>abs($cash)+.005){$warnings[]='Review the household payment allocation in Post '.(string)$j['id'].'. Its cash amount could not be matched safely.';continue;}
+  array_push($out,...$pending);
+ }
+ return ['payments'=>$out,'unpaid'=>round($unpaid,2),'warnings'=>$warnings];
+}
+
 function sac_family_statement(array $s,string $entity,string $account,string $from,string $to):array {
- [$prefix,$person,$kind]=array_pad(explode('|',$account),3,'');$s=alv_amendment_books($s);$hidden=alv_hidden($s,$to);$out=[];$zakatPaid=[];$allocationWarnings=[];$zakatProjection=$kind==='REMUNERATION'?gm_zakat_payments($s,'0001-01-01',$to,$entity):['rows'=>[],'warnings'=>[]];if($kind==='REMUNERATION')foreach($zakatProjection['rows'] as $payment)foreach($payment['payrollComponents']??[] as $part){$who=sac_family_person((string)($s['salaryMasters'][$part['salaryMasterId']]['name']??''));if($who===$person)$zakatPaid[$payment['postId']]=($zakatPaid[$payment['postId']]??0)+(float)$part['amountPKR'];}
+ [$prefix,$person,$kind]=array_pad(explode('|',$account),3,'');$s=alv_amendment_books($s);$hidden=alv_hidden($s,$to);$out=[];$homePayments=$kind==='HOME'?fhp_projection($s,$entity,$person,$to):null;$zakatPaid=[];$allocationWarnings=[];$zakatProjection=$kind==='REMUNERATION'?gm_zakat_payments($s,'0001-01-01',$to,$entity):['rows'=>[],'warnings'=>[]];if($kind==='REMUNERATION')foreach($zakatProjection['rows'] as $payment)foreach($payment['payrollComponents']??[] as $part){$who=sac_family_person((string)($s['salaryMasters'][$part['salaryMasterId']]['name']??''));if($who===$person)$zakatPaid[$payment['postId']]=($zakatPaid[$payment['postId']]??0)+(float)$part['amountPKR'];}
  // A fully funded voucher may carry explicit Zakat expense legs directly,
  // rather than a separated payroll component. Use only its identified legs.
  if($kind==='REMUNERATION')foreach($zakatProjection['rows'] as $payment)if(empty($payment['payrollComponents'])){
@@ -517,15 +572,16 @@ function sac_family_statement(array $s,string $entity,string $account,string $fr
    $add($j,round($controlDebit-($zakatPaid[$j['id']]??0),2),'Payment / personal use · '.sac_journal_narration($s,$j),(string)($meta['payee']??$meta['paymentRecipient']??''),'PAYMENT');
   }else$add($j,$amount,sac_journal_narration($s,$j),(string)($meta['payee']??$meta['paymentRecipient']??''));
  }
+ if($homePayments){foreach($homePayments['payments'] as $paid)$add($paid['journal'],$paid['amount'],'Household payment / advance',$paid['recipient']);$allocationWarnings=array_merge($allocationWarnings,$homePayments['warnings']);}
  if($kind!=='REMUNERATION')foreach(sac_expense_activity($s,$entity,'0001-01-01',$to) as $a){
   if(($person!=='ARP'&&($a['personalTreatment']??'COMPANY')!=='COMPANY')||in_array((string)$a['account'],['7200','7210','7220','7230'],true))continue;
   $who=sac_family_person((string)($a['expenseFor']??''));$recipient=(string)$a['recipient'];
-  // Explicit owner instruction: this recipient's company-paid household costs belong to SRP.
-  $samad=sac_normal($recipient)==='abdulsamadabdulaziz'&&(($a['expenseArea']??'')==='HOME'||$a['account']==='6910')&&!in_array((string)$a['account'],['7200','7210','7220','7230'],true);
-  if($samad&&in_array($who,['','SALMAN'],true))$who='SALMAN';
-  $home=($a['homeLedgerId']??'')!==''||$samad;
+  // Recipient names describe who was paid, never who owns the expense.
+  $home=($a['homeLedgerId']??'')!=='';
   if($who!==$person||($person!=='ARP'&&!$home))continue;
   $j=$s['journals'][$a['voucher']]??null;if(!$j)continue;
+  // Monthly entitlement is shown separately; only its actual payment enters Home.
+  if($kind==='HOME'&&!empty($a['homeMonthlyEntitlement']))continue;
   $add($j,(float)$a['amount'],(string)$a['accountName'].' · '.(string)$a['purpose'],$recipient);
  }
  usort($out,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strnatcmp($a['voucher'],$b['voucher']));
@@ -533,7 +589,7 @@ function sac_family_statement(array $s,string $entity,string $account,string $fr
  $groups=[];foreach($out as $r){$key=$r['voucher'].'|'.$r['statementLine'];if(!isset($groups[$key]))$groups[$key]=$r;else{$groups[$key]['debit']+=$r['debit'];$groups[$key]['credit']+=$r['credit'];if(!str_contains($groups[$key]['narration'],$r['narration']))$groups[$key]['narration'].='; '.$r['narration'];}}
  $opening=0.0;$rows=[];$balance=0.0;foreach($groups as $r){$net=round($r['debit']-$r['credit'],2);if(abs($net)<.005)continue;$r['debit']=max(0,$net);$r['credit']=max(0,-$net);$balance=round($balance+$net,2);if($r['date']<$from){$opening=$balance;continue;}$r['balance']=$balance;$rows[]=$r;}
  if($allocationWarnings)foreach($rows as &$r)$r['balance']=null;unset($r);
- return ['rows'=>$rows,'warnings'=>array_values(array_unique($allocationWarnings)),'balanceUnavailable'=>(bool)$allocationWarnings,'opening'=>$allocationWarnings?null:$opening,'closing'=>$allocationWarnings?null:$balance,'balanceMeaning'=>$allocationWarnings?'Allocation review required':($kind==='REMUNERATION'?($balance>0?'Payable to company':($balance<0?'Company owes family member':'Settled')):'Company-borne expenses'),'familyStatement'=>true];
+ return ['unpaidHomeEntitlement'=>$homePayments['unpaid']??null,'rows'=>$rows,'warnings'=>array_values(array_unique($allocationWarnings)),'balanceUnavailable'=>(bool)$allocationWarnings,'opening'=>$allocationWarnings?null:$opening,'closing'=>$allocationWarnings?null:$balance,'balanceMeaning'=>$allocationWarnings?'Allocation review required':($kind==='REMUNERATION'?($balance>0?'Payable to company':($balance<0?'Company owes family member':'Settled')):($kind==='HOME'?'Actual household payments / use':'Company-borne expenses')),'familyStatement'=>true];
 }
 /** Historical expense recipients are payment details unless they also have a balance account. */
 function sac_expense_history_only(array $s,string $entity):array {
@@ -564,7 +620,6 @@ function sac_ledger_reviews(array $s,string $entity):array {
    if($key!==''&&$expense)$recipients[$key]=$recipient;
    $type='';
    if($expense&&($l['personalTreatment']??'COMPANY')==='COMPANY'&&(($l['expenseArea']??$l['location']??'')==='HOME'||$code==='6910')&&($l['expenseFor']??'SHARED')==='SHARED')$type='Household assignment needs review';
-   if($expense&&sac_normal($recipient)==='abdulsamadabdulaziz'&&$code!=='6910'&&!in_array($code,['7200','7210','7220','7230'],true))$type='SRP household classification needs review';
    if($expense&&$code!=='7210'&&function_exists('zp_zakat_text')&&zp_zakat_text($purpose))$type='Zakat purpose outside Zakat ledger';
    if((float)($l['debit']??0)===0.0&&(float)($l['credit']??0)===0.0)$type='Zero-value posting line';
    if($type!=='')$reviews[]=['type'=>$type,'reference'=>tt_accounts_public_post($s,$j),'detail'=>$purpose.($recipient!==''?' · Paid to '.$recipient:''),'postId'=>(string)$j['id']];

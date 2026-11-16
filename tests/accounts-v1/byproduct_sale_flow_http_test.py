@@ -86,6 +86,21 @@ require $argv[1];
     print('PASS historical unclassified receipt preserved exactly; separate sale/application clears its original advance.')
     seed(initial());approve_sale();p=approve_pay();assert balance('2510')==0 and balance('1220')==0 and balance('1110')==222704
     print('PASS sale first then full receipt: buyer balance cleared, no advance balance.')
+    # Receipt display name may differ from the original invoice. Clear its saved buyer.
+    x=initial();x['localSalesPaymentCandidates']['PAY']['party']='Fixture buyer powder'
+    seed(x);approved=approve_sale();p=approve_pay()
+    original_ar=next(l for l in approved['journal']['lines'] if l['account']=='1220')
+    settled_ar=next(l for l in p['journal']['lines'] if l['account']=='1220')
+    assert settled_ar['party']==original_ar['party'] and balance('1220')==0
+    # Advance debit must preserve the receipt's identity even when the sale name differs.
+    seed(x);p=approve_pay();approved=approve_sale()
+    advance_credit=next(l for l in p['journal']['lines'] if l['account']=='2510')
+    advance_debit=next(l for l in approved['advanceJournal']['lines'] if l['account']=='2510')
+    sale_debit=next(l for l in approved['journal']['lines'] if l['account']=='1220')
+    sale_credit=next(l for l in approved['advanceJournal']['lines'] if l['account']=='1220')
+    assert advance_debit['party']==advance_credit['party']
+    assert sale_credit['party']==sale_debit['party'] and balance('1220')==0 and balance('2510')==0
+    print('PASS changed display names clear original buyer and advance identities without duplicate payments.')
     x=initial();x['localSalesPaymentCandidates']['PAY']['amount']=250000;seed(x);approve_sale();approve_pay();assert balance('1220')==0 and balance('2510')==-27296
     print('PASS excess payment: only excess 27296 remains in advances.')
     x=initial();x['localSalesPaymentCandidates']['PAY']['amount']=100000;seed(x);approve_sale();approve_pay();assert balance('1220')==122704 and balance('2510')==0

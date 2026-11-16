@@ -29,8 +29,8 @@
       "costOfSales":"Must be paired/reconciled to finished-goods inventory cost before period close."
     },
     "TG_PAKISTAN_INTERCOMPANY": {
-      "debit":"1240 Intercompany Receivables",
-      "credit":"4500 Intercompany Sales",
+      "debit":"1240 Customer / Export Receivables — Overseas",
+      "credit":"4500 Export Sales — Overseas",
       "requiresControlConfirmation":true,
       "requiresExplicitIntercompanyValue":true,
       "requiresFunctionalCurrencyAmount":true,

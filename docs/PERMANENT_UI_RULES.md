@@ -889,3 +889,9 @@ Management reports use recorded FIFO rice buying prices weighted by the consumed
 
 ### Owner confirmation — FIFO recorded buying prices (13 November 2026)
 Raw rice in management reports uses original recorded purchase FIFO: oldest eligible receipt first, scoped to company, mill, variety and rice type. Divide the consumed layers' value by their consumed kilograms to show the weighted FIFO rate. Do not use a lifetime purchase average or Directors market price instead. Missing/incomplete recorded layers remain visible in reporting only, never block operational entries. Keep Rs3/kg estimated mill expenses and the Directors by-product estimate/recorded sales basis; actual mill expenses remain separate for comparison. Reading a report changes no stock or journal.
+
+## Family allocation and account audit — 16 November 2026
+
+- Saved Allocate To determines household ownership. Do not split or reassign expenses from children’s names or narration. Recipient details may be retained without becoming allocation rules.
+- Family Home reporting counts actual household payments/use once; monthly unpaid entitlement is shown separately. A prepared monthly amount is not a cash payment. Internal advance application and company-owned investment funding must not inflate household spending. Preserve original journals and posting permissions.
+- Chart export party details must follow each line’s saved invoice/candidate link, including receipts. Resolve only unambiguous master aliases and same-company sources; expose unmatched detail rather than invent a balancing journal.

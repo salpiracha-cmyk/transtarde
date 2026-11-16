@@ -15,10 +15,41 @@ function acw_zip(array $files): string{
  foreach($files as $name=>$content){$n=strlen($name);$len=strlen($content);$crc=crc32($content);$local=pack('VvvvvvVVVvv',0x04034b50,20,0,0,0,33,$crc,$len,$len,$n,0).$name.$content;$central.=pack('VvvvvvvVVVvvvvvVV',0x02014b50,20,20,0,0,0,33,$crc,$len,$len,$n,0,0,0,0,0,$offset).$name;$data.=$local;$offset+=strlen($local);}
  return $data.$central.pack('VvvvvVVv',0x06054b50,0,0,count($files),count($files),strlen($central),strlen($data),0);
 }
-function acw_party(array $line,array $journal,array $store,array $masters): string {
- $meta=(array)($journal['meta']??[]);$sources=[$line,$meta];
- foreach(['candidateId'=>'exportCandidates','receiptId'=>'exportReceipts','supplierBillId'=>'supplierBills','bagBillId'=>'bagSupplierBills','purchaseId'=>'otherPurchases','billId'=>'commodityBills'] as $key=>$collection){$row=(array)($store[$collection][(string)($meta[$key]??'')]??[]);$sources[]=$row;$sources[]=(array)($row['meta']??[]);}
- foreach($sources as $source)foreach(['supplier','broker','customer','counterparty','party','vendor','subledger'] as $field){$name=trim((string)($source[$field]??''));if($name==='')continue;foreach(['business_parties','export_customers'] as $type)foreach((array)($masters[$type]??[]) as $master){$canonical=trim((string)($master['values'][0]??''));if($canonical!==''&&job_key($canonical)===job_key($name))return $canonical;}return $name;}
+function acw_party(array $line,array $journal,array $store,array $masters,array $seen=[]): string {
+ $meta=(array)($journal['meta']??[]);$sources=[$line];
+ $bill=$store['commodityBills'][(string)($meta['billId']??'')]??null;
+ if(is_array($bill)&&($bill['entity']??$journal['entity']??'')===($journal['entity']??'')){
+  $party=match((string)($line['account']??'')){
+   '2110'=>trim((string)($bill['payee']??$bill['relationshipName']??$meta['relationshipName']??'')),
+   '2120'=>trim((string)($bill['broker']??$meta['broker']??'')),
+   '2210'=>trim((string)($bill['supplier']??$meta['supplier']??'')),
+   default=>''};
+  if($party!=='')$sources[]=['counterparty'=>$party];
+ }
+
+ // Receipt allocations carry their invoice identity on the individual line.
+ foreach([$line,$meta] as $context){
+  foreach(['candidateId'=>'exportCandidates','sourceCandidateId'=>'exportCandidates','receiptId'=>'exportReceipts','supplierBillId'=>'supplierBills','bagBillId'=>'bagSupplierBills','purchaseId'=>'otherPurchases','billId'=>'commodityBills'] as $key=>$collection){
+   $row=$store[$collection][(string)($context[$key]??'')]??null;
+   if(!is_array($row)||(($row['entity']??$journal['entity']??'')!==($journal['entity']??'')))continue;
+   $sources[]=$row;$sources[]=(array)($row['meta']??[]);
+  }
+  if($context===$line)$sources[]=$meta;
+ }
+ foreach($sources as $source)foreach(['supplier','broker','customer','counterparty','party','vendor','subledger','person'] as $field){
+  $name=trim((string)($source[$field]??''));if($name==='')continue;$matches=[];
+  foreach(['business_parties','export_customers'] as $type)foreach((array)($masters[$type]??[]) as $master){$canonical=trim((string)($master['values'][0]??''));$code=trim((string)($master['values'][1]??''));if($canonical!==''&&(job_key($canonical)===job_key($name)||($code!==''&&job_key($code)===job_key($name))))$matches[$canonical]=true;}
+  return count($matches)===1?(string)array_key_first($matches):$name;
+ }
+ // Legacy reversal metadata may be absent. Inherit only one proven opposite leg.
+ $id=(string)($journal['id']??'');$originalId=(string)($journal['reversalOf']??$meta['reversalOf']??'');
+ if($originalId!==''&&!isset($seen[$originalId])&&count($seen)<8){
+  $original=$store['journals'][$originalId]??null;
+  if(is_array($original)&&($original['entity']??'')===($journal['entity']??'')){
+   $matches=[];foreach((array)($original['lines']??[]) as $other)if(($other['account']??'')===($line['account']??'')&&abs((float)($other['debit']??0)-(float)($line['credit']??0))<.005&&abs((float)($other['credit']??0)-(float)($line['debit']??0))<.005)$matches[]=$other;
+   if(count($matches)===1){$seen[$id]=true;return acw_party($matches[0],$original,$store,$masters,$seen);}
+  }
+ }
  return '';
 }
 function acw_document(array $master,array $store,array $masters,array $entities,string $date): string{
@@ -31,7 +62,8 @@ function acw_document(array $master,array $store,array $masters,array $entities,
   foreach((array)($masters['banks']??[]) as $b){$v=(array)($b['values']??[]);$link=strtoupper((string)($v[1]??''));$owner=str_contains($link,'TRANS GRAINS')||preg_match('/\bTG\b/',$link)?'TG':(str_contains($link,'BUKSH RICE')||preg_match('/\bBRM\b/',$link)?'BRM':(str_contains($link,'TRANSTRADE INTERNATIONAL')||preg_match('/\bTTI\b/',$link)?'TTI':''));if($owner!==$e||!in_array($v[0]??'',['Company Account','Proprietor / Owner Account','Personal Account'],true))continue;$id=(string)$b['id'];$banks[$id]=['name'=>trim(($v[4]??'').' / '.(($v[8]??'')?:($v[9]??'')).' / '.($v[7]??'').' / '.($v[3]??'')),'currency'=>strtoupper((string)($v[7]??$base))];$native[$id]=0.0;}
   foreach((array)($store['journals']??[]) as $j){if(($j['entity']??'')!==$e||!alv_posted($j)||!zp_valid_date((string)($j['date']??''))||(string)($j['date']??'')>$date)continue;foreach((array)($j['lines']??[]) as $l){$code=(string)($l['account']??'');if(!$code)continue;$catalog[$code]??=['code'=>$code,'name'=>$l['accountName']??$code];$delta=(float)($l['debit']??0)-(float)($l['credit']??0);$heads[$code]=($heads[$code]??0)+$delta;
    if($code==='1110'){$id=(string)($l['bankAccountId']??$j['meta']['bankAccountId']??'');if($id===''){$subs[$code]['Unassigned bank entries']=($subs[$code]['Unassigned bank entries']??0)+$delta;continue;}$banks[$id]??=['name'=>$l['bankName']??$id,'currency'=>$l['currency']??$base];if($banks[$id]['currency']===$base)$native[$id]=($native[$id]??0)+$delta;elseif(isset($l['bankDebit'])||isset($l['bankCredit']))$native[$id]=($native[$id]??0)+(float)($l['bankDebit']??0)-(float)($l['bankCredit']??0);else $nativeMissing[$id]=true;continue;}
-   if(empty($catalog[$code]['subledger'])||!empty($l['subaccountId'])||!in_array($catalog[$code]['class']??'',['Asset','Liability'],true)||in_array($code,['1260','2300'],true))continue;$party=acw_party($l,$j,$store,$masters);if($party!=='')$subs[$code][$party]=($subs[$code][$party]??0)+$delta;
+   if($code==='1120'&&sac_line_subaccount_id($store,$j,$l)===''){$cashId=alv_cash_id($l,$e);$cashLabel=$cashId==='CASH|'.$e?'Office Petty Cash':(!empty($l['millLocationId'])?'Mill Petty Cash · '.(string)($l['millName']??$l['millLocationName']??$l['millLocationId']):'Cash with '.(string)($store['pettyCashHolders'][$cashId]['name']??$l['cashAccountName']??$cashId));$subs[$code][$cashLabel]=($subs[$code][$cashLabel]??0)+$delta;continue;}
+   if(empty($catalog[$code]['subledger'])||sac_line_subaccount_id($store,$j,$l)!==''||!in_array($catalog[$code]['class']??'',['Asset','Liability'],true)||in_array($code,['1260','2300'],true))continue;$party=acw_party($l,$j,$store,$masters);if($party!=='')$subs[$code][$party]=($subs[$code][$party]??0)+$delta;
   }}
   $named=function_exists('sac_payload')?sac_payload($store,$e,'',$date)['subaccounts']:[];
   $map=job_role_accounts();
@@ -43,6 +75,7 @@ function acw_document(array $master,array $store,array $masters,array $entities,
    $walkSub=function(array $sub,int $depth)use(&$walkSub,&$rows,$named,$money,$base):void{$n=$sub['balance'];$rows[]=['',str_repeat('  ',$depth).$sub['name'],$n>0?$money($n):'0.00',$n<0?$money($n):'0.00',$base];foreach($named as $child)if(($child['parentId']??'')===$sub['id'])$walkSub($child,$depth+1);};
    foreach($named as $sub)if(empty($sub['parentId'])&&$sub['parentCode']===(string)$code)$walkSub($sub,(int)($a['depth']??0)+1);
    $parties=$subs[$code]??[];foreach($named as $sub)if($sub['parentCode']===(string)$code)foreach(array_keys($parties) as $name)if(job_key($name)===job_key($sub['name']))unset($parties[$name]);uksort($parties,'strnatcasecmp');foreach($parties as $name=>$n)$rows[]=['','  '.$name,$n>0?$money($n):'0.00',$n<0?$money($n):'0.00',$base];
+   if(!$heading&&(string)$code!=='1110'){$assigned=array_sum($parties);foreach($named as $sub)if(empty($sub['parentId'])&&$sub['parentCode']===(string)$code)$assigned+=(float)$sub['balance'];$remaining=round($balance-$assigned,2);if(abs($remaining)>.005&&($parties||array_filter($named,static fn($sub)=>$sub['parentCode']===(string)$code)))$rows[]=['','  Unassigned / unmatched postings — review',$remaining>0?$money($remaining):'0.00',$remaining<0?$money($remaining):'0.00',$base];}
   }
   $rows[]=['','Account head totals',$money($dr),$money($cr),$base];$body.=acw_table($rows);
  }

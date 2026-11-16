@@ -154,18 +154,28 @@ function lsc_buyer_advance_extra(array &$books,string $entity,array $user): arra
 /** Clear the same advance subsidiaries that received the money, including legacy
  * unclassified receipts. Never rewrite an old bank entry to add a label. */
 function lsc_advance_allocations(array $books,string $entity,string $soda,float $amount): array {
+    return lsc_control_allocations($books,$entity,$soda,$amount,'2510',true);
+}
+/** Settle the identities actually posted to this SODA, even if its display name changed. */
+function lsc_receivable_allocations(array $books,string $entity,string $soda,float $amount): array {
+    return lsc_control_allocations($books,$entity,$soda,$amount,'1220',false);
+}
+function lsc_control_allocations(array $books,string $entity,string $soda,float $amount,string $account,bool $creditNormal): array {
     $buckets=[];
     foreach((array)($books['journals']??[]) as $j){
         if(($j['entity']??'')!==$entity||($j['status']??'')!=='Posted')continue;
         foreach((array)($j['lines']??[]) as $l){
-            if(($l['account']??'')!=='2510'||(string)($l['soda']??$j['meta']['soda']??$j['meta']['targetSoda']??$j['meta']['advanceSoda']??'')!==$soda)continue;
-            $key=(string)($l['subaccountId']??'');
-            $buckets[$key]??=['balance'=>0.,'extra'=>array_intersect_key($l,array_flip(['subaccountId','subaccountName','parentAccount','buyerType']))];
-            $buckets[$key]['balance']+=(float)($l['credit']??0)-(float)($l['debit']??0);
+            if(($l['account']??'')!==$account||(string)($l['soda']??$j['meta']['soda']??$j['meta']['targetSoda']??$j['meta']['advanceSoda']??'')!==$soda)continue;
+            $extra=array_intersect_key($l,array_flip(['subaccountId','subaccountName','parentAccount','buyerType','party','counterparty','customer','subledger']));
+            $party=trim((string)($l['customer']??$l['counterparty']??$l['party']??$l['subledger']??$j['meta']['party']??''));
+            if($party!=='')$extra=array_merge($extra,['party'=>$party,'counterparty'=>$party,'subledger'=>$party]);
+            $key=(string)($l['subaccountId']??'').'|'.strtolower($party);
+            $buckets[$key]??=['balance'=>0.,'extra'=>$extra];
+            $buckets[$key]['balance']+=($creditNormal?1:-1)*((float)($l['credit']??0)-(float)($l['debit']??0));
         }
     }
     $out=[];foreach($buckets as $bucket){$take=round(min($amount,max(0,$bucket['balance'])),2);if($take<=0)continue;$out[]=['amount'=>$take,'extra'=>$bucket['extra']];$amount=round($amount-$take,2);if($amount<=.005)break;}
-    if($amount>.005)throw new DomainException('The buyer advance allocation changed. Reopen the saved sale.');
+    if($amount>.005)throw new DomainException('The buyer balance changed. Reopen the saved sale.');
     return $out;
 }
 /** Hold the Accounts read lock until the operational commit/rollback finishes.
