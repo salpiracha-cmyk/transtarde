@@ -32,6 +32,36 @@ console.log('PASS actual FI form conditional fields, retained L/C facts, TG cust
 const customer={id:'DOM-C',name:'DOM Buyer',code:'DOM',address:'Dubai',packingDefault:'KG',nextSeq:1};
 t.state.customers.push(customer);
 const contract={id:'DOM-CT',ref:'TTI/DOM/01',seller:'TTI',customerId:customer.id,date:'2026-09-08',product:'IRRI-6 White Rice',broken:5,brokenText:'5%',finish:'Silky Polished & Sortexed',cropYear:'2025/2026',quality:'Free from live insects, bad odour and rice fit for human consumption.',specMode:'Contract Specific',specRows:[{name:'Moisture',value:'14% MAX'}],containers:4,weightPer:27,qty:108,tolerance:5,pol:'Port Qasim',podPort:'Jebel Ali',packingUnit:'KG',currency:'USD',incoterm:'CIF',inspection:'SGS',insurance:"Seller's Account",paymentCode:'LC_SIGHT',docs:t.defaultDocsFor({incoterm:'CIF'}),terms:[],signedDeadline:'2026-09-10',paymentDeadline:'2026-09-12',issued:true,received:true,status:'Contract Received',packings:[{type:'PP Bags',size:25,brand:'DOM BRAND',tare:80,containers:4,weightPer:27,price:400,freight:20,insurance:2,extraBagPct:2,masterBag:{enabled:true,bagsPerMaster:2,qty:2204,tare:120}}]};
+// Exercise the live payment step with Master Records presets and an issued wording snapshot.
+const presetRows=[
+ {id:'MADE-INACTIVE',values:['Inactive term','ADV_CAD','Do not select','5','Inactive','','']},
+ {id:'CAD100',values:['100% CAD','CAD100','','20','Active','','']},
+ {id:'PRESET-30',values:['30% advance / scans','ADV_SCAN','{{advance}}% advance and {{balance}}% against scan copies.','10','Active','30','']}
+];
+w.TT_MODULE_ACCESS.masters.export_payment_terms=presetRows;
+const paymentDraft={...contract,id:'DOM-PAYMENT',ref:'TTI/DOM/PAYMENT',issued:false,status:'Draft',draftStep:6,paymentCode:'CAD100'};
+t.state.contracts.push(paymentDraft);
+t.openContract(paymentDraft.id);
+const choosePayment=d.getElementById('cPayment');
+assert.deepEqual([...choosePayment.options].map(option=>option.value),['PRESET-30','CAD100','CUSTOM']);
+choosePayment.value='PRESET-30';
+choosePayment.dispatchEvent(new w.Event('change',{bubbles:true}));
+let selectedPayment=t.getContractDraft();
+assert.equal(selectedPayment.paymentCode,'ADV_SCAN');
+assert.equal(selectedPayment.advancePct,30);
+assert.equal(d.getElementById('cAdvance').readOnly,true);
+assert.match(d.getElementById('salesContractPreview').textContent,/30% advance and 70% against scan copies/);
+Object.assign(paymentDraft,structuredClone(selectedPayment),{issued:true,status:'Received'});
+presetRows[2].values[0]='Edited label';
+presetRows[2].values[2]='Edited wording.';
+presetRows[2].values[4]='Inactive';
+t.openContract(paymentDraft.id);
+assert.match(d.getElementById('salesContractPreview').textContent,/30% advance and 70% against scan copies/);
+assert.doesNotMatch(d.getElementById('salesContractPreview').textContent,/Edited wording/);
+t.state.contracts.pop();
+delete w.TT_MODULE_ACCESS.masters.export_payment_terms;
+console.log('PASS Sales Contract payment presets: active order, method fields, saved wording and deactivation');
+
 const firstIssue={...contract,id:'DOM-DRAFT',ref:'TTI/DOM/DRAFT',issued:false,received:false,status:'Draft'};t.state.contracts.push(firstIssue);const firstIssueContractCount=t.state.contracts.length,firstIssueProcessCount=t.state.shipments.filter(x=>x.kind!=='lot').length;t.openContract(firstIssue.id);t.saveContract(false);assert.equal(t.state.contracts.length,firstIssueContractCount,'first issue finalizes the existing draft instead of duplicating it');assert.equal(t.state.shipments.filter(x=>x.kind!=='lot').length,firstIssueProcessCount+1,'first issue creates exactly one active shipment');assert.equal(t.state.shipments.filter(x=>x.kind!=='lot'&&x.contractRef===firstIssue.ref).length,1,'first issue has one parent shipment for its contract reference');
 t.state.contracts.push({...contract,id:'DOM-AMEND',ref:'TTI/DOM/00',received:false,status:'Awaiting Customer Confirmation'});const amendmentProcess=t.makeShipment(t.state.contracts.at(-1));t.state.shipments.push(amendmentProcess);const amendmentProcessId=amendmentProcess.id,contractCountBefore=t.state.contracts.length,processCountBefore=t.state.shipments.filter(x=>x.kind!=='lot').length;t.openContract('DOM-AMEND');t.setContractStep(2);t.getContractDraft().shipmentDate='2026-10-01';assert.equal(t.persistContractStepDraft(),true);assert.equal(t.state.contracts.find(x=>x.id==='DOM-AMEND').issued,true,'Next does not demote an issued contract to a new Draft');t.saveContract(false);assert.equal(t.state.contracts.length,contractCountBefore,'amendment updates the existing Sales Contract record');assert.equal(t.state.shipments.filter(x=>x.kind!=='lot').length,processCountBefore,'amendment does not create another active shipment');assert.equal(t.state.shipments.find(x=>x.contractRef==='TTI/DOM/00').id,amendmentProcessId,'amendment preserves the original active shipment ID');
 t.state.contracts.push(contract);const process=t.makeShipment(contract);process.bagOrders=[{poNo:'PO-DOM',lines:[{packingIndex:0,totalBags:4407}]}];process.production.sentToMill=true;t.state.shipments.push(process);t.showHome();

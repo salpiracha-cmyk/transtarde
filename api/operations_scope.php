@@ -149,7 +149,7 @@ function os_workflow_selector_allowed(array $user,string $module,string $selecto
         'Mill|locations'=>['queue','arrival','export','production','newbags'],
         'Accounts|locations'=>['purchases','expenses'],
         'Exports|bagSuppliers'=>['bags'],
-        'Exports|indentors'=>['contract','contracts'],
+        'Exports|indentors','Exports|paymentPresets'=>['contract','contracts'],
         'Mill|brokers'=>['queue','arrival'],
         'Mill|purchaseProducts'=>['queue','arrival'],
         default=>[],
@@ -192,6 +192,15 @@ function os_export_document_bank_rows(array $user,array $rows): array {
     return $options;
 }
 
+function os_export_payment_preset_rows(array $masters): array {
+    $rows=[];
+    foreach ((array)($masters['export_payment_terms']??[]) as $row) {
+        if (!is_array($row) || ($row['values'][4]??'')!=='Active') continue;
+        $rows[]=['id'=>$row['id'],'values'=>$row['values']];
+    }
+    return $rows;
+}
+
 function os_workflow_selectors(array $user,string $module): array {
     $options=[];
     $locations=os_workflow_selector_allowed($user,$module,'locations')
@@ -204,8 +213,10 @@ function os_workflow_selectors(array $user,string $module): array {
     }
     $products=os_workflow_selector_allowed($user,$module,'purchaseProducts')
         && !tt_user_can_master($user,'purchase_products','View')&&!tt_user_can_master($user,'purchase_products','Use');
-    if(!$locations&&!$banks&&!$partyRoles&&!$products)return $options;
+    $paymentPresets=os_workflow_selector_allowed($user,$module,'paymentPresets');
+    if(!$locations&&!$banks&&!$partyRoles&&!$products&&!$paymentPresets)return $options;
     $masters=tt_list_masters();
+    if($paymentPresets)$options['export_payment_terms']=os_export_payment_preset_rows($masters);
     if($locations)$options['locations']=os_workflow_location_rows($user,(array)($masters['mills']??[]));
     if($banks)$options['documentBanks']=os_export_document_bank_rows($user,(array)($masters['banks']??[]));
     if($partyRoles){
