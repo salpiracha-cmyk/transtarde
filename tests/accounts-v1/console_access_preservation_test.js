@@ -65,8 +65,17 @@ const {JSDOM} = require('jsdom');
   w.testConsole.openUserDialog();w.document.getElementById('userName').value='New Director';w.document.getElementById('username').value='new.director';role.value='Director';role.dispatchEvent(new w.Event('change'));requests.length=0;await w.testConsole.saveUser({preventDefault(){}});const created=requests.find(x=>x.action==='create');assert(created&&created.role==='Director');assert.deepEqual(created.permissions,{},'Role-only creation requires no boxes or persistent synthetic grants');
   staff.role='Director';staff.permissions=[];staff.masterPermissions=[];w.testConsole.openUserDialog('2');role.value='Accounts';role.dispatchEvent(new w.Event('change'));w.document.querySelector('[data-permission-module="Accounts"][data-permission-icon="reports"][value="View"]').checked=true;w.document.getElementById('userMasterAccess').checked=true;w.document.querySelector('[data-master-permission="companies"][value="View"]').checked=true;sent=await save();assert.deepEqual(sent.permissions,{Accounts:{reports:['View']}},'Empty PHP grant arrays must become a map before adding custom staff scope');assert.deepEqual(sent.masterPermissions,{companies:['View']});
   assert.match(w.document.getElementById('userRows').textContent,/17-10-2026, 01:00/);
-  for(const name of ['export_customers','business_parties','export_documents','export_terms']) {
-    w.document.querySelector(`[data-master="${name}"]`).click();
+  for(const name of ['export_customers','business_parties']) {
+    w.document.querySelector(`#masterMenu [data-master="${name}"]`).click();
+    assert.equal([...w.document.querySelectorAll('#masterTableHead th')].filter(x=>x.textContent==='Status').length,1);
+  }
+  const contractTerms=w.document.querySelector('#masterMenu [data-master="export_payment_terms"]');
+  assert.equal(contractTerms.textContent,'Export Contract Terms');
+  contractTerms.click();
+  assert.deepEqual([...w.document.querySelectorAll('#exportContractMasterTabs nav button')].map(button=>button.textContent),['Payment Terms','Documents Presented','Other Terms']);
+  for(const name of ['export_payment_terms','export_documents','export_terms']) {
+    w.document.querySelector(`#exportContractMasterTabs [data-master="${name}"]`).click();
+    assert.equal(w.document.getElementById('masterTitle').textContent,'Export Contract Terms');
     assert.equal([...w.document.querySelectorAll('#masterTableHead th')].filter(x=>x.textContent==='Status').length,1);
   }
   w.document.querySelector('[data-master="salary_staff"]').click();
