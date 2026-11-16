@@ -853,6 +853,7 @@ function tt_create_master(string $type, array $values, ?string $requestId=null):
         }
         if($type==='companies')foreach($data['masters'][$type] as $row)if(strcasecmp(trim((string)($row['values'][1]??'')),trim((string)($values[1]??'')))===0)throw new InvalidArgumentException('This company short code already belongs to another company. Open that existing company instead.');
         if(in_array($type,['business_parties','export_customers','companies','mills'],true))foreach($data['masters'][$type] as $row)if(tt_master_names_conflict((string)($values[0]??''),(string)($row['values'][0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
+        if ($type==='export_payment_terms') tt_validate_export_payment_term($values,$data['masters'][$type]);
         $id=$type.'-'.random_int(100000,999999999);
         $row=['id'=>$id,'values'=>$values];
         if($requestId!==null){$row['createRequestId']=$requestId;$row['createRequestHash']=tt_master_revision($values);}
@@ -888,6 +889,7 @@ function tt_update_master(string $type, string $id, array $values, ?string $expe
             $current=null;foreach($data['masters'][$type] as $row)if(($row['id']??'')===$id)$current=$row;
             if(tt_master_name_identity((string)($current['values'][0]??''),$type)!==tt_master_name_identity((string)($values[0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
         }
+        if ($type==='export_payment_terms') tt_validate_export_payment_term($values,$data['masters'][$type],$id);
         foreach ($data['masters'][$type] as &$row) if (($row['id'] ?? '')===$id) {
             // Company documents are written through the dedicated upload API.
             // Preserve the latest file identities under the same store lock.

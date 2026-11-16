@@ -49,7 +49,7 @@ assert.match(masterApi,/\$action==='purge'/);
 assert.doesNotMatch(masterApi,/Deactivate this record before deleting it permanently/);
 assert.match(masterApi,/business_parties'=>10/);
 assert.match(admin,/permanentlyDeletable=new Set\(\["export_customers","business_parties"/);
-assert.match(admin,/mills:5,export_documents:4,export_terms:2/);
+assert.match(admin,/mills:5,export_payment_terms:4,export_documents:4,export_terms:2/);
 assert.match(admin,/row-action deactivated/);
 assert.match(masterApi,/already linked to operational history/);
 assert.match(admin,/data-purge-master/);

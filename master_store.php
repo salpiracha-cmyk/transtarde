@@ -326,6 +326,14 @@ function tt_default_masters(): array {
             ['id'=>'purchase-kat-rice-irri6-white-raw','values'=>['RICE','IRRI-6','White','RAW','IRRI-6 White Raw KAT','','','Draft – review required','Only confirmed parameter/range rows may be activated. “Paddy grains in rice” is a quality count, not a paddy purchase.','[{"name":"Broken","freeAllowance":"20%","unit":"paisa per %","instruction":"","ranges":[{"from":"20","to":"30","value":"2","unit":"paisa per %"},{"from":"30","to":"35","value":"3","unit":"paisa per %"},{"from":"35","to":"40","value":"8","unit":"paisa per %"},{"from":"40","to":"45","value":"15","unit":"paisa per %"},{"from":"45","to":"50","value":"20","unit":"paisa per %"},{"from":"50","to":"55","value":"25","unit":"paisa per %"},{"from":"55","to":"60","value":"40","unit":"paisa per %"}]},{"name":"Chalky","freeAllowance":"5% operational default","unit":"paisa per %","instruction":"Earlier discussion included 4%; confirm before activation.","ranges":[{"from":"5","to":"","value":"10","unit":"paisa per %"}]},{"name":"Damage / Yellow","freeAllowance":"2%","unit":"paisa per %","instruction":"","ranges":[{"from":"2","to":"5","value":"10","unit":"paisa per %"},{"from":"5","to":"","value":"25","unit":"paisa per %"}]},{"name":"Moisture","freeAllowance":"14%","unit":"weight %","instruction":"Above 16% remains manual/reject until confirmed.","ranges":[{"from":"14","to":"14.5","value":"0.5","unit":"weight %"},{"from":"14.5","to":"15","value":"1","unit":"weight %"},{"from":"15","to":"16","value":"2","unit":"weight %"}]},{"name":"Paddy grains in rice","freeAllowance":"80 grains operational default","unit":"No. of Grains","instruction":"No final automatic KAT slab confirmed.","ranges":[]}]']],
             ['id'=>'purchase-kat-rice-irri6-parboiled-raw','values'=>['RICE','IRRI-6','Parboiled / Sella','RAW','IRRI-6 Parboiled Raw KAT','','','Draft – owner figures required','This is a separate Parboiled / Sella purchase profile. It must not inherit White Rice deductions. Enter and approve the confirmed slabs before activation.','[{"name":"Broken","freeAllowance":"","unit":"paisa per %","instruction":"Enter the confirmed IRRI-6 Parboiled purchase allowance and slabs before activation.","ranges":[]}]']],
         ],
+        'export_payment_terms'=>[
+            ['id'=>'ADV_SCAN','values'=>['Advance + Balance Against Scan Copies','ADV_SCAN','','10','Active','','']],
+            ['id'=>'ADV_CAD','values'=>['Advance + Balance CAD','ADV_CAD','','20','Active','','']],
+            ['id'=>'ADV100','values'=>['100% Advance','ADV100','','30','Active','','']],
+            ['id'=>'LC_SIGHT','values'=>['100% Irrevocable L/C at Sight','LC_SIGHT','','40','Active','','']],
+            ['id'=>'LC_USANCE','values'=>['Usance L/C','LC_USANCE','','50','Active','','']],
+            ['id'=>'CAD100','values'=>['100% CAD','CAD100','','60','Active','','']],
+        ],
         'export_documents'=>[
             ['id'=>'export-doc-1','values'=>['Commercial Invoice','3','0','ALL','Active']],
             ['id'=>'export-doc-2','values'=>['Commercial Packing List','3','0','ALL','Active']],
@@ -659,8 +667,31 @@ function tt_normalize_masters(array $masters): array {
     return $masters;
 }
 
+function tt_validate_export_payment_term(array $values, array $rows, string $id = ''): void {
+    [$label,$method,$wording,$position,$status,$advance,$days]=array_pad($values,7,'');
+    if ($label==='' || strlen($label)>120 || preg_match('/[\r\n]/',$label)) throw new InvalidArgumentException('Enter a short, single-line dropdown label.');
+    if (strcasecmp($label,'Custom Payment Terms')===0) throw new InvalidArgumentException('Custom Payment Terms is reserved for one-off contracts.');
+    $methods=['ADV_SCAN','ADV_CAD','ADV100','LC_SIGHT','LC_USANCE','CAD100','CUSTOM'];
+    if (!in_array($method,$methods,true)) throw new InvalidArgumentException('Select the underlying payment method.');
+    if (!ctype_digit($position) || (int)$position>99999) throw new InvalidArgumentException('Enter a whole display order from 0 to 99999.');
+    if (!in_array($status,['Active','Inactive'],true)) throw new InvalidArgumentException('Select Active or Inactive.');
+    if (($method==='CUSTOM' || $id==='') && $wording==='') throw new InvalidArgumentException('Enter the wording to print on the Sales Contract.');
+    $partial=in_array($method,['ADV_SCAN','ADV_CAD'],true);
+    if ($advance!=='' && (!$partial || !is_numeric($advance) || (float)$advance<0 || (float)$advance>=100)) throw new InvalidArgumentException('Enter an advance percentage from 0 to below 100 for a split-payment method.');
+    if ($days!=='' && ($method!=='LC_USANCE' || !ctype_digit($days) || (int)$days<1 || (int)$days>3650)) throw new InvalidArgumentException('Enter 1 to 3650 days for a usance L/C.');
+    if ($wording!=='' && $partial && $advance==='' && (!str_contains($wording,'{{advance}}') || !str_contains($wording,'{{balance}}'))) throw new InvalidArgumentException('Use {{advance}} and {{balance}} in the wording or set a fixed advance percentage.');
+    if ($wording!=='' && $method==='LC_USANCE' && $days==='' && !str_contains($wording,'{{days}}')) throw new InvalidArgumentException('Use {{days}} in the wording or set a fixed usance period.');
+    $allowedTokens=$partial?['advance','balance']:($method==='LC_USANCE'?['days']:[]);
+    preg_match_all('/\{\{([^{}]*)\}\}/',$wording,$tokens);
+    if (array_diff($tokens[1],$allowedTokens)) throw new InvalidArgumentException('The wording contains a placeholder that does not apply to this payment method.');
+    foreach ($rows as $row) {
+        if (($row['id']??'')===$id) continue;
+        if (strcasecmp((string)($row['values'][0]??''),$label)===0) throw new InvalidArgumentException('A payment preset already uses that label. Open the existing record.');
+    }
+}
+
 function tt_visible_masters(array $masters): array {
-    $visible=['companies','export_customers','business_parties','commodities','product_settings','products','purchase_products','purchase_kat','export_documents','export_terms','export_realization_charges','mills','banks'];
+    $visible=['companies','export_customers','business_parties','commodities','product_settings','products','purchase_products','purchase_kat','export_payment_terms','export_documents','export_terms','export_realization_charges','mills','banks'];
     return array_intersect_key(tt_normalize_masters($masters),array_flip($visible));
 }
 

@@ -53,6 +53,23 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
             status,data=request(); row=next(r for r in data['masters'][kind] if r['id']==record_id)
             assert row['values'][note_index]=='Amended fixture text',(kind,row)
             assert json.loads(books.read_text())['journals']==original_journals,'Master edits must not post financial entries'
+        selector='/api/masters.php?selector=export-payment-terms'
+        status,data=request(selector)
+        assert status==200 and [r['id'] for r in data['rows']]==['ADV_SCAN','ADV_CAD','ADV100','LC_SIGHT','LC_USANCE','CAD100']
+        preset=['Fixture Scans','ADV_SCAN','{{advance}}% advance and {{balance}}% against scans.','5','Active','30','']
+        status,data=save('export_payment_terms',preset)
+        assert status==200,(status,data.get('error'))
+        payment_id=data['id']
+        assert any(r['id']==payment_id and r['values']==preset for r in request(selector)[1]['rows'])
+        unchanged_failure('export_payment_terms',preset)
+        invalid=copy.deepcopy(preset); invalid[1]='UNSUPPORTED'
+        unchanged_failure('export_payment_terms',invalid,payment_id)
+        amended=copy.deepcopy(preset); amended[3]='75'
+        assert save('export_payment_terms',amended,payment_id)[0]==200
+        assert request(body={'action':'delete','type':'export_payment_terms','id':payment_id})[0]==200
+        assert not any(r['id']==payment_id for r in request(selector)[1]['rows'])
+        assert any(r['id']==payment_id and r['values'][4]=='Inactive' for r in request()[1]['masters']['export_payment_terms'])
+        assert json.loads(books.read_text())['journals']==original_journals
         service=['Fixture Tax Consultant','','Service Provider','','','','','','','','Active','',json.dumps({'service':{'expenseAccountCode':'6700','type':'Tax consultant'}})]
         stable=books.read_bytes();status,data=save('business_parties',service);assert status==200,(status,data)
         service_id=data['id'];saved_service=next(r for r in data['masters']['business_parties'] if r['id']==service_id)

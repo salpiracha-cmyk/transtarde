@@ -77,6 +77,15 @@ function master_bank_sync_result(string $companyId,array $admin): array {
 }
 try {
     $admin=tt_require_login();
+    if ($_SERVER['REQUEST_METHOD']==='GET' && ($_GET['selector']??'')==='export-payment-terms') {
+        require_once __DIR__.'/operations_scope.php';
+        if (!os_workflow_selector_allowed($admin,'Exports','paymentPresets')) {
+            master_respond(['ok'=>false,'error'=>'Sales Contract access required.'],403);
+        }
+        tt_release_read_session();
+        header('Cache-Control: private, no-store');
+        master_respond(['ok'=>true,'rows'=>os_export_payment_preset_rows(tt_list_masters())]);
+    }
     if (!tt_user_can_access_masters($admin)) master_respond(['ok'=>false,'error'=>'Master Records access required.'],403);
     if ($_SERVER['REQUEST_METHOD']==='GET') { tt_release_read_session(); master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'deletionRequests'=>($admin['role']??'')==='Super Admin'?(array)(tt_read_store()['master_deletion_requests']??[]):[],'bankDeletionRequests'=>in_array(($admin['role']??''),['Super Admin','Director'],true)?(array)(tt_read_store()['bank_deletion_requests']??[]):[]]); }
     if ($_SERVER['REQUEST_METHOD']!=='POST') master_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
@@ -250,7 +259,7 @@ try {
 
     $schemas=[
         'companies'=>19,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,
-        'mills'=>8,'export_documents'=>5,'export_terms'=>3,
+        'mills'=>8,'export_payment_terms'=>7,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
     if ($action==='add-party-role') {
@@ -282,10 +291,10 @@ try {
     }
     if ($action==='delete') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
-            $statusFields=['export_customers'=>10,'business_parties'=>10,'purchase_products'=>8,'purchase_kat'=>7,'mills'=>5,'export_documents'=>4,'export_terms'=>2];
+            $statusFields=['export_customers'=>10,'business_parties'=>10,'purchase_products'=>8,'purchase_kat'=>7,'mills'=>5,'export_payment_terms'=>4,'export_documents'=>4,'export_terms'=>2];
         if (isset($statusFields[$type])) {
             $row=master_find_row($type,$id);if(!$row)throw new InvalidArgumentException('Master record not found.');
-            $values=array_values((array)($row['values']??[]));while(count($values)<=$statusFields[$type])$values[]='';$values[$statusFields[$type]]='Inactive';tt_update_master($type,$id,$values);
+            $values=array_values((array)($row['values']??[]));while(count($values)<=$statusFields[$type])$values[]='';$values[$statusFields[$type]]='Inactive';tt_update_master($type,$id,$values,$type==='export_payment_terms'?tt_master_revision($row['values']):null);
             tt_audit((int)$admin['id'],$admin['username'],'Deactivated '.$type.' master '.$id);
         } elseif ($type==='products') {
             $row=master_find_row($type,$id);if(!$row)throw new InvalidArgumentException('Master record not found.');$values=array_values((array)($row['values']??[]));while(count($values)<22)$values[]='';$values[5]=trim(preg_replace('/\s*–?\s*inactive$/i','',(string)$values[5]).' – inactive');tt_update_master($type,$id,$values);tt_audit((int)$admin['id'],$admin['username'],'Deactivated product master '.$id);

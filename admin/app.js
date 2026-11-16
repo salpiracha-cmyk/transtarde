@@ -72,6 +72,14 @@
     { id: "directors", name: "Directors", code: "D", color: "#d17b0f", soft: "#fff3e2", status: "Live", state: "green", version: "Management workspace", description: "Group settings, assets, alerts and approvals.", href: "directors/index.php" }
   ];
 
+  const PAYMENT_METHOD_NAMES = {
+    ADV_SCAN:"Advance + Balance Against Scan Copies", ADV_CAD:"Advance + Balance CAD",
+    ADV100:"100% Advance", LC_SIGHT:"100% Irrevocable L/C at Sight", LC_USANCE:"Usance L/C",
+    CAD100:"100% CAD", CUSTOM:"Custom"
+  };
+  const EXPORT_CONTRACT_MASTER_TABS = [
+    ["export_payment_terms","Payment Terms"], ["export_documents","Documents Presented"], ["export_terms","Other Terms"]
+  ];
   const MASTER_TYPES = [
     {
       id: "salary_staff", name: "Salary & Staff", description: "The owner's recurring Salary Master shared with Accounts. Keep only net salary or remuneration, Zakat and other recurring allowances here. Mill salaries belong to TTI only.",
@@ -187,6 +195,14 @@
       ],
       rows: []
     },
+    { id: "export_payment_terms", name: "Payment Terms", description: "Maintain reusable payment terms for new Sales Contracts.",
+      fields: [
+        {label:"Dropdown label",required:true}, {label:"Payment method",required:true,type:"select",options:["",...Object.keys(PAYMENT_METHOD_NAMES)]},
+        {label:"Contract wording",type:"textarea",full:true,hint:"Blank standard wording uses the payment method’s existing text. For editable percentages or days, use {{advance}}, {{balance}} or {{days}} where applicable."},
+        {label:"Display order",required:true,type:"number",step:1}, {label:"Status",type:"select",options:["Active","Inactive"]},
+        {label:"Fixed advance %",type:"number"}, {label:"Fixed usance days",type:"number",step:1}
+      ], rows: []
+    },
     { id: "export_documents", name: "Export Documents Presented", description: "Authoritative Sales Contract document rows shared by Super Admin and Exports.", fields: [{label:"Document Name",required:true},{label:"Original",required:true},{label:"Copies",required:true},{label:"Applies To",type:"select",options:["ALL","FOB","CFR","CNF_FO","CFR_FO","CIF","LC_SIGHT","LC_USANCE"]},{label:"Status",type:"select",options:["Active","Inactive"]}], rows: [["Commercial Invoice","3","0","ALL","Active"],["Commercial Packing List","3","0","ALL","Active"],["Full set clean on-board Bill of Lading","3","3","ALL","Active"],["Certificate of Origin","1","3","ALL","Active"],["e-Phyto issued by Department of Plant Protection, Government of Pakistan","1","0","ALL","Active"],["Fumigation Certificate","1","1","ALL","Active"],["Insurance Policy / Certificate","1","0","CIF","Active"]] },
     { id: "export_terms", name: "Export Other Terms", description: "Authoritative reusable Sales Contract terms. Locked L/C clauses remain protected in the Export workflow.", fields: [{label:"Payment Group",required:true,type:"select",options:["BASE","BREAK_BULK","FOB","CFR","CNF_FO","CFR_FO","CIF","ADVANCE","CAD","LC_SIGHT","LC_USANCE","CUSTOM"]},{label:"Term Text",required:true,type:"textarea",full:true},{label:"Status",type:"select",options:["Active","Inactive"]}], rows: [["BASE","All present and/or future customs taxes and/or duties/levies on the cargo in the country of origin shall be for Seller’s account. All present and/or future customs taxes and/or duties/levies on the cargo in the country of destination shall be for Buyer’s account.","Active"],["BASE","Risk of weight and quality is transferred to Buyer once cargo is loaded on board the vessel from Pakistan.","Active"],["BASE","Ownership of cargo is transferred to Buyer upon receipt of full payment of the invoice.","Active"],["BASE","All other terms and conditions as per applicable GAFTA London rules, of which both parties admit full notice and knowledge. English law to apply.","Active"],["BASE","Should any dispute arise which cannot be amicably settled between Buyer and Seller, the dispute shall be settled by arbitration in London as per applicable GAFTA rules.","Active"],["BREAK_BULK","Cargo shall be shipped as break bulk cargo by sea vessel. Container number and seal number clauses shall not apply.","Active"],["ADVANCE","Partial shipment allowed.","Active"],["CAD","Partial shipment allowed.","Active"]] },
     { id: "export_customers", name: "Export Customers", description: "Buyer identity, document addresses, contacts, consignee and notify parties. Saved shipments retain their historical snapshot.", fields: [{label:"Customer name",required:true},{label:"Code"},{label:"Roles"},{label:"Primary document address",required:true,type:"textarea",full:true},{label:"Country"},{label:"Email"},{label:"Phone"},{label:"Tax / registration"},{label:"Packing default"},{label:"Notify parties JSON",type:"textarea",full:true},{label:"Status",type:"select",options:["Active","Inactive"]},{label:"Notes",type:"textarea",full:true},{label:"Show country"},{label:"Show email"},{label:"Show phone"},{label:"Show tax"},{label:"Contacts JSON",type:"textarea",full:true,placeholder:"[{\"name\":\"Contact name\",\"email\":\"name@example.com\",\"phone\":\"+92...\",\"designation\":\"Manager\"}]",hint:"Select a contact in the Sales Contract buyer section."},{label:"Consignees JSON",type:"textarea",full:true,placeholder:"[{\"name\":\"Consignee name\",\"address\":\"Full address\",\"country\":\"Country\"}]",hint:"Available in B/L, Customs, Commercial Invoice, Packing List and TG party choices."},{label:"Additional notify parties JSON",type:"textarea",full:true,placeholder:"[{\"name\":\"Notify name\",\"address\":\"Full address\"}]",hint:"Additional choices alongside the primary notify parties; repeated parties appear once."},{label:"Additional document addresses JSON",type:"textarea",full:true,placeholder:"[{\"label\":\"Billing office\",\"address\":\"Full address\",\"country\":\"Country\"}]",hint:"Select an alternative buyer address on a Sales Contract or in shipment party choices."},{label:"Default currency",type:"select",options:["","USD","EUR","GBP","AED","PKR"]},{label:"Default payment / customer instructions",type:"textarea",full:true,placeholder:"Enter the agreed customer instructions.",hint:"Shown in the payment step; use the wording only when you choose it."}], rows: [] },
@@ -197,7 +213,7 @@
   const PRODUCT_MASTER_TABS = ["products","purchase_products"];
   const MASTER_GROUPS = [
     ["Business",["companies","export_customers","business_parties",...PRODUCT_MASTER_TABS,"mills","reference_lists"]],
-    ["Setup",["product_settings","export_documents","export_terms","salary_staff"]],
+    ["Setup",["product_settings",...EXPORT_CONTRACT_MASTER_TABS.map(([id])=>id),"salary_staff"]],
   ];
 
   const DEFAULT_PERMISSIONS = {
@@ -1054,7 +1070,11 @@
   }
 
   const REFERENCE_LIST_LABELS={currencies:"Currencies",packing_types:"Packing types",inspection_companies:"Inspection companies",payment_options:"Payment options",party_roles:"Party roles",product_rice_types:"Rice types",product_finishes:"Rice finishes"};
-  const masterDisplayValue=(type,index,value)=>type.id==="reference_lists"&&index===0?(REFERENCE_LIST_LABELS[value]||value):value;
+  function masterDisplayValue(type,index,value) {
+    if(type.id==="reference_lists"&&index===0)return REFERENCE_LIST_LABELS[value]||value;
+    if(type.id==="export_payment_terms"&&index===1)return PAYMENT_METHOD_NAMES[value]||value;
+    return value;
+  }
   function masterToday(){
     const parts=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Karachi",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).map(part=>[part.type,part.value]));
     return `${parts.year}-${parts.month}-${parts.day}`;
@@ -1132,13 +1152,13 @@
         return `<div class="check-field${full}"><span>${escapeHtml(field.label)}</span><div class="master-checks">${field.options.map(option => `<label><input type="checkbox" data-master-field-index="${index}" value="${escapeHtml(option)}" ${selected.has(option) ? "checked" : ""}>${escapeHtml(option)}</label>`).join("")}</div></div>`;
       }
       if (field.type === "select") {
-        return `<label class="${full.trim()}">${escapeHtml(field.label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" ${field.required ? "required" : ""}>${field.options.map(option => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(type.id==="reference_lists"&&index===0?(REFERENCE_LIST_LABELS[option]||option):(option||"Select"))}</option>`).join("")}</select></label>`;
+        return `<label class="${full.trim()}">${escapeHtml(field.label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" ${field.required ? "required" : ""}>${field.options.map(option => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(masterDisplayValue(type,index,option)||"Select")}</option>`).join("")}</select></label>`;
       }
       if (field.type === "textarea") {
         return `<label class="${full.trim()}">${escapeHtml(field.label)}<textarea id="${masterInputId(index)}" data-master-field-index="${index}" rows="3" placeholder="${escapeHtml(field.placeholder||"")}" ${field.required ? "required" : ""}>${escapeHtml(value)}</textarea>${field.hint?`<small>${escapeHtml(field.hint)}</small>`:""}</label>`;
       }
       const inputType = ["number", "date"].includes(field.type) ? field.type : "text";
-      const numberRules = inputType === "number" ? ' min="0" step="0.01"' : "";
+      const numberRules = inputType === "number" ? ` min="0" step="${field.step||0.01}"` : "";
       return `<label class="${full.trim()}">${escapeHtml(field.label)}<input type="${inputType}"${numberRules} id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(value)}" ${field.required ? "required" : ""} autocomplete="off"></label>`;
     }).join("");
   }
@@ -1240,6 +1260,7 @@
     if (type.id === "business_parties") return [0, 1, 2, 4, 10];
     if (type.id === "mills") return [0, 1, 2];
     if (type.id === "banks") return [3, 4, 0, 7, 11];
+    if (type.id === "export_payment_terms") return [0, 1, 2, 3];
     return type.fields.map((_, index) => index).slice(0, 5);
   }
   function masterRowStatus(type, row) {
@@ -1249,7 +1270,7 @@
       const profile = String(row.values?.[5] || "");
       return /inactive|deactivated/i.test(profile) ? "Inactive" : "Active";
     }
-    const statusFields={export_customers:10,business_parties:10,purchase_products:8,purchase_kat:7,mills:5,export_documents:4,export_terms:2};
+    const statusFields={export_customers:10,business_parties:10,purchase_products:8,purchase_kat:7,mills:5,export_payment_terms:4,export_documents:4,export_terms:2};
     if (Object.hasOwn(statusFields,type.id)) return String(row.values?.[statusFields[type.id]] || (type.id.startsWith("purchase_") ? "Draft – review required" : "Active"));
     return "Active";
   }
@@ -1281,11 +1302,33 @@
     const allowedTypes=MASTER_TYPES.filter(type=>canMaster(type.id,"View"));
     if (!allowedTypes.some(type=>type.id===currentMaster)) currentMaster=allowedTypes[0]?.id||"companies";
     if(currentMaster==="purchase_products"&&!canMaster(activeMasterType()?.id||"purchase_products","View"))currentPurchaseSection="PRODUCTS";
-    document.getElementById("masterMenu").innerHTML = MASTER_GROUPS.map(([group,ids])=>{const types=ids.map(id=>allowedTypes.find(type=>type.id===id)).filter(Boolean);return types.length?`<div class="master-menu-group"><small>${group}</small>${types.map(type=>{const count=state.masters[type.id]?.filter(row=>!isInactiveMasterRow(type,row)).length||0;return `<button class="${type.id === currentMaster ? "active" : ""}" data-master="${type.id}">${type.name}<span>${count}</span></button>`}).join("")}</div>`:""}).join("");
-    const menuType = masterType();
-    const type = activeMasterType();
-    document.getElementById("masterTitle").textContent = menuType.name;
-    document.getElementById("masterDescription").textContent = menuType.description;
+    const allowedContractTabs=EXPORT_CONTRACT_MASTER_TABS.filter(([id])=>allowedTypes.some(type=>type.id===id));
+    const isContractMaster=allowedContractTabs.some(([id])=>id===currentMaster);
+    const contractTabIds=new Set(EXPORT_CONTRACT_MASTER_TABS.map(([id])=>id));
+    document.getElementById("masterMenu").innerHTML=MASTER_GROUPS.map(([group,ids])=>{
+      const entries=ids.map(id=>{
+        if(contractTabIds.has(id)){
+          if(id!=="export_payment_terms"||!allowedContractTabs.length)return "";
+          return `<button class="${isContractMaster?"active":""}" data-master="${allowedContractTabs[0][0]}">Export Contract Terms</button>`;
+        }
+        const type=allowedTypes.find(type=>type.id===id);
+        if(!type)return "";
+        const count=state.masters[id]?.filter(row=>!isInactiveMasterRow(type,row)).length||0;
+        return `<button class="${id===currentMaster?"active":""}" data-master="${id}">${type.name}<span>${count}</span></button>`;
+      }).join("");
+      return entries?`<div class="master-menu-group"><small>${group}</small>${entries}</div>`:"";
+    }).join("");
+    const menuType=masterType();
+    const type=activeMasterType();
+    document.getElementById("masterTitle").textContent=isContractMaster?"Export Contract Terms":menuType.name;
+    const description=document.getElementById("masterDescription");
+    description.textContent=menuType.description;
+    document.getElementById("exportContractMasterTabs")?.remove();
+    if(isContractMaster){
+      const shortcuts=[["products","Export Quality &amp; Specs"],["export_customers","Export Customers"]]
+        .filter(([id])=>canMaster(id,"View"));
+      description.insertAdjacentHTML("afterend",`<div id="exportContractMasterTabs"><nav class="company-editor-tabs" aria-label="Export Contract Terms">${allowedContractTabs.map(([id,label])=>`<button type="button" data-master="${id}" class="${id===currentMaster?"active":""}" aria-current="${id===currentMaster?"page":"false"}">${label}</button>`).join("")}</nav>${shortcuts.length?`<div class="export-contract-master-shortcuts">${shortcuts.map(([id,label])=>`<button type="button" class="row-action" data-master="${id}">${label}</button>`).join("")}</div>`:""}</div>`);
+    }
     document.getElementById('masterDeletionRequests')?.remove();
     if(IS_SUPER_ADMIN && pendingDeletionRequests.length){
       document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterDeletionRequests" class="master-editor-section"><h3>Accounts requests to remove names</h3><p>Approval deactivates the name for future selections. Historical transactions keep the record.</p>${pendingDeletionRequests.map(request=>`<div class="row-actions" style="justify-content:space-between;align-items:center;padding:9px;border-top:1px solid #ddd"><span><b>${escapeHtml(request.name)}</b> · ${escapeHtml(request.type)} · ${escapeHtml(request.requestedBy)}<br>${escapeHtml(request.reason)}</span><span><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Approve">Approve</button><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></span></div>`).join('')}</section>`);
@@ -1308,7 +1351,7 @@
       document.querySelectorAll('[data-purchase-stage]').forEach(button=>button.onclick=()=>{currentPurchaseTab=`${commodity}_${button.dataset.purchaseStage}`;renderMasters()});
     }
     document.getElementById("addMasterRecord").hidden=!canMaster(type.id,"Create");
-    document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "salary_staff" ? "Staff" : type.id === "purchase_kat" ? "KAT Profile" : type.id === "purchase_products" ? "Purchase Product" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Export Product" : "Record"}`;
+    document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "salary_staff" ? "Staff" : type.id === "purchase_kat" ? "KAT Profile" : type.id === "purchase_products" ? "Purchase Product" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Export Product" : type.id === "export_payment_terms" ? "Payment Term" : "Record"}`;
     const columns = displayColumns(type).filter(index => type.fields[index]?.label !== "Status");
     if(type.id==="purchase_products"){
       document.getElementById("masterTableHead").innerHTML="<tr><th>Variety / Product</th><th>Type</th><th>Stage</th><th>Purchase Unit</th><th>KAT</th><th>Status</th><th>Actions</th></tr>";
@@ -1326,6 +1369,7 @@
       if(!document.getElementById("masterIncludeInactive").checked&&isInactiveMasterRow(type,row))return false;
       return true;
     });
+    if(type.id==="export_payment_terms")rows.sort((a,b)=>Number(a.values[3])-Number(b.values[3])||a.values[0].localeCompare(b.values[0]));
     if(type.id==="salary_staff"){
       const wrapper=document.getElementById('masterTableBody').closest('.table-wrap');
       wrapper.hidden=true;
@@ -1556,6 +1600,23 @@
     document.getElementById("masterDialogTitle").textContent = `${row ? "Edit" : "Add"} ${type.name}`;
     document.getElementById("masterDialogHelp").textContent = type.description + " Complete as much information as available; only the essential identity fields are mandatory.";
     document.getElementById("masterFormFields").innerHTML = masterFieldsHtml(type, row?.values || []);
+    if(type.id==="export_payment_terms"){
+      const method=document.getElementById(masterInputId(1));
+      const showMethodFields=()=>{
+        const advance=document.getElementById(masterInputId(5));
+        const days=document.getElementById(masterInputId(6));
+        advance.closest("label").hidden=!["ADV_SCAN","ADV_CAD"].includes(method.value);
+        days.closest("label").hidden=method.value!=="LC_USANCE";
+        if(advance.closest("label").hidden)advance.value="";
+        if(days.closest("label").hidden)days.value="";
+      };
+      method.addEventListener("change",showMethodFields);
+      showMethodFields();
+      if(!row){
+        const positions=(state.masters.export_payment_terms||[]).map(item=>Number(item.values[3])||0);
+        document.getElementById(masterInputId(3)).value=Math.min(99999,Math.max(0,...positions)+10);
+      }
+    }
     if (type.id === "companies") {
       document.getElementById('masterFormFields').insertAdjacentHTML('afterbegin','<div class="company-editor-tabs" role="tablist"><button type="button" data-company-editor-tab="overview">Overview</button><button type="button" data-company-editor-tab="banks">Bank Accounts</button><button type="button" data-company-editor-tab="registrations">Registrations</button><button type="button" data-company-editor-tab="documents">Document Identity</button><button type="button" data-company-editor-tab="fx">Exchange Rates</button></div>');
       selectCompanyEditorTab(editorTab);
@@ -2330,7 +2391,8 @@
     applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); renderApprovals();
     const masterQuery = new URLSearchParams(location.search);
     if (masterQuery.get('view')==='masters' && hasMasterAccess) {
-      if (masterQuery.get('master')==='business_parties' && canMaster('business_parties','View')) currentMaster='business_parties';
+      const requested=masterQuery.get('master');
+      if(MASTER_TYPES.some(type=>type.id===requested)&&canMaster(requested,'View'))currentMaster=requested;
       showView('masters');
     }
     if (new URLSearchParams(location.search).get('view')==='backup' && IS_SUPER_ADMIN) showView('backup');
