@@ -510,7 +510,7 @@ function saveContract(print){
     }
    }
    if(print){
-    if(!await directPrint('SALES CONTRACT',salesContractPrint(printContract),'with',true))throw new Error('Print did not open.');
+    if(!await directPrint('SALES CONTRACT',salesContractPrint(printContract),'with',true,salesContractDownloadMeta(printContract)))throw new Error('Print did not open.');
     contractDraft=null;view='home';activeWorkspace='';render();
    }else renderContractEditor();
    if(officeCopyError)showExportSaveError(officeCopyError);
@@ -998,7 +998,7 @@ function renderReports(){document.getElementById('main').innerHTML=`<div class="
 function openModal(title,body,foot){const id=uid('modal');modalStack.push(id);const w=document.createElement('div');w.className='modalBackdrop';w.dataset.modal=id;w.innerHTML=`<div class="modal"><div class="modalHead"><h3>${esc(title)}</h3><div style="margin-left:auto"></div><button class="btn small" data-modal-close aria-label="Close form and return to previous screen">× Close</button></div><div class="modalBody">${body}</div><div class="modalFoot">${foot||''}</div></div>`;document.body.appendChild(w);w.querySelectorAll('[data-modal-close]').forEach(x=>x.onclick=closeModal);return w}
 function closeModal(){const id=modalStack.pop();document.querySelector(`[data-modal="${id}"]`)?.remove()}
 function directPrint__legacy_v0(title,html,mode='with'){const root=document.getElementById('printRoot');root.className=mode==='without'?'printModeWithout':'printModeWith';root.innerHTML=html;root.setAttribute('aria-hidden','false');const old=document.title;document.title='';setTimeout(()=>{window.print();setTimeout(()=>{root.innerHTML='';root.className='';root.setAttribute('aria-hidden','true');document.title=old},250)},100)}
-function printShipmentDoc__legacy_v0(title,html,seller='TTI',readOnly=false){const hasFooter=!!SELLER_DETAILS[seller]?.footer,label=hasFooter?'HEADER / FOOTER':'HEADER';openModal('Print / Save — '+title,`<div class="notice info"><b>Choose the paper mode.</b> Saved PDFs and plain-paper prints include the full-width ${esc(seller)} ${hasFooter?'header and footer':'header (this company has no footer)'}. Physical company letterhead leaves the artwork blank and preserves printing space.</div><div class="cards"><button class="btn green big" id="printWith" ${readOnly?'data-tt-completed-reprint="true"':''}>WITH ${label}<br><span class="tiny">Save PDF or print on plain paper</span></button><button class="btn amber big" id="printWithout" ${readOnly?'data-tt-completed-reprint="true"':''}>WITHOUT ${label}<br><span class="tiny">Print on physical company letterhead</span></button></div>`,`<button class="btn" data-modal-close>Cancel</button>`);document.getElementById('printWith').onclick=()=>{closeModal();directPrint(title,html,'with',readOnly)};document.getElementById('printWithout').onclick=()=>{closeModal();directPrint(title,html,'without',readOnly)}}
+function printShipmentDoc__legacy_v0(title,html,seller='TTI',readOnly=false,downloadMeta={}){const hasFooter=!!SELLER_DETAILS[seller]?.footer,label=hasFooter?'HEADER / FOOTER':'HEADER';openModal('Print / Save — '+title,`<div class="notice info"><b>Choose the paper mode.</b> Saved PDFs and plain-paper prints include the full-width ${esc(seller)} ${hasFooter?'header and footer':'header (this company has no footer)'}. Physical company letterhead leaves the artwork blank and preserves printing space.</div><div class="cards"><button class="btn green big" id="printWith" ${readOnly?'data-tt-completed-reprint="true"':''}>WITH ${label}<br><span class="tiny">Save PDF or print on plain paper</span></button><button class="btn amber big" id="printWithout" ${readOnly?'data-tt-completed-reprint="true"':''}>WITHOUT ${label}<br><span class="tiny">Print on physical company letterhead</span></button></div>`,`<button class="btn" data-modal-close>Cancel</button>`);document.getElementById('printWith').onclick=()=>{closeModal();directPrint(title,html,'with',readOnly,downloadMeta)};document.getElementById('printWithout').onclick=()=>{closeModal();directPrint(title,html,'without',readOnly,downloadMeta)}}
 function printHTML(title,html){directPrint(title,html,'with')}
 window.addEventListener('beforeprint',()=>document.getElementById('printRoot')?.setAttribute('aria-hidden','false'));
 document.addEventListener('change',e=>{if(!contractDraft)return;if(e.target?.id==='cPayment')contractDraft.paymentDeadline=addBankDays(contractDraft.date,String(contractDraft.paymentCode).startsWith('LC_')?5:4);if(e.target?.id==='cDate')contractDraft.paymentDeadline=addBankDays(contractDraft.date,String(contractDraft.paymentCode).startsWith('LC_')?5:4);if(e.target?.id==='cProduct'&&productMasters().length){applyProductMaster(contractDraft,e.target.value);renderContractStep()}});
@@ -1467,13 +1467,13 @@ function tgCoverOutput(title,html,readOnly=false){
  return modal
 }
 const printShipmentDocBeforePlainBL=printShipmentDoc__legacy_v0;
-function printShipmentDoc(title,html,seller='TTI',readOnly=false){
+function printShipmentDoc(title,html,seller='TTI',readOnly=false,downloadMeta={}){
  const template=document.createElement('template');template.innerHTML=html;
  if(template.content.querySelector('[data-tg-cover="true"]'))return tgCoverOutput(title,html,readOnly);
  const pages=template.content.querySelectorAll('.docPage'),covers=template.content.querySelectorAll('.bankCoveringPage');
  if(covers.length&&covers.length===pages.length)return directPrint(title,html,'with',readOnly);
  if(/^B\/L (?:DRAFT|INSTRUCTIONS)/i.test(title))return directPrint(title,html,'with',readOnly);
- return printShipmentDocBeforePlainBL(title,html,seller,readOnly)
+ return printShipmentDocBeforePlainBL(title,html,seller,readOnly,downloadMeta)
 };
 const renderDocumentOutputBeforePackExclusions=renderDocumentOutput__legacy_v2;
 function renderDocumentOutput__legacy_v3(d){renderDocumentOutputBeforePackExclusions(d);const s=shipment(),c=contractByRef(s.contractRef);d.querySelector('[data-output="customInvoice"]')?.closest('label')?.remove();const notice=d.querySelector('.notice');if(notice)notice.insertAdjacentHTML('beforeend','<br><b>Excluded from combined packs:</b> B/L Draft and Customs Invoice remain individual outputs only.');if(s.seller==='TG'){const button=d.querySelector('#printTGPakistanSet');if(button)button.onclick=()=>{const origin=pakistanOriginContext(s,c),certDrafts=s.certs.filter(x=>!x.finalDocument).map(x=>pageDoc(origin,x.type,`${partyGrid(origin)}<p class="certificateText">${esc(x.text)}</p><p><b>Reference:</b> ${esc(x.reference)} · <b>Date:</b> ${fmtHTML(x.date)}</p>${signature(origin)}`)).join(''),html=packingListDoc(s,c,true)+phytoInvoiceDoc(s,c)+cooDoc(s,c,false)+certDrafts+tgInternalDoc(s,c)+tgPakistanCoveringDoc(s,c);printShipmentDoc('PAKISTAN EXPORT DOCUMENT SET',html,pakistanExporterKey(s))}}};
@@ -2415,7 +2415,7 @@ async function directPrint(title,html,mode='with',readOnly=false,downloadMeta={}
  if(template.content.querySelector('.bankCoveringPage:not([data-tg-cover="true"])')&&!window.confirm('Did you put the original letterhead in the printer?'))return Promise.resolve(false);
  pendingPrintCleanup?.();
  const root=document.getElementById('printRoot'),old=document.title;
- root.className=mode==='without'?'printModeWithout':'printModeWith';root.innerHTML=html;root.setAttribute('aria-hidden','false');for(const key of Object.keys(root.dataset))if(key.startsWith('download'))delete root.dataset[key];const printedContracts=state.contracts.filter(c=>c.ref&&root.textContent.includes(c.ref)),printContract=printedContracts.length===1?printedContracts[0]:null,inferred=window.TT_DOCUMENT_NAME?.infer({querySelector:selector=>root.querySelector(selector),body:root,title})||{};Object.assign(root.dataset,{downloadTitle:downloadMeta.title||title,downloadParty:downloadMeta.party||inferred.party||(printContract?buyerOf(printContract).name||'':''),downloadReference:downloadMeta.reference||inferred.reference||printContract?.ref||'',downloadCompany:downloadMeta.company||printContract?.seller||''});document.title='';
+ root.className=mode==='without'?'printModeWithout':'printModeWith';root.innerHTML=html;root.setAttribute('aria-hidden','false');for(const key of Object.keys(root.dataset))if(key.startsWith('download'))delete root.dataset[key];const printedContracts=state.contracts.filter(c=>c.ref&&root.textContent.includes(c.ref)),printContract=printedContracts.length===1?printedContracts[0]:null,inferred=window.TT_DOCUMENT_NAME?.infer({querySelector:selector=>root.querySelector(selector),body:root,title})||{};Object.assign(root.dataset,{downloadTitle:downloadMeta.title||title,downloadParty:downloadMeta.party||inferred.party||(printContract?buyerOf(printContract).name||'':''),downloadReference:downloadMeta.reference||inferred.reference||printContract?.ref||'',downloadCompany:downloadMeta.company||printContract?.seller||'',downloadFormat:downloadMeta.format||''});document.title='';
  const cleanup=()=>{
   if(pendingPrintCleanup!==cleanup)return;
   pendingPrintCleanup=null;root.innerHTML='';root.className='';root.setAttribute('aria-hidden','true');document.title=old;
@@ -2800,7 +2800,7 @@ function contractPriceHTML(c,packings){
    rows.push([`${currency}. ${pc.finalRate.toFixed(2)} P/M/T ${incoterm} ${destination}`,`${qtyText(qty)} M.TONS`,`TOTAL ${incoterm} VALUE`,`${currency} ${(qty*pc.finalRate).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`]);
    blocks.push(`<div class="approvedContractPriceItem">${label?`<div class="approvedPackingPriceLabel">${label}${currency}. ${pc.finalRate.toFixed(2)} PMT</div>`:''}<div class="approvedContractPriceGrid">${rows.map((row,n)=>`<div class="${n===rows.length-1?'priceTotalRow':''}">${row.map(v=>`<span>${esc(v)}</span>`).join('')}</div>`).join('')}</div></div>`)
   }else{
-   blocks.push(`<div class="approvedContractPriceItem">${label?`<div class="approvedPackingPriceLabel">${label}${currency}. ${pc.finalRate.toFixed(2)} PMT</div>`:''}<div class="approvedSimplePrice">${currency}. ${pc.finalRate.toFixed(2)} ${incoterm} ${esc(destination)}.</div><div class="approvedSimpleTotal">TOTAL ${incoterm} VALUE ${qtyText(qty)} M.TONS × ${currency} ${pc.finalRate.toFixed(2)} &nbsp; ${currency}. ${(qty*pc.finalRate).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}/=</div></div>`)
+   blocks.push(`<div class="approvedContractPriceItem">${label?`<div class="approvedPackingPriceLabel">${label}${currency}. ${pc.finalRate.toFixed(2)} PMT</div>`:''}<div class="approvedSimplePrice">${currency}. ${pc.finalRate.toFixed(2)} ${incoterm} ${esc(destination)}.</div><div class="approvedSimpleTotal">TOTAL ${incoterm} VALUE ${qtyText(qty)} M.TONS × ${currency} ${pc.finalRate.toFixed(2)} = ${currency}. ${(qty*pc.finalRate).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}/=</div></div>`)
   }
  }
  return`<div class="contractPriceBlock">${blocks.join('')}${packings.length>1?`<div class="contractPriceGrandTotal">TOTAL CONTRACT VALUE &nbsp; ${currency}. ${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}/=</div>`:''}<div class="contractPriceWords">(${esc(amountWords(total,currency))}.)</div></div>`
@@ -3200,9 +3200,12 @@ function inspectionContractContext(contract,exporter){
 function inspectionTerms(c){
  return effectiveTerms(c).filter(term=>!/(?:\b(?:payment|advance|balance|price|rate|amount|remit|proceeds|bank charges|bank account|iban|swift|credit|l\/?c|c\.?a\.?d\.?|invoice value|freight charges)\b|\b(?:USD|AED|PKR|EUR|GBP)\b|\d+\s*%\s*(?:advance|balance))/i.test(term))
 }
+function salesContractDownloadMeta(contract){
+ return {party:buyerOf(contract).name,reference:contract.ref,format:'party-reference'};
+}
 function printSavedSalesContract(id,inspection=false){
  const c=state.contracts.find(row=>row.id===id&&row.status!=='Cancelled'&&!row.cancelled);if(!c)return;
- const print=exporter=>{const dc=inspection?inspectionContractContext(c,exporter):c;printShipmentDoc(inspection?'SALES CONTRACT — INSPECTION':'SALES CONTRACT',salesContractPrint(dc,{inspection}),dc.seller,true)};
+ const print=exporter=>{const dc=inspection?inspectionContractContext(c,exporter):c;printShipmentDoc(inspection?'SALES CONTRACT — INSPECTION':'SALES CONTRACT',salesContractPrint(dc,{inspection}),dc.seller,true,inspection?undefined:salesContractDownloadMeta(c))};
  if(!inspection||c.seller!=='TG')return print();
  const linked=state.shipments.find(row=>row.contractRef===c.ref&&row.kind==='process')||state.shipments.find(row=>row.contractRef===c.ref),defaultExporter=linked?.customs?.exporter==='BRM'?'BRM':'TTI';
  openModal('Pakistan Company — Inspection Copy',`<div class="field"><label>Shipper / Pakistan company letterhead</label><select id="inspectionExporter"><option value="TTI" ${defaultExporter==='TTI'?'selected':''}>${esc(SELLERS.TTI)}</option><option value="BRM" ${defaultExporter==='BRM'?'selected':''}>${esc(SELLERS.BRM)}</option></select></div>`,`<button class="btn" data-modal-close>Cancel</button><button class="btn green" id="confirmInspectionPrint">CONTINUE TO PRINT</button>`);
