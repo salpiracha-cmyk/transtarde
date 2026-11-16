@@ -12,7 +12,7 @@ const fs=require('fs'),path=require('path'),assert=require('node:assert/strict')
  for(const width of [1440,1280,800,390]){await page.setViewportSize({width,height:900});const sizes=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth-innerWidth,body:document.documentElement.scrollHeight}));assert(sizes.overflow<=2,JSON.stringify({width,...sizes}));if(width===1440)assert((await page.locator('#dtRecoveryTitle').boundingBox()).y<900,'Recovery editor should start within the desktop viewport');}
  await page.setViewportSize({width:1440,height:900});
  const yieldPanel=page.getByRole('region',{name:'Recovery & by-products'});
- for(const product of ['B2','B1','B3','CSR','B2 CSR','Powder','Paddy','Sweeping'])assert(await yieldPanel.getByRole('textbox',{name:product+' PKR/kg',exact:true}).or(yieldPanel.getByRole('spinbutton',{name:product+' PKR/kg',exact:true})).isVisible(),product);
+ for(const product of ['B2','B1','B3','CSR','B2 CSR','Powder','Paddy','Sweeping'])assert(await yieldPanel.getByRole('textbox',{name:product+' PKR/kg',exact:true}).isVisible(),product);
  assert.equal(await page.locator('[name=rate6]').inputValue(),'37','The dated B3 price fills the costing');
  const beforeCost=await page.locator('#dtLiveCost strong').first().innerText();
  await fill('Finished rice recovery %','60');
@@ -25,7 +25,7 @@ const fs=require('fs'),path=require('path'),assert=require('node:assert/strict')
  await fill('CSR PKR/kg','12');
  await page.waitForFunction(()=>document.getElementById('dtPreviewStatus').textContent.startsWith('Up to date'));
  await page.getByRole('button',{name:'Update rates',exact:true}).click();
- for(const product of fixture.byproductProducts)assert(await page.getByRole('dialog').getByRole('textbox',{name:product,exact:true}).or(page.getByRole('dialog').getByRole('spinbutton',{name:product,exact:true})).isVisible(),product);
+ for(const product of fixture.byproductProducts)assert(await page.getByRole('dialog').getByRole('textbox',{name:product,exact:true}).isVisible(),product);
  assert.equal(await page.getByRole('dialog').locator('[name=byproduct1]').inputValue(),'37');
  await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
  assert.equal(writes.length,0);
