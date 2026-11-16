@@ -77,6 +77,16 @@
     ADV100:"100% Advance", LC_SIGHT:"100% Irrevocable L/C at Sight", LC_USANCE:"Usance L/C",
     CAD100:"100% CAD", CUSTOM:"Custom"
   };
+  // Standard wording mirrors the Sales Contract generator for presets without an override.
+  const STANDARD_PAYMENT_WORDING = {
+    ADV_SCAN: "{{advance}}% advance and {{balance}}% balance on scan copies of shipment documents.",
+    ADV_CAD: "{{advance}}% advance and {{balance}}% balance Cash Against Documents (C.A.D.) through Buyer’s nominated bank.",
+    ADV100: "100% advance payment.",
+    LC_SIGHT: "By a workable and irrevocable 100% L/C at sight from a first-class bank acceptable to the Seller, available for negotiation through the Seller’s nominated or acceptable bank.",
+    LC_USANCE: "By irrevocable usance L/C payable {{days}} days from B/L date, with negotiation and/or acceptance through the Seller’s nominated or acceptable bank.",
+    CAD100: "100% Cash Against Documents (C.A.D.) after original shipment documents are received at the counters of Buyer’s nominated bank."
+  };
+  const SCAN_ONLY_PAYMENT_WORDING = "100% payment upon receipt of scan copies of shipment documents by Buyer.";
   const EXPORT_CONTRACT_MASTER_TABS = [
     ["export_payment_terms","Payment Terms"], ["export_documents","Documents Presented"], ["export_terms","Other Terms"]
   ];
@@ -198,7 +208,7 @@
     { id: "export_payment_terms", name: "Payment Terms", description: "Maintain reusable payment terms for new Sales Contracts.",
       fields: [
         {label:"Dropdown label",required:true}, {label:"Payment method",required:true,type:"select",options:["",...Object.keys(PAYMENT_METHOD_NAMES)]},
-        {label:"Contract wording",type:"textarea",full:true,hint:"Blank standard wording uses the payment method’s existing text. For editable percentages or days, use {{advance}}, {{balance}} or {{days}} where applicable."},
+        {label:"Contract wording",type:"textarea",full:true,hint:"Keep {{advance}}, {{balance}} or {{days}} for values entered on the contract. For standard scan-copy terms, a 0% advance prints as 100% payable against scan copies."},
         {label:"Display order",required:true,type:"number",step:1}, {label:"Status",type:"select",options:["Active","Inactive"]},
         {label:"Fixed advance %",type:"number"}, {label:"Fixed usance days",type:"number",step:1}
       ], rows: []
@@ -1075,6 +1085,18 @@
     if(type.id==="export_payment_terms"&&index===1)return PAYMENT_METHOD_NAMES[value]||value;
     return value;
   }
+  function standardPaymentWording(method, advance) {
+    if (method === "ADV_SCAN" && advance && Number(advance) === 0) return SCAN_ONLY_PAYMENT_WORDING;
+    return Object.hasOwn(STANDARD_PAYMENT_WORDING, method) ? STANDARD_PAYMENT_WORDING[method] : "";
+  }
+
+  function masterRecordDisplayValue(type, index, values) {
+    if (type.id === "export_payment_terms" && index === 2) {
+      return values[2] || standardPaymentWording(values[1], values[5]);
+    }
+    return masterDisplayValue(type, index, values[index]);
+  }
+
   function masterToday(){
     const parts=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Karachi",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).map(part=>[part.type,part.value]));
     return `${parts.year}-${parts.month}-${parts.day}`;
@@ -1247,7 +1269,11 @@
       if (field.type === "checks") {
         return [...document.querySelectorAll(`[data-master-field-index="${index}"]:checked`)].map(input => input.value).join("; ");
       }
-      return document.getElementById(masterInputId(index))?.value.trim() || "";
+      const input = document.getElementById(masterInputId(index));
+      const value = input?.value.trim() || "";
+      if (type.id === "export_payment_terms" && index === 2 &&
+          document.getElementById("editMasterId").value && value === input?.dataset.inheritedWording) return "";
+      return value;
     });
   }
   function displayColumns(type) {
@@ -1327,7 +1353,7 @@
     if(isContractMaster){
       const shortcuts=[["products","Export Quality &amp; Specs"],["export_customers","Export Customers"]]
         .filter(([id])=>canMaster(id,"View"));
-      description.insertAdjacentHTML("afterend",`<div id="exportContractMasterTabs"><nav class="company-editor-tabs" aria-label="Export Contract Terms">${allowedContractTabs.map(([id,label])=>`<button type="button" data-master="${id}" class="${id===currentMaster?"active":""}" aria-current="${id===currentMaster?"page":"false"}">${label}</button>`).join("")}</nav>${shortcuts.length?`<div class="export-contract-master-shortcuts">${shortcuts.map(([id,label])=>`<button type="button" class="row-action" data-master="${id}">${label}</button>`).join("")}</div>`:""}</div>`);
+      description.insertAdjacentHTML("afterend",`<div id="exportContractMasterTabs"><nav class="export-contract-master-nav tt-modebar" aria-label="Export Contract Terms">${allowedContractTabs.map(([id,label])=>`<button type="button" data-master="${id}" class="${id===currentMaster?"active":""}" aria-current="${id===currentMaster?"page":"false"}">${label}</button>`).join("")}</nav>${shortcuts.length?`<div class="export-contract-master-shortcuts">${shortcuts.map(([id,label])=>`<button type="button" class="row-action" data-master="${id}">${label}</button>`).join("")}</div>`:""}</div>`);
     }
     document.getElementById('masterDeletionRequests')?.remove();
     if(IS_SUPER_ADMIN && pendingDeletionRequests.length){
@@ -1351,6 +1377,8 @@
       document.querySelectorAll('[data-purchase-stage]').forEach(button=>button.onclick=()=>{currentPurchaseTab=`${commodity}_${button.dataset.purchaseStage}`;renderMasters()});
     }
     document.getElementById("addMasterRecord").hidden=!canMaster(type.id,"Create");
+    const masterTable = document.getElementById("masterTableBody").closest("table");
+    masterTable.classList.toggle("export-contract-master-table", isContractMaster);
     document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "salary_staff" ? "Staff" : type.id === "purchase_kat" ? "KAT Profile" : type.id === "purchase_products" ? "Purchase Product" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Export Product" : type.id === "export_payment_terms" ? "Payment Term" : "Record"}`;
     const columns = displayColumns(type).filter(index => type.fields[index]?.label !== "Status");
     if(type.id==="purchase_products"){
@@ -1365,7 +1393,10 @@
     document.getElementById("masterTableHead").innerHTML = `<tr>${columns.map(index => `<th>${escapeHtml(type.fields[index].label)}</th>`).join("")}<th>Status</th><th>Actions</th></tr>`;
     const query = document.getElementById("masterSearch")?.value.toLowerCase() || "";
     const rows = (state.masters[type.id] || []).filter(row => {
-      if(!row.values.join(" ").toLowerCase().includes(query))return false;
+      const searchable = type.id === "export_payment_terms"
+        ? [...row.values, masterRecordDisplayValue(type, 2, row.values)]
+        : row.values;
+      if(!searchable.join(" ").toLowerCase().includes(query))return false;
       if(!document.getElementById("masterIncludeInactive").checked&&isInactiveMasterRow(type,row))return false;
       return true;
     });
@@ -1383,7 +1414,7 @@
       wrapper.before(groups);renderMasterDetail();return;
     }
     const permanentlyDeletable=new Set(["export_customers","business_parties","purchase_products","purchase_kat","mills","export_documents","export_terms"]);
-    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => {const inactive=masterRowStatus(type,row)==="Inactive";return `<tr>${columns.map(index => `<td>${escapeHtml(masterDisplayValue(type,index,row.values[index]) || "—")}</td>`).join("")}<td><span class="tag ${inactive?'inactive':''}">${escapeHtml(inactive?'Deactivated':masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${!["commodities","companies"].includes(type.id)&&canMaster(type.id,"Deactivate")?(inactive?`<button class="row-action deactivated" type="button" disabled>Deactivated</button>`:`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`):""}${permanentlyDeletable.has(type.id)&&IS_SUPER_ADMIN?`<button class="row-action purge" data-purge-master="${escapeHtml(row.id)}">Delete Permanently</button>`:""}</div></td></tr>`}).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
+    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => {const inactive=masterRowStatus(type,row)==="Inactive";return `<tr>${columns.map(index => `<td${(type.id==="export_payment_terms"&&index===2)||(type.id==="export_terms"&&index===1)?' class="export-contract-wording"':''}>${escapeHtml(masterRecordDisplayValue(type,index,row.values) || "—")}</td>`).join("")}<td><span class="tag ${inactive?'inactive':''}">${escapeHtml(inactive?'Deactivated':masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${!["commodities","companies"].includes(type.id)&&canMaster(type.id,"Deactivate")?(inactive?`<button class="row-action deactivated" type="button" disabled>Deactivated</button>`:`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`):""}${permanentlyDeletable.has(type.id)&&IS_SUPER_ADMIN?`<button class="row-action purge" data-purge-master="${escapeHtml(row.id)}">Delete Permanently</button>`:""}</div></td></tr>`}).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
     document.querySelectorAll("#masterTableBody tr").forEach((tr,index)=>{if(rows[index]){tr.dataset.openMaster=rows[index].id;tr.tabIndex=0;tr.setAttribute("aria-label",`View ${rows[index].values[0]||type.name}`);}});
     renderMasterDetail();
   }
@@ -1407,7 +1438,7 @@
     const deletion=type.id==="salary_staff"&&canMaster(type.id,"Deactivate")&&!isInactiveMasterRow(type,row)?`<button class="button danger" type="button" data-delete-master="${escapeHtml(row.id)}" title="Delete staff">− Delete</button>`:"";
     const head=`<div class="master-detail-head"><button class="master-back" type="button" data-back-master>← ${escapeHtml(type.name)}</button><div><p class="eyebrow">${escapeHtml(type.name)}</p><h2>${escapeHtml(name)}</h2></div>${canMaster(type.id,"Edit")?`<button class="button secondary" type="button" data-edit-master="${escapeHtml(row.id)}" data-editor-tab="${type.id==="companies"&&companyDetailTab?companyDetailTab:"overview"}">Edit</button>`:""}${deletion}</div>`;
     if(type.id!=="companies"){
-      const fields=type.fields.map((field,index)=>field.type==="hidden"?"":detailField(field.label,masterDisplayValue(type,index,row.values?.[index]))).join("");
+      const fields=type.fields.map((field,index)=>field.type==="hidden"?"":detailField(field.label,masterRecordDisplayValue(type,index,row.values))).join("");
       detail.innerHTML=head+`<dl class="master-detail-grid">${fields}</dl>`;
       return;
     }
@@ -1599,18 +1630,30 @@
     document.getElementById("editMasterId").value = row?.id || "";
     document.getElementById("masterDialogTitle").textContent = `${row ? "Edit" : "Add"} ${type.name}`;
     document.getElementById("masterDialogHelp").textContent = type.description + " Complete as much information as available; only the essential identity fields are mandatory.";
-    document.getElementById("masterFormFields").innerHTML = masterFieldsHtml(type, row?.values || []);
+    const formFields = document.getElementById("masterFormFields");
+    formFields.toggleAttribute("data-payment-term-editor", type.id === "export_payment_terms");
+    formFields.innerHTML = masterFieldsHtml(type, row?.values || []);
     if(type.id==="export_payment_terms"){
-      const method=document.getElementById(masterInputId(1));
-      const showMethodFields=()=>{
-        const advance=document.getElementById(masterInputId(5));
-        const days=document.getElementById(masterInputId(6));
-        advance.closest("label").hidden=!["ADV_SCAN","ADV_CAD"].includes(method.value);
-        days.closest("label").hidden=method.value!=="LC_USANCE";
-        if(advance.closest("label").hidden)advance.value="";
-        if(days.closest("label").hidden)days.value="";
+      const method = document.getElementById(masterInputId(1));
+      const wording = document.getElementById(masterInputId(2));
+      const advance = document.getElementById(masterInputId(5));
+      const days = document.getElementById(masterInputId(6));
+      const updateWording = () => {
+        if (!wording.value.trim() || wording.value === wording.dataset.inheritedWording) {
+          wording.value = standardPaymentWording(method.value, advance.value);
+          wording.dataset.inheritedWording = wording.value;
+        }
       };
-      method.addEventListener("change",showMethodFields);
+      const showMethodFields = () => {
+        advance.closest("label").hidden = !["ADV_SCAN","ADV_CAD"].includes(method.value);
+        days.closest("label").hidden = method.value !== "LC_USANCE";
+        if (advance.closest("label").hidden) advance.value = "";
+        if (days.closest("label").hidden) days.value = "";
+        wording.required = method.value === "CUSTOM";
+        updateWording();
+      };
+      method.addEventListener("change", showMethodFields);
+      advance.addEventListener("input", updateWording);
       showMethodFields();
       if(!row){
         const positions=(state.masters.export_payment_terms||[]).map(item=>Number(item.values[3])||0);
