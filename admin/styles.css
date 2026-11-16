@@ -712,10 +712,37 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
   align-items: center;
   justify-content: space-between;
   gap: 8px 14px;
-  margin: 10px 0;
+  margin: 0 16px 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
 }
 .export-contract-master-shortcuts {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+.export-contract-master-nav.tt-modebar {
+  margin: 0;
+}
+.export-contract-master-nav button {
+  min-height: 38px;
+  font-size: .8rem;
+}
+#view-masters .master-content .export-contract-master-table td {
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+#view-masters .master-content .export-contract-master-table .export-contract-wording {
+  width: 42%;
+  min-width: min(38vw, 18rem);
+  max-width: none;
+  white-space: pre-wrap;
+}
+#masterFormFields[data-payment-term-editor] {
+  display: grid;
+  align-content: start;
+}
+#masterFormFields[data-payment-term-editor] textarea {
+  min-height: 6.5rem;
 }

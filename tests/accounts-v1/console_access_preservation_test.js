@@ -5,6 +5,11 @@ const {JSDOM} = require('jsdom');
 (async () => {
   const requests = [], opened = [];
   const masters={salary_staff:[['Mill person','TTI','MILL_STAFF'],['House person','TTI','HOME_STAFF'],['Office person','TTI','OFFICE_STAFF'],['Director person','TTI','DIRECTOR_REMUNERATION'],['Mrs person','BRM','HOME_MONTHLY_GIVE']].map((v,i)=>({id:'S'+i,values:[...v,'1000','20','30','2026-10-01','','STAFF_COST','No','Active','']}))};
+  masters.export_payment_terms = [
+    {id:'STD',values:['Advance + Balance CAD','ADV_CAD','','10','Active','','']},
+    {id:'SCAN',values:['Advance + Balance Against Scan Copies','ADV_SCAN','','20','Active','0','']},
+    {id:'OVERRIDE',values:['Custom CAD','CAD100','Agreed CAD wording.','30','Active','','']}
+  ];
   const staff = {id:'2',name:'Fixture Director',username:'fixture.director',role:'Accounts',location:'All authorized locations',active:true,modules:['Accounts','Directors'],permissions:{Accounts:{reports:['View']},Directors:{tgmaster:['View','Edit'],future_screen:['View']}},masterAccess:true,masterPermissions:{products:['View'],reference_lists:['Use','View'],product_settings:['View','Edit']},lastActive:'2026-10-16T20:00:00+00:00'};
   const dom = new JSDOM(fs.readFileSync('index.html','utf8'), {url:'https://fixture.test/index.php',runScripts:'outside-only',pretendToBeVisual:true});
   const w = dom.window;
@@ -18,7 +23,7 @@ const {JSDOM} = require('jsdom');
     if(options.body)requests.push(JSON.parse(options.body));
     return {ok:true,json:async()=>({ok:true,users:[staff],masters,options:{},approvals:[],snapshots:[],serverSnapshots:[],office:{}})};
   };
-  w.eval(fs.readFileSync('admin/app.js','utf8').replace('  initialize();','  window.testConsole={openUserDialog,saveUser}; initialize();'));
+  w.eval(fs.readFileSync('admin/app.js','utf8').replace('  initialize();','  window.testConsole={openUserDialog,saveUser,openMasterDialog,masterValuesFromForm,activeMasterType}; initialize();'));
   await new Promise(resolve=>setTimeout(resolve,50));
   w.document.querySelector('[data-open-module="directors"]').click();
   assert.equal(opened[0][0],'directors/index.php');
@@ -78,6 +83,26 @@ const {JSDOM} = require('jsdom');
     assert.equal(w.document.getElementById('masterTitle').textContent,'Export Contract Terms');
     assert.equal([...w.document.querySelectorAll('#masterTableHead th')].filter(x=>x.textContent==='Status').length,1);
   }
+  const masterDoc = w.document;
+  masterDoc.querySelector('#exportContractMasterTabs [data-master="export_payment_terms"]').click();
+  const standardText = '{{advance}}% advance and {{balance}}% balance Cash Against Documents (C.A.D.) through Buyer’s nominated bank.';
+  const wordingCells = [...masterDoc.querySelectorAll('#masterTableBody .export-contract-wording')];
+  assert.deepEqual(wordingCells.map(cell => cell.textContent), [
+    standardText, '100% payment upon receipt of scan copies of shipment documents by Buyer.', 'Agreed CAD wording.'
+  ]);
+  masterDoc.querySelector('#masterTableBody [data-open-master="STD"]').click();
+  assert(masterDoc.getElementById('masterDetail').textContent.includes(standardText));
+  await w.testConsole.openMasterDialog('STD');
+  const wordingInput = masterDoc.querySelector('#masterFormFields [data-master-field-index="2"]');
+  const formValues = () => w.testConsole.masterValuesFromForm(w.testConsole.activeMasterType());
+  assert.equal(wordingInput.value, standardText);
+  assert.equal(formValues()[2], '', 'Saving displayed standard text preserves the inherited wording');
+  wordingInput.value = 'Agreed terms: {{advance}}% now and {{balance}}% on CAD.';
+  assert.equal(formValues()[2], wordingInput.value, 'Edited wording is sent as an explicit override');
+  masterDoc.getElementById('masterDialog').close();
+  await w.testConsole.openMasterDialog('OVERRIDE');
+  assert.equal(formValues()[2], 'Agreed CAD wording.');
+  masterDoc.getElementById('masterDialog').close();
   w.document.querySelector('[data-master="salary_staff"]').click();
   const groups=[...w.document.querySelectorAll('[data-salary-master-group]')];assert.equal(groups.length,5);
   assert.equal(w.document.querySelectorAll('#salaryMasterGroups [data-delete-master]').length,5);
