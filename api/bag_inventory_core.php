@@ -26,7 +26,7 @@ function bti_location(array $masters,string $name,string $id=''): ?array {
 function bti_po_sources(array $exports): array {
     $contracts=[];foreach((array)($exports['contracts']??[]) as $c)if(is_array($c)&&isset($c['ref']))$contracts[(string)$c['ref']]=$c;
     $map=[];foreach((array)($exports['shipments']??[]) as $s){if(!is_array($s))continue;$c=$contracts[(string)($s['contractRef']??'')]??[];$seller=strtoupper((string)($s['seller']??$c['seller']??''));
-        $owner=$seller==='TG'?strtoupper((string)($s['documentParties']['exporterKey']??$s['customs']['exporter']??$c['customsExporter']??'')):$seller;
+        $owner=$seller==='TG'?strtoupper((string)($s['customs']['exporter']??$s['documentParties']['exporterKey']??$c['customsExporter']??'')):$seller;
         foreach((array)($s['bagOrders']??[]) as $po){if(!is_array($po)||empty($po['poNo']))continue;
             $lines=(array)($po['lines']??[]);if(!$lines)$lines=[['brand'=>$po['brand']??'','type'=>$po['type']??'','size'=>$po['packSize']??'','unit'=>$po['unit']??'','masterBag'=>$po['masterBag']??[]]];
             foreach(array_values($lines) as $i=>$line){if(!is_array($line))continue;$base=['entity'=>$owner,'contractRef'=>(string)($s['contractRef']??''),'supplier'=>(string)($po['supplier']??''),'brand'=>(string)($line['brand']??''),'bagType'=>(string)($line['type']??''),'packingSize'=>trim((string)($line['size']??'').' '.(string)($line['unit']??''))];

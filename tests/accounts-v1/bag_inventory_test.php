@@ -5,6 +5,19 @@ require dirname(__DIR__,2).'/api/bag_receipts_core.php';
 function bi_check(bool $yes,string $why): void {if(!$yes)throw new RuntimeException($why);}
 $masters=['mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mills','','Own Mill','','','Active']],['id'=>'mills-2','values'=>['Indus Rice Mill','','External Mill','','','Active']]]];
 $scope=['entity'=>'TTI','locationId'=>'mills-1','millName'=>'TTI Rice Mills'];$dest=['entity'=>'TTI','locationId'=>'mills-2','millName'=>'Indus Rice Mill'];$today='2026-10-17';
+// An issued Export PO is visible even when no old browser created its Mill row.
+$po=['poNo'=>'PO-260005','issuedAt'=>'2026-11-14T10:00:00Z','supplier'=>'CRYSTAL POLY','lines'=>[['brand'=>'MEGA','type'=>'PP','size'=>50,'unit'=>'KG']]];
+$exportRoot=['contracts'=>[['ref'=>'TG/MGT/02','seller'=>'TG']],'shipments'=>[['contractRef'=>'TG/MGT/02','seller'=>'TG','customs'=>['exporter'=>'TTI'],'bagOrders'=>[$po]]],
+    'millSync'=>['newExportBags'=>[['contractRef'=>'TG/MGT/02','poNo'=>$po['poNo'],'line'=>1,'supplier'=>$po['supplier'],'brand'=>'MEGA','size'=>50,'unit'=>'KG','orderedTare'=>110,'totalOrdered'=>5656,'deliverTo'=>'TTI Rice Mills']]]];
+$exportValue=['transtrade_export_v3_operational'=>json_encode($exportRoot,JSON_THROW_ON_ERROR)];
+$catalog=bti_bag_order_catalog($exportValue);
+bi_check(count($catalog)===1&&$catalog[0]['brand']==='MEGA'&&$catalog[0]['ordered']===5656&&$catalog[0]['received']===0,'Committed issued MEGA PO missing from catalog');
+bi_check(br_source($exportValue,$masters,(string)$catalog[0]['id'])['scope']['entity']==='TTI','Issued PO could not be opened by the receipt controller');
+bi_check(!isset($exportValue['tt30bags']),'Reading an issued PO must not write a bag order or stock');
+$existing=$catalog[0];$existing['id']=555;$existing['received']=10;
+bi_check(bti_bag_order_catalog($exportValue+['tt30bags'=>json_encode([$existing])])===[$existing],'An existing original order must take precedence');
+$exportRoot['shipments'][0]['bagOrders'][0]['cancelled']=true;
+bi_check(!bti_bag_order_catalog(['transtrade_export_v3_operational'=>json_encode($exportRoot)]),'A cancelled PO was restored');
 $order=['id'=>123,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'ASAS','size'=>'50 kg','bagType'=>'PP','received'=>1000,'poNo'=>'PO-1','poLineKey'=>'L1'];
 $receipt=['id'=>'R1','bagId'=>123,'date'=>'2026-10-01','qty'=>1000];$run=['id'=>'P1','entity'=>'TTI','millName'=>'TTI Rice Mills','date'=>'2026-10-02','rows'=>[['product'=>'Ready Rice — ASAS','bags'=>100,'bagWeight'=>50]]];$issue=['productionId'=>'P1','date'=>'2026-10-02','usage'=>['ASAS'=>100]];
 $values=['tt30bags'=>json_encode([$order]),'tt33bagreceipts'=>json_encode([$receipt]),'tt30prod'=>json_encode([$run]),'tt36bagissues'=>json_encode([$issue])];$original=serialize([$values,$masters]);
