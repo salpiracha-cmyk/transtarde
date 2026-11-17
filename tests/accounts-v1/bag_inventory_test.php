@@ -83,3 +83,27 @@ bi_check(bti_location($masters,'Historical old name','mills-1')['millName']==='T
 echo "PASS actual bag inventory projection: immutable reads, original PO/packing separation, historical allocation holds, later-receipt exclusion, source/destination partial/return conservation, acknowledged production stock, company isolation, undated history and exact PO ownership\n";
 
 require __DIR__.'/other_exporter_bags_test.php';
+
+require_once dirname(__DIR__,2).'/api/bag_ledger_core.php';
+$ledgerSources=[
+    'tt30bags'=>json_encode([$order]),
+    'tt33bagreceipts'=>json_encode([$receipt]),
+    'tt30prod'=>json_encode([array_replace($run,['shift'=>'Day','rows'=>[['product'=>'Ready Rice — ASAS','bags'=>625,'bagWeight'=>50]]])]),
+    'tt36bagissues'=>json_encode([array_replace($issue,['usage'=>['ASAS'=>625]])]),
+    'tt30ship'=>json_encode([
+        ['id'=>'S-1','entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'ASAS','bagSize'=>'50 kg','containers'=>[
+            ['id'=>'C-1','date'=>'2026-10-03','bags'=>500,'gate'=>'GP-1','truck'=>'TR-1','loadingComplete'=>true],
+            ['id'=>'C-2','date'=>'2026-10-03','bags'=>100,'gate'=>'','loadingComplete'=>false],
+            ['id'=>'C-3','date'=>'2026-10-18','bags'=>100,'gate'=>'GP-3','loadingComplete'=>true],
+        ]],
+        ['id'=>'S-2','entity'=>'BRM','mill'=>'TTI Rice Mills','brand'=>'ASAS','bagSize'=>'50 kg','containers'=>[
+            ['id'=>'C-4','date'=>'2026-10-03','bags'=>400,'gate'=>'GP-4','loadingComplete'=>true],
+        ]],
+    ]),
+];
+$ledger=blg_report($ledgerSources,$masters,$scope,'2026-10-17','2026-10-17',[]);
+$byKind=array_column($ledger['rows'],null,'kind');
+bi_check(count($ledger['rows'])===3,'Only one scoped completed dispatch should appear');
+bi_check($byKind['stock']['physicalQty']===1000&&$byKind['packing']['physicalQty']===0&&$byKind['packing']['qty']===-625&&$byKind['packing']['shift']==='Day','Physical receipt and packing movements were mixed');
+bi_check($byKind['packedDispatch']['qty']===-500&&str_contains($byKind['packedDispatch']['reference'],'GP-1'),'Actual dispatch and gate pass must be shown');
+echo "PASS Export Bags Ledger dispatch, date, scope, and packing classification\n";

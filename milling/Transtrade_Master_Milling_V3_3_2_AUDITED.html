@@ -922,8 +922,13 @@ paymentTypeChanged();render();
 <div id="prodReports" class="reportbox card hidden"></div>
 <div id="recoveryReport" class="reportbox card hidden"></div>
 
-<div id="bagReport" class="reportbox card hidden"><h3>Export Bags Ledger</h3><div class="r5"><div><label>Mode</label><select id="bagReportMode"><option>Till Date</option><option>From / To</option></select></div><div><label>From</label><input id="bagReportFrom" type="date"></div><div><label>To</label><input id="bagReportTo" type="date"></div><div><label>Brand</label><select id="bagReportBrand"><option>All Brands</option></select></div><div><label>Movement</label><select id="bagReportMovement"><option>All</option><option>Inward</option><option>Outward</option></select></div></div><div class="actions"><button onclick="renderBagLedger()">Generate Report</button></div>
-<table><thead><tr><th>Date</th><th>Brand</th><th>Inward</th><th>Outward</th><th>Balance</th><th>Narration / Reference</th></tr></thead><tbody id="bagLedgerBody"></tbody></table><div id="productionBrandReport" style="margin-top:12px"></div></div>
+<div id="bagReport" class="reportbox card hidden"><h3>Export Bags Ledger</h3>
+<div class="actions" aria-label="Bag ledger view">
+<button type="button" id="bagPhysicalTab" aria-pressed="true" onclick="selectBagLedgerView(false)">Export Bags Ledger</button>
+<button type="button" id="bagPackingTab" class="sec" aria-pressed="false" onclick="selectBagLedgerView(true)">Production and Packing Ledger</button>
+</div><div class="r5"><div><label>Mode</label><select id="bagReportMode"><option>Till Date</option><option>From / To</option></select></div><div><label>From</label><input id="bagReportFrom" type="date"></div><div><label>To</label><input id="bagReportTo" type="date"></div><div><label>Brand</label><select id="bagReportBrand"><option value="">All Brands</option></select></div><div><label for="bagReportSize">Bag size</label><select id="bagReportSize"><option value="">All sizes</option></select></div><div id="bagReportMovementWrap"><label>Movement</label><select id="bagReportMovement"><option>All</option><option>Inward</option><option>Outward</option></select></div></div><div class="actions"><button onclick="bagLedgerCache=null;renderBagLedger()">Generate Report</button></div>
+<p id="bagLedgerStatus" role="status"></p>
+<div style="overflow:auto"><table><thead id="bagLedgerHead"></thead><tbody id="bagLedgerBody"></tbody></table></div></div>
 
 <div id="usedBagReport" class="reportbox card hidden"><p id="usedBagReportReviewNotice" class="note" role="status" hidden></p><h3>USED BAGS (IN &amp; OUT) Ledger</h3><div class="r5"><div><label>From</label><input id="usedReportFrom" type="date"></div><div><label>To</label><input id="usedReportTo" type="date"></div><div><label>Source Stock</label><select id="usedReportSource"><option value="all">All</option><option value="arrival">Arrival / Pohanch</option><option value="outside">Outside Source</option></select></div><div><label>Movement</label><select id="usedReportMovement"><option>All</option><option>Inward</option><option>Outward</option></select></div><div style="align-self:end"><button onclick="renderUsedBagLedger()">Generate Report</button></div></div>
 <table><thead><tr><th>Date</th><th>Source Stock</th><th>Movement</th><th>Inward</th><th>Outward</th><th>Source Balance</th><th>Narration / Reference</th></tr></thead><tbody id="usedBagLedgerBody"></tbody></table></div>
@@ -1838,7 +1843,7 @@ async function finalizeShipmentCompletion(){
 
 function completeShipment(){openCompletionBox(currentShipment)}
 
-function renderProductionBrandReport(){const root=document.getElementById('productionBrandReport');if(root)root.innerHTML='<button onclick="showReport(&quot;prodReports&quot;)">View actual production by brand</button>';}
+
 
 function productionHours(x){let [sh,sm]=String(x.start||'00:00').split(':').map(Number),[eh,em]=String(x.end||'00:00').split(':').map(Number),st=sh+sm/60,en=eh+em/60;if(en<=st)en+=24;return Math.max(0,en-st)}
 function productionTotalKg(x){return (x.rows||[]).filter(isOperationalProductionRow).reduce((a,r)=>a+(+r.systemKg||((+r.bags||0)*(+r.bagWeight||0))),0)}
@@ -1854,30 +1859,121 @@ function renderProductionReport(){mountMillOperationalReport('prodReports','prod
 function renderRecoveryReport(){mountMillOperationalReport('recoveryReport','daily')}
 
 function renderUsedBagLedger(){renderUsedBagReviewNotice();let body=document.getElementById('usedBagLedgerBody');if(!body)return;let all=usedBagMovements().slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.id).localeCompare(String(b.id))),bal={arrival:0,outside:0};all.forEach(x=>{bal[x.source]=(bal[x.source]||0)+(x.movement==='Inward'?+x.qty||0:-(+x.qty||0));x.sourceBalance=bal[x.source]});let rows=all,f=document.getElementById('usedReportFrom')?.value,t=document.getElementById('usedReportTo')?.value,s=document.getElementById('usedReportSource')?.value||'all',m=document.getElementById('usedReportMovement')?.value||'All';if(f)rows=rows.filter(x=>x.date>=f);if(t)rows=rows.filter(x=>x.date<=t);if(s!=='all')rows=rows.filter(x=>x.source===s);if(m!=='All')rows=rows.filter(x=>x.movement===m);body.innerHTML=rows.length?rows.map(x=>`<tr><td>${escHtml(x.date)}</td><td>${x.source==='arrival'?'Arrival / Pohanch':'Outside Source'}</td><td>${escHtml(x.movement)}</td><td>${x.movement==='Inward'?(+x.qty||0).toLocaleString():'—'}</td><td>${x.movement==='Outward'?(+x.qty||0).toLocaleString():'—'}</td><td><b>${(+x.sourceBalance||0).toLocaleString()}</b></td><td>${escHtml(x.type)}${x.purpose?' — '+escHtml(x.purpose):''}${x.ref?' · '+escHtml(x.ref):''}</td></tr>`).join(''):'<tr><td colspan="7">No used-bag movements match the filters.</td></tr>'}
-function showReport(id){['riceLedger','prodReports','recoveryReport','bagReport','usedBagReport','exportReport'].forEach(x=>{let e=document.getElementById(x);if(e)e.classList.toggle('hidden',x!==id)});if(id==='riceLedger')renderRiceLedger();if(id==='prodReports')renderProductionReport();if(id==='recoveryReport')renderRecoveryReport();if(id==='bagReport'){renderBagLedger();renderProductionBrandReport()}if(id==='usedBagReport')renderUsedBagLedger();if(id==='exportReport')renderExportReport()}
+function showReport(id){['riceLedger','prodReports','recoveryReport','bagReport','usedBagReport','exportReport'].forEach(x=>{let e=document.getElementById(x);if(e)e.classList.toggle('hidden',x!==id)});if(id==='riceLedger')renderRiceLedger();if(id==='prodReports')renderProductionReport();if(id==='recoveryReport')renderRecoveryReport();if(id==='bagReport'){bagLedgerCache=null;selectBagLedgerView(false);}if(id==='usedBagReport')renderUsedBagLedger();if(id==='exportReport')renderExportReport()}
 function renderProcessingRecon(){return;}
 function toggleLedgerDates(){ledgerFromWrap.classList.toggle('hidden',riceLedgerMode.value!=='range');ledgerToWrap.classList.remove('hidden')}
 function renderRiceLedger(){toggleLedgerDates();return window.TT_RICE_LEDGER?.load()}
 
-function renderBagLedger(){
- const body=document.getElementById('bagLedgerBody');if(!body)return;
- const validDate=d=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d||'')))return false;const parsed=new Date(d+'T00:00:00Z');return Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===d;};
- const allOrders=get(STORE_BAGS,defaultBagOrders()),orders=allOrders.filter(x=>stockScopeMatches(x)),receipts=get(STORE_BAGRECEIPTS,[]),production=get(STORE_PROD,[]),rows=[];
- if(orders.some(o=>!o.id||allOrders.filter(x=>String(x.id)===String(o.id)).length!==1)){body.innerHTML='<tr><td colspan="6">Bag order identities are ambiguous. Reconcile the original order/receipt links before reporting.</td></tr>';return;}
- orders.forEach(o=>{const history=receipts.filter(r=>String(r.bagId)===String(o.id)&&stockScopeMatches({...o,...r})),total=history.reduce((n,r)=>n+(+r.qty||0),0),unverified=Math.max(0,(+o.received||0)-total);if(unverified)rows.push({date:'',brand:o.brand,inn:unverified,out:0,n:'Prior receipt quantity without a dated source — Bag Order '+o.id});history.forEach(r=>rows.push({date:r.date||'',brand:o.brand,inn:+r.qty||0,out:0,n:'Supplier receipt — Bag Order '+o.id+' — '+(r.id||'')}));(o.transfers||[]).forEach(t=>rows.push({date:t.date||'',brand:o.brand,inn:0,out:+t.qty||0,n:'Source transfer to '+t.to+' — destination receipt unverified'}));});
- get(STORE_BAGISSUES,[]).forEach(i=>{const parent=production.find(p=>String(p.id)===String(i.productionId));if(!stockScopeMatches(parent||i))return;Object.entries(i.usage||{}).forEach(([brand,q])=>rows.push({date:i.date||parent?.date||'',brand,inn:0,out:+q||0,n:'Production consumption — '+(i.shift||parent?.shift||'')+' Shift — '+(i.productionId||'')}));});
- rows.forEach((r,index)=>{r.order=index;r.dated=validDate(r.date)});rows.sort((a,b)=>String(a.date).localeCompare(String(b.date))||a.order-b.order);
- const select=document.getElementById('bagReportBrand'),selected=select?.value||'All Brands',brands=[...new Set(rows.map(r=>r.brand).filter(Boolean))].sort();if(select){select.innerHTML='<option>All Brands</option>'+brands.map(b=>'<option>'+escHtml(b)+'</option>').join('');select.value=brands.includes(selected)?selected:'All Brands';}
- const from=document.getElementById('bagReportMode')?.value==='From / To'?document.getElementById('bagReportFrom')?.value:'',to=document.getElementById('bagReportTo')?.value,movement=document.getElementById('bagReportMovement')?.value||'All',brand=select?.value||'All Brands';
- if((from&&!validDate(from))||(to&&!validDate(to))||(from&&to&&from>to)){body.innerHTML='<tr><td colspan="6">Choose a valid From / To period.</td></tr>';return;}
- const balances={},opening={},unknown={},shown=[];
- rows.forEach(r=>{if(brand!=='All Brands'&&r.brand!==brand)return;if(!r.dated){unknown[r.brand]=(unknown[r.brand]||0)+1;shown.push({...r,date:'Undated',balance:null,n:r.n+' — excluded from dated balances'});return;}if(to&&r.date>to)return;balances[r.brand]=(balances[r.brand]||0)+r.inn-r.out;if(from&&r.date<from){opening[r.brand]=balances[r.brand];return;}if(movement==='All'||(movement==='Inward'?r.inn:r.out))shown.push({...r,balance:balances[r.brand]});});
- const cells=(date,brand,inn,out,balance,n)=>'<tr>'+[date,brand,inn===null?'—':Number(inn).toLocaleString(),out===null?'—':Number(out).toLocaleString(),balance===null?'—':Number(balance).toLocaleString(),n].map(v=>'<td>'+escHtml(v)+'</td>').join('')+'</tr>';
- let html='';if(from)Object.entries(opening).forEach(([b,q])=>html+=cells('Opening before '+from,b,null,null,q,unknown[b]?'Unverified — undated movements excluded':'All dated movements before period'));
- shown.forEach(r=>html+=cells(r.date,r.brand,r.inn||null,r.out||null,r.balance,r.n+(unknown[r.brand]?' — dated balance unverified':'')));
- Object.entries(balances).sort(([a],[b])=>a.localeCompare(b)).forEach(([b,q])=>html+=cells(to||'Latest dated',b,null,null,q,'Closing — includes all dated movement types'+(unknown[b]?'; unverified: undated history excluded':'')));
- body.innerHTML=html||'<tr><td colspan="6">No bag movements match this company, mill and period.</td></tr>';
+async function renderBagLedger(){
+ const body=document.getElementById('bagLedgerBody');
+ const status=document.getElementById('bagLedgerStatus');
+ const from=document.getElementById('bagReportMode').value==='From / To'?document.getElementById('bagReportFrom').value:'';
+ const to=document.getElementById('bagReportTo').value||today();
+ const scope=bagLedgerScope();
+ const request=++bagLedgerRequest;
+ body.innerHTML='';
+ if(!scope){status.textContent='Select a mill from Mills & Locations.';return;}
+ if(from&&from>to){status.textContent='Choose a valid From / To period.';return;}
+ const key=JSON.stringify([scope,to]);
+ if(bagLedgerCache?.key===key){drawBagLedger(bagLedgerCache.data,from);return;}
+ status.textContent='Loading bag ledger…';
+ try{
+  const response=await fetch('/api/bag_transfers.php?'+new URLSearchParams({...scope,asOf:to,purpose:'ledger'}),{credentials:'same-origin',headers:{Accept:'application/json'}});
+  const data=await response.json();
+  if(!response.ok||!data.ok)throw Error(data.error||'Could not load the bag ledger.');
+  if(request!==bagLedgerRequest||JSON.stringify(scope)!==JSON.stringify(bagLedgerScope()))return;
+  if(data.scope?.entity!==scope.entity||data.scope?.locationId!==scope.locationId||data.asOf!==to)throw Error('The report belongs to a different company, mill or date.');
+  bagLedgerCache={key,data};
+  drawBagLedger(data,from);
+ }catch(error){if(request===bagLedgerRequest)status.textContent=error.message;}
 }
+let bagLedgerPacking=false,bagLedgerRequest=0,bagLedgerCache=null;
+function selectBagLedgerView(packing){
+ bagLedgerPacking=packing;
+ for(const [id,active] of [['bagPhysicalTab',!packing],['bagPackingTab',packing]]){
+  const button=document.getElementById(id);
+  button.setAttribute('aria-pressed',String(active));
+  button.classList.toggle('sec',!active);
+ }
+ document.getElementById('bagReportMovementWrap').hidden=packing;
+ renderBagLedger();
+}
+function bagLedgerScope(){
+ const matches=(window.TT_MODULE_ACCESS?.masters?.mills??window.TT_MODULE_ACCESS?.workflowSelectors?.locations??[])
+  .filter(row=>millLocationIdentity(row.values?.[0])===millLocationIdentity(currentMill?.name));
+ return matches.length===1?{entity:stockEntityForView(),locationId:String(matches[0].id)}:null;
+}
+function drawBagLedger(data,from){
+ const getField=id=>document.getElementById(id);
+ const sizeKey=value=>value==null?'unknown':String(value);
+ const sizeLabel=value=>value==='unknown'?'Size unverified':value+' kg';
+ const brandKey=value=>String(value).trim().replace(/\s+/g,' ').toUpperCase();
+ function options(id,label,entries){
+  const select=getField(id),saved=select.value;
+  select.replaceChildren(new Option(label,''));
+  for(const [value,text] of entries)select.add(new Option(text,value));
+  if(entries.some(([value])=>value===saved))select.value=saved;
+  return select.value;
+ }
+ const rows=data.rows;
+ const brands=[...new Map(rows.map(row=>[brandKey(row.brand),row.brand]))].sort();
+ const brand=options('bagReportBrand','All Brands',brands);
+ const sizes=[...new Set(rows.filter(row=>!brand||brandKey(row.brand)===brand).map(row=>sizeKey(row.size)))];
+ const size=options('bagReportSize','All sizes',sizes.sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(key=>[key,sizeLabel(key)]));
+ const movement=getField('bagReportMovement').value;
+ const status=getField('bagLedgerStatus');
+ status.textContent=(data.warnings||[]).join(' ');
+ const heading=bagLedgerPacking?['Date','Brand','Bag size','Shift','Packed','Empty available','Packed at mill','Reference']:
+  ['Date','Brand','Bag size','In','Out','Balance at mill','Reference'];
+ const rowHtml=(cols,tag='td')=>'<tr>'+cols.map(value=>'<'+tag+'>'+escHtml(value??'—')+'</'+tag+'>').join('')+'</tr>';
+ getField('bagLedgerHead').innerHTML=rowHtml(heading,'th');
+ const groups=new Map(),opening=[],details=[],warnings=new Set();
+ const n=value=>Number(value).toLocaleString();
+ function balance(group,value){return group.review||(bagLedgerPacking&&group.packingReview)||value<0?'Review':n(value);}
+ function line(label,g,reference){
+  const common=[label,g.brand,sizeLabel(g.size)];
+  return bagLedgerPacking?rowHtml([...common,null,null,balance(g,g.empty),balance(g,g.packed),reference]):
+   rowHtml([...common,null,null,balance(g,g.physical),reference]);
+ }
+ const selected=rows.filter(row=>(!brand||brandKey(row.brand)===brand)&&(!size||sizeKey(row.size)===size));
+ const unknownBrands=new Set(rows.filter(row=>row.size==null||!row.date).map(row=>brandKey(row.brand)));
+ let openingShown=false;
+ function showOpening(){
+  if(!from||openingShown)return;
+  openingShown=true;
+  for(const group of groups.values())opening.push(line('Opening',group,'Before '+from));
+ }
+ for(const row of selected){
+  if(row.date&&row.date>=from)showOpening();
+  const bagSize=sizeKey(row.size),key=brandKey(row.brand)+'|'+bagSize;
+  if(!groups.has(key))groups.set(key,{brand:row.brand,size:bagSize,empty:0,packed:0,physical:0,review:unknownBrands.has(brandKey(row.brand)),packingReview:(data.unverifiedPackingBrands||[]).some(value=>brandKey(value)===brandKey(row.brand))});
+  const g=groups.get(key),quantity=Number(row.qty),packing=row.kind==='packing';
+  const physical=row.physicalQty??(packing?0:quantity);
+  if(!row.date){warnings.add('Undated bag movements are excluded from dated balances.');}
+  if(row.date){
+   g.physical+=physical;
+   if(row.kind==='packedDispatch')g.packed+=quantity;
+   else if(packing){g.empty+=quantity;g.packed-=quantity;}
+   else g.empty+=quantity;
+  }
+  if(row.hold||!row.date)g.review=true;
+
+  if(from&&row.date&&row.date<from)continue;
+  const reference=[row.type.replaceAll('_',' ').toLowerCase(),row.reference].filter(Boolean).join(' · ');
+  const common=[row.date||'Undated',row.brand,sizeLabel(bagSize)];
+  if(bagLedgerPacking&&packing){
+   details.push(rowHtml([...common,row.shift||null,n(-quantity),balance(g,g.empty),balance(g,g.packed),reference]));
+  }else if(!bagLedgerPacking&&physical&&(movement==='All'||(physical>0?movement==='Inward':movement==='Outward'))){
+   details.push(rowHtml([...common,physical>0?n(physical):null,physical<0?n(-physical):null,balance(g,g.physical),reference]));
+  }
+ }
+ showOpening();
+ const closing=[...groups.values()].map(g=>line('Closing',g,bagLedgerPacking?'Empty available and packed at mill':'Physical movements through report date'));
+ if([...groups.values()].some(g=>g.review||g.packingReview||g.empty<0||g.packed<0||g.physical<0))warnings.add('Review means the saved movements do not establish a reliable balance for that brand and size.');
+ status.textContent=[status.textContent,...warnings].filter(Boolean).join(' ');
+ getField('bagLedgerBody').innerHTML=[...opening,...details,...closing].join('')||'<tr><td colspan="'+heading.length+'">No bag movements match these filters.</td></tr>';
+}
+
 function renderExportReport(){
  const body=document.getElementById('exportReportBody');if(!body)return;
  const validDate=d=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d||'')))return false;const parsed=new Date(d+'T00:00:00Z');return Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===d;};

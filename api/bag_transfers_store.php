@@ -12,14 +12,15 @@ function bts_result(array $result,array $values,array $versions,int $stateVersio
     return $result+['stateVersion'=>$stateVersion];
 }
 /** Same global stock lock as production, then source rows in deterministic order. No Accounts lock or writes. */
-function bts_with_sources(bool $write,array $user,callable $fn): array {
+function bts_with_sources(bool $write,array $user,callable $fn,array $reportKeys=[]): array {
+    $keys=$write?BTS_SOURCE_KEYS:array_values(array_unique([...BTS_SOURCE_KEYS,...$reportKeys]));
     $env=static fn($n)=>(string)(defined('TT_'.$n)?constant('TT_'.$n):(getenv('TT_'.$n)?:''));$now=gmdate('c');
     if($env('DB_HOST')!==''&&$env('DB_NAME')!==''&&$env('DB_USER')!==''){
         $db=new PDO('mysql:host='.$env('DB_HOST').';dbname='.$env('DB_NAME').';charset=utf8mb4',$env('DB_USER'),$env('DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);$db->exec('SET SESSION innodb_lock_wait_timeout=10');
         $lock='tt_inventory_'.substr(hash('sha256',$env('DB_NAME')),0,24);$held=false;
         try{
             if($write){$q=$db->prepare('SELECT GET_LOCK(?,10)');$q->execute([$lock]);if((int)$q->fetchColumn()!==1)throw new DomainException('Stock is being committed. Your entry is retained; retry.');$held=true;}
-            $db->beginTransaction();$q=$db->prepare('SELECT storage_key,payload,version FROM tt_operation_records WHERE storage_key IN ('.implode(',',array_fill(0,count(BTS_SOURCE_KEYS),'?')).') ORDER BY storage_key '.($write?'FOR UPDATE':'LOCK IN SHARE MODE'));$q->execute(BTS_SOURCE_KEYS);$values=[];$versions=[];
+            $db->beginTransaction();$q=$db->prepare('SELECT storage_key,payload,version FROM tt_operation_records WHERE storage_key IN ('.implode(',',array_fill(0,count($keys),'?')).') ORDER BY storage_key '.($write?'FOR UPDATE':'LOCK IN SHARE MODE'));$q->execute($keys);$values=[];$versions=[];
             foreach($q->fetchAll() as $row){$values[$row['storage_key']]=$row['payload'];$versions[$row['storage_key']]=(int)$row['version'];}
             $sourceBefore=$values;$state=bts_state($values);$before=$state;$result=$fn($values,$state,$now);$version=$versions[BTS_STATE_KEY]??0;
             if($write){
