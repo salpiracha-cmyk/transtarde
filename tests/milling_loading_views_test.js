@@ -45,3 +45,48 @@ const bags=src.slice(src.indexOf('let bagOrderLoad,'),src.indexOf('function rend
  assert.equal(d.querySelector('#oelActual input[name=truck]').value,'DRAFT');
  w.close();console.log('PASS Milling loading tabs, active search, outside draft preservation, and bag-order readiness and retry');
 })().catch(e=>{console.error(e);process.exitCode=1;});
+
+(async()=>{
+ const bootstrap=fs.readFileSync('module.php','utf8').match(/<script id="tt-shared-operations-bootstrap">([\s\S]*?)<\/script>/)[1];
+ const dom=new JSDOM('<main></main>',{runScripts:'outside-only',url:'https://fixture.test/module.php?id=milling'});
+ const w=dom.window,orders='tt30bags',receipts='tt33bagreceipts',exportsKey='transtrade_export_v3_operational',unrelated='tt30ship';
+ const issued={contracts:[],shipments:[],millSync:{newExportBags:[{poNo:'PO-1',brand:'MEGA',deliverTo:'TTI Rice Mills',requiredBags:125}]}};
+ const committed=[{id:4,poNo:'PO-1',brand:'MEGA',mill:'TTI Rice Mills',ordered:125,received:30}];
+ const state=(version,bagOrders)=>({ok:true,revision:version,values:{
+  [orders]:JSON.stringify(bagOrders),[receipts]:'[]',[exportsKey]:JSON.stringify(issued),[unrelated]:'[]'
+ },meta:Object.fromEntries([orders,receipts,exportsKey,unrelated].map(key=>[key,{version}]))});
+ w.TT_MODULE_ACCESS={moduleId:'milling'};
+ w.XMLHttpRequest=class{open(){} send(){this.status=200;this.responseText=JSON.stringify(state(1,[]));}};
+ const requests=[];
+ let respond=async()=>state(2,committed);
+ w.fetch=async(url,options)=>{requests.push(options);return {ok:true,json:respond};};
+ w.eval(bootstrap);
+ const sync=w.TT_SHARED_SYNC;
+ const loadOrders=()=>sync.refresh({keys:[orders,receipts,exportsKey]});
+ sync.bridge();
+ assert.match(w.localStorage.getItem(orders),/MEGA/,'the browser bridge has staged a projected order');
+ w.localStorage.setItem(unrelated,'[{"id":"keep-my-draft"}]');
+ await assert.rejects(sync.refresh(),/Finish the current save/);
+ await loadOrders();
+ assert.equal(w.localStorage.getItem(orders),JSON.stringify(committed));
+ assert.equal(sync.readVersion(orders),2);
+ assert.equal(w.localStorage.getItem(unrelated),'[{"id":"keep-my-draft"}]');
+ assert.equal(requests.length,1);
+ assert.ok(requests.every(options=>!options.method),'loading orders never submits a write');
+
+ let resolveRead;
+ respond=()=>new Promise(resolve=>{resolveRead=resolve;});
+ const pendingRead=loadOrders();
+ await new Promise(resolve=>setImmediate(resolve));
+ const receiptDraft='[{"id":"my-receipt"}]';
+ w.localStorage.setItem(receipts,receiptDraft);
+ resolveRead(state(3,[]));
+ await assert.rejects(pendingRead,/Finish the current bag order or receipt save/);
+ assert.equal(w.localStorage.getItem(receipts),receiptDraft);
+ assert.equal(w.localStorage.getItem(orders),JSON.stringify(committed));
+ assert.equal(sync.readVersion(orders),2);
+ await assert.rejects(loadOrders(),/Finish the current bag order or receipt save/);
+ assert.equal(requests.length,2,'a draft on a bag source blocks the next refresh before the read');
+ w.close();
+ console.log('PASS committed bag orders load over bridge projections while unrelated drafts and real receipt changes are retained');
+})().catch(e=>{console.error(e);process.exitCode=1;});

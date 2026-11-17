@@ -121,11 +121,12 @@ $sharedBootstrap = <<<'HTML'
   const access=window.TT_MODULE_ACCESS||{}, endpoint='api/operations.mysql.php';
   const cornContract=c=>/\b(?:CORN|MAIZE|MAKAI)\b/i.test([c?.commodity,c?.product,c?.variety,c?.baseVariety].filter(Boolean).join(' '));
   const EXPORT_STORE='transtrade_export_v3_operational';
+  const BAG_ORDER_SOURCES=['tt30bags','tt33bagreceipts',EXPORT_STORE];
   const LOCAL_ONLY_STORES=new Set(['tt39accountsoutbox']);
   const PRIVATE_STORES=new Set(['tt34ghati','tt34nilqueue','tt32processingrecon','tt41bagtransfers']);
   const allowed=k=>!LOCAL_ONLY_STORES.has(k)&&!PRIVATE_STORES.has(k)&&(k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k));
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem, originalGet=Storage.prototype.getItem, originalClear=Storage.prototype.clear;
-  const cacheFallback=new Map(), committedValues=new Map(), receipts=new Map(), failedKeys=new Set();let saveHolds=0;
+  const cacheFallback=new Map(), committedValues=new Map(), receipts=new Map(), failedKeys=new Set(), bagBridgeValues=new Map();let saveHolds=0;
   const waiting=()=>document.documentElement.classList.toggle('tt-save-waiting',saveHolds>0||commitWaiters.length>0);
   let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), queuedBase=new Map(), inboundRetry=0, lastRemoteBy='', lastInboundCheck=0, commitWaiters=[];
   // Cache capacity must not decide whether a server write is staged. All readers,
@@ -134,7 +135,14 @@ $sharedBootstrap = <<<'HTML'
   const markSaveState=()=>{};
   const parse=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
   const stableId=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return 600000000+(h>>>0)%300000000};
-  const put=(k,v)=>{const s=JSON.stringify(v);if(localStorage.getItem(k)!==s)localStorage.setItem(k,s)};
+  const put=(key,value)=>{
+    const staged=JSON.stringify(value);
+    if(localStorage.getItem(key)===staged)return;
+    const fromBagBridge=access.moduleId==='milling'&&BAG_ORDER_SOURCES.includes(key);
+    if(fromBagBridge&&(failedKeys.has(key)||inFlight.has(key)||(pending.has(key)&&bagBridgeValues.get(key)!==pending.get(key))))return;
+    localStorage.setItem(key,staged);
+    if(fromBagBridge&&pending.get(key)===staged)bagBridgeValues.set(key,staged);
+  };
   let inboundRequest=null,inboundTag='';
   function getRemote(sync=true){
     if(!sync&&inboundRequest)return;
@@ -177,6 +185,9 @@ $sharedBootstrap = <<<'HTML'
     const requested=options?.keys;
     if(requested!==undefined&&(!Array.isArray(requested)||!requested.length||requested.some(key=>typeof key!=='string'||!allowed(key))))return Promise.reject(new Error('The requested refresh source is invalid.'));
     const keys=requested===undefined?null:new Set(requested);
+    // The Bag Orders screen requests exactly this set and reads the committed
+    // sources together. Other callers keep their existing refresh guards.
+    if(access.moduleId==='milling'&&keys?.size===BAG_ORDER_SOURCES.length&&BAG_ORDER_SOURCES.every(key=>keys.has(key)))return refreshBagOrders();
     // A read-only report must not discard another icon's staged bridge data.
     // Keep the full-workspace guard for existing callers and reject any save
     // already in flight or staged edits to the requested report sources.
@@ -187,6 +198,33 @@ $sharedBootstrap = <<<'HTML'
       const snapshot=keys?{...data,values:Object.fromEntries(Object.entries(data.values||{}).filter(([key])=>keys.has(key))),meta:Object.fromEntries(Object.entries(data.meta||{}).filter(([key])=>keys.has(key))),restrictedKeys:(data.restrictedKeys||[]).filter(key=>keys.has(key))}:data;
       applyRemote(snapshot,false);return snapshot
     })
+  }
+  async function refreshBagOrders(){
+    const blocked=()=>BAG_ORDER_SOURCES.some(key=>inFlight.has(key)||pending.has(key)&&(
+      failedKeys.has(key)||bagBridgeValues.get(key)!==pending.get(key)||localStorage.getItem(key)!==pending.get(key)));
+    if(blocked())throw new Error('Finish the current bag order or receipt save before refreshing.');
+    const response=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin',cache:'no-store'});
+    const data=await response.json();
+    if(!response.ok||!data?.ok||!data.values||!data.meta)throw new Error(data?.error||'Bag orders could not be refreshed.');
+    if(blocked())throw new Error('Finish the current bag order or receipt save before refreshing.');
+    const restrictedKeys=(data.restrictedKeys||[]).filter(key=>BAG_ORDER_SOURCES.includes(key));
+    const values={},meta={};
+    for(const key of BAG_ORDER_SOURCES){
+      if(restrictedKeys.includes(key))continue;
+      const value=data.values[key];
+      const version=Number(data.meta[key]?.version||0);
+      if(!Number.isInteger(version)||version<0||(value!==undefined&&typeof value!=='string'))throw new Error('Bag order data could not be verified.');
+      if(version<(keyVersions.get(key)||0))throw new Error('Bag orders changed while loading. Retry to see the latest records.');
+      values[key]=value??(key===EXPORT_STORE?'{}':'[]');
+      meta[key]={...data.meta[key],version};
+    }
+    // Only replace projections made by the bridge. Native receipts use the
+    // committed orders and receipt versions, and a read must never resend them.
+    for(const key of BAG_ORDER_SOURCES){
+      if(pending.has(key)){pending.delete(key);queuedBase.delete(key);}
+      bagBridgeValues.delete(key);
+    }
+    applyRemote({...data,values,meta,restrictedKeys},true);
   }
   const legacyToken=key=>'tt_ui_mill_shared_pending_'+access.userId+'_'+key;
   const legacySame=(a,b,key='')=>{try{
@@ -251,6 +289,7 @@ $sharedBootstrap = <<<'HTML'
   // calls saveNow(), which creates the durable recovery entry before upload.
   function queue(key,value){
     if(!allowed(key)||key==='tt40exportreceipts'||applying)return;
+    bagBridgeValues.delete(key);
     value=String(value);
     // Rendering an empty or unchanged collection is not a workflow edit.
 // The Exports root still posts on explicit save for fresh closure validation.
