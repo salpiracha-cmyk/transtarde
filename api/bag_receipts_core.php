@@ -5,7 +5,7 @@ require_once __DIR__.'/bag_receipt_quantities.php';
 
 /** Receipt facts retain their original owner, physical location and issued specification. */
 function br_source(array $values,array $masters,string $bagId): array {
-    $found=array_values(array_filter(bti_rows($values,'tt30bags'),static fn($r)=>is_array($r)&&(string)($r['id']??'')===$bagId));
+    $found=array_values(array_filter(bti_bag_order_catalog($values),static fn($r)=>is_array($r)&&(string)($r['id']??'')===$bagId));
     if(count($found)!==1||!preg_match('/^[1-9][0-9]*$/D',$bagId))throw new DomainException('Select one original bag order with an unambiguous identity.');
     $order=$found[0];$location=bti_location($masters,(string)($order['millName']??$order['mill']??''),(string)($order['locationId']??$order['bagReceiptScope']['locationId']??''));
     if(!$location||$location['status']!=='Active')throw new DomainException('Resolve the actual active physical receipt location.');
@@ -44,7 +44,8 @@ function br_commit(array &$values,array &$state,array $masters,array $body,array
     $stockReturn=in_array($action,['return_available','reverse_supplier_return'],true);
     $dispositionAction=$stockReturn||in_array($action,['accept_corrected','return_supplier'],true);if($dispositionAction)$body['keepReceiptOpen']=!empty($source['order']['keepReceiptOpen']);
     if(!isset($body['keepReceiptOpen'])||!is_bool($body['keepReceiptOpen']))throw new DomainException('Confirm whether to keep the PO receipt open.');
-    $orders=bti_rows($values,'tt30bags');$receipts=bti_rows($values,'tt33bagreceipts');$receipt=null;$disposition=null;
+    $orders=bti_rows($values,'tt30bags');if(!in_array($source['order']['id'],array_column($orders,'id'),true))$orders[]=$source['order'];
+    $receipts=bti_rows($values,'tt33bagreceipts');$receipt=null;$disposition=null;
     if($action==='receive_supplier'){
         $qty=bt_qty($body['qty']??null);$date=bt_date((string)($body['date']??''),$now);$flags=br_flags($body);$quarantined=in_array(true,$flags,true);
         if(($source['order']['sourceKind']??'')==='OTHER_EXPORTER'&&($body['inspected']??null)!==true)throw new DomainException('Confirm these bags were physically counted and inspected.');

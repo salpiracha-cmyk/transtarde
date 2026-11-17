@@ -15,8 +15,8 @@ const bags=src.slice(src.indexOf('let bagOrderLoad,'),src.indexOf('function rend
  const renderShipments=()=>shipmentBody.innerHTML='<tr data-shipment-id="1" data-loading-search="TG-01 ABC123"><td>MEGA</td></tr><tr data-shipment-id="2"><td>Another brand</td></tr>';
  const refreshInstructionBadges=()=>{},loadPurchaseSodas=()=>Promise.resolve();
  const renderBagOrders=()=>bagOrdersBody.innerHTML='<tr><td>MEGA</td></tr>';
- let releaseShared,releaseReceipts,failReceipts=false;
- window.TT_SHARED_SYNC={refresh:async ({keys})=>{if(keys.includes(STORE_BAGS))await new Promise(r=>releaseShared=r);}};
+ let releaseShared,releaseReceipts,failReceipts=false,failShared=false;
+ window.TT_SHARED_SYNC={refresh:async ({keys})=>{if(keys.includes(STORE_BAGS))await new Promise((r,j)=>releaseShared=()=>failShared?j(Error('Order read failed')):r());}};
  window.TT_BAG_TRANSFERS={loadCurrentReceipts:()=>new Promise((resolve,reject)=>{releaseReceipts=()=>failReceipts?reject(Error('Receipt read failed')):resolve(true);})};
  window.TT_MODULE_ACCESS={csrf:'fixture'};
  window.fetch=async(url,options)=>({ok:true,json:async()=>({ok:true,today:'2026-11-12',userId:1,rows:[{id:'LOT1',contract:'TG/AMT/14',site:'Khan Rice Mills',lot:'LOT-A',brand:'GHAZAL',assignment:{assigneeId:1,route:'MILL'},actuals:[],expected:1,canEdit:true,specifications:[]}]})});
@@ -24,11 +24,13 @@ const bags=src.slice(src.indexOf('let bagOrderLoad,'),src.indexOf('function rend
  w.eval(fs.readFileSync('accounts/outside-export-loading.js','utf8'));
  w.eval("activate('newbags');bagOrdersBody.innerHTML='<tr><td>GHAZAL stale row</td></tr>';void loadCurrentBagOrders();");
  assert(q('currentBagOrders').hidden);
- w.eval('releaseShared()');await tick();assert(q('currentBagOrders').hidden);
+ w.eval('releaseShared()');await tick();assert(!q('currentBagOrders').hidden,'Committed orders appear before physical stock returns');
  w.eval('releaseReceipts()');await tick();
  assert(!q('currentBagOrders').hidden);assert.match(q('bagOrdersBody').textContent,/MEGA/);
  w.eval('failReceipts=true;void loadCurrentBagOrders();releaseShared();');await tick();
  w.eval('releaseReceipts()');await tick();
+ assert(!q('currentBagOrders').hidden,'Physical stock errors leave committed orders visible');
+ w.eval('failShared=true;void loadCurrentBagOrders();releaseShared();');await tick();
  assert(q('currentBagOrders').hidden);assert(!q('retryBagOrders').hidden);
  w.eval("openPanel('export')");await tick();
  const search=q('loadingInstructionSearch');

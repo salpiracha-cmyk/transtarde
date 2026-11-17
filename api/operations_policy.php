@@ -325,6 +325,17 @@ function operations_pohanch_arrival_effect(array $user,array $before,array $next
         if(!os_scope($user,$row,os_root($before))||!$sameMill||!empty($row['rejected']))
             throw new DomainException('The linked truck is unavailable for this company and mill.');
         if(!operations_same_value($row,$expected))throw new DomainException('This truck changed in the Arrival List. Reopen it before saving the Pohanch.');
+        require_once __DIR__.'/soda_moisture.php';
+        $freeMoisture=pohanch_free_moisture($slip,$priorSlips[$slip['id']]??null);
+        if (soda_free_moisture($slip['freeMoisturePct']??null)!==$freeMoisture)
+            throw new DomainException('The SODA moisture term changed. Reopen Pohanch to load the current agreement.');
+        if ($freeMoisture!==null) {
+            $measured=$row['moisture']??null;
+            if (!is_numeric($measured)||!is_numeric($slip['moisture']??null)||(float)$measured!==(float)$slip['moisture'])
+                throw new DomainException('Use the measured moisture from the linked Arrival List truck.');
+            if ((float)$measured<=$freeMoisture&&((float)($slip['moistureKat']??0)!==0.0||(float)($slip['moistureKatKg']??0)!==0.0))
+                throw new DomainException('Moisture KAT must be zero within the agreed SODA tolerance.');
+        }
         $fields=['broken','brokenKat','moistureKatKg','damageKat','chalkyKat','paddyKat'];
         foreach($fields as $field){
             $value=$slip[$field]??'';

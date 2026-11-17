@@ -3,6 +3,7 @@ declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/bag_shipment_usage_core.php';
 require_once __DIR__.'/bag_transfers_store.php';
+require_once __DIR__.'/operations_scope.php';
 header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');
 class BagTransferAccessDenied extends RuntimeException {}
 function bgt_out(array $data,int $status=200): never {http_response_code($status);echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);exit;}
@@ -12,7 +13,7 @@ function bgt_master(array $masters,string $id): array {
 }
 function bgt_access(array $user,string $entity,array $location,string $action): void {
     if(!in_array($entity,['TTI','BRM'],true)||!tt_user_can_open_module($user,'Mill')||!tt_user_can_module_action($user,'Mill','newbags',$action))throw new BagTransferAccessDenied('New Export Bags '.$action.' permission is required.');
-    $scope=bti_norm($user['location']??'');if(($user['role']??'')!=='Super Admin'&&!in_array($scope,['','all locations','all authorized locations'],true)&&$scope!==bti_norm($location['name']))throw new BagTransferAccessDenied('This action belongs to another assigned physical mill.');
+    if(!os_location($user,$location['name']))throw new BagTransferAccessDenied('This action belongs to another assigned physical mill.');
     $grants=(array)($user['permissions']['Accounts']??[]);foreach(['entity-tti','entity-brm','entity-tg'] as $key)if(array_key_exists($key,$grants)){if(!tt_user_can_access_entity($user,$entity,$action))throw new BagTransferAccessDenied('The original stock owner is outside this action company permission.');break;}
 }
 function bgt_can(array $u,string $entity,array $location,string $action): bool {try{bgt_access($u,$entity,$location,$action);return true;}catch(BagTransferAccessDenied){return false;}}
@@ -52,7 +53,7 @@ try{
         $scope=['entity'=>$entity,'locationId'=>$location['id'],'millName'=>$location['name'],'status'=>$location['status']];if(function_exists('tt_release_read_session'))tt_release_read_session();
         $exclude=$productionView&&isset($_GET['excludeProductionId'])?(string)$_GET['excludeProductionId']:null;
         $result=bts_with_sources(false,$user,static fn($values,$state,$now)=>$productionView?['inventory'=>bti_project($values,$masters,$scope,$date,$today,$state,$exclude)]:bgt_view($values,$state,$masters,$scope,$date,$today,$user));
-        $destinations=[];foreach((array)($masters['mills']??[]) as $r){$v=array_values((array)($r['values']??[]));if(($v[5]??'')==='Active'&&(string)$r['id']!==$location['id'])$destinations[]=['id'=>(string)$r['id'],'name'=>(string)($v[0]??'')];}
+        $destinations=[];foreach((array)($masters['mills']??[]) as $r){$v=array_values((array)($r['values']??[]));if(($v[5]??'')==='Active'&&strcasecmp((string)($v[2]??''),'Office')!==0&&(string)$r['id']!==$location['id'])$destinations[]=['id'=>(string)$r['id'],'name'=>(string)($v[0]??'')];}
         bgt_out(['ok'=>true,'entity'=>$entity,'locationId'=>$location['id'],'canCreate'=>bgt_can($user,$entity,$location,'Create'),'destinations'=>$productionView?[]:$destinations]+$result);
     }
     if($method!=='POST')bgt_out(['ok'=>false,'error'=>'Method not allowed.'],405);

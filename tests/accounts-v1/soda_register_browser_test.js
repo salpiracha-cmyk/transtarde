@@ -22,6 +22,8 @@ rows.unshift({id:'P3',entity:'TTI',sodaNo:'26003',sodaDate:'2026-10-01',broker:'
  assert.equal(await supplierAndBroker.locator('td').nth(3).innerText(),'PKR 111.00 / kg');
  assert.equal(await page.getByText('Search / Amend Soda',{exact:true}).count(),0);
  assert.equal(await page.locator('#ttSdTerms').inputValue(),'CREDIT','New SODAs default to Credit');assert.equal(await page.locator('#ttSdCredit').inputValue(),'30','New SODAs default to 30 days');assert.ok(await page.locator('#ttSdCredit').isEnabled());
+ assert.equal(await page.locator('#ttSdFreeMoisture').inputValue(),'16');
+ assert.deepEqual(await page.locator('#ttSdFreeMoisture option').allTextContents(),['14%','15%','15.5%','16%']);
  await page.locator('#ttSdTerms').selectOption('CASH');assert.ok(await page.locator('#ttSdCreditWrap').isHidden());await page.locator('#ttSdTerms').selectOption('CREDIT');assert.equal(await page.locator('#ttSdCredit').inputValue(),'30');
  await page.locator('#ttSdRemarks').fill('Unfinished new SODA');
  await page.getByRole('textbox',{name:'Search recent SODAs'}).fill('25001');assert.equal(await page.locator('[data-soda-view]').count(),0,'The Centre excludes SODAs older than two calendar months');assert.equal(await page.locator('#ttSdRemarks').inputValue(),'Unfinished new SODA');
