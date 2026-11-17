@@ -1,0 +1,57 @@
+name: Scoped read-only Mill handoff check
+on:
+  push:
+    branches: [ops/mill-bag-source-check]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      HOSTINGER_HOST: 151.106.116.33
+      HOSTINGER_PORT: '65002'
+      HOSTINGER_USER: u831010370
+      HOSTINGER_DEPLOY_PATH: /home/u831010370/domains/app.transtradeinternational.com/public_html
+      HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+    steps:
+      - name: Count the selected brand's saved handoffs without modifying records
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          trap 'rm -rf "$RUNNER_TEMP/ssh"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          chmod 600 "$RUNNER_TEMP/ssh/key"
+          ssh-keyscan -T 15 -p "$HOSTINGER_PORT" -t ed25519 "$HOSTINGER_HOST" 2>/dev/null > "$RUNNER_TEMP/ssh/known_hosts"
+          test "$(ssh-keygen -lf "$RUNNER_TEMP/ssh/known_hosts" -E sha256 | awk '{print $2}' | sort -u)" = 'SHA256:Bid0atNrqK2cVKyC84j8BnqToKfMokX5myGJkNCvBsg'
+          target=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
+          ssh -o ConnectTimeout=20 -o BatchMode=yes -o StrictHostKeyChecking=yes -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_MILL_READ_ROOT=$target php" <<'PHP'
+          <?php
+          $root=getenv('TT_MILL_READ_ROOT');
+          require $root.'/auth_store.php';
+          require_once $root.'/inventory_reconciliation.php';
+          $values=mr_read_operations_source(TT_DATA_DIR.'/operations.json',['transtrade_export_v3_operational','tt30bags','tt30prodinst','tt30prod'])['values'];
+          $exports=json_decode($values['transtrade_export_v3_operational']??'{}',true,512,JSON_THROW_ON_ERROR);
+          $brand=static fn($name)=>hash('sha256',strtolower(trim((string)$name)))==='75f8f82f56d1f48657f010cc4c397300c44b0f4619e729f6f0ad787c1366aa63';
+          $atTti=static fn($name)=>in_array(tt_inv_norm((string)$name),['ttiricemills','ttiricemill','transtrade','transtradeinternational'],true);
+          $closed=static fn($r)=>!empty($r['completed'])||!empty($r['closed'])||!empty($r['cancelled'])||in_array(strtolower(trim((string)($r['status']??''))),['completed','closed','archived','cancelled'],true);
+          $result=['productionHandoffs'=>0,'millInstructionRows'=>0,'millProductionRows'=>0,'issuedBagLines'=>0,'issuedBagLinesTtiMill'=>0,'millBagRows'=>0,'millBagRowsTtiMill'=>0,'millBagRowsTtiMillOpen'=>0,'millBagRowsTtiMillTransactionClosed'=>0];
+          foreach($exports['millSync']['productionInstructions']??[] as $instruction)foreach($instruction['packings']??[] as $packing)if($brand($packing['brand']??''))$result['productionHandoffs']++;
+          foreach(tt_inv_rows($values,'tt30prodinst') as $row)if($brand($row['brand']??''))$result['millInstructionRows']++;
+          foreach(tt_inv_rows($values,'tt30prod') as $row)foreach($row['rows']??[] as $out){$parts=explode(' — ',(string)($out['product']??''));if($brand(end($parts)))$result['millProductionRows']++;}
+          foreach($exports['millSync']['newExportBags']??[] as $row)if($brand($row['brand']??'')){
+              $result['issuedBagLines']++;
+              if($atTti($row['deliverTo']??''))$result['issuedBagLinesTtiMill']++;
+          }
+          foreach(tt_inv_rows($values,'tt30bags') as $row)if($brand($row['brand']??'')&&(($row['sourceKind']??'')!=='OTHER_EXPORTER')){
+              $result['millBagRows']++;
+              if(!$atTti($row['millName']??$row['mill']??''))continue;
+              $result['millBagRowsTtiMill']++;
+              $shipments=array_filter($exports['shipments']??[],static fn($s)=>($s['contractRef']??'')===($row['contractRef']??'')&&in_array($row['poNo']??'',array_column($s['bagOrders']??[],'poNo'),true));
+              $closedShipments=array_filter($shipments,$closed);
+              $closedContract=array_filter($exports['contracts']??[],static fn($c)=>($c['ref']??'')===($row['contractRef']??'')&&$closed($c));
+              if(($shipments&&count($shipments)===count($closedShipments))||(!$shipments&&$closedContract)){$result['millBagRowsTtiMillTransactionClosed']++;continue;}
+              if(!$closed($row)&&($row['ordered']??0)>($row['received']??0))$result['millBagRowsTtiMillOpen']++;
+          }
+          echo 'SCOPED_READ_ONLY_RESULT '.json_encode($result,JSON_THROW_ON_ERROR).PHP_EOL;
+          PHP
