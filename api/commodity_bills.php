@@ -283,7 +283,7 @@ try{
             $calculation['buyingBrokery']=$brokeryRate;
         }
         if($brokerageWithholding>$brokerageGross)cb_respond(['ok'=>false,'error'=>'Brokery withholding cannot exceed system-calculated Buying Brokery.'],422);
-        $provisional=round($provisional,2);$billBaseValue=$calculation!==null&&!$readyRice?round((float)$calculation['finalCommodityValue'],2):$provisional;
+        $provisional=round($provisional,2);$billBaseValue=$calculation!==null&&!$readyRice&&$qualityCalculation===null?round((float)$calculation['finalCommodityValue'],2):$provisional;
         if($readyRice)$billBaseValue=round($calculation['netRiceWeightKg']*$calculation['ratePerKg']+$calculation['kantaAmount']+$calculation['loadingAmount'],2);
         if ($qualityCalculation!==null) $billBaseValue=round($qualityCalculation['commodityValue']+($calculation['kantaAmount']??0)+($calculation['loadingAmount']??0),2);
         if($adjustmentLines||$readyRice||$qualityCalculation!==null){
