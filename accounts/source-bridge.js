@@ -31,27 +31,6 @@
   let flushing=false;
   async function flush(){if(flushing)return;flushing=true;try{let a=outbox();for(const item of a.filter(x=>x.status!=='Posted')){try{const d=await postItem(item);await markSent(item,d);item.status='Posted';item.postedAt=new Date().toISOString();item.journalId=d.journal||item.journalId||'';item.candidateId=d.candidate||item.candidateId||'';item.lastError=''}catch(e){item.tries=(item.tries||0)+1;item.lastError=String(e.message||e);item.lastTriedAt=new Date().toISOString();await recordFailure(item,e)}saveOutbox(a)}}finally{flushing=false;showOutboxAttention()}}
   function signal(msg,good=true){if(!good&&window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(msg);if(typeof window.showNonBlockingMessage==='function')return window.showNonBlockingMessage(msg);let e=document.getElementById('ttAccountingBridgeNotice');if(!e){e=document.createElement('div');e.id='ttAccountingBridgeNotice';e.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100001;color:#fff;padding:10px 14px;border-radius:10px;font:700 12px Arial;box-shadow:0 7px 24px #0003';document.body.appendChild(e)}e.style.background=good?'#147a5b':'#a93a34';e.textContent=msg;e.hidden=false;clearTimeout(e._t);e._t=setTimeout(()=>e.hidden=true,2400)}
-  function commodityFromVariety(v){const s=String(v||'').toUpperCase();if(/CORN|MAIZE/.test(s))return 'CORN';if(/SESAME/.test(s))return 'SESAME';return 'RICE'}
-  function productIdentity(saved){const commodity=commodityFromVariety(saved.variety),source=String(saved.displayName||saved.baseVariety||saved.variety||''),riceType=String(saved.riceType||(/PARBOIL|SELLA/i.test(source)?'Parboiled / Sella':/STEAM/i.test(source)?'Steam':/WHITE/i.test(source)?'White':'')),baseVariety=String(saved.baseVariety||saved.variety||'').replace(/\s+(RAW|READY|FINAL|FINISHED)\s+RICE$/i,'').replace(/\s+(WHITE|STEAM(?:ED)?|PARBOIL(?:ED)?(?:\s*\/\s*SELLA)?|SELLA)(?:\s+RICE)?$/i,'').trim(),productStage=String(saved.productStage||'RAW').toUpperCase(),identity=[baseVariety,riceType].filter(Boolean).join(' '),displayName=saved.displayName||(commodity==='RICE'?(productStage==='READY'?identity+' Ready Rice':productStage==='FINISHED'?identity+' Rice':identity+' Raw Rice'):baseVariety);return {baseVariety,riceType,productStage,displayName}}
-  function provisionalReceiptValue(s){
-    const kg=Number(s.payableWeight||0),rate=Number(s.purchaseRate||0);
-    const warehouseRice=s.readyRoute!=='EX_MILL'&&String(s.commodity||commodityFromVariety(s.variety)).toUpperCase()==='RICE';
-    const fields=warehouseRice?['brokenKat','damageKat','chalkyKat','paddyKat']:['brokenKat','moistureKat','damageKat','chalkyKat','paddyKat'];
-    const katPaisa=s.readyRoute==='EX_MILL'?0:fields.reduce((sum,key)=>sum+Number(s[key]||0),0);
-    const netRate=Math.max(0,rate-katPaisa/100);
-    const moistureKg=warehouseRice?Number(s.moistureKatKg||0):0;
-    return {kg,rate,katPaisa,netRate,amount:Math.round(Math.max(0,kg-moistureKg)*netRate*100)/100};
-  }
-
-  function queuePohanch(saved){if(!saved)return;const v=provisionalReceiptValue(saved),identity=productIdentity(saved),eventEntity=String(saved.entity||'TTI').toUpperCase();if(v.kg<=0||v.amount<=0)return;const sourceKey='POHANCH|'+String(saved.millId||'MILL')+'|'+String(saved.bridgeId);addItem({key:eventEntity+'|COMMODITY_RECEIPT_ACCEPTED|'+sourceKey,kind:'accountEvent',body:{eventType:'COMMODITY_RECEIPT_ACCEPTED',entity:eventEntity,date:saved.unloadingDate||saved.arrivalDate||new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),sourceKey,reference:saved.slip||sourceKey,narration:(commodityFromVariety(saved.variety)==='RICE'?'Rice':commodityFromVariety(saved.variety)==='CORN'?'Corn':'Sesame')+' receipt — Soda '+(saved.soda||'')+' — '+(saved.truck||''),amount:v.amount,commodity:saved.commodity||commodityFromVariety(saved.variety),meta:{soda:saved.soda||'',sourceSodaId:saved.sourceSodaId||'',purchaseProductId:saved.purchaseProductId||'',locationId:saved.locationId||'',millName:saved.millName||'',pohanch:saved.slip||'',truck:saved.truck||'',broker:saved.broker||'',party:saved.party||'',variety:identity.baseVariety,baseVariety:identity.baseVariety,riceType:identity.riceType,productStage:identity.productStage,readyRoute:saved.readyRoute||'DELIVER_TO_STOCK',displayName:identity.displayName,bags:Number(saved.bags||0),payableWeightKg:v.kg,grossRatePerKg:v.rate,katPaisaPerKg:v.katPaisa,provisionalNetRatePerKg:v.netRate,valuation:'Provisional receipt value; final bill clears GRNI and posts authorized differences.'}}})}
-  function bridgePohanch(){
-    if(access.moduleId!=='milling')return;
-    if(typeof window.saveSlip!=='function'||window.saveSlip._ttAccountsWrapped)return;
-    const original=window.saveSlip;
-    async function wrappedSaveSlip(){const saved=await original.apply(this,arguments);if(saved){queuePohanch(saved);signal('Pohanch saved · Accounts receipt queued');}return saved}
-    wrappedSaveSlip._ttAccountsWrapped=true;wrappedSaveSlip._ttOriginal=original;window.saveSlip=wrappedSaveSlip;
-  }
-
   // Ex-Mill saves own their Accounts transaction in saveExMillLoad. A draft
   // container is not a financial event; never queue a second posting here.
 
@@ -99,7 +78,7 @@
     if(access.role==='Super Admin'){const link=document.createElement('a');link.href='/accounts-integrity-review.php';link.textContent='Review pending handoffs';box.append(link);}
     document.body.prepend(box);
   }
-  async function boot(){bridgePohanch();bridgeExportCompletion();bridgeExporterSales();await loadMillBanks();bridgeLocalSales();const frame=document.querySelector('#partySaleWrap iframe');if(frame&&!frame._ttAccountsLoadBound){frame._ttAccountsLoadBound=true;frame.addEventListener('load',bridgeLocalSales)}await mergeServerOutbox();await syncLocalStatuses();showOutboxAttention()}
+  async function boot(){bridgeExportCompletion();bridgeExporterSales();await loadMillBanks();bridgeLocalSales();const frame=document.querySelector('#partySaleWrap iframe');if(frame&&!frame._ttAccountsLoadBound){frame._ttAccountsLoadBound=true;frame.addEventListener('load',bridgeLocalSales)}await mergeServerOutbox();await syncLocalStatuses();showOutboxAttention()}
   addEventListener('DOMContentLoaded',boot,{once:true});window.TT_ACCOUNTS_SOURCE_BRIDGE={flush,outbox,syncLocalStatuses,mergeServerOutbox,queueExportInvoice};
   if(access.moduleId==='milling'){const s=document.createElement('script');s.src='accounts/local-sales-entity-rule.js?v=20260908-1';document.head.appendChild(s)}
 })();

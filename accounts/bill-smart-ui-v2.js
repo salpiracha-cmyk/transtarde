@@ -71,7 +71,8 @@
       const hasPosted=state.receipts.some(row=>String(row.soda)===state.soda&&row.billed);
       return hasPosted ? '<p role="status">No unbilled receipts for this SODA. Its Accounts receipts are already billed.</p>' : '<p role="status">No confirmed Accounts receipts are available for this SODA.</p>';
     }
-    return waiting;
+    const actions=state.soda?pending.map(row=>`<button class="btn" type="button" data-ttsb-restore="${esc(row.pohanch)}">Restore Accounts receipt · ${esc(row.pohanch)}</button>`).join(''):'';
+    return waiting+actions;
   }
   const selected = () => truckRows().find(row => row.sourceKey === state.sourceKey) || null;
   const selectedRows = () => state.multiple ? truckRows().filter(row => state.sourceKeys.includes(row.sourceKey)) : (selected() ? [selected()] : []);
@@ -228,6 +229,22 @@
     q('#ttsbClearTruck')?.addEventListener('click', () => { resetAfterSoda(); render(); });
     q('#ttsbSettlementMode')?.addEventListener('change',e=>{syncLines();state.settlementMode=e.target.value;render();});
     q('#ttsbVerify')?.addEventListener('click', postBill);
+    qa('[data-ttsb-restore]').forEach(button=>button.addEventListener('click',async()=>{
+      const company=entity(),soda=state.soda,pohanch=button.dataset.ttsbRestore;
+      button.disabled=true;
+      try {
+        const response=await fetch('../api/pohanch_receipts.php',{method:'POST',credentials:'same-origin',
+          headers:{'Content-Type':'application/json',Accept:'application/json'},
+          body:JSON.stringify({csrf:access.csrf,entity:company,soda,pohanch})});
+        const result=await response.json();
+        if(!response.ok||!result.ok)throw new Error(result.error||'Receipt could not be confirmed.');
+        await load(true);
+        if(entity()===company)render();
+        const posted=result.receipt.status==='posted';
+        toast(posted?'Accounts receipt restored.':'An Accounts posting already exists for this Pohanch. Review the linked posting.',posted);
+      }catch(error){toast(error.message||'Receipt could not be confirmed.',false);}
+      finally{button.disabled=false;}
+    }));
   }
   async function postBill() {
     syncLines(); const row = selected(), value = totals();
