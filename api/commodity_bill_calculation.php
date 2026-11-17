@@ -17,6 +17,70 @@ function tt_ready_rice_bill_calculation(float $grossKg, float $ratePerKg, array 
         'emptyBagDeduction'=>round($emptyKg*$ratePerKg,2),'kantaRate'=>$kanta,'truckCount'=>$truckCount,'kantaAmount'=>round($kanta*$truckCount,2)];
 }
 
+/** Match the issued Pohanch by the same identity used at the Mill-to-Accounts handoff. */
+function tt_bill_pohanch_index(array $values,string $entity): array {
+    $raw=$values['tt30slips']??'[]';
+    $rows=is_string($raw)?json_decode($raw,true,512,JSON_THROW_ON_ERROR):$raw;
+    if (!is_array($rows)) throw new RuntimeException('Saved Pohanch records are unavailable.');
+    $index=[];
+    foreach ($rows as $row) {
+        if (!is_array($row)||($row['entity']??'TTI')!==$entity||empty($row['bridgeId'])) continue;
+        $key='POHANCH|'.($row['millId']??'MILL').'|'.$row['bridgeId'];
+        $index[$key][]= $row;
+    }
+    return $index;
+}
+
+function tt_bill_pohanch_kat(array $index,string $sourceKey,array $meta): ?array {
+    $rows=$index[$sourceKey]??[];
+    if (!$rows) {
+        if (preg_match('/^POHANCH\|[^|]+\|PHB-/', $sourceKey))
+            throw new InvalidArgumentException('The linked Pohanch could not be found. Review the original receipt before posting.');
+        return null;
+    }
+    if (count($rows)!==1) throw new InvalidArgumentException('More than one issued Pohanch matches this receipt.');
+    $row=$rows[0];
+    foreach (['slip'=>'pohanch','soda'=>'soda','truck'=>'truck'] as $field=>$handoff) {
+        if (empty($meta[$handoff])||strcasecmp((string)($row[$field]??''),(string)$meta[$handoff])!==0)
+            throw new InvalidArgumentException('The saved Pohanch and Accounts receipt identity differ. Review this receipt before posting.');
+    }
+    $weight=(float)($row['payableWeight']??0);
+    $kat=['weightKg'=>$weight];
+    foreach (['moistureKatKg','brokenKat','damageKat','chalkyKat','paddyKat'] as $field) {
+        $value=$row[$field]??'';
+        if ($value!==''&&(!is_numeric($value)||!is_finite((float)$value)||(float)$value<0))
+            throw new InvalidArgumentException('The saved Pohanch contains an invalid KAT value.');
+        $kat[$field]=(float)$value;
+    }
+    if (!is_finite($weight)||$weight<=0||$kat['moistureKatKg']>=$weight)
+        throw new InvalidArgumentException('Review the accepted weight and moisture KAT on the saved Pohanch.');
+    $kat['rateKatPaisa']=$kat['brokenKat']+$kat['damageKat']+$kat['chalkyKat']+$kat['paddyKat'];
+    return $kat;
+}
+
+/** Tare is allocated by accepted weight for a combined Ready Rice bill. */
+function tt_bill_rice_quality(array $rows,float $sodaRate,float $emptyBagKg=0): array {
+    $gross=array_sum(array_column($rows,'weightKg'));
+    $details=[];
+    foreach ($rows as $source=>$row) {
+        $netBeforeKat=$row['weightKg']-$emptyBagKg*$row['weightKg']/$gross;
+        $net=round($netBeforeKat-$row['moistureKatKg'],6);
+        $netRate=round($sodaRate-$row['rateKatPaisa']/100,6);
+        if ($net<=0||$netRate<=0) throw new InvalidArgumentException('Pohanch deductions and bag tare must leave a positive bill weight and rate.');
+        $details[]=['sourceKey'=>$source]+$row+[
+            'netWeightKg'=>$net,'netRatePerKg'=>$netRate,
+            'moistureDeduction'=>round($row['moistureKatKg']*$sodaRate,2),
+            'rateDeduction'=>round($net*$row['rateKatPaisa']/100,2),
+            'commodityValue'=>round($net*$netRate,2)
+        ];
+    }
+    return ['receipts'=>$details,'moistureKatKg'=>array_sum(array_column($details,'moistureKatKg')),
+        'moistureDeduction'=>round(array_sum(array_column($details,'moistureDeduction')),2),
+        'rateDeduction'=>round(array_sum(array_column($details,'rateDeduction')),2),
+        'netWeightKg'=>round(array_sum(array_column($details,'netWeightKg')),6),
+        'commodityValue'=>round(array_sum(array_column($details,'commodityValue')),2)];
+}
+
 /** Exact operational identities only; never infer bag tare from a nearby shipment. */
 function tt_bill_bag_defaults(array $meta, array $values): array {
     $grams=(float)($meta['emptyBagWeightGrams']??0);
@@ -41,7 +105,7 @@ function tt_bill_operational_values(): array {
     $env=static fn(string $key):string=>defined('TT_'.$key)?(string)constant('TT_'.$key):(string)(getenv('TT_'.$key)?:'');
     if ($env('DB_HOST')!==''&&$env('DB_NAME')!==''&&$env('DB_USER')!=='') {
         $pdo=new PDO('mysql:host='.$env('DB_HOST').';dbname='.$env('DB_NAME').';charset=utf8mb4',$env('DB_USER'),$env('DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-        $rows=$pdo->query("SELECT storage_key,payload FROM tt_operation_records WHERE storage_key IN ('tt35exload','tt40exinstructions')")->fetchAll(PDO::FETCH_KEY_PAIR);
+        $rows=$pdo->query("SELECT storage_key,payload FROM tt_operation_records WHERE storage_key IN ('tt35exload','tt40exinstructions','tt30slips')")->fetchAll(PDO::FETCH_KEY_PAIR);
         return is_array($rows)?$rows:[];
     }
     $file=TT_DATA_DIR.'/operations.json';if(!is_file($file))return [];

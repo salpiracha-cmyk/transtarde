@@ -9,6 +9,7 @@
   const entity = () => localStorage.getItem('tt_accounts_entity') || 'TTI';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const fmt = value => Number(value || 0).toLocaleString('en-PK', {maximumFractionDigits:2});
+  const fmtKg = value => Number(value || 0).toLocaleString('en-PK',{maximumFractionDigits:3});
   const today = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const state = {receipts:[], bills:[], loadedEntity:'', broker:'', supplier:'', relationshipType:'', relationshipName:'', settlementMode:'SEPARATE', soda:'', sourceKey:'', multiple:false, sourceKeys:[], adjustmentLines:[], brokerageRate:'', brokerageBasis:'PER_100_KG', kanta:'', loadingRate:'', filling:'', bags:null, bagWeightGrams:null, whtPercent:15, billDate:'', billNo:'', remarks:''};
   let loading = false;
@@ -76,7 +77,7 @@
   }
   function riceQuantity() {
     const defaults=bagDefaults(), bags=Number(state.bags ?? defaults.bags), grams=Number(state.bagWeightGrams ?? defaults.grams);
-    const gross=selectedRows().reduce((sum,row)=>sum+Number(row.weighbridgeWeightKg ?? row.payableWeightKg ?? 0),0), emptyKg=bags*grams/1000;
+    const gross=selectedRows().reduce((sum,row)=>sum+Number(row.pohanchKat?.weightKg ?? row.weighbridgeWeightKg ?? row.payableWeightKg ?? 0),0), emptyKg=bags*grams/1000;
     return {bags,grams,gross,emptyKg,net:Math.max(0,gross-emptyKg)};
   }
   function paymentSummary() {
@@ -88,14 +89,39 @@
   function lineHtml(line, index) {
     return `<div class="ttsb-line" data-adjustment-line="${index}"><button type="button" data-line-remove title="Delete line">−</button><label>Type<select data-line-kind><option value="ADDITION" ${line.kind === 'ADDITION' ? 'selected' : ''}>Addition</option><option value="DEDUCTION" ${line.kind === 'DEDUCTION' ? 'selected' : ''}>Deduction</option></select></label><label>Description<input data-line-description value="${esc(line.description || '')}" placeholder="Kanta, filling, allowance, quality adjustment..."></label><label>Amount (PKR)<input data-line-amount inputmode="decimal" value="${esc(line.amount || '')}"></label></div>`;
   }
+  const roundMoney = amount => Math.round((amount + Number.EPSILON) * 100) / 100;
+  function pohanchQuality() {
+    const rows=selectedRows(), facts=rows.filter(row=>row.pohanchKat);
+    const error=rows.find(row=>row.pohanchKatError)?.pohanchKatError
+      || (facts.length&&facts.length!==rows.length?'Bill receipts with a verified Pohanch separately from older receipts without a linked Pohanch.':'');
+    if(error||!facts.length)return {error,receipts:[]};
+    const weight=facts.reduce((sum,row)=>sum+row.pohanchKat.weightKg,0), tare=readyRice()?riceQuantity().emptyKg:0;
+    const rate=Number(approvedSoda()?.ratePerKg??selected()?.grossRatePerKg??0);
+    const receipts=facts.map(({pohanch,pohanchKat:kat})=>{
+      const netKg=Math.round((kat.weightKg-tare*kat.weightKg/weight-kat.moistureKatKg)*1e6)/1e6;
+      const netRate=Math.round((rate-kat.rateKatPaisa/100)*1e6)/1e6;
+      return {...kat,pohanch,netKg,netRate,amount:roundMoney(netKg*netRate)};
+    });
+    if(receipts.some(row=>!(row.netKg>0&&row.netRate>0)))return {error:'Pohanch deductions and bag tare must leave a positive bill weight and rate.',receipts};
+    return {error:'',receipts,total:roundMoney(receipts.reduce((sum,row)=>sum+row.amount,0))};
+  }
+  function pohanchQualityRows() {
+    return pohanchQuality().receipts.map(row=>`<tr><td>${esc(row.pohanch)}</td><td>${fmtKg(row.moistureKatKg)} kg</td><td>${fmt(row.brokenKat)}</td><td>${fmt(row.damageKat)}</td><td>${fmt(row.chalkyKat)}</td><td>${fmt(row.paddyKat)}</td><td>${fmtKg(row.netKg)} kg</td><td>PKR ${fmt(row.amount)}</td></tr>`).join('');
+  }
+  function pohanchQualityView() {
+    const quality=pohanchQuality();
+    if(!quality.receipts.length&&!quality.error)return '';
+    return `<div class="ttsb-disclose"><h3>Saved Pohanch KAT</h3><div id="ttsbQualityError" role="alert" ${quality.error?'':'hidden'}>${esc(quality.error)}</div><div style="max-width:100%;overflow:auto"><table><thead><tr><th>Pohanch</th><th>Moisture (kg)</th><th>Broken (paisa/kg)</th><th>Damage (paisa/kg)</th><th>Chalky (paisa/kg)</th><th>Paddy (paisa/kg)</th><th>Bill weight</th><th>Rice value</th></tr></thead><tbody id="ttsbQualityRows">${pohanchQualityRows()}</tbody></table></div></div>`;
+  }
   function totals() {
-    const row=selected(), calculated=Number(q('#ttsbFinal')?.value||0),base=readyRice()?riceQuantity().gross*Number(row.grossRatePerKg||0):row&&row.commodity!=='RICE'&&calculated>0?calculated:selectedRows().reduce((sum,item)=>sum+Number(item.provisionalAmount||0),0);
+    const row=selected(), calculated=Number(q('#ttsbFinal')?.value||0),quality=pohanchQuality();
+    const base=quality.receipts.length?quality.total??0:readyRice()?riceQuantity().gross*Number(row.grossRatePerKg||0):row&&row.commodity!=='RICE'&&calculated>0?calculated:selectedRows().reduce((sum,item)=>sum+Number(item.provisionalAmount||0),0);
     let add=0,deduct=0;
     state.adjustmentLines.forEach(line=>{const amount=Math.max(0,Number(line.amount||0));if(line.kind==='DEDUCTION')deduct+=amount;else add+=amount;});
-    add+=Math.max(0,Number(state.kanta||0))*(readyRice()?selectedRows().length:1);
-    if(readyRice())add+=selectedRows().reduce((n,r)=>n+Number(r.bags||0),0)*Math.max(0,Number(state.loadingRate||0));
-    deduct+=readyRice()?riceQuantity().emptyKg*Number(row?.grossRatePerKg||0):Math.max(0,Number(state.filling||0));
-    return {base,add,deduct,final:Math.round((base+add-deduct)*100)/100};
+    add+=roundMoney(Math.max(0,Number(state.kanta||0))*(readyRice()?selectedRows().length:1));
+    if(readyRice())add+=roundMoney(selectedRows().reduce((n,r)=>n+Number(r.bags||0),0)*Math.max(0,Number(state.loadingRate||0)));
+    deduct+=readyRice()?(quality.receipts.length?0:riceQuantity().emptyKg*Number(row?.grossRatePerKg||0)):Math.max(0,Number(state.filling||0));
+    return {base,add,deduct,final:roundMoney(base+add-deduct)};
   }
   function readyCalculation(row) {
     const quantity=riceQuantity();
@@ -111,8 +137,9 @@
   function billForm(row) {
     if (!row) return '';
     const value = totals(), exMill=String(row.sourceKey||'').startsWith('EXMILL|');
-    return `<div class="ttsb-card ttsb-bill" data-bill-layout="${readyRice()?'ready':'ordinary'}"><div class="ttsb-title"><div><h3>Complete Bill</h3><p>${exMill?'The approved Soda and saved container weighbridge weight supply the accounting quantity. No Pohanch or KAT applies.':'The selected Soda and Pohanch supply the operational details.'} Enter only the final bill information.</p></div></div><div class="ttsb-form" style="margin-top:14px"><label>Bill Date<input id="ttsbBillDate" type="date" value="${state.billDate||today()}"></label><label>Supplier / Broker Bill No.<input id="ttsbBillNo" value="${esc(state.billNo)}" placeholder="Optional if none printed"></label><label>Soda<output class="ttsb-reference">${esc(row.soda)}</output></label><label>${exMill?'Truck / Container':'Truck / Pohanch'}<output class="ttsb-reference">${state.multiple?esc(selectedRows().length+' selected'):esc(row.truck+' — '+row.pohanch)}</output></label><label>Product<output class="ttsb-reference">${esc(row.displayName || row.variety || row.commodity)}</output></label><label>${exMill?'Container Weighbridge Weight':'Accepted Weight'}<output class="ttsb-reference">${fmt(selectedRows().reduce((sum,item)=>sum+Number(item.payableWeightKg||0),0))} kg</output></label><label>Soda Rate<output class="ttsb-reference">${fmt(row.grossRatePerKg)} / ${row.commodity==='CORN'?'maund (40 kg)':'kg'}</output></label>${exMill?'':`<label>KAT<output class="ttsb-reference">${fmt(row.katPaisaPerKg)} paisa / kg</output></label>`}<label>Calculated Commodity Value<input id="ttsbFinal" readonly value="${value.base.toFixed(2)}"></label></div>
-      <div class="ttsb-summary"><div class="ttsb-kpi"><span>Payment Term</span><b>${esc(paymentSummary().term)}</b></div><div class="ttsb-kpi"><span>Due Date</span><b class="ttsb-due">${esc(paymentSummary().due)}</b></div><div class="ttsb-kpi"><span>Total Commodity Value</span><b>PKR ${fmt(value.base)}</b></div></div>
+    return `<div class="ttsb-card ttsb-bill" data-bill-layout="${readyRice()?'ready':'ordinary'}"><div class="ttsb-title"><div><h3>Complete Bill</h3><p>${exMill?'The approved Soda and saved container weighbridge weight supply the accounting quantity. No Pohanch or KAT applies.':'The selected Soda and Pohanch supply the operational details.'} Enter only the final bill information.</p></div></div><div class="ttsb-form" style="margin-top:14px"><label>Bill Date<input id="ttsbBillDate" type="date" value="${state.billDate||today()}"></label><label>Supplier / Broker Bill No.<input id="ttsbBillNo" value="${esc(state.billNo)}" placeholder="Optional if none printed"></label><label>Soda<output class="ttsb-reference">${esc(row.soda)}</output></label><label>${exMill?'Truck / Container':'Truck / Pohanch'}<output class="ttsb-reference">${state.multiple?esc(selectedRows().length+' selected'):esc(row.truck+' — '+row.pohanch)}</output></label><label>Product<output class="ttsb-reference">${esc(row.displayName || row.variety || row.commodity)}</output></label><label>${exMill?'Container Weighbridge Weight':'Accepted Weight'}<output class="ttsb-reference">${fmt(selectedRows().reduce((sum,item)=>sum+Number(item.pohanchKat?.weightKg??item.payableWeightKg??0),0))} kg</output></label><label>Soda Rate<output class="ttsb-reference">${fmt(row.grossRatePerKg)} / ${row.commodity==='CORN'?'maund (40 kg)':'kg'}</output></label>${exMill||row.pohanchKat||row.pohanchKatError?'':`<label>KAT<output class="ttsb-reference">${fmt(row.katPaisaPerKg)} paisa / kg</output></label>`}<label>Calculated Commodity Value<input id="ttsbFinal" readonly value="${value.base.toFixed(2)}"></label></div>
+      <div class="ttsb-summary"><div class="ttsb-kpi"><span>Payment Term</span><b>${esc(paymentSummary().term)}</b></div><div class="ttsb-kpi"><span>Due Date</span><b class="ttsb-due">${esc(paymentSummary().due)}</b></div><div class="ttsb-kpi"><span>Total Commodity Value</span><b id="ttsbCommodityBase">PKR ${fmt(value.base)}</b></div></div>
+      ${pohanchQualityView()}
       ${readyRice()?readyCalculation(row):`
       <div class="ttsb-disclose"><h3>Additions / Deductions</h3><div><div class="ttsb-lines" id="ttsbAdjustmentLines">${state.adjustmentLines.length ? state.adjustmentLines.map(lineHtml).join('') : '<div class="ttsb-empty">No additions or deductions. Add a line only when it appears on the bill.</div>'}</div><div class="ttsb-actions" style="justify-content:flex-start"><button class="btn" type="button" id="ttsbAddAddition">+ Addition</button><button class="btn" type="button" id="ttsbAddDeduction">+ Deduction</button></div></div></div>
       <div class="ttsb-disclose"><h3>${payee().broker?'Buying Brokery & Charges':'Other Charges'}</h3>${brokeryFields(row)}<div class="ttsb-form"><label ${payee().broker?'':'hidden'}>Brokery WHT %<input id="ttsbWithPct" type="number" min="0" max="100" step=".01" value="${state.whtPercent}"></label><label ${payee().broker?'':'hidden'}>WHT payable<input id="ttsbWithAmt" readonly value="0"></label><label>Kanta / Weight Charges (+)<input id="ttsbKanta" type="number" min="0" step=".01" value="${esc(state.kanta)}"></label><label>Filling Charges (−)<input id="ttsbFilling" type="number" min="0" step=".01" value="${esc(state.filling)}"></label></div></div>`}
@@ -140,7 +167,10 @@
     if(q('#ttsbBrokerage'))q('#ttsbBrokerage').value=brokerage.toFixed(2);
     if(q('#ttsbWithAmt'))q('#ttsbWithAmt').value=withholding.toFixed(2);
     if(q('#ttsbLoadingTotal'))q('#ttsbLoadingTotal').value=(selectedRows().reduce((n,r)=>n+Number(r.bags||0),0)*Number(state.loadingRate||0)).toFixed(2);
-    const value=totals();
+    const value=totals(),quality=pohanchQuality();
+    if(q('#ttsbQualityRows'))q('#ttsbQualityRows').innerHTML=pohanchQualityRows();
+    if(q('#ttsbQualityError')){q('#ttsbQualityError').textContent=quality.error;q('#ttsbQualityError').hidden=!quality.error;}
+    if(q('#ttsbFinal')&&quality.receipts.length){q('#ttsbFinal').value=value.base.toFixed(2);q('#ttsbCommodityBase').textContent='PKR '+fmt(value.base);}
     for(const [id,amount] of [['ttsbAddTotal',value.add],['ttsbDeductTotal',value.deduct],['ttsbFinalTotal',value.final],['ttsbPreviewValueDr',value.final],['ttsbPreviewValueCr',value.final],['ttsbBagDeduction',quantity.emptyKg*Number(selected()?.grossRatePerKg||0)],['ttsbKantaTotal',Number(state.kanta||0)*selectedRows().length],['ttsbBillAmount',value.final+brokerage]])if(q('#'+id))q('#'+id).textContent=`PKR ${fmt(amount)}`;
     if(q('#ttsbNetWeight'))q('#ttsbNetWeight').textContent=`${fmt(quantity.gross)} − ${fmt(quantity.emptyKg)} = ${fmt(quantity.net)} kg`;
     if(q('#ttsbGrandTotal'))q('#ttsbGrandTotal').textContent=`PKR ${fmt(value.final+brokerage-withholding)}`;
@@ -171,6 +201,8 @@
   async function postBill() {
     syncLines(); const row = selected(), value = totals();
     if (!row) return toast('Choose a saved truck, container or Pohanch.', false);
+    const quality=pohanchQuality();
+    if (quality.error) return toast(quality.error,false);
     if (state.adjustmentLines.some(line => !line.description || !(Number(line.amount) > 0))) return toast('Complete or delete every addition/deduction line.', false);
     if (value.final <= 0) return toast('Final bill value must be greater than zero.', false);
     if(!selectedRows().length)return toast('Select at least one truck or container.',false);
