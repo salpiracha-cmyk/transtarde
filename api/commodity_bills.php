@@ -232,6 +232,7 @@ try{
         $broker=$sodaBroker;
         $settlementMode=(string)($body['settlementMode']??'SEPARATE');
         if(!in_array($settlementMode,['BROKER_COMBINED','SEPARATE'],true))cb_respond(['ok'=>false,'error'=>'Choose the bill liability treatment.'],422);
+        if($sodaBroker!==''&&$sodaSupplier==='')$settlementMode='BROKER_COMBINED';
         if($settlementMode==='BROKER_COMBINED'&&$sodaBroker==='')cb_respond(['ok'=>false,'error'=>'A combined broker bill requires a broker.'],422);
         $commodityPayee=$settlementMode==='BROKER_COMBINED'?$sodaBroker:($sodaSupplier!==''?$sodaSupplier:$sodaBroker);
         $commodityRelationship=$settlementMode==='BROKER_COMBINED'?'BROKER':($sodaSupplier!==''?'SUPPLIER':'BROKER');

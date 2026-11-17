@@ -128,7 +128,11 @@ def run():
   created=[m for m in party['masters']['business_parties'] if m['id']==party['id']][0];assert created['values'][2]=='Transporter';profile=json.loads(created['values'][12]);assert not profile.get('buying') and not profile.get('selling')
   values[0]='Malformed Profile Fixture';values[12]='invalid-json';assert request('/api/masters.php',{'action':'create','type':'business_parties','values':values})[0]==422,'Do not weaken malformed brokerage validation'
   p=payload('26003');p['relationshipType']='BROKER';p['relationshipName']='JJ'
-  assert request('/api/commodity_bills.php',p)[0]==200,'Broker-only commodity payee'
+  p['settlementMode']='SEPARATE'  # Older clients submitted this for broker-only bills.
+  status,result=request('/api/commodity_bills.php',p);assert status==200,(status,result)
+  assert result['bill']['settlementMode']=='BROKER_COMBINED'
+  assert {(line['component'],line['payee']) for line in result['bill']['receiptAllocations']}=={('COMMODITY','JJ'),('BROKERAGE','JJ')}
+  assert {line['counterparty'] for line in result['journal']['lines'] if line['account'] in ['2110','2120']}=={'JJ'}
   p=payload('26004');p['broker']='';p['brokerageRate']=0
   status,result=request('/api/commodity_bills.php',p);assert status==200 and result['bill']['brokerageGross']==0
   # Deposited Ready rice takes bag tare and then the exact Pohanch weight and rate deductions.
@@ -429,9 +433,24 @@ def run():
     harness=harness.replace('src="accounts/','src="');(app/'accounts/__bill_fixture.html').write_text(harness)
     page.goto(base+'/accounts/__bill_fixture.html');page.locator('#ttsbBroker').fill('JJ');page.locator('#ttsbBroker').press('Tab');page.wait_for_selector('#ttsbSupplierChoices option',state='attached');assert page.locator('#ttsbSupplier').input_value()==''
     page.locator('#ttsbBroker').fill('');page.locator('#ttsbBroker').press('Tab')
-    page.locator('#ttsbSupplier').fill('Indus Rice');page.locator('#ttsbSupplier').press('Tab');page.wait_for_function("document.querySelector('#ttsbBroker').value==='JJ'")
+    page.locator('#ttsbSupplier').fill('Indus Rice');page.locator('#ttsbSupplier').press('Tab');page.wait_for_selector('#ttsbSoda');assert page.locator('#ttsbBroker').input_value()==''
     assert page.locator('#ttsbSupplierChoices option').count()==1
+    page.locator('#ttsbSoda').select_option('26004',force=True);page.locator('#ttsbTruck').select_option('EXMILL|26004|1',force=True)
+    assert page.locator('#ttsbSettlementMode').count()==0 and 'Indus Rice payable' in page.locator('.ttsb-accounting').inner_text()
+    page.locator('#ttsbSupplier').fill('');page.locator('#ttsbSupplier').press('Tab')
+    page.locator('#ttsbBroker').fill('jj');page.locator('#ttsbBroker').press('Tab')
+    page.locator('#ttsbSoda').select_option('26003',force=True);page.locator('#ttsbTruck').select_option('EXMILL|26003|1',force=True)
+    assert page.locator('#ttsbSettlementMode').count()==0 and 'Broker bill includes brokerage' in page.locator('.ttsb-bill').inner_text()
+    assert 'JJ payable' in page.locator('.ttsb-accounting').inner_text()
+    page.locator('#ttsbSoda').select_option('26002',force=True);page.locator('#ttsbTruck').select_option('POHANCH|1|PHB-26002-1',force=True)
+    assert page.locator('#ttsbAdjustmentLines').count()==0
+    assert page.locator('#ttsbAddAddition').evaluate("el=>Boolean(el.closest('.ttsb-adjustment-actions').previousElementSibling.matches('.ttsb-disclose'))")
+    page.locator('#ttsbAddDeduction').click()
+    assert page.locator('[data-line-kind]').input_value()=='DEDUCTION'
+    page.locator('[data-line-remove]').click()
+    assert page.locator('#ttsbAdjustmentLines').count()==0
     page.locator('#ttsbSoda').select_option('26001',force=True);page.locator('#ttsbTruck').select_option('EXMILL|26001|1',force=True);assert not page.locator('#ttsbMultiple').is_checked()
+    assert page.locator('#ttsbSettlementMode').count()==1 and page.locator('#ttsbAdjustmentLines').count()==0
     assert page.locator('#ttsbFilling').count()==0 and page.locator('#ttsbBags').input_value()=='480'
     assert page.locator('#ttsbBrokerage').input_value()=='1198.80'
     assert 'Credit' in page.locator('.ttsb-summary').inner_text() and '11-10-2026' in page.locator('.ttsb-summary').inner_text()

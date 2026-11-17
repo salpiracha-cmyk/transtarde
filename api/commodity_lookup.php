@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__ . '/commodity_bill_calculation.php';
+require_once __DIR__ . '/arrival_withdrawal_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -18,6 +19,38 @@ function cl_commodity(array $event, array $meta): string {
     if (str_contains($v, 'CORN') || str_contains($v, 'MAIZE')) return 'CORN';
     if (str_contains($v, 'SESAME')) return 'SESAME';
     return 'RICE';
+}
+
+/** Identify issued slips whose delivery is still missing from the Accounts receipt list. */
+function cl_unconfirmed_pohanches(array $values, string $entity, array $sodas, array $receipts): array {
+    $slipKey = static fn(string $soda, string $slip, string $truck): string =>
+        $soda.'|'.strtoupper(trim($slip)).'|'.strtoupper(trim($truck));
+    $sources = array_fill_keys(array_column($receipts, 'sourceKey'), true);
+    $seen = [];
+    foreach ($receipts as $receipt) {
+        $seen[$slipKey($receipt['soda'], $receipt['pohanch'], $receipt['truck'])] = true;
+    }
+    $raw = $values['tt30slips'] ?? [];
+    $slips = is_string($raw) ? json_decode($raw, true, 512, JSON_THROW_ON_ERROR) : $raw;
+    $unconfirmed = [];
+    foreach ($slips as $slip) {
+        if (!is_array($slip) || ($slip['entity'] ?? '') !== $entity || empty($slip['slip']) ||
+            !empty($slip['deleted']) || !empty($slip['cancelled']) || !empty($slip['reversed']) ||
+            in_array(strtolower((string)($slip['status'] ?? '')), ['cancelled','deleted','reversed'], true) ||
+            tt_is_withdrawn_arrival($slip)) continue;
+        $number = (string)($slip['soda'] ?? '');
+        $soda = $sodas[$number] ?? null;
+        if (!$soda || ($soda['readyRoute'] ?? '') === 'EX_MILL' ||
+            (!empty($slip['sourceSodaId']) && $slip['sourceSodaId'] !== ($soda['id'] ?? '')) ||
+            (float)($slip['payableWeight'] ?? 0) <= 0) continue;
+        $source = empty($slip['bridgeId']) ? '' : 'POHANCH|'.($slip['millId'] ?? 'MILL').'|'.$slip['bridgeId'];
+        $key = $slipKey($number, (string)$slip['slip'], (string)($slip['truck'] ?? ''));
+        if (isset($seen[$key]) || ($source !== '' && isset($sources[$source]))) continue;
+        $seen[$key] = true;
+        if ($source !== '') $sources[$source] = true;
+        $unconfirmed[] = ['soda'=>$number, 'pohanch'=>(string)$slip['slip']];
+    }
+    return $unconfirmed;
 }
 
 try {
@@ -49,7 +82,17 @@ try {
 
     $operationalValues=tt_bill_operational_values();
     $pohanches=tt_bill_pohanch_index($operationalValues,$entity);
-    $sodaRows=[];foreach(['purchaseSodas','purchaseSodasV2'] as $collection)foreach((array)($store[$collection]??[]) as $soda){if(!is_array($soda)||($soda['entity']??'')!==$entity)continue;$soda['buyingBrokery']=tt_broker_profile((string)($soda['broker']??''),(string)($soda['sodaDate']??''),'buying')['rate']??null;$sodaRows[(string)$soda['sodaNo']]=$soda;}
+    $sodaRows = [];
+    foreach (['purchaseSodas','purchaseSodasV2'] as $collection) {
+        foreach ((array)($store[$collection] ?? []) as $id => $soda) {
+            if (!is_array($soda) || ($soda['entity'] ?? '') !== $entity) continue;
+            $number = (string)($soda['sodaNo'] ?? '');
+            if ($number === '' || isset($sodaRows[$number])) continue;
+            $soda['id'] = (string)($soda['id'] ?? $id);
+            $soda['buyingBrokery'] = tt_broker_profile((string)($soda['broker'] ?? ''), (string)($soda['sodaDate'] ?? ''), 'buying')['rate'] ?? null;
+            $sodaRows[$number] = $soda;
+        }
+    }
     $bills = (array)($store['commodityBills'] ?? []);
     $rows = [];
     foreach ((array)($store['events'] ?? []) as $event) {
@@ -114,6 +157,7 @@ try {
         'bills'=>array_values(array_filter($bills,fn($bill)=>is_array($bill)&&($bill['entity']??'')===$entity)),
         'sodas'=>array_values($sodaRows),
         'brokers'=>tt_broker_profiles(),
+        'pendingPohanches'=>cl_unconfirmed_pohanches($operationalValues, $entity, $sodaRows, $rows),
         'serverNow'=>gmdate('c'),
     ]);
 } catch (Throwable $e) {

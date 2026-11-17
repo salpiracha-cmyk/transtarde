@@ -17,10 +17,12 @@ function tt_require_login(){return [];}
 function tt_user_can_open_module($u,$m){return true;}
 function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}
 function tt_ensure_data_dir(){}
-function tt_broker_profiles(){return [];}
+function tt_broker_profiles(){return [['name'=>'QA Marjan Broker']];}
+function tt_broker_profile($name,$date,$side){return null;}
 function tt_product_identity(...$a){return ['baseVariety'=>'Corn','riceType'=>'','productStage'=>'RAW','displayName'=>'Corn'];}
 ''')
     shutil.copy(ROOT / 'api/commodity_bill_calculation.php', root / 'api')
+    shutil.copy(ROOT / 'api/arrival_withdrawal_core.php', root / 'api')
     (root / 'runner.php').write_text('''<?php
 $_GET=['entity'=>$argv[1]];$_SERVER['REQUEST_METHOD']='GET';
 register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_code()?:200));});
@@ -33,7 +35,21 @@ require __DIR__.'/api/commodity_lookup.php';
         books['events'][eid] = {'id': eid, 'eventType': 'COMMODITY_RECEIPT_ACCEPTED', 'entity': 'TTI', 'journalId': jid, 'postingIdentity': eid}
         books['journals'][jid] = {'id': jid, 'entity': 'TTI', 'date': '2026-09-23', 'meta': {'commodity': 'CORN', **meta}, 'totalDebit': 100}
         books['postingIdentities'][eid] = {'journalId': jid}
+    books['purchaseSodas'] = {'S26012': {'entity': 'TTI', 'sodaNo': '26012', 'broker': 'QA Marjan Broker'}}
+    books['purchaseSodasV2'] = {'OLD': {'entity': 'TTI', 'sodaNo': '26012', 'broker': 'OLD QA NAME'}}
+    books['events']['E2'].update(sourceKey='POHANCH|MILL|QA-BRIDGE', billId='BILLED')
+    books['journals']['J2']['meta'].update(soda='26012', pohanch='PH-QA-1', truck='QA-TRUCK-1')
     path.write_text(json.dumps(books))
+    ops = root / 'data/operations.json'
+    slip = {'entity': 'TTI', 'soda': '26012', 'payableWeight': 1000, 'sourceSodaId': 'S26012'}
+    ops.write_text(json.dumps({'values': {'tt30slips': json.dumps([
+        {**slip, 'slip': 'ph-qa-1', 'truck': 'qa-truck-1'},
+        {**slip, 'slip': 'PH-QA-3', 'bridgeId': 'QA-BRIDGE'},
+        {**slip, 'slip': 'PH-QA-2', 'truck': 'QA-TRUCK-2'},
+        {**slip, 'slip': 'PH-CANCELLED', 'status': 'Cancelled'},
+        {**slip, 'slip': 'PH-OTHER', 'entity': 'BRM'},
+    ])}}))
+    ops_before = ops.read_bytes()
     before = path.read_bytes()
 
     def request(entity='TTI'):
@@ -43,6 +59,9 @@ require __DIR__.'/api/commodity_lookup.php';
     for _ in range(2):
         status, response = request()
         assert status == 200 and len(response['receipts']) == 3, response
+        assert response['pendingPohanches'] == [{'soda': '26012', 'pohanch': 'PH-QA-2'}], response
+        assert response['sodas'][0]['broker'] == response['brokers'][0]['name'] == 'QA Marjan Broker'
+        assert ops.read_bytes() == ops_before
         assert path.read_bytes() == before, 'Reading changed journals/events/posting identities or migration flags'
     assert request('BRM')[0] == 403
     assert path.read_bytes() == before
