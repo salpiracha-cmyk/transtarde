@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+foreach (['HOST','NAME','USER','PASS'] as $key) putenv('TT_DB_'.$key);
+
 define('TT_DATA_DIR', sys_get_temp_dir().'/pohanch-fixture-'.bin2hex(random_bytes(6)));
 mkdir(TT_DATA_DIR, 0700);
 require __DIR__.'/../../api/pohanch_receipt_core.php';
@@ -34,6 +36,7 @@ try {
     $saved = json_decode(file_get_contents($path),true);
     check(count($saved['journals'])===2 && count($saved['events'])===2,'Unexpected Accounts postings.');
     check($saved['journals']['FIXTURE-1']['totalDebit']===$saved['journals']['FIXTURE-1']['totalCredit'],'Unbalanced receipt.');
+    check($saved['journals']['FIXTURE-1']['meta']['bags']===500, 'Receipt did not retain the bag count.');
     check(!isset($saved['commodityBills']), 'Receipt recovery must not post a bill.');
     $legacyIdentity = $saved;
     unset($legacyIdentity['postingIdentities']);

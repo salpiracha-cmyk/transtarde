@@ -35,7 +35,7 @@ assert.match(bills,/tt_broker_profiles\(\(string\)\(\$soda\['sodaDate'\]/);
 assert.match(bills,/function cb_brokery_amount/);
 assert.match(bills,/\$brokerageGross=cb_brokery_amount\(\$brokeryRate,\$brokeryWeightKg,\$brokeryBags\)/);
 assert.match(bills,/Per bag Buying Brokery/);
-assert.match(bridge,/bags:Number\(saved\.bags\|\|0\)/);
+assert.match(read('api/pohanch_receipt_core.php'),/\x27bags\x27=>pr_number\(\$slip\[\x27bags\x27\]\s*\?\?\s*null\)/);
 assert.match(lookup,/'bags'=>\(float\)/);
 assert.match(billUi,/input\.readOnly=true/);
 assert.match(billUi,/Buying Brokery is taken from the selected Soda broker/);
