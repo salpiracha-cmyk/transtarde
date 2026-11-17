@@ -88,7 +88,7 @@ function bti_receipt_scope_conflict(array $receipt,array $scope): bool {
     return false;
 }
 /** Read-only projection of actual source counters, dated receipts, production and acknowledged transfers. */
-function bti_project(array $values,array $masters,array $scope,string $asOf,string $today,array $state=[],?string $excludeProductionId=null): array {
+function bti_project(array $values,array $masters,array $scope,string $asOf,string $today,array $state=[],?string $excludeProductionId=null,bool $includePhysicalDetails=false): array {
     if(!bti_date($asOf)||!bti_date($today))throw new DomainException('Choose a valid bag stock review date.');
     $raw=$values['transtrade_export_v3_operational']??'{}';$exports=is_string($raw)?json_decode($raw,true,512,JSON_THROW_ON_ERROR):$raw;$poSources=bti_po_sources((array)$exports);
     $orders=bti_rows($values,'tt30bags');$receipts=bti_rows($values,'tt33bagreceipts');$production=bti_rows($values,'tt30prod');$issues=bti_rows($values,'tt36bagissues');
@@ -129,11 +129,13 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
                         'reverse_supplier_return'=>['qty'=>$event['qty'],'type'=>'SUPPLIER_RETURN_REVERSAL'],
                         default=>null
                     };
+                    if($includePhysicalDetails&&$event['action']==='accept_corrected')$movement['physicalQty']=0;
+                    if($includePhysicalDetails&&$event['action']==='return_supplier')$physicalOnly[]=['qty'=>0,'physicalQty'=>-$event['qty'],'type'=>'QUARANTINED_SUPPLIER_RETURN','date'=>$event['date'],'lotId'=>$id,'entity'=>$entity,'locationId'=>$location['locationId'],'reference'=>$event['id']];
                     if($movement)$movements[]=$movement+['date'=>$event['date'],'lotId'=>$id,'entity'=>$entity,'locationId'=>$location['locationId'],'reference'=>$event['id']];
                 }if($date!==''&&$date<=$asOf){$lot['supplierReturnedQty']+=$position['stockReturnedQty'];$datedThrough+=$position['acceptedQty']+$position['stockReturnedQty']-$accepted;}}
             }
             if($date==='')$undated+=$qty;elseif($date<=$asOf)$datedThrough+=$qty;
-            $movements[]=['date'=>$date,'lotId'=>$id,'entity'=>$entity,'locationId'=>$location['locationId'],'qty'=>$qty,'type'=>'SUPPLIER_RECEIPT','reference'=>$rid];
+            $movements[]=['date'=>$date,'lotId'=>$id,'entity'=>$entity,'locationId'=>$location['locationId'],'qty'=>$qty,'type'=>'SUPPLIER_RECEIPT','reference'=>$rid]+($includePhysicalDetails?['physicalQty'=>$physical]:[]);
         }
         $lot['supplierReceivedQty']=$counter!==null&&$counter===$totalEvents&&!$lot['holds']?$counter:null;
         if($counter===null){bti_hold($lot,'The received source quantity is unverified.');$counter=$totalEvents;}
@@ -165,7 +167,7 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
     foreach(['receipts'=>'TRANSFER_RECEIPT','returns'=>'TRANSFER_RETURN','quarantineAcceptances'=>'TRANSFER_QUARANTINE_ACCEPTANCE','quarantineReturns'=>'TRANSFER_QUARANTINE_RETURN'] as $collection=>$type)foreach((array)($transfer[$collection]??[]) as $event)foreach($event['lines'] as $ack){$line=$byLine[$ack['lineId']]??null;if(!$line)throw new DomainException('Transfer receipt lost its original source line.');
         $destinationReceipt=in_array($collection,['receipts','quarantineAcceptances'],true);$id=$destinationReceipt?'BT|'.$transfer['id'].'|'.$ack['lineId']:$line['sourceLotId'];if(!isset($lots[$id]))continue;$qty=(int)$ack['qty'];
         if($event['date']<=$asOf)$lots[$id][$destinationReceipt?'receivedQty':'returnedQty']+=$qty;
-        $movements[]=['date'=>$event['date'],'lotId'=>$id,'entity'=>$transfer['entity'],'locationId'=>$lots[$id]['locationId'],'qty'=>$qty,'type'=>$type,'reference'=>$event['id']];
+        $movements[]=['date'=>$event['date'],'lotId'=>$id,'entity'=>$transfer['entity'],'locationId'=>$lots[$id]['locationId'],'qty'=>$qty,'type'=>$type,'reference'=>$event['id']]+($includePhysicalDetails&&$collection==='quarantineAcceptances'?['physicalQty'=>0]:[]);
     }}
     foreach((array)($state['transfers']??[]) as $transfer)foreach(['quarantines'=>1,'quarantineAcceptances'=>-1,'quarantineReturns'=>-1] as $collection=>$direction)foreach((array)($transfer[$collection]??[]) as $event)foreach($event['lines'] as $ack){
         $id='BT|'.$transfer['id'].'|'.$ack['lineId'];if(isset($lots[$id])&&$event['date']<=$asOf)$lots[$id]['quarantinedQty']+=$direction*(int)$ack['qty'];
@@ -228,7 +230,7 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
         $running=$lot['balanceBeforeUnallocated'];$minimum=$running;foreach($future as $delta){$running+=$delta;$minimum=min($minimum,$running);}
         $lot['committableQty']=$lot['hold']===''?max(0,$minimum):null;$visible[$id]=$lot;}
     ksort($visible);$unallocated=array_values(array_filter($unallocated,static fn($x)=>$x['entity']===($scope['entity']??'')&&$x['locationId']===($scope['locationId']??'')));
-    $movements=array_values(array_filter($movements,static fn($x)=>$x['entity']===($scope['entity']??'')&&$x['locationId']===($scope['locationId']??'')));
+    $movements=array_values(array_filter([...$movements,...($physicalOnly??[])],static fn($x)=>$x['entity']===($scope['entity']??'')&&$x['locationId']===($scope['locationId']??'')));
     $view=['scope'=>$scope,'asOfDate'=>$asOf,'lots'=>$visible,'unallocatedConsumption'=>$unallocated,'movements'=>$movements,'warnings'=>array_values(array_unique($warnings))];$view['fingerprint']=bt_hash($view);return $view;
 }
 

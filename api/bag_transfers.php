@@ -4,6 +4,7 @@ require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/bag_shipment_usage_core.php';
 require_once __DIR__.'/bag_transfers_store.php';
 require_once __DIR__.'/operations_scope.php';
+require_once __DIR__.'/bag_ledger_core.php';
 header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');
 class BagTransferAccessDenied extends RuntimeException {}
 function bgt_out(array $data,int $status=200): never {http_response_code($status);echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);exit;}
@@ -49,6 +50,20 @@ try{
     $user=tt_require_login();$method=$_SERVER['REQUEST_METHOD']??'GET';$masters=tt_list_masters();
     if($method==='GET'){
         $entity=(string)($_GET['entity']??'');$location=bgt_master($masters,(string)($_GET['locationId']??''));$productionView=($_GET['purpose']??'')==='production';
+        if (($_GET['purpose']??'')==='ledger') {
+            if (!in_array($entity,['TTI','BRM'],true)||!tt_user_can_open_module($user,'Mill')
+                ||!tt_user_can_module_action($user,'Mill','reports','View')||!os_location($user,$location['name'])) {
+                throw new BagTransferAccessDenied('Mill Reports access is required for this location.');
+            }
+            if (!os_entity($user,$entity)) throw new BagTransferAccessDenied('This company is outside your report access.');
+            $today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
+            $date=(string)($_GET['asOf']??$today);
+            if (bti_date($date)==='') throw new DomainException('Choose a valid report date.');
+            $scope=['entity'=>$entity,'locationId'=>$location['id'],'millName'=>$location['name'],'status'=>$location['status']];
+            if (function_exists('tt_release_read_session')) tt_release_read_session();
+            $result=bts_with_sources(false,$user,static fn($values,$state)=>blg_report($values,$masters,$scope,$date,$today,$state),['tt30ship','tt35exportersale']);
+            bgt_out(['ok'=>true,'scope'=>$scope,'asOf'=>$date]+$result);
+        }
         if($productionView)bti_production_access($user,$entity,['locationId'=>$location['id'],'millName'=>$location['name'],'status'=>$location['status']],'View');else bgt_access($user,$entity,$location,'View');$today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');$date=(string)($_GET['asOf']??$today);
         $scope=['entity'=>$entity,'locationId'=>$location['id'],'millName'=>$location['name'],'status'=>$location['status']];if(function_exists('tt_release_read_session'))tt_release_read_session();
         $exclude=$productionView&&isset($_GET['excludeProductionId'])?(string)$_GET['excludeProductionId']:null;
