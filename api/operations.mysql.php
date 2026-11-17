@@ -7,6 +7,7 @@ require_once __DIR__.'/operations_read_policy.php';
 require_once __DIR__.'/commodity_weights_core.php';
 require_once __DIR__.'/exmill_corn_core.php';
 require_once __DIR__.'/local_sales_source_core.php';
+require_once __DIR__.'/pohanch_receipt_core.php';
 
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/backup_lib.php';
@@ -795,6 +796,7 @@ function operations_file_fallback(array $user): never {
             if ($key==='tt35exload' && $sourceModule!=='Exports') operations_validate_exmill_completion((string)($store['values']['tt40exinstructions']??'[]'),$value);
             $now=gmdate('c');$beforeValues=(array)($store['values']??[]);
             $printOnly=operations_pohanch_print_only($key,$old,$value);
+            if($key==='tt30slips')$value=pr_stamp_receipt_requests($old,$value,$arrivalBefore,$user);
             if($key==='tt35localsales')$localSalesLock=lsc_lock_source_amendment($old,$value);
             if(!$printOnly)$value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$now);
             $nextValues=$beforeValues;$nextValues[$key]=$value;
@@ -818,6 +820,7 @@ function operations_file_fallback(array $user): never {
     } finally { lsc_unlock($localSalesLock);flock($handle,LOCK_UN); fclose($handle); }
     if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>$contractRequest!==null?(($contractRequest['kind']??'')==='bagOrder'?'This Bag Order or its packing requirements changed. Reopen it before applying your edits.':'This contract or a linked record changed. Reopen it to review the latest saved version before applying your edits.'):'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
     if($key==='transtrade_export_v3_operational'&&tt_receipt_invoice_source_changed($old,(string)($store['values'][$key]??$value)))try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
+    pr_try_saved_receipt($key,$arrivalBefore,$printOnly??false,(string)($store['values'][$key]??$value));
     operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>operations_public_value($key,(string)($store['values'][$key]??$value),$user,(array)$store['values']), 'related'=>operations_related($store['values'],$store['meta'],$user,$key===TT_INV_CONFIRMATIONS?['tt32stockadj']:($arrivalBefore!==null?['tt30queue']:(in_array($key,['tt30prod','tt32stockadj'],true)?['tt36bagissues','tt30prodaudit','tt32labourfeed']:[])))]+(empty($receipt)?[]:['contractReceipt'=>$receipt]));
 }
 
@@ -987,6 +990,7 @@ try {
         foreach($dependent->fetchAll() as $row){$beforeValues[$row['storage_key']]=$row['payload'];$productionMeta[$row['storage_key']]=['version'=>(int)$row['version']];}
     }
     $printOnly=operations_pohanch_print_only($key,$oldPayload,$value);
+    if($key==='tt30slips')$value=pr_stamp_receipt_requests($oldPayload,$value,$arrivalBefore,$user);
     if($key==='tt35localsales')$localSalesLock=lsc_lock_source_amendment($oldPayload,$value);
     if(!$printOnly)$value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$nowIso);
     $nextValues=$beforeValues;$nextValues[$key]=$value;
@@ -1010,6 +1014,7 @@ try {
     $db->commit();lsc_unlock($localSalesLock??null);
     if($key==='transtrade_export_v3_operational'&&tt_receipt_invoice_source_changed($oldPayload,(string)($nextValues[$key]??$value)))try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     if($inventoryLock){$release=$db->prepare('SELECT RELEASE_LOCK(?)');$release->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);$inventoryLock=false;}
+    pr_try_saved_receipt($key,$arrivalBefore,$printOnly,(string)($nextValues[$key]??$value));
     operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c'), 'value' => operations_public_value($key,(string)($nextValues[$key]??$value),$user,array_replace($scopeValues,$nextValues)), 'related'=>operations_related(array_replace($scopeValues,$nextValues),$productionMeta,$user,$key===TT_INV_CONFIRMATIONS?['tt32stockadj']:($arrivalBefore!==null?['tt30queue']:(in_array($key,['tt30prod','tt32stockadj'],true)?['tt36bagissues','tt30prodaudit','tt32labourfeed']:[])))]+(empty($receipt)?[]:['contractReceipt'=>$receipt]));
 } catch (DomainException|InvalidArgumentException $e) {
     if(isset($db)&&$db instanceof PDO&&$db->inTransaction())$db->rollBack();

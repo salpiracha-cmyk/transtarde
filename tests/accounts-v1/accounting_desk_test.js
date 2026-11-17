@@ -7,7 +7,7 @@ const desk = fs.readFileSync('accounts/accounts-accounting-desk.js', 'utf8');
 const bundle = fs.readFileSync('accounts/app-bundle.php', 'utf8');
 const sodaApi = fs.readFileSync('api/purchase_sodas.php', 'utf8');
 const billUi = fs.readFileSync('accounts/bill-smart-ui-v2.js', 'utf8');
-const bridge = fs.readFileSync('accounts/source-bridge.js', 'utf8');
+const bridge = fs.readFileSync('api/pohanch_receipt_core.php', 'utf8');
 const milling = fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html', 'utf8');
 const searchApi = fs.readFileSync('api/accounts_search.php', 'utf8');
 const auth = fs.readFileSync('auth_store.php', 'utf8');
@@ -29,7 +29,7 @@ assert(desk.includes("title:'Bill Posting'") && !desk.includes("title:'Arrival /
 assert(!desk.includes('class="btn tt-prev-direct"'), 'duplicate Search Previous button must not appear in the Purchases workspace');
 assert(desk.includes('data-delete-soda') && sodaApi.includes("$action === 'delete'"), 'Super Admin must be able to delete an unused Soda from its detail view');
 assert(billUi.includes('data-open-receipt') && !billUi.includes('type="checkbox" class="ttsb-select"'), 'Arrival Bills must open from a receipt row without tick boxes');
-assert(bridge.includes("'POHANCH|' + String(saved.millId") || bridge.includes("'POHANCH|'+String(saved.millId"), 'Pohanch handoff identity must not rely on the reusable printed number');
+assert(bridge.includes("'POHANCH|'.$mill.'|'.$bridge"), 'Pohanch handoff identity must not rely on the reusable printed number');
 assert(milling.includes('function editSlip') && milling.includes('Save Amendment'), 'saved unprinted Pohanch must provide an edit workflow');
 assert(desk.includes('Search Previous Accounts Entry'), 'every workspace must expose previous-entry search');
 assert(desk.includes('Print Voucher'), 'third-party accounting search results must expose voucher print');

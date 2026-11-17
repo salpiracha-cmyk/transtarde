@@ -9,7 +9,7 @@ const soda=read('api/purchase_sodas.php');
 const bills=read('api/commodity_bills.php');
 const feed=read('api/milling_purchase_sodas.php');
 const mill=read('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html');
-const bridge=read('accounts/source-bridge.js');
+const bridge=read('api/pohanch_receipt_core.php');
 const index=read('accounts/index.php');
 const enhancements=read('accounts/accounts-enhancements.js');
 
@@ -125,8 +125,8 @@ assert.match(mill,/applyReadyKat=ready&&linked\.readyRoute==='DELIVER_TO_STOCK'/
 assert.match(fs.readFileSync('api/operations_policy.php','utf8'),/completedHistoryPreserved'\s*=>true/);
 assert.match(mill,/_ttPurchaseSodaId/);
 assert.doesNotMatch(mill,/const demo=\{'Shams Broker'/);
-assert.match(bridge,/sourceSodaId:saved\.sourceSodaId/);
-assert.match(bridge,/purchaseProductId:saved\.purchaseProductId/);
+assert.match(bridge,/'sourceSodaId'/);
+assert.match(bridge,/'purchaseProductId'/);
 assert.match(bills,/\['purchaseSodas','purchaseSodasV2'\]/);
 
 assert.match(index,/tt-accounts-boot/);
