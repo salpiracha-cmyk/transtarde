@@ -14,7 +14,8 @@ console.log('PASS scoped allocation retains canonical bridge identity, committed
  const snapshot={ok:true,revision:11,values:{tt30queue:'[]',tt30slips:'[]',tt30directoralerts:'[]',tt30ship:'SERVER-SHIP',transtrade_export_v3_operational:'SERVER-ROOT'},meta:{tt30queue:{version:3},tt30ship:{version:5}},restrictedKeys:['tt34ghati']};
  let requests=0,applied=null,serverFailure=false,duringRead=null;
  const pending=new Map([['transtrade_export_v3_operational','KEEP-STAGED-EXPORT'],['tt30ship','KEEP-STAGED-SHIP']]),inFlight=new Set();
- const refreshContext={pending,inFlight,endpoint:'/operations',allowed:key=>/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(key)&&key!=='tt34ghati',fetch:async url=>{requests++;assert.match(url,/asset_refs=1/);return {json:async()=>{duringRead?.();return serverFailure?{ok:false,error:'Read failed'}:snapshot}}},applyRemote:data=>{applied=data},Promise,Error,Set,Object,Date};
+ const refreshContext={access:{moduleId:'milling'},BAG_ORDER_SOURCES:['tt30bags','tt33bagreceipts','transtrade_export_v3_operational'],
+  pending,inFlight,endpoint:'/operations',allowed:key=>/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(key)&&key!=='tt34ghati',fetch:async url=>{requests++;assert.match(url,/asset_refs=1/);return {json:async()=>{duringRead?.();return serverFailure?{ok:false,error:'Read failed'}:snapshot}}},applyRemote:data=>{applied=data},Promise,Error,Set,Object,Date};
  vm.createContext(refreshContext);vm.runInContext(source.slice(source.indexOf('  function refreshNow('),source.indexOf('  const legacyToken=',source.indexOf('  function refreshNow('))),refreshContext);
  await assert.rejects(refreshContext.refreshNow(),/Finish the current save/);assert.equal(requests,0);
  const result=await refreshContext.refreshNow({keys:['tt30queue','tt30slips','tt30directoralerts']});
