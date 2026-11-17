@@ -3,13 +3,14 @@ declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/bag_receipts_core.php';
 require_once __DIR__.'/bag_transfers_store.php';
+require_once __DIR__.'/operations_scope.php';
 header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');
 class BagReceiptDenied extends RuntimeException {}
 function br_out(array $value,int $status=200): never {http_response_code($status);echo json_encode($value,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;}
 function br_access(array $user,array $masters,string $entity,string $locationId,string $right): void {
     $location=bti_location($masters,'',$locationId);if(!$location)throw new DomainException('Select an actual physical receipt location.');
     if(!tt_user_can_open_module($user,'Mill')||!tt_user_can_module_action($user,'Mill','newbags',$right))throw new BagReceiptDenied('New Export Bags '.$right.' permission is required.');
-    $assigned=bti_norm($user['location']??'');if(($user['role']??'')!=='Super Admin'&&!in_array($assigned,['','all locations','all authorized locations'],true)&&$assigned!==bti_norm($location['millName']))throw new BagReceiptDenied('This receipt belongs to another assigned physical mill.');
+    if(!os_location($user,$location['millName']))throw new BagReceiptDenied('This receipt belongs to another assigned physical mill.');
     $grants=(array)($user['permissions']['Accounts']??[]);foreach(['entity-tti','entity-brm','entity-tg'] as $key)if(array_key_exists($key,$grants)){if(!tt_user_can_access_entity($user,$entity,$right))throw new BagReceiptDenied('This receipt belongs to another stock owner.');break;}
 }
 try {

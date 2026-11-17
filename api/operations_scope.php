@@ -89,7 +89,8 @@ function os_key_visible(array $u,string $key): bool {
     $map=os_key_grants();if(!isset($map[$key]))return false;
     if(os_owner($u))return true;
     $setup=['tt39salarymaster'=>'salary_staff','tt39rentmaster'=>'reference_lists','tt38costmaster'=>'reference_lists','tt38labourrates'=>'reference_lists'];
-    if(isset($setup[$key])&&!tt_user_can_master($u,$setup[$key],'Use')&&!tt_user_can_master($u,$setup[$key],'View'))return false;
+    if(isset($setup[$key])&&!tt_user_can_master($u,$setup[$key],'Use')&&!tt_user_can_master($u,$setup[$key],'View')
+        && !($key==='tt38labourrates'&&os_workflow_selector_allowed($u,'Mill','labourContractors')))return false;
     if(os_any($u,'Mill',$map[$key]))return true;
     return os_export_key_visible($u,$key);
 }
@@ -151,10 +152,12 @@ function os_workflow_selector_allowed(array $user,string $module,string $selecto
         'Exports|bagSuppliers'=>['bags'],
         'Exports|indentors','Exports|paymentPresets'=>['contract','contracts'],
         'Mill|brokers'=>['queue','arrival'],
+        'Mill|labourContractors'=>['labour'],
         'Mill|purchaseProducts'=>['queue','arrival'],
         default=>[],
     };
     if(!$icons||!tt_user_can_open_module($user,$module))return false;
+    if($selector==='labourContractors'&&!os_any($user,$module,$icons))return false;
     return os_any($user,$module,$icons,'Create')||os_any($user,$module,$icons,'Edit');
 }
 
@@ -208,7 +211,7 @@ function os_workflow_selectors(array $user,string $module): array {
     $banks=os_workflow_selector_allowed($user,$module,'documentBanks');
     $partyRoles=[];
     if(!tt_user_can_master($user,'business_parties','View')&&!tt_user_can_master($user,'business_parties','Use')){
-        foreach(['bagSuppliers'=>'bag supplier','indentors'=>'indentor','brokers'=>'broker'] as $selector=>$role)
+        foreach(['bagSuppliers'=>'bag supplier','indentors'=>'indentor','brokers'=>'broker','labourContractors'=>'labour contractor'] as $selector=>$role)
             if(os_workflow_selector_allowed($user,$module,$selector))$partyRoles[]=$role;
     }
     $products=os_workflow_selector_allowed($user,$module,'purchaseProducts')
@@ -223,7 +226,7 @@ function os_workflow_selectors(array $user,string $module): array {
         $options['business_parties']=[];
         foreach((array)($masters['business_parties']??[]) as $row){
             $values=(array)($row['values']??[]);
-            $roles=preg_split('/\s*[;,]\s*/',strtolower(trim((string)($values[2]??''))))?:[];
+            $roles=preg_split('/\s*[;,|]\s*/',strtolower(trim((string)($values[2]??''))))?:[];
             if(!array_intersect($roles,$partyRoles)||stripos((string)($values[10]??''),'inactive')!==false)continue;
             $options['business_parties'][]=['id'=>$row['id']??'','values'=>[$values[0]??'',$values[1]??'',$values[2]??'']];
         }

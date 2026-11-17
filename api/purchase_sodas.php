@@ -9,6 +9,7 @@ if(!defined('TT_PAYABLES_FUNCTIONS_ONLY'))define('TT_PAYABLES_FUNCTIONS_ONLY',tr
 require_once __DIR__.'/payables_planning.php';
 require_once __DIR__.'/payment_plan_core.php';
 require_once __DIR__.'/soda_buying_for_core.php';
+require_once __DIR__.'/soda_moisture.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -321,7 +322,12 @@ function ps_validate(array $body, ?array $existing = null): array {
     if($route==='EX_MILL'&&!$supplier)ps_out(['ok'=>false,'error'=>'Choose the supplier for this Ex-Mill purchase. Broker may be left blank.'],422);
     if($route==='EX_MILL'&&($minimum<=0||abs($maximum-$minimum)>.001))ps_out(['ok'=>false,'error'=>'Ex-Mill Sodas need one contracted quantity; actual loaded weight may vary by up to 5%.'],422);
     if($route==='DELIVER_TO_STOCK'&&!in_array((string)($location['type']??''),ps_receiving_types(),true))ps_out(['ok'=>false,'error'=>'Select an own mill, reprocessing mill, warehouse or stock location for delivery.'],422);
-    return ['commodity'=>$commodity,'purchaseProductId'=>$purchaseProductId,'baseVariety'=>(string)$product['baseVariety'],'riceType'=>(string)$product['riceType'],'brokenGrade'=>(string)($product['brokenGrade']??''),'productStage'=>$stage,'displayName'=>(string)$product['displayName'],'katProfile'=>$route==='EX_MILL'&&$commodity==='RICE'?'':(string)$product['katProfile'],'sodaDate'=>$date,'broker'=>$broker,'supplierId'=>$supplierId,'party'=>$party,'variety'=>(string)$product['baseVariety'],'readyRoute'=>$route,'movementRole'=>$route==='EX_MILL'?'LIFT_FROM':'DELIVER_TO','locationId'=>(string)$location['id'],'location'=>(string)$location['name'],'locationName'=>(string)$location['name'],'locationType'=>(string)$location['type'],'locationAddress'=>(string)$location['address'],'exMillId'=>$route==='EX_MILL'?(string)$location['id']:'','qtyFromKg'=>$minimum,'qtyToKg'=>$maximum,'expectedTrucks'=>$trucks,'completionBasis'=>$minimum > 0 && $trucks > 0 ? 'BOTH' : ($minimum > 0 ? 'WEIGHT' : 'TRUCKS'),'rate'=>$rate,'ratePerKg'=>$unit === 'MAUND' ? round($rate/40, 6) : $rate,'rateUnit'=>$unit,'paymentTermType'=>$payment,'creditDays'=>$creditDays,'arrivalDueDate'=>$due,'deliveryDeadline'=>$due,'terms'=>trim((string)($body['terms']??'')),'remarks'=>trim((string)($body['remarks']??'')),'maxOverToleranceKg'=>$route==='EX_MILL'?round($maximum*.05,3):PS_MAX_OVER_KG,'doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG];
+    $freeMoisture=$commodity==='RICE'&&$route==='DELIVER_TO_STOCK'
+        ?soda_free_moisture($body['freeMoisturePct']??($existing===null?16:$existing['freeMoisturePct']??null)):null;
+    if ($commodity==='RICE'&&$route==='DELIVER_TO_STOCK'&&$existing===null&&$freeMoisture===null) {
+        throw new InvalidArgumentException('Choose the agreed free moisture limit.');
+    }
+    return ['freeMoisturePct'=>$freeMoisture,'commodity'=>$commodity,'purchaseProductId'=>$purchaseProductId,'baseVariety'=>(string)$product['baseVariety'],'riceType'=>(string)$product['riceType'],'brokenGrade'=>(string)($product['brokenGrade']??''),'productStage'=>$stage,'displayName'=>(string)$product['displayName'],'katProfile'=>$route==='EX_MILL'&&$commodity==='RICE'?'':(string)$product['katProfile'],'sodaDate'=>$date,'broker'=>$broker,'supplierId'=>$supplierId,'party'=>$party,'variety'=>(string)$product['baseVariety'],'readyRoute'=>$route,'movementRole'=>$route==='EX_MILL'?'LIFT_FROM':'DELIVER_TO','locationId'=>(string)$location['id'],'location'=>(string)$location['name'],'locationName'=>(string)$location['name'],'locationType'=>(string)$location['type'],'locationAddress'=>(string)$location['address'],'exMillId'=>$route==='EX_MILL'?(string)$location['id']:'','qtyFromKg'=>$minimum,'qtyToKg'=>$maximum,'expectedTrucks'=>$trucks,'completionBasis'=>$minimum > 0 && $trucks > 0 ? 'BOTH' : ($minimum > 0 ? 'WEIGHT' : 'TRUCKS'),'rate'=>$rate,'ratePerKg'=>$unit === 'MAUND' ? round($rate/40, 6) : $rate,'rateUnit'=>$unit,'paymentTermType'=>$payment,'creditDays'=>$creditDays,'arrivalDueDate'=>$due,'deliveryDeadline'=>$due,'terms'=>trim((string)($body['terms']??'')),'remarks'=>trim((string)($body['remarks']??'')),'maxOverToleranceKg'=>$route==='EX_MILL'?round($maximum*.05,3):PS_MAX_OVER_KG,'doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG];
 }
 
 try {

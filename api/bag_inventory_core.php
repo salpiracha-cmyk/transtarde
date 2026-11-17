@@ -26,7 +26,7 @@ function bti_location(array $masters,string $name,string $id=''): ?array {
 function bti_po_sources(array $exports): array {
     $contracts=[];foreach((array)($exports['contracts']??[]) as $c)if(is_array($c)&&isset($c['ref']))$contracts[(string)$c['ref']]=$c;
     $map=[];foreach((array)($exports['shipments']??[]) as $s){if(!is_array($s))continue;$c=$contracts[(string)($s['contractRef']??'')]??[];$seller=strtoupper((string)($s['seller']??$c['seller']??''));
-        $owner=$seller==='TG'?strtoupper((string)($s['customs']['exporter']??$c['customsExporter']??'')):$seller;
+        $owner=$seller==='TG'?strtoupper((string)($s['documentParties']['exporterKey']??$s['customs']['exporter']??$c['customsExporter']??'')):$seller;
         foreach((array)($s['bagOrders']??[]) as $po){if(!is_array($po)||empty($po['poNo']))continue;
             $lines=(array)($po['lines']??[]);if(!$lines)$lines=[['brand'=>$po['brand']??'','type'=>$po['type']??'','size'=>$po['packSize']??'','unit'=>$po['unit']??'','masterBag'=>$po['masterBag']??[]]];
             foreach(array_values($lines) as $i=>$line){if(!is_array($line))continue;$base=['entity'=>$owner,'contractRef'=>(string)($s['contractRef']??''),'supplier'=>(string)($po['supplier']??''),'brand'=>(string)($line['brand']??''),'bagType'=>(string)($line['type']??''),'packingSize'=>trim((string)($line['size']??'').' '.(string)($line['unit']??''))];
@@ -277,4 +277,65 @@ function bti_prepare_production(array $values,string $json,array $masters,array 
         $r['bagAllocations']=$canonical;$r['bagAllocationScope']=$scope;$r['bagAllocationActor']=['userId'=>(int)$user['id'],'by'=>(string)($user['full_name']??$user['username']??''),'at'=>$now];
     }unset($r);
     return json_encode($rows,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+}
+
+/** Present issued PO lines even when the older browser bridge never copied them to Milling. */
+function bti_bag_order_catalog(array $values): array {
+    $stored=bti_rows($values,'tt30bags');
+    $root=json_decode((string)($values['transtrade_export_v3_operational']??'{}'),true,512,JSON_THROW_ON_ERROR);
+    $known=[];$ids=[];$closed=[];$issued=[];
+    foreach ($stored as $row) {
+        $ids[(string)($row['id']??'')]=true;
+        $known[(string)($row['contractRef']??'').'|'.($row['poNo']??'').'|'.bqa_mill_line_key($row)]=true;
+    }
+    foreach (bti_rows($values,'tt33bagreceipts') as $receipt) $ids[(string)($receipt['bagId']??'')]=true;
+    foreach (($root['contracts']??[]) as $contract) if (bti_bag_closed($contract)) $closed[$contract['ref']??'']=true;
+    foreach (($root['shipments']??[]) as $shipment) {
+        $ref=(string)($shipment['contractRef']??'');
+        if (isset($closed[$ref])||bti_bag_closed($shipment)) continue;
+        foreach (($shipment['bagOrders']??[]) as $po) {
+            if (!empty($po['cancelled'])||(!isset($po['issuedAt'])&&!str_contains(strtolower((string)($po['status']??'')),'synced'))) continue;
+            $issued[$ref.'|'.($po['poNo']??'')]=true;
+        }
+    }
+    $poSources=bti_po_sources($root);
+    foreach (($root['millSync']['newExportBags']??[]) as $line) {
+        $ref=(string)($line['contractRef']??'');$po=(string)($line['poNo']??'');
+        if ($po===''||!isset($issued[$ref.'|'.$po])) continue;
+        $n=(int)($line['line']??$line['lineId']??0);
+        if ($n<1) continue;
+        $rootKey=implode('|',[$po,$n,$ref,$line['brand']??'',$line['size']??'',$line['orderedTare']??'']);
+        $variants=['L'.$n=>[$line['brand']??'',trim(($line['size']??'').' '.(strtoupper((string)($line['unit']??'KG'))==='LB'?'lb':'kg')),$line['orderedTare']??0,$line['totalOrdered']??$line['requiredBags']??0,$rootKey]];
+        $master=$line['masterBag']??[];
+        if (!empty($master['enabled'])) $variants['L'.$n.'-MASTER']=[($line['brand']??'').' — MASTER',$master['size']??'',$master['tare']??0,$master['qty']??0,$rootKey.'|MASTER'];
+        foreach ($variants as $key=>[$brand,$size,$tare,$quantity,$bridgeId]) {
+            $identity=$ref.'|'.$po.'|'.$key;
+            if (isset($known[$identity])||(bti_count($quantity)??0)<1||trim((string)($line['deliverTo']??''))==='') continue;
+            $candidates=array_values(array_filter($poSources[$po.'|'.$key]??[],static fn($candidate)=>$candidate['contractRef']===$ref
+                && bti_norm($candidate['brand'])===bti_norm($brand)&&bti_norm($candidate['supplier'])===bti_norm($line['supplier']??'')));
+            if (count($candidates)!==1||!in_array($candidates[0]['entity'],['TTI','BRM'],true)) continue;
+            // Retain compatibility with the original numeric bridge key used on devices.
+            $hash=2166136261;
+            $characters=preg_split('//u','bag|'.$bridgeId,-1,PREG_SPLIT_NO_EMPTY)?:[];
+            foreach ($characters as $char) {
+                $encoded=json_encode($char,JSON_THROW_ON_ERROR);
+                $code=strlen($char)===1?ord($char):hexdec(substr($encoded,3,4));
+                $hash=(($hash^$code)*16777619)&0xffffffff;
+            }
+            $id=600000000+$hash%300000000;
+            if (isset($ids[$id])) continue;
+            $ids[$id]=true;$known[$identity]=true;
+            $stored[]=['id'=>$id,'_ttBridge'=>'exports','_ttBridgeId'=>$bridgeId,'contractRef'=>$ref,'poNo'=>$po,'poLineKey'=>$key,
+                'supplier'=>$line['supplier']??'','mill'=>$line['deliverTo'],'entity'=>$candidates[0]['entity'],'brand'=>$brand,
+                'size'=>$size,'tare'=>$tare.' g','ordered'=>(int)$quantity,'received'=>0,'isMasterBag'=>str_ends_with($key,'-MASTER'),
+                'artworkName'=>$line['artworkName']??$line['artworkDocument']['name']??'',
+                'artworkData'=>($line['artworkData']??'')?:($line['artworkDocument']['downloadUrl']??$line['artworkDocument']['dataUrl']??''),
+                'status'=>'Order from Export — Awaiting Receipt'];
+        }
+    }
+    return $stored;
+}
+function bti_bag_closed(array $row): bool {
+    return !empty($row['completed'])||!empty($row['cancelled'])||!empty($row['closed'])
+        ||in_array(strtolower(trim((string)($row['status']??''))),['closed','completed','cancelled','archived'],true);
 }

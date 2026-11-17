@@ -24,6 +24,18 @@ function operations_restore_write_artwork(string $key,string $value,array $value
     return $value;
 }
 
+function operations_bag_order_read(array $user,array $values): array {
+    if (($_GET['bag_orders']??'')!=='1' || !tt_user_can_module_action($user,'Mill','newbags','View')) return [];
+    require_once __DIR__.'/bag_inventory_core.php';
+    $rows=[];
+    foreach (bti_bag_order_catalog($values) as $row) {
+        if (!isset($row['entity'])||!in_array($row['entity'],['TTI','BRM'],true)||($row['sourceKind']??'')==='OTHER_EXPORTER') continue;
+        if (!tt_user_business_entity($user,$row['entity'])||!os_location($user,(string)($row['millName']??$row['mill']??''))) continue;
+        $rows[]=$row;
+    }
+    return ['issuedBagOrders'=>json_decode(tt_inv_artwork_json(tt_inv_json($rows)),true,512,JSON_THROW_ON_ERROR)];
+}
+
 function operations_respond(array $data, int $status = 200): never {
     operations_social_after_save($data,$status);
     if(($_GET['asset_refs']??'')==='1'){
@@ -724,7 +736,7 @@ function operations_file_fallback(array $user): never {
         $store = $raw ? json_decode($raw, true) : null;
         if (!is_array($store)) $store = ['revision'=>0,'values'=>[],'meta'=>[]];
         if(operations_not_modified(operations_read_tag($user,[$store,($_GET['asset_refs']??'')==='1']))){http_response_code(304);exit;}
-        operations_respond(['ok'=>true,'revision'=>(int)($store['revision']??0),'serverNow'=>gmdate('c')]+os_project($user,(array)($store['values']??[]),(array)($store['meta']??[])));
+        operations_respond(['ok'=>true,'revision'=>(int)($store['revision']??0),'serverNow'=>gmdate('c')]+os_project($user,(array)($store['values']??[]),(array)($store['meta']??[]))+operations_bag_order_read($user,(array)($store['values']??[])));
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') operations_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $raw = file_get_contents('php://input') ?: '';
@@ -841,7 +853,7 @@ try {
                 'module' => (string)$row['updated_by_module'],
             ];
         }
-        operations_respond(['ok'=>true,'revision'=>$revision,'serverNow'=>gmdate('c')]+os_project($user,$values,$meta));
+        operations_respond(['ok'=>true,'revision'=>$revision,'serverNow'=>gmdate('c')]+os_project($user,$values,$meta)+operations_bag_order_read($user,$values));
     }
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') operations_respond(['ok' => false, 'error' => 'Method not allowed.'], 405);

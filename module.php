@@ -203,7 +203,7 @@ $sharedBootstrap = <<<'HTML'
     const blocked=()=>BAG_ORDER_SOURCES.some(key=>inFlight.has(key)||pending.has(key)&&(
       failedKeys.has(key)||bagBridgeValues.get(key)!==pending.get(key)||localStorage.getItem(key)!==pending.get(key)));
     if(blocked())throw new Error('Finish the current bag order or receipt save before refreshing.');
-    const response=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin',cache:'no-store'});
+    const response=await fetch(endpoint+'?asset_refs=1&bag_orders=1&r='+Date.now(),{credentials:'same-origin',cache:'no-store'});
     const data=await response.json();
     if(!response.ok||!data?.ok||!data.values||!data.meta)throw new Error(data?.error||'Bag orders could not be refreshed.');
     if(blocked())throw new Error('Finish the current bag order or receipt save before refreshing.');
@@ -224,7 +224,9 @@ $sharedBootstrap = <<<'HTML'
       if(pending.has(key)){pending.delete(key);queuedBase.delete(key);}
       bagBridgeValues.delete(key);
     }
-    applyRemote({...data,values,meta,restrictedKeys},true);
+    const snapshot={...data,values,meta,restrictedKeys};
+    applyRemote(snapshot,true);
+    return snapshot;
   }
   const legacyToken=key=>'tt_ui_mill_shared_pending_'+access.userId+'_'+key;
   const legacySame=(a,b,key='')=>{try{
@@ -585,7 +587,7 @@ $accountsSourceBridge = '<script src="mill-duplicate-approvals.js"></script><scr
 $brandBody = '<script src="/session-activity.js?v=20261105-mill-idle"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
-if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/arrival-recovery-ui.js"></script><script src="/accounts/arrival-visibility.js"></script><script src="/accounts/arrival-device-guard.js"></script><script>window.TT_POST_CONFIRMATION_REVIEW_ONLY=true;</script><script src="/accounts/post-confirmation-ui.js"></script><script src="/accounts/mill-petty-cash-ui.js"></script><script src="/accounts/mill-settings-save.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261105-1"></script><script src="/accounts/bag-transfers-ui.js"></script><script src="/accounts/outside-export-loading.js"></script><script src="/accounts/bag-receipts-ui.js?v=20261111-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
+if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/arrival-recovery-ui.js"></script><script src="/accounts/arrival-visibility.js"></script><script src="/accounts/arrival-device-guard.js"></script><script>window.TT_POST_CONFIRMATION_REVIEW_ONLY=true;</script><script src="/accounts/post-confirmation-ui.js"></script><script src="/accounts/mill-petty-cash-ui.js"></script><script src="/accounts/mill-settings-save.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261105-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261117-1"></script><script src="/accounts/outside-export-loading.js"></script><script src="/accounts/bag-receipts-ui.js?v=20261117-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
 $localSalesEntry='';
 if($localSalesView){
     $entry=file_get_contents(__DIR__.'/milling/local-sales-entry.js');
