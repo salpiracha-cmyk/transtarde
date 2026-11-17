@@ -180,6 +180,7 @@ try{
     $relationshipName=trim((string)($body['relationshipName']??''));
     if(!in_array($relationshipType,['BROKER','SUPPLIER'],true)||$relationshipName==='')cb_respond(['ok'=>false,'error'=>'Choose either the Broker or Supplier before selecting the Soda.'],422);
     $names=cb_account_names();
+    $pohanches=tt_bill_pohanch_index(tt_bill_operational_values(),$entity);
 
     tt_ensure_data_dir();
     $h=@fopen(TT_COMMODITY_ACCOUNTS_FILE,'r+b');
@@ -187,7 +188,7 @@ try{
     try{
         rewind($h);$raw=stream_get_contents($h);$store=tt_accounts_source_decode($raw,cb_default_store());$previewBefore=array_map('strval',array_keys((array)($store['journals']??[])));
 
-        $events=[];$receiptRows=[];$provisional=0.0;$brokeryWeightKg=0.0;$brokeryBags=0.0;$sodas=[];$brokers=[];$commodities=[];
+        $events=[];$receiptRows=[];$provisional=0.0;$brokeryWeightKg=0.0;$brokeryBags=0.0;$sodas=[];$brokers=[];$commodities=[];$riceQuality=[];
         foreach($sourceKeys as $key){
             $eventId=$entity.'|COMMODITY_RECEIPT_ACCEPTED|'.$key;
             $ev=$store['events'][$eventId]??null;
@@ -198,6 +199,10 @@ try{
             if(!is_array($j)) cb_respond(['ok'=>false,'error'=>'Receipt journal is missing for '.$key.'.'],422);
             $meta=is_array($j['meta']??null)?$j['meta']:[];
             $commodity=cb_commodity($ev,$meta);
+            if ($commodity==='RICE') {
+                $quality=tt_bill_pohanch_kat($pohanches,$key,$meta);
+                if ($quality!==null) $riceQuality[$key]=$quality;
+            }
             $identity=tt_product_identity($commodity,(string)($meta['displayName']??$meta['baseVariety']??$meta['variety']??''),(string)($meta['productStage']??''),(string)($meta['riceType']??''));$row=[
                 'eventId'=>$eventId,'sourceKey'=>$key,'date'=>(string)($j['date']??''),'provisionalAmount'=>round((float)($j['totalDebit']??0),2),
                 'commodity'=>$commodity,'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),
@@ -239,11 +244,20 @@ try{
         $creditDays=$term==='CASH'?2:cb_credit_days($soda['creditDays']??null);
         $calculation=null;
         $readyRice=$commodity==='RICE'&&$stage==='READY';
+        if ($riceQuality&&count($riceQuality)!==count($receiptRows))
+            cb_respond(['ok'=>false,'error'=>'Bill receipts with a verified Pohanch separately from older receipts without a linked Pohanch.'],422);
+        $riceRate=(float)($soda['ratePerKg']??$soda['rate']??0);
         if($readyRice){
             if(!is_array($body['readyRiceCalculation']??null))cb_respond(['ok'=>false,'error'=>'Refresh Bill Posting to enter the ready-rice bag calculation.'],422);
             $grossKg=0;foreach($receiptRows as $receipt){$journal=$store['journals'][$store['events'][$receipt['eventId']]['journalId']]??[];$grossKg+=(float)($journal['meta']['weighbridgeWeightKg']??$receipt['payableWeightKg']);}
-            $calculation=tt_ready_rice_bill_calculation($grossKg,(float)($soda['ratePerKg']??$soda['rate']??0),array_merge($body['readyRiceCalculation'],['loadingBags'=>$brokeryBags]),count($receiptRows));
+            if ($riceQuality) $grossKg=array_sum(array_column($riceQuality,'weightKg'));
+            $calculation=tt_ready_rice_bill_calculation($grossKg,$riceRate,array_merge($body['readyRiceCalculation'],['loadingBags'=>$brokeryBags]),count($receiptRows));
             $brokeryWeightKg=$calculation['netRiceWeightKg'];
+        }
+        $qualityCalculation=$riceQuality?tt_bill_rice_quality($riceQuality,$riceRate,(float)($calculation['emptyBagWeightKg']??0)):null;
+        if ($qualityCalculation!==null) {
+            $calculation??=['ratePerKg'=>$riceRate];
+            $calculation['pohanchKat']=$qualityCalculation;
         }
         $brokeryRate=cb_brokery_rate($soda);if($commodity==='RICE'&&$brokeryRate&&($brokeryRate['basis']??'')==='PER_50_KG_BAG'){$brokeryRate['amount']=round((float)$brokeryRate['amount']*2,2);$brokeryRate['basis']='PER_100_KG';}
         if(!($commodity==='CORN'&&$exMill)&&$brokeryBags<=0&&is_array($body['inspection']??null))$brokeryBags=max(0,(float)($body['inspection']['bags']??0));
@@ -269,9 +283,10 @@ try{
             $calculation['buyingBrokery']=$brokeryRate;
         }
         if($brokerageWithholding>$brokerageGross)cb_respond(['ok'=>false,'error'=>'Brokery withholding cannot exceed system-calculated Buying Brokery.'],422);
-        $provisional=round($provisional,2);$billBaseValue=$calculation!==null&&!$readyRice?round((float)$calculation['finalCommodityValue'],2):$provisional;
+        $provisional=round($provisional,2);$billBaseValue=$calculation!==null&&!$readyRice&&$qualityCalculation===null?round((float)$calculation['finalCommodityValue'],2):$provisional;
         if($readyRice)$billBaseValue=round($calculation['netRiceWeightKg']*$calculation['ratePerKg']+$calculation['kantaAmount']+$calculation['loadingAmount'],2);
-        if($adjustmentLines||$readyRice){
+        if ($qualityCalculation!==null) $billBaseValue=round($qualityCalculation['commodityValue']+($calculation['kantaAmount']??0)+($calculation['loadingAmount']??0),2);
+        if($adjustmentLines||$readyRice||$qualityCalculation!==null){
             $addition=0.0;$deduction=0.0;$cleanLines=[];
             foreach($adjustmentLines as $line){
                 if(!is_array($line))continue;$kind=strtoupper(trim((string)($line['kind']??'')));$description=trim((string)($line['description']??''));$amount=cb_money($line['amount']??0,'Adjustment amount');
@@ -280,8 +295,14 @@ try{
             }
             $serverFinal=round($billBaseValue+$addition-$deduction,2);
             if($serverFinal<=0)cb_respond(['ok'=>false,'error'=>'Bill deductions cannot reduce the commodity value to zero or below.'],422);
-            if(abs($serverFinal-$finalValue)>.01)cb_respond(['ok'=>false,'error'=>'Bill total changed. Review the additions and deductions before posting.'],409);
+            if(abs($serverFinal-$finalValue)>.01)cb_respond(['ok'=>false,'error'=>'Bill total changed. Review the saved Pohanch KAT and bill adjustments before posting.'],409);
             $adjustmentLines=$cleanLines;
+            if ($qualityCalculation!==null) {
+                $calculation['finalCommodityValue']=$serverFinal;
+                foreach (['moistureDeduction'=>'Pohanch moisture KAT (kg)','rateDeduction'=>'Pohanch quality KAT (paisa/kg)'] as $field=>$description) {
+                    if ($qualityCalculation[$field]>0) $adjustmentLines[]=['kind'=>'DEDUCTION','description'=>$description,'amount'=>$qualityCalculation[$field],'systemComponent'=>$field];
+                }
+            }
             if($readyRice){
                 if($calculation['emptyBagDeduction']>0)$adjustmentLines[]=['kind'=>'DEDUCTION','description'=>'Empty bag weight','amount'=>$calculation['emptyBagDeduction'],'systemComponent'=>'EMPTY_BAGS'];
                 if($calculation['loadingAmount']>0)$adjustmentLines[]=['kind'=>'ADDITION','description'=>'Loading Charges ('.$calculation['loadingBags'].' bags × '.$calculation['loadingRatePerBag'].')','amount'=>$calculation['loadingAmount'],'systemComponent'=>'LOADING'];

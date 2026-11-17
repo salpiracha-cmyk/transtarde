@@ -16,10 +16,17 @@ $masters=tt_default_masters();$masters['business_parties'][]=['id'=>'transport-f
 $masters['banks'][]=['id'=>'qa-bank-a','values'=>['Company Account','TTI','','Fixture A','Fixture Bank A','','Pakistan','PKR','12345','','','','','Active']];$masters['banks'][]=['id'=>'qa-bank-default','values'=>['Company Account','TTI','','Fixture B','Fixture Bank B','','Pakistan','PKR','67890','','','','','Active']];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>$users,'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'audit'=>[]]));
 $s=['bankAccountSettings'=>['qa-bank-default'=>['active'=>true,'allowPayments'=>true,'allowReceipts'=>true,'defaultReceiptAccount'=>true]],'revision'=>0,'journals'=>[],'events'=>[],'commodityBills'=>[],'purchaseSodas'=>[],'loadingProgrammes'=>[],'transportMaster'=>[['from'=>'Karachi','to'=>'Jeddah','rate'=>38000]]];
+$pohanches=[];
 foreach([['26001','READY','Indus Rice','JJ','CREDIT',30],['26002','RAW','Indus Rice','JJ','CASH',0],['26003','READY','','JJ','CASH',0],['26004','READY','Indus Rice','','CREDIT',60]] as [$no,$stage,$party,$broker,$term,$days]){
  $s['purchaseSodas'][$no]=['id'=>'PS-'.$no,'entity'=>'TTI','commodity'=>'RICE','sodaNo'=>$no,'sodaDate'=>'2026-09-01','party'=>$party,'broker'=>$broker,'productStage'=>$stage,'rate'=>100,'paymentTermType'=>$term,'creditDays'=>$days];
  foreach([1,2] as $n){$key=($stage==='READY'?'EXMILL|':'POHANCH|').$no.'|'.$n;$jid='J-'.$no.'-'.$n;$eid='TTI|COMMODITY_RECEIPT_ACCEPTED|'.$key;$date='2026-09-'.(10+$n);
  $meta=['soda'=>$no,'sourceSodaId'=>'PS-'.$no,'broker'=>$broker,'party'=>$party,'commodity'=>'RICE','productStage'=>$stage,'baseVariety'=>'IRRI-6','variety'=>'IRRI-6','displayName'=>$stage.' IRRI-6','bags'=>480,'payableWeightKg'=>24000,'weighbridgeWeightKg'=>24000,'grossRatePerKg'=>100,'katPaisaPerKg'=>0,'truck'=>'TRUCK-'.$n,'pohanch'=>'P-'.$no.'-'.$n,'container'=>'ABCD12345'.$n.'0','emptyBagWeightGrams'=>50];
+ if (($no==='26002'&&$n===1)||($no==='26004'&&$n===2)) {
+   $key='POHANCH|1|PHB-'.$no.'-'.$n;
+   $eid='TTI|COMMODITY_RECEIPT_ACCEPTED|'.$key;
+   $pohanches[]=['entity'=>'TTI','millId'=>1,'bridgeId'=>'PHB-'.$no.'-'.$n,'soda'=>$no,'slip'=>$meta['pohanch'],'truck'=>$meta['truck'],
+     'id'=>$no.'-'.$n,'arrivalDate'=>$date,'unloadingDate'=>$date,'commodity'=>'RICE','baseVariety'=>'IRRI-6','payableWeight'=>24000,'moistureKatKg'=>100,'moistureKat'=>50,'brokenKat'=>59,'damageKat'=>3,'chalkyKat'=>5,'paddyKat'=>2];
+ }
  $s['journals'][$jid]=['id'=>$jid,'entity'=>'TTI','date'=>$date,'reference'=>$meta['pohanch'],'totalDebit'=>2400000,'totalCredit'=>2400000,'meta'=>$meta,'lines'=>[]];
  $s['events'][$eid]=['id'=>$eid,'eventType'=>'COMMODITY_RECEIPT_ACCEPTED','entity'=>'TTI','sourceKey'=>$key,'journalId'=>$jid,'status'=>'Accepted'];
  }
@@ -30,7 +37,7 @@ $export['contracts'][]=['ref'=>'FIXTURE-CONTRACT-2','seller'=>'TTI','customerId'
 $export['contracts'][]=['ref'=>'PORT-A','seller'=>'TTI','podPort'=>'Jeddah'];$export['contracts'][]=['ref'=>'PORT-B','seller'=>'TTI','podPort'=>'Dubai'];foreach(['A','B']as$port)$export['shipments'][]=['id'=>'PORT-SHIP-'.$port,'kind'=>'lot','seller'=>'TTI','contractRef'=>'PORT-'.$port,'loadingProgrammeNo'=>'PORT-CONFLICT','millActuals'=>[['number'=>'PORT-'.$port]]];
 $export['contracts'][]=['ref'=>'FOREIGN-CONTRACT','seller'=>'BRM'];$export['shipments'][]=['id'=>'FOREIGN-SHIP','kind'=>'lot','seller'=>'BRM','contractRef'=>'FOREIGN-CONTRACT','loadingProgrammeNo'=>'FOREIGN-LP','millActuals'=>[['number'=>'FOREIGN1']]];
 $export['contracts'][]=['ref'=>'TG-CONTRACT','seller'=>'TG'];$export['shipments'][]=['id'=>'TG-SHIP','kind'=>'lot','seller'=>'TG','contractRef'=>'TG-CONTRACT','loadingProgrammeNo'=>'TG-LP','millActuals'=>[['number'=>'TG1']]];
-file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['values'=>['transtrade_export_v3_operational'=>json_encode($export)]]));file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$pw]));
+file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['values'=>['transtrade_export_v3_operational'=>json_encode($export)]]));file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$pw,'pohanches'=>$pohanches]));
 '''
 def run():
  root=Path(tempfile.mkdtemp(prefix='tti-ready-bill-'));server=None;log=None
@@ -90,6 +97,14 @@ def run():
   status,changed=request('/api/accounts_workflows_v1.php',changed_rate);assert status==200,(status,changed)
   status,rates=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200
   assert next(row for row in rates['bills'] if row['id']==changed['bill']['id'])['total']==39000 and (root/'transtrade_private/operations.json').read_bytes()==original
+  opsfile=root/'transtrade_private/operations.json'
+  ops=json.loads(opsfile.read_text())
+  ops['values']['tt30slips']=json.dumps(json.loads((root/'credentials.json').read_text())['pohanches'])
+  opsfile.write_text(json.dumps(ops))
+  original=opsfile.read_bytes()
+  status,lookup=request('/api/commodity_lookup.php?entity=TTI');assert status==200,(status,lookup)
+  raw=next(row for row in lookup['receipts'] if row['sourceKey']=='POHANCH|1|PHB-26002-1')
+  assert raw['pohanchKat']['moistureKatKg']==100 and raw['pohanchKat']['rateKatPaisa']==69,raw
   def payload(no,keys=None,final=2398200):
    return {'action':'verify_bill','entity':'TTI','relationshipType':'SUPPLIER','relationshipName':'Indus Rice','billDate':'2026-09-29','sourceKeys':keys or [f'EXMILL|{no}|1'],'broker':'JJ','billNo':'FIXTURE-'+no,'finalCommodityValue':final,'brokerageRate':5,'brokerageBasis':'PER_100_KG','brokerageWhtPercent':15,'readyRiceCalculation':{'bags':480,'emptyBagWeightGrams':50,'kantaRate':600},'adjustmentLines':[]}
   p=payload('26001');p['finalCommodityValue']=1
@@ -116,10 +131,22 @@ def run():
   assert request('/api/commodity_bills.php',p)[0]==200,'Broker-only commodity payee'
   p=payload('26004');p['broker']='';p['brokerageRate']=0
   status,result=request('/api/commodity_bills.php',p);assert status==200 and result['bill']['brokerageGross']==0
-  p=payload('26002',['POHANCH|26002|1','POHANCH|26002|2'],4800000);p.pop('readyRiceCalculation')
+  # Deposited Ready rice takes bag tare and then the exact Pohanch weight and rate deductions.
+  ready=payload('26004',['POHANCH|1|PHB-26004-2'],2371725.56)
+  ready['broker']='';ready['brokerageRate']=0
+  status,result=request('/api/commodity_bills.php',ready);assert status==200,(status,result)
+  ready_kat=result['bill']['calculation']['pohanchKat']
+  assert ready_kat['netWeightKg']==23876 and ready_kat['commodityValue']==2371125.56,ready_kat
+  p=payload('26002',['POHANCH|1|PHB-26002-1','POHANCH|26002|2'],4800000);p.pop('readyRiceCalculation')
   assert request('/api/commodity_bills.php',p)[0]==422,'Raw cannot combine Pohanch'
-  p['sourceKeys']=['POHANCH|26002|1'];p['finalCommodityValue']=2400000
-  status,result=request('/api/commodity_bills.php',p);assert status==200 and result['bill']['brokerageGross']==1200 and result['bill']['dueDateFrom']=='2026-09-13'
+  p['sourceKeys']=['POHANCH|1|PHB-26002-1'];p['finalCommodityValue']=2400000
+  assert request('/api/commodity_bills.php',p)[0]==409,'Stale provisional Rice value must not post'
+  p['finalCommodityValue']=2373509
+  status,result=request('/api/commodity_bills.php',p);assert status==200 and result['bill']['brokerageGross']==1200 and result['bill']['dueDateFrom']=='2026-09-13',(status,result)
+  kat=result['bill']['calculation']['pohanchKat']
+  assert kat['moistureDeduction']==10000 and kat['rateDeduction']==16491 and kat['netWeightKg']==23900,kat
+  assert result['journal']['meta']['provisionalValue']==2400000 and result['journal']['meta']['finalCommodityValue']==2373509
+  assert result['journal']['totalDebit']==result['journal']['totalCredit']
   # Explicit combined bill routes both creditor legs to the broker, preserving supplier identity.
   combined=payload('26002',['POHANCH|26002|2'],2400000);combined.pop('readyRiceCalculation')
   combined.update(settlementMode='BROKER_COMBINED',relationshipType='BROKER',relationshipName='JJ',billNo='COMBINED-BROKER-2')
@@ -331,12 +358,13 @@ def run():
     page.locator('#ttTransportQuery').fill('FIXTURE');page.locator('#ttTransportFind').click();page.wait_for_function("!document.querySelector('#ttTransportHits').textContent.includes('Searching Exports')");assert not page.locator('#ttTransportHits').get_by_text('FIXTURE-SHIP-LOT',exact=False).count(),'Selected shipment remains searchable'
     page.locator('#ttTransportQuery').fill('FIXTURE-SHIP-2');page.locator('#ttTransportFind').click();page.locator('#ttTransportHits [data-pick]').click()
     second=page.locator('.tt-transport-shipment').nth(1);assert second.locator('[data-remove-shipment]').evaluate("el=>getComputedStyle(el).backgroundColor")=='rgb(180, 35, 24)';second.locator('[name=containers]').fill('1');second.locator('[name=rate]').fill('38000');assert page.locator('#ttShipmentBillTotal').inner_text()=='153,200.00'
+    before_browser_transport=opsfile.read_bytes()
     page.locator('#ttShipmentBillVendor').fill('JJ');page.locator('#ttShipmentBillEntry [type=submit]').click();page.wait_for_function("document.querySelector('#ttShipmentBillError').textContent.includes('Bill not posted')");assert 'TRANSPORTER' in page.locator('#ttShipmentBillError').inner_text()
     page.locator('#ttShipmentBillVendor').fill('Cedar Horizon Haulage');page.locator('#ttShipmentBillEntry [type=submit]').click();confirm_accounting_review(page,'BILL POSTED');page.get_by_role('heading',name='BILL POSTED').wait_for()
     assert re.search(r'2026-\d+',page.locator('.tt-bill-confirmation').inner_text())
     page.screenshot(path=str(evidence/'transporter-bill-confirmation.png'))
     status,registered=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200 and next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['total']==153200 and len(next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['lines'])==2
-    assert (root/'transtrade_private/operations.json').read_bytes()==original,'Transport posting changed Mill records'
+    assert opsfile.read_bytes()==before_browser_transport,'Transport posting changed Mill records'
     page.locator('#ttShipmentBillPay').click();assert page.locator('#ttSimpleBills [data-bank]').input_value()=='qa-bank-default';page.locator('#ttSimpleBills [data-bank-method]').select_option('CHEQUE');assert page.locator('#ttSimpleBills [data-reference]').locator('..').inner_text()=='CHEQUE NUMBER';assert page.locator('#ttSimpleBills [data-cheque-date]').count()==1;page.locator('#ttSimpleBills [data-bank-method]').select_option('ONLINE_BANKING');page.locator('#ttSimpleBills [data-narration]').fill('Fixture user narration');page.locator('#ttSimpleBills [data-amount]').fill('50000');page.locator('#ttSimpleBills [data-source]').select_option('CASH');page.locator('#ttSimpleBills [type=submit]').click();page.locator('[data-review-post]').click();page.locator('#tt-post-confirmation').wait_for();assert page.locator('#ttSimpleBills').count()==0;assert page.locator('#tt-post-confirmation').count()==1
     assert re.search(r'2026-\d+',page.locator('#tt-post-confirmation').inner_text())
     page.locator('#tt-post-confirmation [data-close]').click()

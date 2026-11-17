@@ -48,6 +48,7 @@ try {
     }
 
     $operationalValues=tt_bill_operational_values();
+    $pohanches=tt_bill_pohanch_index($operationalValues,$entity);
     $sodaRows=[];foreach(['purchaseSodas','purchaseSodasV2'] as $collection)foreach((array)($store[$collection]??[]) as $soda){if(!is_array($soda)||($soda['entity']??'')!==$entity)continue;$soda['buyingBrokery']=tt_broker_profile((string)($soda['broker']??''),(string)($soda['sodaDate']??''),'buying')['rate']??null;$sodaRows[(string)$soda['sodaNo']]=$soda;}
     $bills = (array)($store['commodityBills'] ?? []);
     $rows = [];
@@ -64,7 +65,13 @@ try {
         $identity = tt_product_identity($commodity,(string)($meta['displayName'] ?? $meta['baseVariety'] ?? $meta['variety'] ?? ''),(string)($meta['productStage'] ?? ''),(string)($meta['riceType'] ?? ''));
         $billId = (string)($event['billId'] ?? '');
         $bill = $billId !== '' && isset($bills[$billId]) && is_array($bills[$billId]) ? $bills[$billId] : null;
+        $quality=null;$qualityError='';
+        if ($commodity==='RICE'&&$billId==='') {
+            try {$quality=tt_bill_pohanch_kat($pohanches,(string)($event['sourceKey']??''),$meta);}
+            catch(InvalidArgumentException $e){$qualityError=$e->getMessage();}
+        }
         $rows[] = [
+            'pohanchKat'=>$quality,'pohanchKatError'=>$qualityError,
             'eventId'=>(string)($event['id'] ?? ''),
             'sourceKey'=>(string)($event['sourceKey'] ?? ''),
             'entity'=>$eventEntity,
