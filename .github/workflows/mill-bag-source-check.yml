@@ -30,6 +30,7 @@ jobs:
           $root=getenv('TT_MILL_READ_ROOT');
           require $root.'/auth_store.php';
           require_once $root.'/inventory_reconciliation.php';
+          require_once $root.'/api/mill_specifications_core.php';
           $values=mr_read_operations_source(TT_DATA_DIR.'/operations.json',['transtrade_export_v3_operational','tt30bags','tt30prodinst','tt30prod'])['values'];
           $exports=json_decode($values['transtrade_export_v3_operational']??'{}',true,512,JSON_THROW_ON_ERROR);
           $brand=static fn($name)=>hash('sha256',strtolower(trim((string)$name)))==='75f8f82f56d1f48657f010cc4c397300c44b0f4619e729f6f0ad787c1366aa63';
@@ -53,5 +54,22 @@ jobs:
               if(($shipments&&count($shipments)===count($closedShipments))||(!$shipments&&$closedContract)){$result['millBagRowsTtiMillTransactionClosed']++;continue;}
               if(!$closed($row)&&($row['ordered']??0)>($row['received']??0))$result['millBagRowsTtiMillOpen']++;
           }
+          $scope=['entity'=>'TTI','millName'=>'TTI Rice Mills'];
+          $today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
+          $result['visibleSpecifications']=count(array_filter(msp_rows($values,[],$scope,$today),static fn($row)=>$brand($row['brand']??'')));
+          $ownRows=array_values(array_filter(tt_inv_rows($values,'tt30bags'),static fn($row)=>strtoupper((string)($row['entity']??'TTI'))==='TTI'&&($row['sourceKind']??'')!=='OTHER_EXPORTER'&&$atTti($row['millName']??$row['mill']??'')));
+          $result['visibleOpenBagOrders']=0;
+          foreach($ownRows as $row){
+              if(!$brand($row['brand']??''))continue;
+              $related=array_filter($ownRows,static fn($r)=>($r['poNo']??'')===($row['poNo']??'')&&($r['sourceKind']??'')===($row['sourceKind']??''));
+              $short=static fn($r)=>max(0,(float)($r['ordered']??0)-(float)($r['received']??0));
+              $delta=$short($row);$poShort=array_sum(array_map($short,$related));
+              $received=array_sum(array_column($related,'received'));
+              $keep=(bool)array_filter($related,static fn($r)=>!empty($r['keepReceiptOpen']));
+              $shipments=array_filter($exports['shipments']??[],static fn($s)=>($s['contractRef']??'')===($row['contractRef']??'')&&in_array($row['poNo']??'',array_column($s['bagOrders']??[],'poNo'),true));
+              $closedTransaction=$shipments?count(array_filter($shipments,$closed))===count($shipments):(bool)array_filter($exports['contracts']??[],static fn($c)=>($c['ref']??'')===($row['contractRef']??'')&&$closed($c));
+              if(!$closedTransaction&&!((float)($row['ordered']??0)>0&&($delta===0.0||($received>0&&$poShort<=20&&!$keep))))$result['visibleOpenBagOrders']++;
+          }
+          $result['refreshFixOnServer']=hash_file('sha256',$root.'/module.php')==='fb2ad2b3ddbe42c938aa4a491a8bc7318397034df44a6e3488cfefa738af54f0';
           echo 'SCOPED_READ_ONLY_RESULT '.json_encode($result,JSON_THROW_ON_ERROR).PHP_EOL;
           PHP
