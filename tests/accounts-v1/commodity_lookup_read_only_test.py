@@ -20,10 +20,7 @@ function tt_ensure_data_dir(){}
 function tt_broker_profiles(){return [];}
 function tt_product_identity(...$a){return ['baseVariety'=>'Corn','riceType'=>'','productStage'=>'RAW','displayName'=>'Corn'];}
 ''')
-    (root / 'api/commodity_bill_calculation.php').write_text('''<?php
-function tt_bill_operational_values(){return [];}
-function tt_bill_bag_defaults($m,$v){return ['emptyBagWeightGrams'=>0];}
-''')
+    shutil.copy(ROOT / 'api/commodity_bill_calculation.php', root / 'api')
     (root / 'runner.php').write_text('''<?php
 $_GET=['entity'=>$argv[1]];$_SERVER['REQUEST_METHOD']='GET';
 register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_code()?:200));});
