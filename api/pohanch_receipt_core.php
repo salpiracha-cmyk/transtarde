@@ -200,7 +200,10 @@ function pr_reconcile(?array $target = null, array $actor = []): array {
         if ($target !== null) {
             if (($slip['entity'] ?? '') !== $target['entity'] || (string)($slip['soda'] ?? '') !== $target['soda'] ||
                 ($slip['slip'] ?? '') !== $target['pohanch'] || (isset($target['id']) && $target['id'] !== (string)($slip['id'] ?? ''))) continue;
-        } elseif (!is_array($slip[PR_RECEIPT_MARKER] ?? null)) continue;
+        } elseif (!is_array($slip[PR_RECEIPT_MARKER] ?? null) && ($slip['printed'] ?? false) !== true) {
+            // Issued slips from before the receipt marker also need reconciliation.
+            continue;
+        }
         $candidates[] = $slip;
     }
     if ($target !== null && count($candidates) !== 1) throw new DomainException('Could not match one original Pohanch for this SODA and company.');
@@ -218,7 +221,7 @@ function pr_reconcile(?array $target = null, array $actor = []): array {
                 if (($counts[$slip['entity'].'|'.($slip['bridgeId'] ?? '')] ?? 0) !== 1) {
                     throw new DomainException('The saved Pohanch needs a unique receipt identity.');
                 }
-                $result = pr_post_receipt($store, $slip, $actor ?: ($slip[PR_RECEIPT_MARKER] ?? []));
+                $result = pr_post_receipt($store, $slip, $actor ?: (is_array($slip[PR_RECEIPT_MARKER] ?? null) ? $slip[PR_RECEIPT_MARKER] : []));
             } catch (DomainException $error) {
                 if ($target !== null) throw $error;
                 $result = ['status'=>'review','error'=>$error->getMessage()];
