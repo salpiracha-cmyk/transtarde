@@ -758,6 +758,7 @@ function operations_file_fallback(array $user): never {
     if(in_array($key,TT_INV_PRIVATE_KEYS,true))operations_respond(['ok'=>false,'error'=>'Reconciliation is maintained by the server; open the Accounts or Directors report.'],403);
     if($key===TT_INV_CONFIRMATIONS && !tt_inv_has_action($user,'Mill',['stock','export'],'Create') && !tt_inv_has_action($user,'Mill',['stock','export'],'Edit'))operations_respond(['ok'=>false,'error'=>'Stock confirmation permission required.'],403);
     tt_maybe_auto_backup();
+    $pohanchHandoff = $key === 'tt30slips' ? pr_handoff_lock() : null;
     $handle=fopen($path,'c+'); if ($handle===false || !flock($handle,LOCK_EX)) throw new RuntimeException('Shared operational storage is unavailable.');
     $conflict=false;$localSalesLock=null;
     try {
@@ -796,7 +797,10 @@ function operations_file_fallback(array $user): never {
             if ($key==='tt35exload' && $sourceModule!=='Exports') operations_validate_exmill_completion((string)($store['values']['tt40exinstructions']??'[]'),$value);
             $now=gmdate('c');$beforeValues=(array)($store['values']??[]);
             $printOnly=operations_pohanch_print_only($key,$old,$value);
-            if($key==='tt30slips')$value=pr_stamp_receipt_requests($old,$value,$arrivalBefore,$user);
+            if($key==='tt30slips'){
+                $value=pr_stamp_receipt_requests($old,$value,$arrivalBefore,$user);
+                if(!$printOnly)pr_validate_amendments($old,$value);
+            }
             if($key==='tt35localsales')$localSalesLock=lsc_lock_source_amendment($old,$value);
             if(!$printOnly)$value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$now);
             $nextValues=$beforeValues;$nextValues[$key]=$value;
@@ -888,6 +892,7 @@ try {
     if(in_array($key,TT_INV_PRIVATE_KEYS,true))operations_respond(['ok'=>false,'error'=>'Reconciliation is maintained by the server; open the Accounts or Directors report.'],403);
     if($key===TT_INV_CONFIRMATIONS && !tt_inv_has_action($user,'Mill',['stock','export'],'Create') && !tt_inv_has_action($user,'Mill',['stock','export'],'Edit'))operations_respond(['ok'=>false,'error'=>'Stock confirmation permission required.'],403);
     tt_maybe_auto_backup();
+    $pohanchHandoff = $key === 'tt30slips' ? pr_handoff_lock() : null;
     $inventoryLock=false;
     if(in_array($key,array_merge(TT_INV_SOURCE_KEYS,['tt30bags','tt33bagreceipts']),true)){
         $lock=$db->prepare('SELECT GET_LOCK(?,10)');$lock->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);
@@ -990,7 +995,10 @@ try {
         foreach($dependent->fetchAll() as $row){$beforeValues[$row['storage_key']]=$row['payload'];$productionMeta[$row['storage_key']]=['version'=>(int)$row['version']];}
     }
     $printOnly=operations_pohanch_print_only($key,$oldPayload,$value);
-    if($key==='tt30slips')$value=pr_stamp_receipt_requests($oldPayload,$value,$arrivalBefore,$user);
+    if($key==='tt30slips'){
+        $value=pr_stamp_receipt_requests($oldPayload,$value,$arrivalBefore,$user);
+        if(!$printOnly)pr_validate_amendments($oldPayload,$value);
+    }
     if($key==='tt35localsales')$localSalesLock=lsc_lock_source_amendment($oldPayload,$value);
     if(!$printOnly)$value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$nowIso);
     $nextValues=$beforeValues;$nextValues[$key]=$value;

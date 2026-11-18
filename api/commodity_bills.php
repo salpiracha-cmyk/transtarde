@@ -6,6 +6,7 @@ header('X-TT-Posting-Preview: available');
 require dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__ . '/accounts_source_store.php';
 require_once __DIR__ . '/commodity_bill_calculation.php';
+require_once __DIR__ . '/pohanch_receipt_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -180,9 +181,9 @@ try{
     $relationshipName=trim((string)($body['relationshipName']??''));
     if(!in_array($relationshipType,['BROKER','SUPPLIER'],true)||$relationshipName==='')cb_respond(['ok'=>false,'error'=>'Choose either the Broker or Supplier before selecting the Soda.'],422);
     $names=cb_account_names();
-    $pohanches=tt_bill_pohanch_index(tt_bill_operational_values(),$entity);
-
     tt_ensure_data_dir();
+    $pohanchHandoff=pr_handoff_lock();
+    $pohanches=tt_bill_pohanch_index(tt_bill_operational_values(),$entity);
     $h=@fopen(TT_COMMODITY_ACCOUNTS_FILE,'r+b');
     if($h===false||!flock($h,LOCK_EX)) throw new RuntimeException('Accounts storage unavailable.');
     try{
@@ -198,9 +199,23 @@ try{
             $j=$store['journals'][$ev['journalId']??'']??null;
             if(!is_array($j)) cb_respond(['ok'=>false,'error'=>'Receipt journal is missing for '.$key.'.'],422);
             $meta=is_array($j['meta']??null)?$j['meta']:[];
+            $qualitySource=(string)($meta['pohanchSourceKey']??$key);
+            $linkedPohanches=$pohanches[$qualitySource]??[];
+            if (!$linkedPohanches && str_starts_with($key,'POHANCH|')) {
+                foreach ($pohanches as $matches) foreach ($matches as $slip) {
+                    if (($slip['slip']??null)===($meta['pohanch']??'') &&
+                        (string)($slip['soda']??'')===(string)($meta['soda']??'') &&
+                        strcasecmp((string)($slip['truck']??''),(string)($meta['truck']??''))===0)
+                        $linkedPohanches[]=$slip;
+                }
+            }
+            foreach ($linkedPohanches as $slip) {
+                if (pr_pending_amendment($slip,$j)!=='')
+                    cb_respond(['ok'=>false,'error'=>'This Pohanch was amended. Refresh Bill Posting after Accounts receives the updated receipt.'],409);
+            }
             $commodity=cb_commodity($ev,$meta);
             if ($commodity==='RICE') {
-                $quality=tt_bill_pohanch_kat($pohanches,$key,$meta);
+                $quality=tt_bill_pohanch_kat($pohanches,$qualitySource,$meta);
                 if ($quality!==null) $riceQuality[$key]=$quality;
             }
             $identity=tt_product_identity($commodity,(string)($meta['displayName']??$meta['baseVariety']??$meta['variety']??''),(string)($meta['productStage']??''),(string)($meta['riceType']??''));$row=[
@@ -374,6 +389,7 @@ try{
         if(fwrite($h,$enc)===false)throw new RuntimeException('Accounts storage could not be written.');
         fflush($h);
     }finally{flock($h,LOCK_UN);fclose($h);}
+    fclose($pohanchHandoff);
     $warning='';
     if($commodity==='RICE'&&$enteredBasis==='PER_100_KG'&&$enteredRate>0){
         try{tt_bill_save_buying_brokery($sodaBroker,$enteredRate,$enteredBasis,$date,$billId,$user);}catch(Throwable $masterError){error_log('Bill '.$billId.' buying brokery master: '.$masterError->getMessage());$warning='Bill posted successfully, but the broker master rate could not be saved. Ask Super Admin to update the buying-brokery rate.';}

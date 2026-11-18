@@ -227,12 +227,21 @@ def run():
             mill.locator('#savePohanchButton').click();mill.locator('[data-mill-action-recovery]').wait_for();assert mill.locator('#karachiWeight').input_value()=='990'
             mill.locator('#savePohanchButton').click();mill.locator('#pohanchFeedback').filter(has_text='Pohanch saved').wait_for()
             op=context.request.get(base+'/api/operations.mysql.php').json();slips=json.loads(op['values']['tt30slips']);assert len(slips)==1 and slips[0]['payableWeight']==990
+            source_key=f"POHANCH|{slips[0]['millId']}|{slips[0]['bridgeId']}"
+            event_id='TTI|COMMODITY_RECEIPT_ACCEPTED|'+source_key
+            initial_accounts=json.loads(books.read_text())
+            receipt_id=initial_accounts['events'][event_id]['journalId']
+            assert initial_accounts['journals'][receipt_id]['meta']['payableWeightKg']==990
             mill.locator('#unprintedSlips').get_by_role('button',name='Edit',exact=True).click();assert mill.locator('#arrivalQueue').input_value()==str(queue[0]['id']);assert mill.locator('#karachiWeight').input_value()=='990'
             mill.locator('#karachiWeight').fill('985')
             for field,value in {'Broken':'38','MoistureKat':'4.25','DamageKat':'3','ChalkyKat':'5','PaddyKat':'2'}.items():
                 mill.locator('#arrival'+field).fill(value)
             mill.locator('#savePohanchButton').click();mill.locator('#pohanchFeedback').filter(has_text='Pohanch amended').wait_for()
             amended=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30slips']);assert len(amended)==1 and amended[0]['id']==slips[0]['id'] and amended[0]['payableWeight']==985
+            updated_accounts=json.loads(books.read_text())
+            assert updated_accounts['events'][event_id]['journalId']==receipt_id
+            assert updated_accounts['journals'][receipt_id]['meta']['payableWeightKg']==985
+            assert updated_accounts['journals'][receipt_id]['totalDebit']<initial_accounts['journals'][receipt_id]['totalDebit']
             arrival=json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values']['tt30queue'])[0]
             assert [float(arrival[k]) for k in ('broken','moistureKatKg','damageKat','chalkyKat','paddyKat')]==[38,4.25,3,5,2]
             assert [float(amended[0][k]) for k in ('broken','moistureKatKg','damageKat','chalkyKat','paddyKat')]==[38,4.25,3,5,2]
