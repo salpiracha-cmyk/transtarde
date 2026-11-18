@@ -15,11 +15,20 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
   await page.addScriptTag({content:fs.readFileSync('accounts/post-confirmation-ui.js','utf8')});
   await page.addScriptTag({content:fs.readFileSync('accounts/payment-plans-ui.js','utf8')});
   await page.evaluate(()=>{fixture.rows.forEach(r=>{r.group=r.broker;r.payee=r.broker;r.partyLabel=r.billId==='A'?'Supplier A / Broker A':'Supplier B';r.soda='SODA-42';});fixture.banks.push({id:'CASH|TTI',isCash:true,bankName:'Petty Cash',availableBalance:1000});fixture.banks[0].settings={defaultPaymentAccount:true};});
+  await page.evaluate(()=>fixture.rows.push({
+   billId:'H',sourceKey:'H-truck',rowKey:'H|H-truck',group:'Held Broker',broker:'Held Broker',
+   truck:'TRUCK-H',pohanch:'PH-H',soda:'SODA-H',postId:'POST-2026-00003',
+   dueDate:'2026-09-05',outstanding:900,held:true,holdReason:'Late delivery awaiting approval'
+  }));
   await page.evaluate(()=>TT_PAYMENT_PLANS.choose());await page.click('[data-choose-planning]');
   await page.waitForSelector('[data-expected]');
   assert.equal(await page.locator('[data-planning-parties] button').count(),0,'No parties before a date is chosen');
   await page.fill('[data-expected]','500');assert.match(await page.locator('#ttPlanNote').textContent(),/650.00/);
   assert.equal(await page.locator('tfoot').first().textContent(),'TOTAL220.00');
+  const held=page.locator('details').filter({hasText:'Bills on hold (1)'});
+  assert.equal(await held.isVisible(),true);
+  assert.match(await held.textContent(),/Held Broker.*TRUCK-H.*PH-H.*SODA-H.*POST-2026-00003.*900.00.*Late delivery/s);
+  assert.equal(await held.locator('input,button').count(),0,'Held bills cannot be selected for payment');
   await page.click('[data-print-daily]');assert.match(await page.evaluate(()=>printed.at(-1)),/SODA-42/);
   assert.equal(await page.evaluate(()=>commits.length),0,'Date choice and printing never save');
   await page.fill('[data-clear-through]','2026-09-06');await page.click('[data-show-dues]');
