@@ -14,7 +14,12 @@
   if(!absent&&(typeof snapshot.values?.[key]!=='string'||!Number.isInteger(snapshot.meta?.[key]?.version)||snapshot.meta[key].version<0))throw Error('The server did not return the saved collection and version. Your entry is retained.');
   const baseVersion=absent?0:snapshot.meta[key].version;
   const current=rows(absent?'[]':snapshot.values[key]),matches=current.filter(r=>String(identity(r))===String(identity(record)));
-  const comparable=r=>{const x={...r};if(prefix)delete x[refField];return x;};
+  const confirmedFacts=r=>{
+    const x={...r};
+    if(key==='tt30slips')delete x.accountsReceiptRequested;
+    return x;
+  };
+  const comparable=r=>{const x=confirmedFacts(r);if(prefix)delete x[refField];return x;};
   const related=source=>Object.fromEntries((key==='tt32stockadj'?['tt32labourfeed']:key==='tt39physicalconfirmations'?['tt32stockadj']:arrivalBefore?['tt30queue']:[]).filter(k=>typeof source.values?.[k]==='string').map(k=>[k,{value:source.values[k],version:Number(source.meta?.[k]?.version||0)}]));
   if(matches.length===1&&confirms(comparable(matches[0]),comparable(record)))return {record:matches[0],value:JSON.stringify(current),version:Number(snapshot.meta?.[key]?.version||0),related:related(snapshot)};
   if(matches.length>1||(before?!same(matches[0],before):matches.length))throw Object.assign(Error('This record changed elsewhere. Reload and review it before amending.'),{editable:true});
@@ -25,7 +30,7 @@
   if(!write.ok||!saved.ok)throw Object.assign(Error(saved.conflict?'Another record was saved meanwhile. Retry to check the current records.':saved.error||'The save was not confirmed.'),{editable:[403,422].includes(write.status)});
   if(typeof saved.value!=='string'||!Number.isInteger(saved.keyVersion)||saved.keyVersion<=baseVersion)throw Error('The server acknowledgement is incomplete. Retry the same save to verify it before clearing your entry.');
   const value=saved.value,confirmed=rows(value).filter(r=>String(identity(r))===String(identity(candidate)));
-  if(confirmed.length!==1||!confirms(confirmed[0],candidate))throw Error('The server did not confirm these details. Retry the same save.');
+  if(confirmed.length!==1||!confirms(confirmedFacts(confirmed[0]),confirmedFacts(candidate)))throw Error('The server did not confirm these details. Retry the same save.');
   return {record:confirmed[0],value,version:Number(saved.keyVersion||0),related:saved.related||{}};
  }
  const access=()=>window.TT_MODULE_ACCESS||{};
