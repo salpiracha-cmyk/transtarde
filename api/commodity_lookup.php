@@ -110,7 +110,7 @@ try {
         $bill = $billId !== '' && isset($bills[$billId]) && is_array($bills[$billId]) ? $bills[$billId] : null;
         $quality=null;$qualityError='';
         if ($commodity==='RICE'&&$billId==='') {
-            try {$quality=tt_bill_pohanch_kat($pohanches,(string)($event['sourceKey']??''),$meta);}
+            try {$quality=tt_bill_pohanch_kat($pohanches,(string)($meta['pohanchSourceKey']??$event['sourceKey']??''),$meta);}
             catch(InvalidArgumentException $e){$qualityError=$e->getMessage();}
         }
         $rows[] = [
