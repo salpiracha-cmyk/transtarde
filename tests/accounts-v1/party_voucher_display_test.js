@@ -9,6 +9,20 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require
  const commodity={entity:'TTI',sourceType:'COMMODITY_BILL_VERIFIED',meta:{billId:'CB',broker:'JJ',relationshipName:'INDUS',supplier:'INDUS'}};
  assert.equal(label({account:'2110'},commodity),'INDUS');assert.equal(label({account:'2120'},commodity),'JJ');assert.equal(label({account:'2210'},commodity),'INDUS');
  assert.equal(label({account:'2110',counterparty:'Saved explicit payee'},commodity),'Saved explicit payee');
+ const purchase={...commodity,id:'purchase',meta:{...commodity.meta,finalCommodityValue:4627597.30,brokerageGross:4703},lines:[
+  {account:'2210',debit:4627869.58},{account:'1310',credit:272.28},
+  {account:'2110',counterparty:'INDUS',credit:4627597.30},{account:'1310',debit:4703},
+  {account:'2120',counterparty:'JJ',credit:4138.64},{account:'2300',credit:564.36}
+ ]};
+ const originalPurchase=JSON.stringify(purchase),shown=w.TT_VOUCHER_DISPLAY_LINES(purchase);
+ assert.equal(shown.length,4);assert.equal(shown[0].debit,4632300.30);
+ const purchaseVoucher=new JSDOM(w.TT_VOUCHER_HTML(purchase)).window.document.body.textContent;
+ assert.match(purchaseVoucher,/4,632,300.30/);assert.doesNotMatch(purchaseVoucher,/4,627,869.58|272.28/);
+ w.TT_POST_CONFIRMATION.showJournal(purchase);
+ const confirmation=w.document.querySelector('#tt-post-confirmation').textContent;
+ assert.match(confirmation,/4,632,300.30/);assert.doesNotMatch(confirmation,/4,627,869.58|272.28/);
+ w.TT_POST_CONFIRMATION.dismiss();assert.equal(JSON.stringify(purchase),originalPurchase);
+
  assert.equal(label({account:'1140',accountName:'Input VAT',counterparty:'Auditor'}, {entity:'TG',meta:{directExpense:true,payee:'Auditor'}}),'VAT','VAT must not inherit recipient name');
  assert.equal(w.TT_VOUCHER_NATIVE_LINE({entity:'TG'},{account:'1110',currency:'AED',credit:3890,bankCredit:389000}).credit,3890,'Legacy AED bank metadata must agree with ledger');
  w.TT_POST_CONFIRMATION.showJournal(j);let text=w.document.querySelector('#tt-post-confirmation').textContent;assert(text.includes('Fixture Freight'));assert(text.includes('Fixture Bank · 123456'));assert(!text.includes('Transport / Freight Payables'));assert(text.includes(j.publicPostId));w.TT_POST_CONFIRMATION.dismiss();
