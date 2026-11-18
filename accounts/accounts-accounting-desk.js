@@ -1018,8 +1018,9 @@
     try {
       const data = await json(`${searchApi}?${new URLSearchParams({entity:company,q:query})}`);
       if(!current())return;
+      const recordLines=record=>Array.isArray(record.data?.lines)?(window.TT_VOUCHER_DISPLAY_LINES?.(record.data)||record.data.lines):[];
       const detailHtml = record => {
-        const lines = Array.isArray(record.data?.lines) ? record.data.lines : [];
+        const lines = recordLines(record);
         if (!lines.length) return `<p class="tt-note">${esc(record.data?.narration || record.data?.remarks || 'Open the linked record to see its saved details.')}</p>`;
         return `<div class="tableWrap"><table class="tt-entry-lines"><thead><tr><th>Account</th><th>Details</th><th class="tt-money">Debit</th><th class="tt-money">Credit</th></tr></thead><tbody>${lines.map(line => `<tr><td><b>${esc(line.account || '')}</b><br>${esc(line.accountName || '')}</td><td>${esc([line.bankName, line.counterparty || line.party, line.bankReference, line.paymentNarration].filter(Boolean).join(' · '))}</td><td class="tt-money">${money(line.debit)}</td><td class="tt-money">${money(line.credit)}</td></tr>`).join('')}</tbody></table></div><p class="tt-note">${esc(record.data?.narration || '')}</p>`;
       };
@@ -1029,7 +1030,11 @@
         const heading = record.postId ? `Post ID ${esc(displayRef(actions?.publicPostId||record.postId))}` : `${esc(record.type)} ${esc(record.title)}`;
         const edit=record.amendRecord?`<button type="button" class="btn" data-amend-record="${i}">AMEND BILL</button>`:actions?.canEdit?`<button type="button" class="btn" data-edit-search-post="${i}">Edit posting</button>`:'';
         const remove=actions?.canDelete?`<button type="button" class="btn" data-tt-control-style="action" data-cancel-search-post="${i}">Delete posting</button>`:'';
-        return `<article class="tt-record-card"><b>${heading}</b><div class="tt-note">${esc(record.type)} · ${esc(record.date || '')}${ref} · ${esc(record.party || '')} · PKR ${esc(money(record.amount || record.data?.totalDebit || 0))}</div><div class="tt-record-actions"><button class="btn" data-view-record="${i}">View entries</button>${record.printable ? `<button class="btn" data-print-record="${i}">Print Voucher</button>` : ''}${edit}${remove}</div><div data-record-detail="${i}" hidden>${detailHtml(record)}</div></article>`;
+        const displayLines=recordLines(record);
+        const amount=Array.isArray(record.data?.lines)&&displayLines!==record.data.lines
+          ?displayLines.reduce((sum,line)=>sum+Number(line.debit||0),0)
+          :record.amount||record.data?.totalDebit||0;
+        return `<article class="tt-record-card"><b>${heading}</b><div class="tt-note">${esc(record.type)} · ${esc(record.date || '')}${ref} · ${esc(record.party || '')} · PKR ${esc(money(amount))}</div><div class="tt-record-actions"><button class="btn" data-view-record="${i}">View entries</button>${record.printable ? `<button class="btn" data-print-record="${i}">Print Voucher</button>` : ''}${edit}${remove}</div><div data-record-detail="${i}" hidden>${detailHtml(record)}</div></article>`;
       }).join('') : '<div class="tt-record-card">No matching previous record.</div>';
       qa('[data-view-record]', results).forEach(button => button.onclick = () => { const detail=q(`[data-record-detail="${button.dataset.viewRecord}"]`, results); detail.hidden=!detail.hidden; button.textContent=detail.hidden?'View entries':'Hide entries'; });
       qa('[data-amend-record]',results).forEach(button=>button.onclick=()=>openSavedBill(data.results[Number(button.dataset.amendRecord)]).catch(error=>alert(error.message)));
