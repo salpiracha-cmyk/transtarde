@@ -31,8 +31,14 @@ try {
     check(count($first)===1 && $first[0]['amount']===4960642.5,'Expected historical rate, KAT and marked slip only.');
     $posted = file_get_contents($path);
     check(pr_reconcile()[0]['status']==='existing' && $posted===file_get_contents($path),'Retry duplicated a receipt or changed books.');
-    $legacy = pr_reconcile(['entity'=>'TTI','soda'=>'fixture-soda','pohanch'=>'PH-90002'],['name'=>'Fixture Accounts']);
-    check($legacy[0]['status']==='posted','Explicit historical recovery did not post.');
+    $old['printed'] = true;
+    file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['values'=>['tt30slips'=>json_encode([$record,$old])]]));
+    $legacy = pr_reconcile();
+    check(count($legacy)===2 && $legacy[1]['status']==='posted' && $legacy[1]['amount']===4960642.5,
+        'An issued historical slip must recover automatically at its saved value.');
+    $explicitRetry = pr_reconcile(['entity'=>'TTI','soda'=>'fixture-soda','pohanch'=>'PH-90002'],['name'=>'Fixture Accounts']);
+    check($explicitRetry[0]['status']==='existing' && pr_reconcile()[1]['status']==='existing',
+        'Retry must recognize the recovered historical receipt.');
     $saved = json_decode(file_get_contents($path),true);
     check(count($saved['journals'])===2 && count($saved['events'])===2,'Unexpected Accounts postings.');
     check($saved['journals']['FIXTURE-1']['totalDebit']===$saved['journals']['FIXTURE-1']['totalCredit'],'Unbalanced receipt.');
@@ -43,7 +49,7 @@ try {
     foreach ($legacyIdentity['events'] as &$event) $event['sourceKey']='old-key';
     unset($event);
     check(pr_post_receipt($legacyIdentity,$old,[])['status']==='existing','Legacy reference was not recognized.');
-    echo "PASS durable Pohanch marker, saved valuation, explicit historical restore and duplicate protection\n";
+    echo "PASS durable Pohanch marker, saved valuation, automatic issued history recovery and duplicate protection\n";
 } finally {
     foreach (glob(TT_DATA_DIR.'/*') as $file) unlink($file);
     rmdir(TT_DATA_DIR);
