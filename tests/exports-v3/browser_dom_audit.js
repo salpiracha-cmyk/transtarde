@@ -105,8 +105,8 @@ assert.doesNotMatch(d.getElementById('salesContractPreview').textContent,/Paymen
 assert.doesNotMatch(d.querySelector('.contractPaymentBlock').textContent,/ADVANCE|BALANCE|shall be received latest by/i,'Zero-advance payment output must not print a 0% advance deadline or balance clause');
 assert.match(d.querySelector('.contractPaymentBlock').textContent,/PAYMENT TO BE REMITTED/);
 assert.doesNotMatch(d.getElementById('main').textContent,/Seller Bank Account for Advance/);
-t.setContractStep(7);t.openContract(scanDraft.id); // Reopening keeps saved step; show the Documents/Validity tab explicitly.
 d.querySelector('[data-step="7"]').click();
+assert.equal(t.getContractDraft().paymentPreset.id,'SCAN100');
 assert.equal(d.getElementById('cPaymentDeadline'),null,'No advance validity field for zero-advance scan-copy terms');
 t.state.contracts.pop();
 delete w.TT_MODULE_ACCESS.masters.export_payment_terms;
