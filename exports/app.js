@@ -2280,13 +2280,13 @@ function contractPaymentHTML(c){
    const lines=paragraph.split('\n'),heading=/^[A-Z][A-Z\s/+-]*$/.test(lines[0].trim())&&lines.length>1?lines.shift().trim():'';
    return `${heading?`<h3 class="docSection">${esc(heading)}</h3>`:''}<div class="docValue" style="white-space:pre-wrap">${esc(lines.join('\n'))}</div>`;
   });
-  if(['ADV_SCAN','ADV_CAD','ADV100'].includes(c.paymentCode))parts.push(`<h3 class="docSection">${pct>0?'ADVANCE':'PAYMENT'} TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:</h3>${contractBankDetailsHTML(c)}`);
+  if(['ADV_SCAN','ADV_CAD','ADV100'].includes(c.paymentCode))parts.push(`<h3 class="docSection">${pct>0?'ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:':'PAYMENT TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:'}</h3>${contractBankDetailsHTML(c)}`);
   return `<div class="contractPaymentBlock">${parts.join('')}</div>`;
  }
  const edited=c.balanceAdditionalEnabled&&String(c.paymentWordingOverride||'').trim(),summary=edited?paymentText(c):balance>0&&['ADV_SCAN','ADV_CAD'].includes(c.paymentCode)?paymentText({...c,balanceAdditionalEnabled:false}):paymentText(c),parts=[`<div class="contractPaymentSummary">${esc(summary)}</div>`];
  if(['ADV_SCAN','ADV_CAD','ADV100'].includes(c.paymentCode)){
   if(!edited&&pct>0){parts.push(`<h3 class="docSection">ADVANCE</h3><div class="docValue">${pct}% advance amounting to ${paymentAmountText(c,pct)} shall be received latest by ${esc(fmt(c.paymentDeadline))}.</div>`);if(balance>0)parts.push(`<h3 class="docSection">BALANCE</h3><div class="docValue">${c.paymentCode==='ADV_CAD'?`${balance}% balance amounting to ${paymentAmountText(c,balance)} shall be payable C.A.D. after original shipment documents are received at the counters of Buyer’s nominated bank.${esc(additional)}`:`${balance}% balance amounting to ${paymentAmountText(c,balance)} shall be paid upon receipt of scan copies of shipment documents by Buyer.${esc(additional)}`}</div>`)}
-  parts.push(`<h3 class="docSection">${pct>0?'ADVANCE':'PAYMENT'} TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:</h3>${contractBankDetailsHTML(c)}`);
+  parts.push(`<h3 class="docSection">${pct>0?'ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:':'PAYMENT TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:'}</h3>${contractBankDetailsHTML(c)}`);
  }
  return `<div class="contractPaymentBlock">${parts.join('')}</div>`;
 }
