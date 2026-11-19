@@ -2255,10 +2255,10 @@ function contractSellerBanks(c){
 }
 function selectedContractBank(c){const rows=contractSellerBanks(c);return rows.find(row=>contractBankKey(row)===c?.paymentBankKey)||rows[0]||null}
 function contractBankOptions(c){const rows=contractSellerBanks(c),chosen=c.paymentBankKey||contractBankKey(rows[0]);return `<option value="">Select seller bank account</option>${rows.map(row=>`<option value="${esc(contractBankKey(row))}" ${contractBankKey(row)===chosen?'selected':''}>${esc(row[4]||'Bank')}${row[8]?` · ${esc(row[8])}`:row[9]?` · ${esc(row[9])}`:''}</option>`).join('')}`}
-function contractNeedsPaymentDeadline(c){return c?.paymentCode!=='CAD100'}
+function contractNeedsPaymentDeadline(c){return c?.paymentCode!=='CAD100'&&(!['ADV_SCAN','ADV_CAD'].includes(c?.paymentCode)||num(c.advancePct)>0)}
 function paymentNeedsSellerBank(c){return ['CAD100','ADV_SCAN','ADV_CAD','ADV100'].includes(String(c?.paymentCode||''))}
 const paymentDynamicBeforeApprovedContract=paymentDynamicHTML__legacy_v0;
-function paymentDynamicHTML(){const c=contractDraft,base=paymentDynamicBeforeApprovedContract();if(!paymentNeedsSellerBank(c))return base;const rows=contractSellerBanks(c);if(!c.paymentBankKey&&rows.length)c.paymentBankKey=contractBankKey(rows[0]);return `${base}<div class="field full"><label>Seller Bank Account for Advance</label><select id="cPaymentBank">${contractBankOptions(c)}</select>${rows.length?'':'<div class="metaText">Add the seller bank account in Master Data before issuing the contract.</div>'}</div>`};
+function paymentDynamicHTML(){const c=contractDraft,base=paymentDynamicBeforeApprovedContract();if(!paymentNeedsSellerBank(c))return base;const rows=contractSellerBanks(c);if(!c.paymentBankKey&&rows.length)c.paymentBankKey=contractBankKey(rows[0]);return `${base}<div class="field full"><label>Seller Bank Account${c.paymentCode==='ADV100'||num(c.advancePct)>0?' for Advance':''}</label><select id="cPaymentBank">${contractBankOptions(c)}</select>${rows.length?'':'<div class="metaText">Add the seller bank account in Master Data before issuing the contract.</div>'}</div>`};
 function contractAmount(c){return (c.packings||[]).reduce((sum,p)=>sum+contractPackingQtyMT(p,c)*priceComponents(p,c).finalRate,0)}
 function balanceAdditional(c){return c?.balanceAdditionalEnabled&&String(c.balanceAdditionalText||'').trim()?` ${String(c.balanceAdditionalText).trim()}`:''}
 function paymentText(c=contractDraft){if(c.balanceAdditionalEnabled&&String(c.paymentSectionOverride||'').trim())return String(c.paymentSectionOverride).trim().split(/\n\s*\n/)[0].trim();if(c.balanceAdditionalEnabled&&String(c.paymentWordingOverride||'').trim())return String(c.paymentWordingOverride).trim();const additional=balanceAdditional(c),presetWording=savedPaymentPresetWording(c);if(presetWording)return presetWording+additional;const pct=c.paymentCode==='ADV100'?100:num(c.advancePct),balance=Math.max(0,100-pct);if(c.paymentCode==='LC_SIGHT')return `By a workable and irrevocable 100% L/C at sight from a first-class bank acceptable to the Seller, available for negotiation through the Seller’s nominated or acceptable bank.${additional}`;if(c.paymentCode==='LC_USANCE')return `By irrevocable usance L/C payable ${num(c.usanceDays)||90} days from B/L date, with negotiation and/or acceptance through the Seller’s nominated or acceptable bank.${additional}`;if(c.paymentCode==='CUSTOM')return c.customPayment||'';if(c.paymentCode==='ADV100')return '100% advance payment.';if(c.paymentCode==='CAD100')return `100% Cash Against Documents (C.A.D.) after original shipment documents are received at the counters of Buyer’s nominated bank.${additional}`;if(c.paymentCode==='ADV_CAD')return `${pct}% advance and ${balance}% balance Cash Against Documents (C.A.D.) through Buyer’s nominated bank.${additional}`;return pct>0?`${pct}% advance and ${balance}% balance on scan copies of shipment documents.${additional}`:`100% payment upon receipt of scan copies of shipment documents by Buyer.${additional}`};
@@ -2913,15 +2913,21 @@ function persistContractStepDraft(){
  const duplicate=state.contracts.find(x=>x.id!==contractDraft.id&&String(x.ref||'').toLowerCase()===String(contractDraft.ref||'').toLowerCase());if(duplicate){alert('Contract Reference already exists.');return false}
  const issuedContract=state.contracts.find(x=>x.id===contractDraft.id&&x.issued);
  if(issuedContract){checkpointContractDraft();return true}
- const before=window.TT_SHARED_SYNC?.commitContractChanges?captureContractSave():null;
+ // Draft tabs touch one contract; keep unrelated shipment/history trees out of cloning and diffing.
+ const before=window.TT_SHARED_SYNC?.commitContractChanges?{contracts:state.contracts.slice(),audits:state.audits.slice(),deletedShipments:structuredClone(state.deletedShipments)}:null;
  const draft=structuredClone(contractDraft);draft.status='Draft';draft.issued=false;draft.draftStep=contractStep;draft.draftBy=currentUser();draft.lastDraftSavedAt=new Date().toISOString();restoreReleasedContractReference(draft.ref);
  const index=state.contracts.findIndex(x=>x.id===draft.id),created=index<0;if(created)state.contracts.push(draft);else state.contracts[index]=draft;
  contractDraft=structuredClone(draft);checkpointContractDraft();if(created||before)audit('Sales Contract',created?'Draft created after Buyer & Reference':'Draft updated',draft.ref,!before);
  if(before){
   state.audits[0].contractRef=draft.ref;
-  const baseline=contractSaveBaseline(draft.customerId);
-  baseline.contracts=before.contracts;baseline.audits=before.audits;baseline.deletedShipments=before.deletedShipments;
-  return commitScopedContractSave(contractSaveChanges(baseline,captureContractSave()),draft,null,{id:draft.id,auditId:state.audits[0]?.id,processId:null}).then(saved=>{contractDraft=structuredClone(saved);checkpointContractDraft();return true;},error=>{
+  const previous=before.contracts.find(row=>row.id===draft.id);
+  const changes=exportWorkspaceChanges({contracts:previous?[previous]:[],deletedShipments:before.deletedShipments},{contracts:[draft],deletedShipments:state.deletedShipments});
+  changes.push({action:'prepend',path:['audits',null],value:[state.audits[0]]});
+  const committed=window.TT_SHARED_SYNC.readCommitted?.(STORE);
+  if(committed&&!JSON.parse(committed).customers?.some(row=>row.id===draft.customerId)){
+   const buyer=customer(draft.customerId);if(buyer)changes.push({action:'append',path:['customers',null],value:[structuredClone(buyer)]});
+  }
+  return commitScopedContractSave(changes,draft,null,{id:draft.id,auditId:state.audits[0]?.id,processId:null}).then(saved=>{contractDraft=structuredClone(saved);checkpointContractDraft();return true;},error=>{
   for(const key of Object.keys(before))state[key]=before[key];
   throw error;
  });
