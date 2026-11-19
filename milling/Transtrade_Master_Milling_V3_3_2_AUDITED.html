@@ -2040,7 +2040,26 @@ function renderRecentProduction(){
   return `<div class="card clickrow" onclick="toggleRecentProduction(${Number(x.id)||0})">${window.TT_MILL_DELETE?.button(STORE_PROD,x.id,'production report')||''}<b>${label}</b><button class="sec" style="float:right" onclick="event.stopPropagation();loadProductionForEdit(${Number(x.id)||0})">Change</button><div id="recent_${Number(x.id)||0}" class="hidden" style="margin-top:10px"></div></div>`;
  }).join('')||'<div class="sub">No recent production for active orders. Saved shifts remain in Reports.</div>';
 }
-function toggleRecentProduction(id){let d=document.getElementById('recent_'+id),x=get(STORE_PROD,[]).find(r=>r.id===id);if(!d||!x)return;let will=d.classList.contains('hidden');document.querySelectorAll('[id^="recent_"]').forEach(e=>{if(e!==d){e.classList.add('hidden');e.innerHTML=''}});d.classList.toggle('hidden',!will);if(will)d.innerHTML=`${x.operatingHours!=null?`<p>${escHtml(x.operatingHours)} operating hours${x.downtimeReason?' · '+escHtml(x.downtimeReason):''}</p>`:''}<table><tr><th>Product</th><th>Bags</th><th>Bag Wt.</th><th>Kg</th></tr>${(x.rows||[]).map(r=>`<tr><td>${escHtml(r.product)}${r.systemFixed?`<div class="sub">${escHtml(r.narration||'System fixed reconciliation')}</div>`:''}</td><td>${escHtml(r.bags||0)}</td><td>${escHtml(r.bagWeight||0)}</td><td>${(+r.systemKg||((+r.bags||0)*(+r.bagWeight||0))).toLocaleString()}</td></tr>`).join('')}</table>`}
+function toggleRecentProduction(id){
+ const detail=document.getElementById('recent_'+id),run=get(STORE_PROD,[]).find(row=>row.id===id);
+ if(!detail||!run)return;
+ const opening=detail.classList.contains('hidden');
+ document.querySelectorAll('[id^="recent_"]').forEach(other=>{
+  if(other!==detail){other.classList.add('hidden');other.innerHTML='';}
+ });
+ detail.classList.toggle('hidden',!opening);
+ if(!opening)return;
+ const rows=(run.rows||[]).map(row=>({
+  ...row,
+  kg:+row.systemKg||((+row.bags||0)*(+row.bagWeight||0))
+ }));
+ const totalKg=rows.reduce((total,row)=>total+row.kg,0);
+ detail.innerHTML=`${run.operatingHours!=null?`<p>${escHtml(run.operatingHours)} operating hours${run.downtimeReason?' · '+escHtml(run.downtimeReason):''}</p>`:''}
+  <div style="overflow-x:auto"><table><tr><th>Product</th><th>Bags</th><th>Bag Wt.</th><th>Kg</th><th title="Product kg ÷ total shift output kg × 100">Output %</th></tr>
+  ${rows.map(row=>`<tr><td>${escHtml(row.product)}${row.systemFixed?`<div class="sub">${escHtml(row.narration||'System fixed reconciliation')}</div>`:''}</td>
+   <td>${escHtml(row.bags||0)}</td><td>${escHtml(row.bagWeight||0)}</td><td>${row.kg.toLocaleString()}</td>
+   <td>${totalKg>0?(row.kg/totalKg*100).toFixed(2)+'%':'—'}</td></tr>`).join('')}</table></div>`;
+}
 function refreshProductionReturn(){
  const entity=document.getElementById('prodEntity')?.value||stockEntityForView(),from=productionReturnFrom.value,to=productionReturnTo.value,stock=computedStockRows(entity);
  const sweeping=stock.filter(r=>/^Sweeping$/i.test(r.name)&&r.kg>0);
