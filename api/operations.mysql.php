@@ -74,6 +74,16 @@ function operations_public_value(string $key,string $value,array $actor=[],array
 
 function operations_social_after_save(array $data, int $status): void {
     if($status>=300||empty($data['ok'])||($_SERVER['REQUEST_METHOD']??'GET')!=='POST'||!isset($data['revision']))return;
+    // Intermediate wizard saves must not launch a full social-report scan.
+    // Keep the durable audit and let normal issued/started events dispatch.
+    if(isset($data['contractReceipt']['auditId'])&&is_string($data['value']??null)){
+        $root=json_decode($data['value'],true);
+        foreach((array)($root['audits']??[]) as $audit){
+            if(($audit['id']??null)!==$data['contractReceipt']['auditId'])continue;
+            if(($audit['area']??'')==='Sales Contract'&&($audit['action']??'')==='Draft updated')return;
+            break;
+        }
+    }
     if(!is_file(TT_DATA_DIR.'/telegram-dispatch.json')&&!is_file(TT_DATA_DIR.'/discord-alerts.json'))return;
     if(!function_exists('fastcgi_finish_request')&&!function_exists('litespeed_finish_request'))return;
     register_shutdown_function(static function(): void {
