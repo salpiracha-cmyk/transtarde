@@ -2,7 +2,7 @@ const fs=require('fs');
 const assert=require('assert');
 const {JSDOM,VirtualConsole}=require('jsdom');
 let app=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-app=app.replace('mount();',`window.__DOM_AUDIT__={openFI:openFIModal,state,makeShipment,makeLotRecord,render,openShipment,openContract,openFIAllocation,persistContractStepDraft,saveContract,getState:()=>state,setContractDraft:value=>contractDraft=value,getContractDraft:()=>contractDraft,setContractStep:value=>contractStep=value,showHome:()=>{contractDraft=null;view='home';render()},contractSpecRows,defaultDocsFor,millLocations,registerMillLocation};mount();`);
+app=app.replace('mount();',`window.__DOM_AUDIT__={openFI:openFIModal,state,makeShipment,makeLotRecord,render,openShipment,openContract,openFIAllocation,persistContractStepDraft,saveContract,commercialPaymentLabel,contractPaymentSectionText,getState:()=>state,setContractDraft:value=>contractDraft=value,getContractDraft:()=>contractDraft,setContractStep:value=>contractStep=value,showHome:()=>{contractDraft=null;view='home';render()},contractSpecRows,defaultDocsFor,millLocations,registerMillLocation};mount();`);
 const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');
 const html=`<!doctype html><html><head><style>${css}</style></head><body><div id="app"></div><div id="printRoot"></div></body></html>`;
 const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));
@@ -99,9 +99,11 @@ const scanDraft={...contract,id:'DOM-SCAN100',ref:'TTI/DOM/SCAN100',issued:false
 t.state.contracts.push(scanDraft);t.openContract(scanDraft.id);
 const scanSelect=d.getElementById('cPayment');assert.ok([...scanSelect.options].some(option=>option.value==='SCAN100'));
 scanSelect.value='SCAN100';scanSelect.dispatchEvent(new w.Event('change',{bubbles:true}));
-assert.equal(t.getContractDraft().advancePct,0);assert.equal(d.getElementById('cAdvance').readOnly,true);
+assert.equal(t.getContractDraft().advancePct,0);assert.equal(t.commercialPaymentLabel(t.getContractDraft()),scanWording);assert.equal(t.contractPaymentSectionText(t.getContractDraft()),scanWording);assert.equal(d.getElementById('cAdvance').readOnly,true);
 assert.match(d.getElementById('salesContractPreview').textContent,/100% by TT upon reciept of scan copies of shipment documents by the buyer\./);
 assert.doesNotMatch(d.getElementById('salesContractPreview').textContent,/Payment to be received latest by/);
+assert.doesNotMatch(d.querySelector('.contractPaymentBlock').textContent,/ADVANCE|BALANCE|shall be received latest by/i,'Zero-advance payment output must not print a 0% advance deadline or balance clause');
+assert.match(d.querySelector('.contractPaymentBlock').textContent,/PAYMENT TO BE REMITTED/);
 assert.doesNotMatch(d.getElementById('main').textContent,/Seller Bank Account for Advance/);
 t.setContractStep(7);t.openContract(scanDraft.id); // Reopening keeps saved step; show the Documents/Validity tab explicitly.
 d.querySelector('[data-step="7"]').click();
