@@ -93,6 +93,10 @@ function tg_notification_jobs(array $ops, array $state, DateTimeImmutable $now):
     $audits=array_reverse((array)($root['audits']??[]));
     foreach($audits as $audit) {
         if((strtotime((string)($audit['at']??''))?:0)<($state['since']??PHP_INT_MAX))continue;
+        // Draft progress stays in the audit trail; both social channels announce
+        // only the first durable draft and the final issued Sales Contract.
+        if(($audit['area']??'')==='Sales Contract'
+            && !in_array(($audit['action']??''),['Draft created after Buyer & Reference','Created'],true))continue;
         $id=(string)($audit['id']??tg_hash($audit));
         yield ['key'=>'export|'.$id,'hash'=>'1','text'=>"Exports update\n".implode("\n",array_filter([
             (string)($audit['user']??'Exports user'),trim(($audit['area']??'').' | '.($audit['action']??'')),

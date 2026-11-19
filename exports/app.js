@@ -2255,10 +2255,10 @@ function contractSellerBanks(c){
 }
 function selectedContractBank(c){const rows=contractSellerBanks(c);return rows.find(row=>contractBankKey(row)===c?.paymentBankKey)||rows[0]||null}
 function contractBankOptions(c){const rows=contractSellerBanks(c),chosen=c.paymentBankKey||contractBankKey(rows[0]);return `<option value="">Select seller bank account</option>${rows.map(row=>`<option value="${esc(contractBankKey(row))}" ${contractBankKey(row)===chosen?'selected':''}>${esc(row[4]||'Bank')}${row[8]?` · ${esc(row[8])}`:row[9]?` · ${esc(row[9])}`:''}</option>`).join('')}`}
-function contractNeedsPaymentDeadline(c){return c?.paymentCode!=='CAD100'}
+function contractNeedsPaymentDeadline(c){return c?.paymentCode!=='CAD100'&&(!['ADV_SCAN','ADV_CAD'].includes(c?.paymentCode)||num(c.advancePct)>0)}
 function paymentNeedsSellerBank(c){return ['CAD100','ADV_SCAN','ADV_CAD','ADV100'].includes(String(c?.paymentCode||''))}
 const paymentDynamicBeforeApprovedContract=paymentDynamicHTML__legacy_v0;
-function paymentDynamicHTML(){const c=contractDraft,base=paymentDynamicBeforeApprovedContract();if(!paymentNeedsSellerBank(c))return base;const rows=contractSellerBanks(c);if(!c.paymentBankKey&&rows.length)c.paymentBankKey=contractBankKey(rows[0]);return `${base}<div class="field full"><label>Seller Bank Account for Advance</label><select id="cPaymentBank">${contractBankOptions(c)}</select>${rows.length?'':'<div class="metaText">Add the seller bank account in Master Data before issuing the contract.</div>'}</div>`};
+function paymentDynamicHTML(){const c=contractDraft,base=paymentDynamicBeforeApprovedContract();if(!paymentNeedsSellerBank(c))return base;const rows=contractSellerBanks(c);if(!c.paymentBankKey&&rows.length)c.paymentBankKey=contractBankKey(rows[0]);return `${base}<div class="field full"><label>Seller Bank Account${c.paymentCode==='ADV100'||num(c.advancePct)>0?' for Advance':''}</label><select id="cPaymentBank">${contractBankOptions(c)}</select>${rows.length?'':'<div class="metaText">Add the seller bank account in Master Data before issuing the contract.</div>'}</div>`};
 function contractAmount(c){return (c.packings||[]).reduce((sum,p)=>sum+contractPackingQtyMT(p,c)*priceComponents(p,c).finalRate,0)}
 function balanceAdditional(c){return c?.balanceAdditionalEnabled&&String(c.balanceAdditionalText||'').trim()?` ${String(c.balanceAdditionalText).trim()}`:''}
 function paymentText(c=contractDraft){if(c.balanceAdditionalEnabled&&String(c.paymentSectionOverride||'').trim())return String(c.paymentSectionOverride).trim().split(/\n\s*\n/)[0].trim();if(c.balanceAdditionalEnabled&&String(c.paymentWordingOverride||'').trim())return String(c.paymentWordingOverride).trim();const additional=balanceAdditional(c),presetWording=savedPaymentPresetWording(c);if(presetWording)return presetWording+additional;const pct=c.paymentCode==='ADV100'?100:num(c.advancePct),balance=Math.max(0,100-pct);if(c.paymentCode==='LC_SIGHT')return `By a workable and irrevocable 100% L/C at sight from a first-class bank acceptable to the Seller, available for negotiation through the Seller’s nominated or acceptable bank.${additional}`;if(c.paymentCode==='LC_USANCE')return `By irrevocable usance L/C payable ${num(c.usanceDays)||90} days from B/L date, with negotiation and/or acceptance through the Seller’s nominated or acceptable bank.${additional}`;if(c.paymentCode==='CUSTOM')return c.customPayment||'';if(c.paymentCode==='ADV100')return '100% advance payment.';if(c.paymentCode==='CAD100')return `100% Cash Against Documents (C.A.D.) after original shipment documents are received at the counters of Buyer’s nominated bank.${additional}`;if(c.paymentCode==='ADV_CAD')return `${pct}% advance and ${balance}% balance Cash Against Documents (C.A.D.) through Buyer’s nominated bank.${additional}`;return pct>0?`${pct}% advance and ${balance}% balance on scan copies of shipment documents.${additional}`:`100% payment upon receipt of scan copies of shipment documents by Buyer.${additional}`};
@@ -2266,7 +2266,7 @@ function paymentAmountText(c,percent){return `${esc(c.currency||'USD')} ${(contr
 function contractBankDetailsHTML__legacy_v0(c){const row=selectedContractBank(c);if(!row)return paymentNeedsSellerBank(c)?`<div class="contractBankMissing">Seller bank account must be selected before issue.</div>`:'';return `<div class="contractBankDetails"><div><b>ACCOUNT TITLE</b><span>${esc(row[3]||'')}</span></div><div><b>BANK</b><span>${esc(row[4]||'')}</span></div>${row[5]?`<div><b>BRANCH</b><span>${esc(row[5])}</span></div>`:''}${row[8]?`<div><b>ACCOUNT NUMBER</b><span>${esc(row[8])}</span></div>`:''}${row[9]?`<div><b>IBAN</b><span>${esc(row[9])}</span></div>`:''}${row[10]?`<div><b>SWIFT / BIC</b><span>${esc(row[10])}</span></div>`:''}${row[6]?`<div><b>COUNTRY</b><span>${esc(row[6])}</span></div>`:''}</div>`}
 function contractPaymentSectionText(c){
  const pct=c.paymentCode==='ADV100'?100:num(c.advancePct),balance=Math.max(0,100-pct),additional=balanceAdditional(c),summary=paymentText({...c,paymentSectionOverride:''}),parts=[summary];
- if(['ADV_SCAN','ADV_CAD','ADV100'].includes(c.paymentCode)){
+ if(pct>0&&['ADV_SCAN','ADV_CAD','ADV100'].includes(c.paymentCode)){
   parts.push(`ADVANCE\n${pct}% advance amounting to ${c.currency||'USD'} ${(contractAmount(c)*pct/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} shall be received latest by ${fmt(c.paymentDeadline)}.`);
   if(balance>0)parts.push(`BALANCE\n${balance}% balance amounting to ${c.currency||'USD'} ${(contractAmount(c)*balance/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} shall be ${c.paymentCode==='ADV_CAD'?`payable C.A.D. after original shipment documents are received at the counters of Buyer’s nominated bank.${additional}`:`paid upon receipt of scan copies of shipment documents by Buyer.${additional}`}`);
  }
@@ -2280,13 +2280,13 @@ function contractPaymentHTML(c){
    const lines=paragraph.split('\n'),heading=/^[A-Z][A-Z\s/+-]*$/.test(lines[0].trim())&&lines.length>1?lines.shift().trim():'';
    return `${heading?`<h3 class="docSection">${esc(heading)}</h3>`:''}<div class="docValue" style="white-space:pre-wrap">${esc(lines.join('\n'))}</div>`;
   });
-  if(['ADV_SCAN','ADV_CAD','ADV100'].includes(c.paymentCode))parts.push(`<h3 class="docSection">ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:</h3>${contractBankDetailsHTML(c)}`);
+  if(['ADV_SCAN','ADV_CAD','ADV100'].includes(c.paymentCode))parts.push(`<h3 class="docSection">${pct>0?'ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:':'PAYMENT TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:'}</h3>${contractBankDetailsHTML(c)}`);
   return `<div class="contractPaymentBlock">${parts.join('')}</div>`;
  }
  const edited=c.balanceAdditionalEnabled&&String(c.paymentWordingOverride||'').trim(),summary=edited?paymentText(c):balance>0&&['ADV_SCAN','ADV_CAD'].includes(c.paymentCode)?paymentText({...c,balanceAdditionalEnabled:false}):paymentText(c),parts=[`<div class="contractPaymentSummary">${esc(summary)}</div>`];
  if(['ADV_SCAN','ADV_CAD','ADV100'].includes(c.paymentCode)){
-  if(!edited){parts.push(`<h3 class="docSection">ADVANCE</h3><div class="docValue">${pct}% advance amounting to ${paymentAmountText(c,pct)} shall be received latest by ${esc(fmt(c.paymentDeadline))}.</div>`);if(balance>0)parts.push(`<h3 class="docSection">BALANCE</h3><div class="docValue">${c.paymentCode==='ADV_CAD'?`${balance}% balance amounting to ${paymentAmountText(c,balance)} shall be payable C.A.D. after original shipment documents are received at the counters of Buyer’s nominated bank.${esc(additional)}`:`${balance}% balance amounting to ${paymentAmountText(c,balance)} shall be paid upon receipt of scan copies of shipment documents by Buyer.${esc(additional)}`}</div>`)}
-  parts.push(`<h3 class="docSection">ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:</h3>${contractBankDetailsHTML(c)}`);
+  if(!edited&&pct>0){parts.push(`<h3 class="docSection">ADVANCE</h3><div class="docValue">${pct}% advance amounting to ${paymentAmountText(c,pct)} shall be received latest by ${esc(fmt(c.paymentDeadline))}.</div>`);if(balance>0)parts.push(`<h3 class="docSection">BALANCE</h3><div class="docValue">${c.paymentCode==='ADV_CAD'?`${balance}% balance amounting to ${paymentAmountText(c,balance)} shall be payable C.A.D. after original shipment documents are received at the counters of Buyer’s nominated bank.${esc(additional)}`:`${balance}% balance amounting to ${paymentAmountText(c,balance)} shall be paid upon receipt of scan copies of shipment documents by Buyer.${esc(additional)}`}</div>`)}
+  parts.push(`<h3 class="docSection">${pct>0?'ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:':'PAYMENT TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:'}</h3>${contractBankDetailsHTML(c)}`);
  }
  return `<div class="contractPaymentBlock">${parts.join('')}</div>`;
 }
@@ -2913,15 +2913,21 @@ function persistContractStepDraft(){
  const duplicate=state.contracts.find(x=>x.id!==contractDraft.id&&String(x.ref||'').toLowerCase()===String(contractDraft.ref||'').toLowerCase());if(duplicate){alert('Contract Reference already exists.');return false}
  const issuedContract=state.contracts.find(x=>x.id===contractDraft.id&&x.issued);
  if(issuedContract){checkpointContractDraft();return true}
- const before=window.TT_SHARED_SYNC?.commitContractChanges?captureContractSave():null;
+ // Draft tabs touch one contract; keep unrelated shipment/history trees out of cloning and diffing.
+ const before=window.TT_SHARED_SYNC?.commitContractChanges?{contracts:state.contracts.slice(),audits:state.audits.slice(),deletedShipments:structuredClone(state.deletedShipments)}:null;
  const draft=structuredClone(contractDraft);draft.status='Draft';draft.issued=false;draft.draftStep=contractStep;draft.draftBy=currentUser();draft.lastDraftSavedAt=new Date().toISOString();restoreReleasedContractReference(draft.ref);
  const index=state.contracts.findIndex(x=>x.id===draft.id),created=index<0;if(created)state.contracts.push(draft);else state.contracts[index]=draft;
  contractDraft=structuredClone(draft);checkpointContractDraft();if(created||before)audit('Sales Contract',created?'Draft created after Buyer & Reference':'Draft updated',draft.ref,!before);
  if(before){
   state.audits[0].contractRef=draft.ref;
-  const baseline=contractSaveBaseline(draft.customerId);
-  baseline.contracts=before.contracts;baseline.audits=before.audits;baseline.deletedShipments=before.deletedShipments;
-  return commitScopedContractSave(contractSaveChanges(baseline,captureContractSave()),draft,null,{id:draft.id,auditId:state.audits[0]?.id,processId:null}).then(saved=>{contractDraft=structuredClone(saved);checkpointContractDraft();return true;},error=>{
+  const previous=before.contracts.find(row=>row.id===draft.id);
+  const changes=exportWorkspaceChanges({contracts:previous?[previous]:[],deletedShipments:before.deletedShipments},{contracts:[draft],deletedShipments:state.deletedShipments});
+  changes.push({action:'prepend',path:['audits',null],value:[state.audits[0]]});
+  const committed=window.TT_SHARED_SYNC.readCommitted?.(STORE);
+  if(committed&&!JSON.parse(committed).customers?.some(row=>row.id===draft.customerId)){
+   const buyer=customer(draft.customerId);if(buyer)changes.push({action:'append',path:['customers',null],value:[structuredClone(buyer)]});
+  }
+  return commitScopedContractSave(changes,draft,null,{id:draft.id,auditId:state.audits[0]?.id,processId:null}).then(saved=>{contractDraft=structuredClone(saved);checkpointContractDraft();return true;},error=>{
   for(const key of Object.keys(before))state[key]=before[key];
   throw error;
  });
@@ -3297,7 +3303,7 @@ function documentMTonsFromKg(value){return`${(num(value)/1000).toLocaleString('e
 function documentWeight(value){return`${documentMTonsFromKg(value)}<br>${documentKg(value)}`}
 function commercialAdjustmentSign(row){if(String(row?.direction||'').toLowerCase()==='add')return 1;if(String(row?.direction||'').toLowerCase()==='deduct')return-1;return num(row?.amount)<0?-1:1}
 function commercialAdjustments(x){return(x?.adjustments||[]).map(row=>({...row,title:String(row.title||row.description||row.type||'Adjustment').trim(),direction:commercialAdjustmentSign(row)>0?'Add':'Deduct',amount:Math.abs(num(row.amount))})).filter(row=>row.title&&row.amount>0)}
-function commercialPaymentLabel(c){if(c.balanceAdditionalEnabled&&String(c.paymentSectionOverride||c.paymentWordingOverride||'').trim())return paymentText(c);const additional=balanceAdditional(c);if(c.paymentCode==='LC_SIGHT')return`IRREVOCABLE L/C AT SIGHT${additional}`;if(c.paymentCode==='LC_USANCE')return`USANCE L/C — ${num(c.usanceDays)||90} DAYS FROM B/L DATE${additional}`;if(c.paymentCode==='CAD100')return`CASH AGAINST DOCUMENTS (C.A.D.)${additional}`;if(c.paymentCode==='ADV_CAD')return`ADVANCE AND BALANCE CASH AGAINST DOCUMENTS (C.A.D.)${additional}`;if(c.paymentCode==='ADV100')return'ADVANCE PAYMENT';if(c.paymentCode==='ADV_SCAN')return`ADVANCE AND BALANCE AGAINST SCAN COPIES OF SHIPPING DOCUMENTS${additional}`;return ttOutputEnglish(c.customPayment||paymentText(c))}
+function commercialPaymentLabel(c){if(c.balanceAdditionalEnabled&&String(c.paymentSectionOverride||c.paymentWordingOverride||'').trim())return paymentText(c);const additional=balanceAdditional(c);if(c.paymentCode==='LC_SIGHT')return`IRREVOCABLE L/C AT SIGHT${additional}`;if(c.paymentCode==='LC_USANCE')return`USANCE L/C — ${num(c.usanceDays)||90} DAYS FROM B/L DATE${additional}`;if(c.paymentCode==='CAD100')return`CASH AGAINST DOCUMENTS (C.A.D.)${additional}`;if(c.paymentCode==='ADV_CAD')return`ADVANCE AND BALANCE CASH AGAINST DOCUMENTS (C.A.D.)${additional}`;if(c.paymentCode==='ADV100')return'ADVANCE PAYMENT';if(c.paymentCode==='ADV_SCAN')return num(c.advancePct)>0?`ADVANCE AND BALANCE AGAINST SCAN COPIES OF SHIPPING DOCUMENTS${additional}`:paymentText(c);return ttOutputEnglish(c.customPayment||paymentText(c))}
 function commercialRemittanceAccount(s,c,internalTG=false){const dc=internalTG?pakistanCustomsContext(s,c):c,row=internalTG?ttCustomsBankRow(s,c):selectedContractBank(dc),x=s.customs||{};return{title:row?.[3]||'',bank:row?.[4]||x.bank||'',branch:row?.[5]||'',country:row?.[6]||'',account:row?.[8]||'',iban:row?.[9]||x.iban||'',swift:row?.[10]||''}}
 function commercialRemittanceBlock(s,c,outstanding,internalTG=false){
  const code=internalTG?ttDirectCustomsPaymentCode(s.customs):String(c.paymentCode||''),fullyAdvance=code==='ADV100',letterOfCredit=!internalTG&&lcApplies(s,c);

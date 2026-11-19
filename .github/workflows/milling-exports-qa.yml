@@ -158,6 +158,7 @@ jobs:
           node tests/exports-v3/receipt_demand_test.js
           node tests/exports-v3/receipt_demand_native_test.js
           python tests/exports-v3/receipt_scope_http_test.py
+          php tests/exports-v3/contract_draft_lifecycle_test.php
           node tests/exports-v3/export_release_test.js
           node tests/exports-v3/sales_contract_browser_qa.js
           node tests/exports-v3/shipment_documents_browser_qa.js
