@@ -21,7 +21,7 @@ context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 const mutableExportOverrides=source.split('\n').filter(line=>/^[A-Za-z_$][\w$]*\s*=\s*function\s*\(/.test(line)).map(line=>line.match(/^([A-Za-z_$][\w$]*)/)[1]);
 assert.deepEqual(mutableExportOverrides,[],'Export module must not contain mutable function override assignments');
-source=source.replace('mount();','window.__EXPORT_TEST__={addDays,addBankDays,parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,documentsPresented,inspectionDocumentName,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,tgInternalCommercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,actualRows,millActualsComplete,fiGdRows,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
+source=source.replace('mount();','window.__EXPORT_TEST__={addDays,addBankDays,parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,documentsPresented,inspectionDocumentName,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,tgInternalCommercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,actualRows,millActualsComplete,fiGdRows,applyProductMaster,productLabel,productMasters,contractProductMasters,contractProductLabel,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
 assert.equal(t.addDays('',2),'','Blank contract date must not produce an invalid deadline');
@@ -116,6 +116,24 @@ assert.equal(masterDraft.quality,'PAKISTAN LONG GRAIN IRRI-6 WHITE RICE, 5% BROK
 assert.equal(masterDraft.cropYear,'2025/2026');
 assert.equal(masterDraft.productIdentityCode,'IR6-W5');
 assert.equal(masterDraft.specMode,'As per Pakistan Origin Standards');
+const basmatiWhole=[...masterProduct],basmatiBroken=[...masterProduct],basmatiBrokenFinish=[...masterProduct];
+basmatiWhole[1]=basmatiBroken[1]=basmatiBrokenFinish[1]='Basmati';
+basmatiWhole[3]='BAS-W5';
+basmatiBroken[3]='BAS-B100';basmatiBroken[7]='100% max';basmatiBroken[8]='13% max';
+basmatiBrokenFinish[3]='BAS-B100-SECOND';basmatiBrokenFinish[7]='100% max';basmatiBrokenFinish[17]='Well milled';
+window.TT_MODULE_ACCESS.masters.products.push(
+ {id:'BAS1',values:basmatiWhole},{id:'BAS2',values:basmatiBroken},{id:'BAS3',values:basmatiBrokenFinish}
+);
+assert.equal(t.contractProductMasters().length,4,'Each saved broken and finish profile must be selectable.');
+assert.match(t.contractProductLabel(basmatiBroken),/Basmati.*100% Broken.*sortexed/i);
+assert.notEqual(t.contractProductLabel(basmatiWhole),t.contractProductLabel(basmatiBroken));
+assert.notEqual(t.contractProductLabel(basmatiBroken),t.contractProductLabel(basmatiBrokenFinish));
+const basmatiDraft={};
+t.applyProductMaster(basmatiDraft,'BAS-B100');
+assert.equal(basmatiDraft.productIdentityCode,'BAS-B100');
+assert.equal(basmatiDraft.brokenText,'100%');
+assert.ok(basmatiDraft.specRows.some(row=>row.name==='Moisture'&&row.value==='13% max'));
+window.TT_MODULE_ACCESS.masters.products.splice(1);
 assert.equal(t.normalizeBrokenEntry('15 - 20 %'),'15-20');
 assert.ok(t.brokenEntryValid('5%'));
 assert.ok(t.brokenEntryValid('15-20%'));
