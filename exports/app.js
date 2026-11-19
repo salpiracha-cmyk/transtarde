@@ -2013,10 +2013,24 @@ function confirmShipmentDelete(processId){
  }
 };
 
-/* Product Master supplies the product/specification basis; Broken and Finish are selected per contract. */
-function contractProductMasters(){const seen=new Set();return productMasters().filter(v=>{const key=[String(v?.[1]||'').trim(),cleanRiceType(v)].join('|').toLowerCase();if(!key.replace('|','')||seen.has(key))return false;seen.add(key);return true})}
+/* Each saved specification profile remains selectable; contract fields stay editable. */
+function contractProductMasters(){
+ const seen=new Set();
+ return productMasters().filter(profile=>{
+  const key=productIdentityCode(profile);
+  if(!key||seen.has(key))return false;
+  seen.add(key);
+  return true;
+ });
+}
 function commercialProductName(value){return String(value||'').replace(/\s+(?:RAW|READY|FINISHED)\s+RICE$/i,'').replace(/^READY\s+RICE\s*[—-]\s*/i,'').trim()}
-function contractProductLabel(v){return[commercialProductName(v?.[1]),cleanRiceType(v)].filter(Boolean).join(' ')}
+function contractProductLabel(profile){
+ return[
+  [commercialProductName(profile?.[1]),cleanRiceType(profile)].filter(Boolean).join(' '),
+  cleanBroken(profile)&&cleanBroken(profile)+' Broken',
+  String(profile?.[17]||'').trim()
+ ].filter(Boolean).join(' — ');
+}
 function finishChoices(current=''){return optionValues('product_finishes',current)}
 function brokenEntry(value){return String(value||'').replace(/%/g,'').replace(/\s+/g,'').trim()}
 function normalizeBrokenEntry(value){return String(value||'').replace(/%/g,'').replace(/[^\d.\-\s]/g,'').replace(/\s*-\s*/g,'-').trim()}
