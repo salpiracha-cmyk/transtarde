@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
             assert json.loads(books.read_text())['journals']==original_journals,'Master edits must not post financial entries'
         selector='/api/masters.php?selector=export-payment-terms'
         status,data=request(selector)
-        assert status==200 and [r['id'] for r in data['rows']]==['ADV_SCAN','ADV_CAD','ADV100','LC_SIGHT','LC_USANCE','CAD100']
+        assert status==200 and [r['id'] for r in data['rows']]==['ADV_SCAN','ADV_CAD','ADV100','LC_SIGHT','LC_USANCE','CAD100','SCAN100']
         preset=['Fixture Scans','ADV_SCAN','{{advance}}% advance and {{balance}}% against scans.','5','Active','30','']
         status,data=save('export_payment_terms',preset)
         assert status==200,(status,data.get('error'))
