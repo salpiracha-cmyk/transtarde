@@ -333,6 +333,7 @@ function tt_default_masters(): array {
             ['id'=>'LC_SIGHT','values'=>['100% Irrevocable L/C at Sight','LC_SIGHT','','40','Active','','']],
             ['id'=>'LC_USANCE','values'=>['Usance L/C','LC_USANCE','','50','Active','','']],
             ['id'=>'CAD100','values'=>['100% CAD','CAD100','','60','Active','','']],
+            ['id'=>'SCAN100','values'=>['100% on scan copies of shipments','ADV_SCAN','100% by TT upon reciept of scan copies of shipment documents by the buyer.','70','Active','0','']],
         ],
         'export_documents'=>[
             ['id'=>'export-doc-1','values'=>['Commercial Invoice','3','0','ALL','Active']],
@@ -445,6 +446,14 @@ function tt_bank_can_transact(string $id): bool {
 function tt_normalize_masters(array $masters): array {
     $defaults=tt_default_masters();
     foreach ($defaults as $type=>$rows) if (!isset($masters[$type]) || !is_array($masters[$type])) $masters[$type]=$rows;
+    // Add the scan-copy preset to existing installations while preserving all
+    // edited/inactive rows, owner labels and historical contract snapshots.
+    $scanPreset=$defaults['export_payment_terms'][6];
+    $hasScanPreset=false;
+    foreach($masters['export_payment_terms'] as $row){
+        if(($row['id']??'')==='SCAN100'||strcasecmp(trim((string)($row['values'][0]??'')),$scanPreset['values'][0])===0){$hasScanPreset=true;break;}
+    }
+    if(!$hasScanPreset)$masters['export_payment_terms'][]=$scanPreset;
     // Some early Super Admin saves persisted empty sections before their
     // default rows had been copied into the durable store.  An empty Product
     // or Location section must not leave every operational Soda selector
