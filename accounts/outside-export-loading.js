@@ -4,13 +4,15 @@ function mount(host,cfg){
 const q=id=>host.querySelector('#'+id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=value=>/^\d{4}-\d{2}-\d{2}$/.test(value||'')?value.split('-').reverse().join('-'):value||'';
-const status=(message,error=false)=>{q('oelStatus').textContent=message;q('oelStatus').classList.toggle('dtError',error);};
+const status=(message,error=false)=>{const text=q('oelStatus');if(text){text.textContent=message;text.classList.toggle('dtError',error);}};
 const api='/api/outside_export_loading.php?origin='+cfg.origin;
+const documentMode=cfg.documentMode===true;
+const scopedApi=documentMode?api+'&lot='+encodeURIComponent(cfg.lot):api;
 let data=null,selected=cfg.lot||new URLSearchParams(location.search).get('lot')||'',busy=false;
 async function request(body){
  const multipart=body instanceof FormData;
  if(multipart)body.set('csrf',cfg.csrf);
- const r=await fetch(api,body?{method:'POST',...(multipart?{body}:{headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,csrf:cfg.csrf})})}:{cache:'no-store'});
+ const r=await fetch(scopedApi,body?{method:'POST',...(multipart?{body}:{headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,csrf:cfg.csrf})})}:{cache:'no-store'});
  const result=await r.json();
  if(!r.ok||!result.ok)throw Error(result.error||'Loading is unavailable.');
  return result;
@@ -19,7 +21,16 @@ async function refresh(){
  if(busy)return;
  busy=true;
  status('Loading assignments…');
- try{data=await request();render();status('');}catch(error){status(error.message,true);}finally{busy=false;}
+ try{
+  const form=documentMode?q('oelActual'):null,previous=data?.rows.find(row=>row.id===selected);
+  const next=await request(),row=next.rows.find(row=>row.id===selected);
+  const sameEntry=form&&row&&previous&&!row.complete&&!row.closed&&row.canEdit&&
+   row.assignment.version===previous.assignment.version&&row.actuals.length===previous.actuals.length;
+  data=next;
+  if(!sameEntry)render();
+  status('');
+  if(cfg.onLoaded)await cfg.onLoaded(row);
+ }catch(error){status(error.message,true);}finally{busy=false;}
 }
 const options=(rows,key,label,value)=>'<option value="">Choose</option>'+rows.map(r=>`<option value="${esc(r[key])}" ${String(r[key])===String(value)?'selected':''}>${esc(r[label])}</option>`).join('');
 const field=(name,label,value='',type='text',attrs='')=>`<label>${esc(label)}<input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
@@ -40,9 +51,10 @@ function render(){
  const automaticDeal=assign&&!assignment.route&&cfg.preferredRoute==='EXPORTS'&&row.deals.length===1?row.deals[0]:null;
  const edit=row.canEdit&&!row.closed&&!row.complete&&(assigned||automaticDeal);
  root.innerHTML=`${cfg.lot?'':'<button type="button" id="oelBack">← Loading list</button>'}
- <h2>${esc(row.contract)} · ${esc(row.lot)}</h2><p><strong>${esc(row.site)}</strong> · ${esc(row.entity)} · Planned ${esc(date(row.plannedDate))} · ${row.actuals.length}/${row.expected} containers</p>
- <p>${esc(row.brand)} · ${esc(row.packing)} · ${esc(assignment.supplier||automaticDeal?.label||'Awaiting SODA assignment')} · ${esc(assignment.assignee||'Unassigned')}</p>
- ${row.quality||row.specifications.length?`<details open><summary>Production and quality specifications</summary><p>${esc(row.quality)}</p>${row.specifications.map(spec=>`<p>${esc(spec.name)} · ${esc(spec.value)}</p>`).join('')}</details>`:''}
+ ${documentMode?'':`<h2>${esc(row.contract)} · ${esc(row.lot)}</h2>`}
+ <p><strong>${esc(row.site)}</strong> · ${documentMode?'':`${esc(row.entity)} · Planned ${esc(date(row.plannedDate))} · `}${row.actuals.length}/${row.expected} containers</p>
+ ${documentMode?(assignment.route==='MILL'?`<p>Mill loading assigned to ${esc(assignment.assignee)}.</p>`:''):`<p>${esc(row.brand)} · ${esc(row.packing)} · ${esc(assignment.supplier||automaticDeal?.label||'Awaiting SODA assignment')} · ${esc(assignment.assignee||'Unassigned')}</p>
+ ${row.quality||row.specifications.length?`<details open><summary>Production and quality specifications</summary><p>${esc(row.quality)}</p>${row.specifications.map(spec=>`<p>${esc(spec.name)} · ${esc(spec.value)}</p>`).join('')}</details>`:''}`}
  ${assign&&!row.deals.length?'<p class="notice warn">Directors must link an active purchase SODA to this sales contract before containers can be recorded.</p>':assign&&!automaticDeal?`<form id="oelAssign"><div class="${cfg.milling ? 'r3' : 'grid'}">
  ${row.deals.length===1?`<input type="hidden" name="dealId" value="${esc(row.deals[0].id)}">`:`<label>Purchase SODA<select name="dealId" required>${options(row.deals,'id','label',assignment.dealId)}</select></label>`}
  <label>Who enters loading<select name="route"><option value="EXPORTS">Exports · assign to me</option><option value="MILL" ${(assignment.route||cfg.preferredRoute)==='MILL'?'selected':''}>TTI Mill staff · on site</option></select></label>
@@ -60,10 +72,12 @@ function render(){
  if(edit){
   function container(a={}){
    const editing=!!a.number,finalContainer=cfg.origin==='exports'&&!editing&&row.actuals.length+1===row.expected;
-   q('oelContainer').innerHTML=`<form id="oelActual"><h3>${editing?'Correct container details':'Add container'}</h3><div class="${cfg.milling ? 'r3' : 'grid'}">
+   if(!editing&&documentMode)a={...a,...cfg.defaults(row.actuals.length)};
+   const heading=documentMode?'h4':'h3';
+   q('oelContainer').innerHTML=`<form id="oelActual"><${heading}>${editing?'Correct container details':'Add container'}</${heading}>${documentMode&&a.netKg&&!editing?'<p class="metaText">Bags and weights use the Customs Invoice calculation. Check them against the loading sheet.</p>':''}<div class="${cfg.milling?'r3':documentMode?'grid3':'grid'}">
     ${field('number','Container number',a.number,'text',editing?'readonly':'required maxlength="16"')}
     ${field('seal','Seal',a.seal,'text','required maxlength="40"')}
-    ${field('site','Loading location',row.site,'text','readonly')}
+    ${documentMode?'':field('site','Loading location',row.site,'text','readonly')}
     ${field('bags','Bags',a.bags,'number','required min="1" step="1"')}
     ${field('netKg','Net kg',a.netKg,'number','required min=".001" step=".001"')}
     ${field('grossKg','Gross kg',a.grossKg,'number','required min=".001" step=".001"')}
@@ -86,7 +100,7 @@ async function save(row,action,fields,button){
  const payload={action,lotId:row.id,version:row.assignment.version||0};
  if(fields instanceof FormData)Object.entries(payload).forEach(([key,value])=>fields.set(key,value));
  data=await request(fields instanceof FormData?fields:{...fields,...payload});render();status('Saved.');
- if(cfg.onSaved)try{await cfg.onSaved();}catch{status('Saved. Refresh Exports before opening shipment documents.',true);}}
+ if(cfg.onSaved)try{await cfg.onSaved(data.rows.find(saved=>saved.id===row.id));}catch(error){status(documentMode?'Saved. '+error.message:'Saved. Refresh Exports before opening shipment documents.',true);}}
  catch(error){status(error.message,true);button.disabled=false;}finally{busy=false;}
 }
 if(q('oelRefresh'))q('oelRefresh').onclick=refresh;
