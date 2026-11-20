@@ -207,7 +207,7 @@ $sharedBootstrap = <<<'HTML'
     // Keep the full-workspace guard for existing callers and reject any save
     // already in flight or staged edits to the requested report sources.
     const hasProjection=()=>!!outsideLot&&exportWorkspaceProjection!==undefined&&!failedKeys.has(EXPORT_STORE)&&pending.get(EXPORT_STORE)===exportWorkspaceProjection;
-    const blocked=()=>inFlight.size||(keys?[...keys].some(key=>pending.has(key)&&!(key===EXPORT_STORE&&hasProjection())):pending.size);
+    const blocked=()=>inFlight.size||(keys?[...keys].some(key=>pending.has(key)&&!(hasProjection()&&key===EXPORT_STORE)):pending.size);
     if(blocked())return Promise.reject(new Error('Finish the current save before refreshing.'));
     return fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin'}).then(r=>r.json()).then(data=>{
       if(!data?.ok)throw new Error(data?.error||'Shared data could not be refreshed.');

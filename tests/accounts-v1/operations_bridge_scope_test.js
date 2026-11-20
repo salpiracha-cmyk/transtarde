@@ -26,6 +26,24 @@ console.log('PASS scoped allocation retains canonical bridge identity, committed
  duringRead=()=>pending.set('tt30queue','EDIT-DURING-REFRESH');applied=null;await assert.rejects(refreshContext.refreshNow({keys:['tt30queue']}),/Finish the current save/);assert.equal(applied,null);assert.equal(pending.get('tt30queue'),'EDIT-DURING-REFRESH');pending.delete('tt30queue');duringRead=null;
  serverFailure=true;applied=null;await assert.rejects(refreshContext.refreshNow({keys:['tt30queue']}),/Read failed/);assert.equal(applied,null);assert.equal(pending.size,2);
  console.log('PASS scoped Arrival report refresh preserves unrelated staged bridge data, rejects edited sources/in-flight saves and applies no failed or unrelated snapshot');
+
+ const exportKey='transtrade_export_v3_operational',projection='CUSTOMER AND DISPLAY PROJECTION';
+ Object.assign(refreshContext,{access:{moduleId:'exports'},EXPORT_STORE:exportKey,allowed:key=>key===exportKey,
+  exportWorkspaceProjection:projection,failedKeys:new Set(),queuedBase:new Map([[exportKey,10]])});
+ serverFailure=false;
+ snapshot.values[exportKey]=JSON.stringify({shipments:[{id:'OUTSIDE-LOT',loadingPlan:{outsideDirect:true},millLoadingCompleted:true}]});
+ snapshot.meta[exportKey]={version:11};
+ const outsideRefresh={outsideLoadingLot:'OUTSIDE-LOT',stillOpen:()=>true};
+ await assert.rejects(refreshContext.refreshNow(outsideRefresh),/Finish the current save/);
+ assert.equal(pending.get(exportKey),'KEEP-STAGED-EXPORT','Never replace a staged document save');
+ pending.set(exportKey,projection);
+ await assert.rejects(refreshContext.refreshNow({...outsideRefresh,stillOpen:()=>false}),/closed before loading/);
+ assert.equal(pending.get(exportKey),projection);
+ await refreshContext.refreshNow(outsideRefresh);
+ assert.equal(applied.values[exportKey],snapshot.values[exportKey]);
+ assert.equal(pending.get('tt30ship'),'KEEP-STAGED-SHIP');
+ assert.ok(!pending.has(exportKey),'An explicit scoped read may replace a reproducible projection');
+ console.log('PASS outside loading refresh preserves real drafts and applies only the confirmed lot snapshot');
 })().catch(error=>{console.error(error);process.exitCode=1});
 
 {
