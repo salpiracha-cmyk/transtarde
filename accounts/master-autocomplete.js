@@ -6,7 +6,9 @@
   const identity=value=>clean(value).toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
   const unique = values => [...new Map(values.map(clean).filter(Boolean).map(name=>[identity(name),name])).values()].sort((a,b)=>a.localeCompare(b));
   const active = row => clean(row?.values?.[10] || 'Active').toLowerCase() !== 'inactive';
-  const categories = row => clean(row?.values?.[2]).replace(/Shipping Line\s*\/\s*Carrier/ig,'Shipping Line and Carrier').split(/[;,/|]/).map(value => value.trim().toLowerCase().replace('shipping line and carrier','shipping line / carrier'));
+  const savedRoles = value => clean(value).replace(/Shipping Line\s*\/\s*Carrier/ig,'Shipping Line and Carrier').split(/[;,/|]/)
+    .map(role=>role.trim().replace(/\s+/g,' ').replace(/^Shipping Line and Carrier$/i,'Shipping Line / Carrier')).filter(Boolean);
+  const categories = row => savedRoles(row?.values?.[2]).map(role=>role.toLowerCase());
   const scopeCache=new Map(),scopePending=new Set();
   const selectedCompany=()=>localStorage.getItem('tt_accounts_entity')||'TTI';
   function companyParty(row){let profile={};try{profile=JSON.parse(row?.values?.[12]||'{}');}catch(_){}const company=selectedCompany();if(Array.isArray(profile.accountingCompanies))return profile.accountingCompanies.includes(company);return company!=='TG'||scopeCache.get(company)?.has(String(row.id));}
@@ -85,7 +87,7 @@
       if (!newName) return;
       values[0] = newName;
       if (type === 'export_customers') { values[3] = clean(form.elements.address.value); values[10] = values[10] || 'Active'; }
-      else { const roles = new Set(clean(values[2]).split(/[;,]/).filter(Boolean).map(value => value.trim())); if(kind==='party'){roles.clear();form.querySelectorAll('[name=partyRole]:checked').forEach(input=>roles.add(input.value));if(!roles.size){form.querySelector('.tt-party-editor-error').textContent='Select at least one category.';return}}else if(roleFor(kind))roles.add(roleFor(kind)); values[2] = [...roles].join('; '); values[10] = values[10] || 'Active'; }
+      else { const roles = new Set(savedRoles(values[2])); if(kind==='party'){for(const role of roles)if(partyRoles.some(choice=>choice.toLowerCase()===role.toLowerCase()))roles.delete(role);form.querySelectorAll('[name=partyRole]:checked').forEach(input=>roles.add(input.value));if(!roles.size){form.querySelector('.tt-party-editor-error').textContent='Select at least one category.';return}}else if(roleFor(kind)&&![...roles].some(role=>role.toLowerCase()===roleFor(kind).toLowerCase()))roles.add(roleFor(kind)); values[2] = [...roles].join('; '); values[10] = values[10] || 'Active'; }
       if(type==='business_parties'&&form.elements.serviceExpense){let profile={};try{profile=JSON.parse(values[12]||'{}');}catch(_){}const service=values[2].split('; ').includes('Service Provider');profile.service={type:clean(form.elements.serviceType.value),expenseAccountCode:service?form.elements.serviceExpense.value:''};values[12]=JSON.stringify(profile);}
       if(type==='business_parties'&&form.querySelector('[name=accountingCompany]')){let profile={};try{profile=JSON.parse(values[12]||'{}');}catch(_){}profile.accountingCompanies=Array.from(form.querySelectorAll('[name=accountingCompany]:checked')).map(i=>i.value);if(!profile.accountingCompanies.length){form.querySelector('.tt-party-editor-error').textContent='Choose at least one company.';return;}values[12]=JSON.stringify(profile);}
       const save = form.querySelector('[type="submit"]'); save.disabled = true;
