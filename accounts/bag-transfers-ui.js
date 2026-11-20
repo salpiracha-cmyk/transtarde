@@ -52,7 +52,7 @@ function build(scope){
  (document.getElementById('newbags')||document.getElementById('ourExportBags'))?.append(root);
  q('[data-transfer-location]').value=scope.millName;q('[data-transfer-date]').value=drafts.get(scope.key)?.date||today();
  q('[data-transfer-refresh]').onclick=()=>void refresh();
- q('[data-transfer-date]').onchange=()=>{updateDispatch();message('Refresh stock for the selected date.');};
+ q('[data-transfer-date]').onchange=()=>{updateDispatch();message('');};
  q('[data-transfer-brand]').onchange=()=>selectStockLot();
  const destination=q('[data-transfer-destination]'),editor=q('[data-new-destination]');
  destination.onchange=()=>{
@@ -83,11 +83,14 @@ function pending(){
 }
 function updateDispatch(){
  const lot=data?.inventory?.lots?.[q('[data-transfer-brand]').value],qty=Number(q('[data-transfer-quantity]').value);
- const available=lot?.committableQty??lot?.availableQty,validQty=Number.isSafeInteger(qty)&&qty>0&&qty<=available;
+ const date=q('[data-transfer-date]').value,reviewed=data?.inventory?.asOfDate===date;
+ const available=lot?.committableQty??lot?.availableQty,validQty=Number.isSafeInteger(qty)&&qty>0&&(!reviewed||qty<=available);
  const destination=q('[data-transfer-destination]');
  destination.dataset.selected=destination.value;
- if(lot)q('[data-transfer-stock]').textContent=available.toLocaleString()+' bags available'+(validQty?' · '+(available-qty).toLocaleString()+' left after transfer':'');
- q('[data-dispatch-bags]').disabled=!data?.canCreate||!lot||!destination.value||destination.value===ADD_DESTINATION||!q('[data-new-destination]').hidden||!validQty||data.inventory.asOfDate!==q('[data-transfer-date]').value;
+ if(lot)q('[data-transfer-stock]').textContent=reviewed
+  ?available.toLocaleString()+' bags available'+(validQty?' · '+(available-qty).toLocaleString()+' left after transfer':'')
+  :'Stock will be checked for the selected date when you confirm.';
+ q('[data-dispatch-bags]').disabled=!data?.canCreate||!lot||!destination.value||destination.value===ADD_DESTINATION||!q('[data-new-destination]').hidden||!validQty||!date;
 }
 function selectStockLot(saved={}){
  const id=q('[data-transfer-brand]').value,lot=data.inventory.lots?.[id],input=q('[data-transfer-quantity]');
@@ -212,11 +215,41 @@ async function open(entity,expanded=true){
 }
 function whole(value){const n=Number(value);if(!String(value).trim()||!Number.isSafeInteger(n)||n<=0)throw Error('Enter positive whole bag quantities.');return n;}
 async function dispatch(){
- try{if(!data?.canCreate)throw Error('New Export Bags Create permission is required.');const date=q('[data-transfer-date]').value;if(data.inventory.asOfDate!==date)throw Error('Review source stock for the dispatch date first.');
-  const destination=q('[data-transfer-destination]').value;if(!destination||destination===ADD_DESTINATION||!q('[data-new-destination]').hidden)throw Error('Choose the actual transfer destination.');
-  const allocations=[];for(const input of root.querySelectorAll('[data-source-lot]')){if(!input.value.trim()||Number(input.value)===0)continue;const qty=whole(input.value),lot=data.inventory.lots[input.dataset.sourceLot];if(!lot||lot.hold||!Number.isSafeInteger(lot.committableQty??lot.availableQty)||qty>(lot.committableQty??lot.availableQty))throw Error('A source lot is held or has insufficient bags. Review stock again.');allocations.push({lotId:lot.id,qty});}
-  if(!allocations.length)throw Error('Enter bags against the actual original source lots.');await send({action:'dispatch',entity:active.entity,sourceLocationId:active.locationId,destinationId:destination,date,sourceFingerprint:data.inventory.fingerprint,ownership:active.ownership,allocations});
- }catch(error){message(error.message);}
+ if(busy)return;
+ try{
+  const scope=active,node=root,date=q('[data-transfer-date]').value;
+  if(!date)throw Error('Choose the transfer date.');
+  const destination=q('[data-transfer-destination]').value;
+  if(!destination||destination===ADD_DESTINATION||!q('[data-new-destination]').hidden)throw Error('Choose the actual transfer destination.');
+  const lotId=q('[data-transfer-brand]').value,qty=whole(q('[data-transfer-quantity]').value);
+  let review=data;
+  if(!review?.canCreate)throw Error('New Export Bags Create permission is required.');
+  if(review.inventory.asOfDate!==date){
+   const focus=document.activeElement,wasInert=node.inert;
+   busy=true;
+   sequence++;
+   q('[data-transfer-refresh]').disabled=false;
+   node.inert=true;
+   message('Checking stock for '+dateText(date)+'…');
+   try{review=await readStock(scope,date);}
+   finally{
+    busy=false;
+    node.inert=wasInert;
+    if(focus?.isConnected)focus.focus({preventScroll:true});
+   }
+   if(root!==node||active!==scope)return;
+   if(date!==q('[data-transfer-date]').value||lotId!==q('[data-transfer-brand]').value||destination!==q('[data-transfer-destination]').value||qty!==Number(q('[data-transfer-quantity]').value)){
+    message('The transfer details changed. Confirm the current entry.');
+    return;
+   }
+  }
+  if(!review.canCreate)throw Error('New Export Bags Create permission is required.');
+  if(!review.destinations.some(row=>row.id===destination))throw Error('Choose an active transfer destination.');
+  const lot=review.inventory.lots[lotId],available=lot?.committableQty??lot?.availableQty;
+  if(!lot||lot.hold||!Number.isSafeInteger(available))throw Error('The selected lot is unavailable on '+dateText(date)+'.');
+  if(qty>available)throw Error('Only '+available.toLocaleString()+' bags can be transferred from this lot on '+dateText(date)+'.');
+  await send({action:'dispatch',entity:scope.entity,sourceLocationId:scope.locationId,destinationId:destination,date,sourceFingerprint:review.inventory.fingerprint,ownership:scope.ownership,allocations:[{lotId,qty}]});
+ }catch(error){message(error.message+' Your entry is retained.');}
 }
 async function acknowledge(){
  try{const action=q('[data-ack-action]').value,id=q('[data-ack-id]').value,record=data.transfers.find(record=>record.id===id);if(!record)throw Error('Review the original transfer before receiving.');

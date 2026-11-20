@@ -11,7 +11,7 @@ const unavailable={
 const record={id:'BT-1',entity:'TTI',date:'2026-10-17',source:{locationId:'M1',millName:'Source Mill'},destination:{id:'M2',name:'Destination Mill'},lines:[{lineId:'L1',originBagId:'B1',sourceSnapshot:{poNo:'PO-1',brand:'ASAS',packingSize:'50 kg'}}],quantities:{L1:{dispatched:10,received:0,returned:0,inTransit:10}}};
 const response=(ok,body,status=ok?200:422)=>({ok,status,json:async()=>structuredClone(body)});
 w.fetch=async(url,options={})=>{
- if(!options.method){reads++;if(reviewWait)await reviewWait;const query=new URL(url,w.location.href).searchParams,id=query.get('locationId');return response(true,{ok:true,entity:query.get('entity'),locationId:id,canCreate:true,canAddDestination:canAdd,destinations:[{id:id==='M1'?'M2':'M1',name:id==='M1'?'Destination Mill':'Source Mill'},...added],inventory:{asOfDate:query.get('asOf'),fingerprint:'a'.repeat(64),lots:id==='M1'?{[source.id]:source,...unavailable}:unavailable,warnings:[]},transfers:[record]});}
+ if(!options.method){reads++;if(reviewWait)await reviewWait;const query=new URL(url,w.location.href).searchParams,id=query.get('locationId');return response(true,{ok:true,entity:query.get('entity'),locationId:id,canCreate:true,canAddDestination:canAdd,destinations:[{id:id==='M1'?'M2':'M1',name:id==='M1'?'Destination Mill':'Source Mill'},...added],inventory:{asOfDate:query.get('asOf'),fingerprint:(query.get('asOf')==='2026-11-18'?'b':'a').repeat(64),lots:id==='M1'?{[source.id]:source,...unavailable,external:query.get('asOf')==='2026-11-18'?{...unavailable.external,committableQty:12}:unavailable.external}:unavailable,warnings:[]},transfers:[record]});}
  const body=JSON.parse(options.body);posts.push(body);assert.equal(body.csrf,'qa-only');
  if(body.action==='add_destination'){
   assert.equal(body.sourceLocationId,'M1');
@@ -23,7 +23,7 @@ w.fetch=async(url,options={})=>{
  if(!requests.has(body.requestKey)){requests.set(body.requestKey,structuredClone(body));commits++;if(body.action==='receive'){accepted+=body.allocations.reduce((n,a)=>n+a.qty,0);record.quantities.L1.received=accepted;record.quantities.L1.inTransit=10-accepted;}if(body.action==='quarantine'){record.quantities.L1.inTransit-=body.allocations[0].qty;record.quantities.L1.quarantined=(record.quantities.L1.quarantined||0)+body.allocations[0].qty;}if(body.action==='accept_quarantine'){record.quantities.L1.received+=body.allocations[0].qty;record.quantities.L1.quarantined-=body.allocations[0].qty;}if(body.action==='return_quarantine'){record.quantities.L1.returned+=body.allocations[0].qty;record.quantities.L1.quarantined-=body.allocations[0].qty;}}
  else assert.deepEqual(body,requests.get(body.requestKey),'Retry changed the original movement facts');
  if(mode==='lost'){mode='success';throw Error('Acknowledgement lost');}
- return response(true,{ok:true,movement:{record}});
+ return response(true,{ok:true,movement:{record:body.action==='dispatch'?{...record,destination:{id:body.destinationId}}:record}});
 };
 w.eval(fs.readFileSync('accounts/bag-transfers-ui.js','utf8'));const api=w.TT_BAG_TRANSFERS,q=s=>w.document.querySelector(s),tick=()=>new Promise(resolve=>setImmediate(resolve)),key='tt_ui_bag_pending_7_TTI_M1';
 (async()=>{
@@ -83,6 +83,20 @@ w.eval(fs.readFileSync('accounts/bag-transfers-ui.js','utf8'));const api=w.TT_BA
  assert.equal(commits,beforeAdd,'Saving the destination must not perform a stock transfer');
  await api.refresh();
  assert.equal(select.value,'HKM');assert.equal(qty().value,'15');
+ const date=q('[data-transfer-date]'),readsBeforeDate=reads,postsBeforeDate=posts.length;
+ date.value='2026-11-18';date.dispatchEvent(new w.Event('change'));
+ assert.equal(reads,readsBeforeDate,'Editing the date must not read or write stock');
+ assert.match(q('[data-transfer-stock]').textContent,/selected date when you confirm/);
+ assert(!q('[data-dispatch-bags]').disabled,'A complete backdated draft must allow confirmation');
+ submit();await tick();
+ assert.equal(posts.length,postsBeforeDate,'A shortage on the selected date must stop the transfer before posting');
+ assert.match(q('[data-transfer-message]').textContent,/Only 12 bags.*18-11-2026/);
+ assert.equal(qty().value,'15');assert.equal(select.value,'HKM');assert.equal(date.value,'2026-11-18');
+ qty().value='10';submit();await tick();
+ assert.equal(posts.length,postsBeforeDate+1);
+ assert.equal(posts.at(-1).date,'2026-11-18');assert.equal(posts.at(-1).sourceFingerprint,'b'.repeat(64));
+ assert.deepEqual(posts.at(-1).allocations,[{lotId:'external',qty:10}]);
+ assert.equal(w.localStorage.getItem(key),null);assert.match(q('[data-transfer-message]').textContent,/completed/);
  q('[data-export-bags-receive]').click();
  assert(!q('#otherExporterBags').hidden&&q('#acknowledgedBagTransfers').hidden);
  w.close();console.log('PASS acknowledged transfer UI: explicit source lots, whole counts, accepted receipts, stable retry identity, lost acknowledgements, editable refusals, focus and draft retention, latest typed quantities and physical scope');
