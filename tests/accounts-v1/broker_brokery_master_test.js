@@ -68,4 +68,17 @@ assert.match(chart,/"code": "5600"[\s\S]*"name": "Sales Brokery \/ Commission"/)
 assert.match(chart,/"code": "5610"[\s\S]*"name": "Export Indentor Commission"/);
 assert.match(chart,/"code": "2170"[\s\S]*"name": "Export Indentor Commission Payables"/);
 
+const vm=require('node:vm');
+const start=admin.indexOf('  function businessPartyMasterFieldsHtml(');
+const end=admin.indexOf('  function toggleNewPartyRole(',start);
+const editor=vm.runInNewContext(admin.slice(start,end)+'\nbusinessPartyMasterFieldsHtml',{
+ MASTER_TYPES:[{id:'business_parties',fields:[{},{},{options:['Supplier','Broker','Indentor','Shipping Line / Carrier']}]}],
+ brokeryProfile:()=>({buying:[],selling:[]}),serviceProviderProfile:()=>({}),masterInputId:i=>'m'+i,escapeHtml:String,state:{}
+});
+const markup=editor(['Fixture','','Supplier']);
+const legacy=editor(['Fixture','','Supplier / BROKER | indentor, Shipping Line / Carrier; Legacy role']);
+assert.match(markup,/value="Supplier" checked/);
+for(const role of ['Broker','Indentor','Shipping Line / Carrier','Legacy role'])assert.ok(legacy.includes('value="'+role+'" checked'),role+' should survive editing a legacy party');
+assert.doesNotMatch(legacy,/id="brokeryProfileSection" hidden/);
+
 console.log('Local Broker Brokery and export Indentor commission audit passed.');

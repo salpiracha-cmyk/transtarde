@@ -12,6 +12,7 @@ with tempfile.TemporaryDirectory(prefix='rice-module-delivery-') as directory:
  function tt_require_login(){return ['id'=>1,'full_name'=>'Fixture','role'=>'Staff','permissions'=>['Mill'=>['reports'=>['View']]]];}
  function tt_user_can_open_module($u,$m){return in_array($m,['Mill','Exports'],true)&&getenv('TT_FIXTURE_DENIED')!=='1';}
  function tt_user_can_module_action($u,$m,$icon,$action){return in_array($action,$u['permissions'][$m][$icon]??[],true);}
+ function tt_user_business_entity($u,$entity,$action='View'){return $entity==='TTI'&&$action==='View';}
  function tt_release_read_session(){} function tt_csrf(){return 'fixture';}
  function tt_user_can_access_masters($u){return false;} function tt_list_masters(){return [];}
  function tt_master_options(){return [];}

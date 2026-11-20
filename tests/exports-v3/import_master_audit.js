@@ -6,8 +6,12 @@ const {JSDOM,VirtualConsole}=require('jsdom');
   let app=fs.readFileSync(__dirname+'/app.js','utf8');
   app=app.replace('mount();',`window.__IMPORT_AUDIT__={get state(){return state},parseContractText,parseLCText,showContractReview,showLCReview,makeLotRecord};mount();`);
   const errors=[],alerts=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));
-  const dom=new JSDOM(`<!doctype html><body><div id="app"></div><div id="printRoot"></div><script>${app.replace(/<\/script/gi,'<\\/script')}</script></body>`,{runScripts:'dangerously',url:'https://exports.audit.local/',virtualConsole:vc,beforeParse(w){w.TT_MODULE_ACCESS={user:'Jazib',module:'Exports'};w.alert=m=>alerts.push(String(m));w.confirm=()=>true;w.print=()=>{};w.setInterval=()=>0;w.structuredClone=v=>JSON.parse(JSON.stringify(v));w.FileReader=class{};}});
+  const dom=new JSDOM(`<!doctype html><body><div id="app"></div><div id="printRoot"></div><script>${app.replace(/<\/script/gi,'<\\/script')}</script></body>`,{runScripts:'dangerously',url:'https://exports.audit.local/',virtualConsole:vc,beforeParse(w){w.TT_MODULE_ACCESS={user:'Jazib',module:'Exports',masters:{}};w.alert=m=>alerts.push(String(m));w.confirm=()=>true;w.print=()=>{};w.setInterval=()=>0;w.structuredClone=v=>JSON.parse(JSON.stringify(v));w.FileReader=class{};}});
   const w=dom.window,d=w.document,t=w.__IMPORT_AUDIT__;
+  Object.assign(w.TT_MODULE_ACCESS.masters,{
+    export_documents:[{values:['Fixture Certificate','1','2','CIF','Active']}],
+    export_terms:[{values:['BASE','Fixture terms for imported contracts','Active']}]
+  });
   const review=d.createElement('div');review.id='readerReview';d.body.appendChild(review);
   const parsed=t.parseContractText(`
 SALES CONTRACT NO: TTI/IMPORT/01
@@ -57,6 +61,8 @@ LATEST SHIPMENT DATE: 30/09/2026`);
   assert.equal(c.signedDeadline,'2026-09-10');assert.equal(c.paymentDeadline,'2026-09-15');
   assert.equal(c.buyerPoNo,'BUYER-PO-123');assert.equal(c.sourceDocument.reader,'Local fallback');
   assert.deepEqual([...c.sourceDocument.reviewNotes],['Check quantity']);
+  assert.ok(c.documentsPresented.some(row=>row.name==='Fixture Certificate'&&row.original===1&&row.copies===2));
+  assert.ok(c.termsInitialized&&c.terms.includes('Fixture terms for imported contracts'));
   assert.equal(c.received,true);assert.equal(p.kind,'process');assert.equal(p.loading.lots.length,0);
 
   review.innerHTML='';

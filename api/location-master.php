@@ -65,6 +65,6 @@ try {
     $address=trim((string)($body['address']??''));$contact=trim((string)($body['contact']??''));
     if($address!==''||$contact!==''){$values[3]=$address?:$values[3];$values[4]=$contact?:$values[4];tt_update_master('mills',(string)$row['id'],$values);$row['values']=$values;}
     tt_audit((int)($user['id'] ?? 0),(string)($user['username'] ?? ''),'Location master linked '.$name.' from '.$source);
-    location_respond(['ok'=>true,'location'=>$row,'locations'=>location_rows_for_entity((string)($body['entity']??''))]);
+    location_respond(['ok'=>true,'location'=>$row+['millRuntimeId'=>os_mill_runtime_id((string)$row['id'])],'locations'=>location_rows_for_entity((string)($body['entity']??''))]);
 } catch (InvalidArgumentException $e) { location_respond(['ok'=>false,'error'=>$e->getMessage()],422); }
 catch (Throwable $e) { location_respond(['ok'=>false,'error'=>'The location master could not be updated.'],500); }

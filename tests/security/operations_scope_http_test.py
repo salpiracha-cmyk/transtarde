@@ -231,6 +231,39 @@ with tempfile.TemporaryDirectory(prefix='tti-operation-scope-') as folder:
  settings['users'][0]['permissions']['Exports']['customs']=['View']
  auth.write_text(json.dumps(settings))
  assert not request('scope-selectors-fixture.php')[1]
+ grant('Exports','contract')
+ settings=json.loads(auth.read_text())
+ settings['users'][0]['master_permissions']={}
+ settings['masters']['business_parties']=[
+  {'id':'MIXED-ROLES','values':['Shared Role Fixture','FX','Supplier / bRoKeR | INDENTOR','','','','','','','','Active','PRIVATE_PARTY_NOTE','{}']},
+  {'id':'INACTIVE-ROLE','values':['Inactive Role Fixture','','Indentor','','','','','','','','Inactive']}
+ ]
+ settings['masters']['products']=[{'id':'PROFILE-FIXTURE','values':['Rice','Fixture Profile','White','FIX-W','Pakistan','Contract specific','7 mm','100%','13%']+['']*10+['INTERNAL_PROFILE_NOTES','[]','1006.4000']}]
+ settings['masters']['product_settings']=[{'id':'CROP-FIXTURE','values':['2026/2027']}]
+ settings['masters']['export_documents']=[{'id':'DOC-FIXTURE','values':['Fixture Packing Document','1','2','ALL','Active']}]
+ settings['masters']['export_terms']=[{'id':'TERM-FIXTURE','values':['BASE','Fixture contract wording','Active']}]
+ auth.write_text(json.dumps(settings))
+ status,data=request('scope-selectors-fixture.php')
+ assert status==200 and 'INTERNAL_PROFILE_NOTES' not in json.dumps(data),(status,data)
+ assert [row['id'] for row in data['business_parties']]==['MIXED-ROLES'] and len(data['business_parties'][0]['values'])==3
+ profile=next(row['values'] for row in data['products'] if row['id']=='PROFILE-FIXTURE')
+ assert (profile[7],profile[8],profile[21])==('100%','13%','1006.4000')
+ assert data['product_settings'][0]['values']==['2026/2027']
+ assert any(row['values']==['Fixture Packing Document','1','2','ALL','Active'] for row in data['export_documents'])
+ assert any(row['values']==['BASE','Fixture contract wording','Active'] for row in data['export_terms'])
+ assert not set(request('scope-masters-fixture.php')[1]).intersection(('products','product_settings','export_documents','export_terms'))
+ settings['users'][0]['permissions']['Exports']['contract']=['View']
+ auth.write_text(json.dumps(settings))
+ assert not request('scope-selectors-fixture.php')[1]
+ (app/'api'/'scope-mill-selectors-fixture.php').write_text("<?php $_GET['entity']='TTI';require __DIR__.'/../auth_store.php';require __DIR__.'/operations_scope.php';echo json_encode(os_workflow_selectors(tt_require_login(),'Mill'));")
+ grant('Mill','queue')
+ settings=json.loads(auth.read_text())
+ settings['masters']['business_parties']=[{'id':'BROKER-MIXED','values':['Broker Fixture','','Supplier / bRoKeR','','','','','','','','Active']}]
+ settings['masters']['mills']=[{'id':'OTHER-WORKSHOP','values':['Other Mill','','Reprocessing Mill','','','Active']}]
+ auth.write_text(json.dumps(settings))
+ status,mill_selectors=request('scope-mill-selectors-fixture.php')
+ assert status==200 and [row['id'] for row in mill_selectors['business_parties']]==['BROKER-MIXED'],(status,mill_selectors)
+ assert 'Other Mill' not in json.dumps(mill_selectors['millLanding'])
  grant('Directors','home');status,data=request();assert k not in data['values'] and 'PRIVATE_' not in json.dumps(data)
  for role in ['Director','Super Admin']:
   user['role']=role;grant('Mill','queue');status,data=request();assert status==200 and 'PRIVATE_EXPORT_PRICE' in data['values'][k]

@@ -843,6 +843,19 @@ function tt_master_revision(array $values): string {
     return hash('sha256',json_encode(array_values($values),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR));
 }
 
+function tt_validate_export_product_code(array $values, array $rows, string $id=''): void {
+    $code=strtoupper(trim((string)($values[3]??'')));
+    if($code==='')return;
+    foreach($rows as $row){
+        if(($row['id']??'')===$id&&strtoupper(trim((string)($row['values'][3]??'')))===$code)return;
+    }
+    foreach($rows as $row){
+        if(($row['id']??'')!==$id&&strtoupper(trim((string)($row['values'][3]??'')))===$code){
+            throw new InvalidArgumentException('This product code already belongs to another Export Quality profile. Enter a unique code.');
+        }
+    }
+}
+
 function tt_create_master(string $type, array $values, ?string $requestId=null): string {
     if($type==='export_customers'){$values[9]=tt_export_customer_notify_json($values[9]??'');tt_validate_export_customer_advanced($values);}
     return tt_mutate_store(function (&$data) use ($type,$values,$requestId): string {
@@ -854,6 +867,7 @@ function tt_create_master(string $type, array $values, ?string $requestId=null):
         if($type==='companies')foreach($data['masters'][$type] as $row)if(strcasecmp(trim((string)($row['values'][1]??'')),trim((string)($values[1]??'')))===0)throw new InvalidArgumentException('This company short code already belongs to another company. Open that existing company instead.');
         if(in_array($type,['business_parties','export_customers','companies','mills'],true))foreach($data['masters'][$type] as $row)if(tt_master_names_conflict((string)($values[0]??''),(string)($row['values'][0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
         if ($type==='export_payment_terms') tt_validate_export_payment_term($values,$data['masters'][$type]);
+        if ($type==='products') tt_validate_export_product_code($values,$data['masters'][$type]);
         $id=$type.'-'.random_int(100000,999999999);
         $row=['id'=>$id,'values'=>$values];
         if($requestId!==null){$row['createRequestId']=$requestId;$row['createRequestHash']=tt_master_revision($values);}
@@ -890,6 +904,7 @@ function tt_update_master(string $type, string $id, array $values, ?string $expe
             if(tt_master_name_identity((string)($current['values'][0]??''),$type)!==tt_master_name_identity((string)($values[0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
         }
         if ($type==='export_payment_terms') tt_validate_export_payment_term($values,$data['masters'][$type],$id);
+        if ($type==='products') tt_validate_export_product_code($values,$data['masters'][$type],$id);
         foreach ($data['masters'][$type] as &$row) if (($row['id'] ?? '')===$id) {
             // Company documents are written through the dedicated upload API.
             // Preserve the latest file identities under the same store lock.

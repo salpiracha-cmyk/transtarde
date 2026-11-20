@@ -150,7 +150,7 @@ function os_workflow_selector_allowed(array $user,string $module,string $selecto
         'Mill|locations'=>['queue','arrival','export','production','newbags'],
         'Accounts|locations'=>['purchases','expenses'],
         'Exports|bagSuppliers'=>['bags'],
-        'Exports|indentors','Exports|paymentPresets'=>['contract','contracts'],
+        'Exports|indentors','Exports|paymentPresets','Exports|contractMasters'=>['contract','contracts'],
         'Mill|brokers'=>['queue','arrival'],
         'Mill|labourContractors'=>['labour'],
         'Mill|purchaseProducts'=>['queue','arrival'],
@@ -168,6 +168,27 @@ function os_workflow_location_rows(array $user,array $rows): array {
         $name=trim((string)($values[0]??''));
         if($name===''||strcasecmp((string)($values[5]??''),'Inactive')===0||!os_location($user,$name))continue;
         $options[]=['id'=>$row['id']??'','values'=>[$name,$values[1]??'',$values[2]??'']];
+    }
+    return $options;
+}
+
+function os_mill_runtime_id(string $masterId): int {
+    // This range is above legacy timestamp-based IDs and below JavaScript's safe integer limit.
+    return 281474976710656+(int)hexdec(substr(hash('sha256',$masterId),0,12));
+}
+
+/** Keep the Mill landing catalog separate from the stored operational mill list. */
+function os_mill_landing_rows(array $user,array $rows): array {
+    $options=[];
+    foreach($rows as $row){
+        $values=$row['values']??[];
+        $id=(string)($row['id']??'');
+        $name=trim((string)($values[0]??''));
+        if($id===''||$name===''||!os_location($user,$name))continue;
+        $type=tt_normalize_location_type((string)($values[2]??''));
+        $selectable=in_array($type,['Own Mill','Reprocessing Mill'],true)&&strcasecmp(trim((string)($values[5]??'')),'Inactive')!==0;
+        $options[]=['id'=>os_mill_runtime_id($id),
+            'masterId'=>$id,'name'=>$name,'type'=>$type,'selectable'=>$selectable];
     }
     return $options;
 }
@@ -206,6 +227,7 @@ function os_export_payment_preset_rows(array $masters): array {
 
 function os_workflow_selectors(array $user,string $module): array {
     $options=[];
+    $millLanding=$module==='Mill'&&tt_user_can_open_module($user,'Mill')&&os_any($user,'Mill',os_key_grants()['tt30mills']);
     $locations=os_workflow_selector_allowed($user,$module,'locations')
         && !tt_user_can_master($user,'mills','View')&&!tt_user_can_master($user,'mills','Use');
     $banks=os_workflow_selector_allowed($user,$module,'documentBanks');
@@ -217,16 +239,34 @@ function os_workflow_selectors(array $user,string $module): array {
     $products=os_workflow_selector_allowed($user,$module,'purchaseProducts')
         && !tt_user_can_master($user,'purchase_products','View')&&!tt_user_can_master($user,'purchase_products','Use');
     $paymentPresets=os_workflow_selector_allowed($user,$module,'paymentPresets');
-    if(!$locations&&!$banks&&!$partyRoles&&!$products&&!$paymentPresets)return $options;
+    $contractMasters=[];
+    if(os_workflow_selector_allowed($user,$module,'contractMasters')){
+        foreach(['products','product_settings','export_documents','export_terms'] as $type){
+            if(!tt_user_can_master($user,$type,'View')&&!tt_user_can_master($user,$type,'Use'))$contractMasters[]=$type;
+        }
+    }
+    if(!$millLanding&&!$locations&&!$banks&&!$partyRoles&&!$products&&!$paymentPresets&&!$contractMasters)return $options;
     $masters=tt_list_masters();
+    if($millLanding){
+        $options['millLanding']=os_mill_landing_rows($user,$masters['mills']??[]);
+        $options['millLandingDefaultEntity']=os_entity($user,'TTI')?'TTI':(os_entity($user,'BRM')?'BRM':'');
+    }
     if($paymentPresets)$options['export_payment_terms']=os_export_payment_preset_rows($masters);
+    foreach($contractMasters as $type){
+        $options[$type]=[];
+        foreach($masters[$type]??[] as $row){
+            $values=$row['values'];
+            if($type==='products')$values[19]=''; // Internal profile notes are not contract specifications.
+            $options[$type][]=['id'=>$row['id'],'values'=>$values];
+        }
+    }
     if($locations)$options['locations']=os_workflow_location_rows($user,(array)($masters['mills']??[]));
     if($banks)$options['documentBanks']=os_export_document_bank_rows($user,(array)($masters['banks']??[]));
     if($partyRoles){
         $options['business_parties']=[];
         foreach((array)($masters['business_parties']??[]) as $row){
             $values=(array)($row['values']??[]);
-            $roles=preg_split('/\s*[;,|]\s*/',strtolower(trim((string)($values[2]??''))))?:[];
+            $roles=array_map('strtolower',tt_business_party_categories($values[2]??''));
             if(!array_intersect($roles,$partyRoles)||stripos((string)($values[10]??''),'inactive')!==false)continue;
             $options['business_parties'][]=['id'=>$row['id']??'','values'=>[$values[0]??'',$values[1]??'',$values[2]??'']];
         }

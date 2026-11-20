@@ -98,6 +98,14 @@ if ($id === 'exports') {
 }
 require_once __DIR__.'/api/operations_read_policy.php';
 $modulePermissions = $user['permissions'][$permissionName] ?? [];
+$masterOptions=tt_default_master_options();
+if(tt_user_can_master($user,'reference_lists','Use')||tt_user_can_master($user,'reference_lists','View')){
+    $masterOptions=tt_master_options();
+}elseif(os_workflow_selector_allowed($user,$permissionName,'contractMasters')){
+    $masterOptions=array_replace($masterOptions,array_intersect_key(tt_master_options(),array_flip([
+        'currencies','currency_names','packing_types','inspection_companies','product_finishes',
+    ])));
+}
 $access = [
     'module'=>$permissionName, 'moduleId'=>$id, 'initialReport'=>$exportsReport, 'userId'=>(int)$user['id'], 'user'=>(string)$user['full_name'],
     'clientBuild'=>is_file(__DIR__.'/.transtrade-release')?trim((string)file_get_contents(__DIR__.'/.transtrade-release')):hash_file('sha256',__FILE__),
@@ -106,7 +114,7 @@ $access = [
     'super'=>(($user['role'] ?? '')==='Super Admin'), 'csrf'=>tt_csrf(),
     'masterAccess'=>tt_user_can_access_masters($user), 'masterPermissions'=>$user['master_permissions'] ?? [],
     'workflowSelectors'=>os_workflow_selectors($user,$permissionName),
-    'masters'=>os_bootstrap_masters($user), 'masterOptions'=>(tt_user_can_master($user,'reference_lists','Use')||tt_user_can_master($user,'reference_lists','View')?tt_master_options():tt_default_master_options()),
+    'masters'=>os_bootstrap_masters($user), 'masterOptions'=>$masterOptions,
 ];
 // Realization taxes/charges belong to Accounts setup, not the operational
 // Exports/Milling bootstrap. Keep the full master available through its desk.
