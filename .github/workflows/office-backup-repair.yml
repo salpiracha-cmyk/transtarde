@@ -41,6 +41,7 @@ jobs:
           if ($parseErrors.Count) { $parseErrors | Format-List; throw 'Schedule installer contains syntax errors.' }
           Write-Host 'WINDOWS_SCHEDULE_SYNTAX_OK'
   repair:
+    environment: live-qa
     needs: [validate, windows-syntax]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     concurrency:
