@@ -36,10 +36,12 @@ try{
         $choices=oel_deal_choices($root,$deals,$mills,$entity,$ref,$today);
         oel_out(['ok'=>true,'choices'=>array_values(array_filter($choices,static fn($choice)=>os_location($user,$choice['millName'])))]);
     }
+    $viewLot=$module==='Exports'&&isset($_GET['lot'])?oel_text($_GET['lot'],160):'';
     if($method==='POST'){
         $multipart=str_starts_with((string)($_SERVER['CONTENT_TYPE']??''),'multipart/form-data');
         $body=$multipart?$_POST:json_decode((string)file_get_contents('php://input'),true,64,JSON_THROW_ON_ERROR);
         if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))oel_out(['ok'=>false,'error'=>'Refresh the page and sign in before saving.'],419);
+        if($viewLot!==''&&($body['lotId']??'')!==$viewLot)throw new DomainException('Open the loading lot you intend to save.');
         $file=[];$validated=null;
         $upload=$_FILES['evidenceUpload']??null;
         if(is_array($upload)&&($upload['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE){
@@ -63,6 +65,7 @@ try{
         $saved=true;
     }else $root=tt_accounts_exports_root();
     $rows=oel_rows($root,$user,$module);
+    if($viewLot!=='')$rows=array_values(array_filter($rows,static fn($row)=>$row['id']===$viewLot));
     if(isset($_GET['evidence'])){
         $id=(string)$_GET['evidence'];
         if(!preg_match('/^outside-[a-f0-9]{32}\.(pdf|png|jpg|webp)$/D',$id))oel_out(['ok'=>false,'error'=>'Evidence is unavailable.'],404);
