@@ -2,6 +2,11 @@
 declare(strict_types=1);
 require dirname(__DIR__,2).'/api/bag_transfer_core.php';
 function bt_check(bool $yes,string $why): void {if(!$yes)throw new RuntimeException($why);}
+function bt_legacy_dispatch_fixture(array $dispatch): array {
+    unset($dispatch['completedOnDispatch']);
+    $dispatch['receipts']=[];
+    return $dispatch;
+}
 function bt_reject(callable $f,string $why): void {try{$f();}catch(DomainException){return;}throw new RuntimeException($why);}
 $now='2026-10-17T13:00:00Z';$sender=['id'=>11,'full_name'=>'Actual sender'];$receiver=['id'=>33,'full_name'=>'Actual receiver'];
 $source=['entity'=>'TTI','locationId'=>'mills-1','millName'=>'TTI Rice Mills'];$destination=['id'=>'mills-2','name'=>'Indus Rice Mill','status'=>'Active'];
@@ -11,12 +16,15 @@ $state=['transfers'=>[],'requests'=>[],'audit'=>[],'purchaseOrders'=>['PO-1'=>['
 $body=['entity'=>'TTI','sourceLocationId'=>'mills-1','destinationId'=>'mills-2','date'=>'2026-10-17','sourceFingerprint'=>$inventory['fingerprint'],'allocations'=>[['lotId'=>'PO|123','qty'=>100]],'requestKey'=>'dispatch-original-0001'];
 $authorize=static function($entity,$mill,$action){if($entity!=='TTI'||$action!=='Create'||!in_array($mill,['TTI Rice Mills','Indus Rice Mill'],true))throw new DomainException('Scope denied');};
 $out=bt_dispatch($state,$inventory,$destination,$body,$sender,$now,'BT-1',$authorize);$dispatch=$out['record'];$line=$dispatch['lines'][0]['lineId'];
-bt_check($out['status']==='In transit'&&$dispatch['lines'][0]['originBagId']==='123','Dispatch lost its actual source PO');bt_check($dispatch['receipts']===[],'Dispatch invented a destination receipt');
+bt_check($out['status']==='Completed'&&$dispatch['lines'][0]['originBagId']==='123','Completed transfer lost the original PO');
+bt_check(bt_totals($dispatch)[$line]['received']===100&&$dispatch['receipts'][0]['userId']===11,'Destination stock did not post on the original confirmation');
 bt_check(serialize([$inventory,$state['purchaseOrders'],$state['journals']])===$original,'Physical transfer changed PO or financial books');
 $saved=serialize($state);$emptyStock=$inventory;$emptyStock['lots']['PO|123']['availableQty']=0;
 $out=bt_dispatch($state,$emptyStock,$destination,$body,$sender,$now,'DIFFERENT-RETRY-ID',$authorize);bt_check($out['replayed']&&serialize($state)===$saved,'Lost dispatch acknowledgement duplicated stock movement');
 bt_reject(function()use(&$state,$inventory,$destination,$body,$sender,$now,$authorize){$b=$body;$b['allocations'][0]['qty']=20;bt_dispatch($state,$inventory,$destination,$b,$sender,$now,'BT-2',$authorize);},'Same request identity accepted different quantity');
 $receipt=['entity'=>'TTI','transferId'=>'BT-1','date'=>'2026-10-17','allocations'=>[['lineId'=>$line,'qty'=>70]],'requestKey'=>'receipt-partial-0001'];
+bt_reject(fn()=>bt_receive($state,$receipt,$receiver,$now,$authorize),'Completed transfer accepted a second receipt');
+$state['transfers']['BT-1']=bt_legacy_dispatch_fixture($dispatch);
 $out=bt_receive($state,$receipt,$receiver,$now,$authorize);bt_check(bt_totals($out['record'])[$line]['inTransit']===30,'Partial receipt closed the remaining quantity');bt_check($out['record']['receipts'][0]['userId']===33,'Receiver actor was replaced by sender');
 $paid=serialize($state);$over=$receipt;$over['requestKey']='receipt-overflow-0001';$over['allocations'][0]['qty']=31;bt_reject(fn()=>bt_receive($state,$over,$receiver,$now,$authorize),'Receipt exceeded remaining transit');bt_check(serialize($state)===$paid,'Refused receipt changed state');
 $denied=static function(){throw new DomainException('Assigned destination denied');};$wrong=$receipt;$wrong['requestKey']='receipt-other-mill-0001';bt_reject(fn()=>bt_receive($state,$wrong,$receiver,$now,$denied),'Location restriction bypassed');
@@ -37,6 +45,7 @@ echo "PASS physical bag transfer source identity/whole quantities, explicit mult
 
 $heldState=['transfers'=>[]];$b=$body;$b['requestKey']='quarantine-dispatch-01';$now2='2026-10-18T13:00:00Z';
 $dispatch=bt_dispatch($heldState,$inventory,$destination,$b,$sender,$now2,'BT-HELD',$authorize)['record'];$line=$dispatch['lines'][0]['lineId'];
+$heldState['transfers']['BT-HELD']=bt_legacy_dispatch_fixture($dispatch);
 $held=['entity'=>'TTI','action'=>'quarantine','transferId'=>'BT-HELD','date'=>'2026-10-18','reason'=>'Damaged delivery held at destination','requestKey'=>'quarantine-hold-001','allocations'=>[['lineId'=>$line,'qty'=>100]]];
 $out=bt_quarantine($heldState,$held,$receiver,$now2,$authorize);$tot=bt_totals($out['record'])[$line];bt_check($tot['quarantined']===100&&$tot['inTransit']===0&&$tot['received']===0&&$tot['returned']===0,'Rejected delivery invented available stock or a source return');
 $before=serialize($heldState);bt_check(bt_quarantine($heldState,$held,$receiver,$now2,$authorize)['replayed']&&serialize($heldState)===$before,'Quarantine replay wrote twice');
@@ -75,11 +84,8 @@ $dispatch=bt_dispatch($state,$view,['id'=>'mills-2','name'=>'Al Harmain','status
     'allocations'=>[['lotId'=>'PO|123|mills-1','qty'=>5508]],'requestKey'=>'dispatch-shipment-bags-1',
 ],$sender,$now,'BT-SHIPMENT',$allow)['record'];
 $line=$dispatch['lines'][0]['lineId'];
-bt_check(bsu_candidates($values,$dispatch)===[],'Dispatched bags became eligible before physical acceptance');
-$accepted=bt_receive($state,[
-    'entity'=>'TTI','transferId'=>$dispatch['id'],'date'=>'2026-10-04','allocations'=>[['lineId'=>$line,'qty'=>5508]],'requestKey'=>'receive-shipment-bags-1',
-],$receiver,$now,$allow)['record'];
-$matches=bsu_candidates($values,$accepted);
+bt_check(bsu_candidates($values,bt_legacy_dispatch_fixture($dispatch))===[],'Legacy unreceived dispatch became eligible');
+$matches=bsu_candidates($values,$dispatch);
 bt_check(count($matches)===1&&$matches[0]['packedQty']===5400&&$matches[0]['plannedEmptyQty']===108,'Packed actuals and planned spares did not match');
 $request=['entity'=>'TTI','transferId'=>$dispatch['id'],'lineId'=>$line,'shipmentId'=>'shipment-13','fingerprint'=>bt_hash($matches[0]),
     'emptyQty'=>108,'requestKey'=>'confirm-shipment-bags-1'];
@@ -106,10 +112,11 @@ $exmill=['id'=>'mills-2','name'=>'Al Harmain','status'=>'Active','type'=>'Extern
 $autoBody=['entity'=>'TTI','sourceLocationId'=>'mills-1','destinationId'=>'mills-2','date'=>'2026-10-03','sourceFingerprint'=>$view['fingerprint'],
     'allocations'=>[['lotId'=>'PO|123|mills-1','qty'=>5508]],'requestKey'=>'dispatch-to-exmill-auto-1'];
 $auto=bt_dispatch($automatic,$ownedInventory,$exmill,$autoBody,$sender,$now,'BT-AUTOMATIC',$allow);
-bt_check($auto['status']==='Received'&&$auto['record']['receipts'][0]['autoFromDispatch'],'Own-to-Ex-Mill dispatch did not post destination receipt');
+bt_check($auto['status']==='Completed'&&$auto['record']['receipts'][0]['autoFromDispatch'],'Own-to-Ex-Mill dispatch did not post destination receipt');
 bt_check(bt_dispatch($automatic,$ownedInventory,$exmill,$autoBody,$sender,$now,'BT-RETRY',$allow)['replayed'],'Automatic dispatch retry duplicated destination receipt');
 $autoStock=bti_project($values,$masters,$destinationScope,$today,$today,$automatic);
 bt_check(array_sum(array_column($autoStock['lots'],'availableQty'))===5508,'Automatically received stock did not reach the destination');
+$dispatch=bt_legacy_dispatch_fixture($dispatch);
 $legacy=['transfers'=>['BT-SHIPMENT'=>$dispatch],'requests'=>[],'audit'=>[]];
 $complete=['entity'=>'TTI','transferId'=>'BT-SHIPMENT','requestKey'=>'complete-old-dispatch-1'];
 $completed=bt_complete_exmill_dispatch($legacy,$dispatch,$complete,$sender,$now);

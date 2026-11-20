@@ -3,11 +3,43 @@
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),norm=v=>String(v??'').trim().replace(/\s+/g,' ').toLowerCase();
 const dateText=value=>String(value??'').replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3-$2-$1');
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-let root=null,active=null,data=null,sequence=0,busy=false;const drafts=new Map(),currentReceipts=new Map();
+let root=null,active=null,data=null,sequence=0,busy=false,transferView=false;const drafts=new Map(),currentReceipts=new Map();
 function place(entity){
  const mill=typeof currentMill==='undefined'?null:currentMill;if(!mill)throw Error('Select the physical mill first.');
  const matches=(window.TT_MODULE_ACCESS?.masters?.mills??window.TT_MODULE_ACCESS?.workflowSelectors?.locations??[]).filter(row=>norm(row.values?.[0])===norm(mill.name));if(matches.length!==1)throw Error('Resolve this physical mill in Mills & Locations.');
  return {entity,locationId:String(matches[0].id),millName:matches[0].values[0],key:entity+'|'+String(matches[0].id)};
+}
+const ownership=()=>document.querySelector('[name=exportBagOwnership]:checked')?.value||'our';
+const isFellow=lot=>lot.sourceKind==='OTHER_EXPORTER';
+function showAction(transfer,moveFocus=true){
+ if(busy)return;
+ transferView=transfer;
+ for(const [selector,on] of [['[data-export-bags-receive]',!transfer],['[data-export-bags-transfer]',transfer]]){
+  const button=document.querySelector(selector);
+  button?.setAttribute('aria-pressed',String(on));
+  button?.classList.toggle('sel',on);
+ }
+ for(const [id,owner] of [['ourExportBags','our'],['otherExporterBags','other']]){
+  const receipt=document.getElementById(id);
+  if(receipt)receipt.hidden=transfer||ownership()!==owner;
+ }
+ if(transfer)void open(undefined,moveFocus);
+ else{
+  if(root)root.hidden=true;
+  if(ownership()==='other')void window.TT_OTHER_EXPORTER_BAGS?.open();
+ }
+}
+function mountActions(){
+ const anchor=document.querySelector('#newbags [name=exportBagOwnership]')?.closest('fieldset');
+ if(!anchor)return;
+ const actions=document.createElement('div');
+ actions.className='toggle';
+ actions.setAttribute('role','group');
+ actions.setAttribute('aria-label','Export bag action');
+ actions.innerHTML='<button type="button" data-export-bags-receive class="sel" aria-pressed="true">Receive Bags</button><button type="button" data-export-bags-transfer aria-pressed="false">Transfer Empty Bags</button>';
+ actions.firstElementChild.onclick=()=>showAction(false);
+ actions.lastElementChild.onclick=()=>showAction(true);
+ anchor.after(actions);
 }
 const pendingKey=scope=>'tt_ui_bag_pending_'+window.TT_MODULE_ACCESS?.userId+'_'+scope.entity+'_'+scope.locationId;
 const q=selector=>root?.querySelector(selector),message=text=>{if(q('[data-transfer-message]'))q('[data-transfer-message]').textContent=text;};
@@ -15,12 +47,14 @@ function quantities(selector){return Object.fromEntries([...(root?.querySelector
 function remember(){if(!active||!root||!q('[data-transfer-date]'))return;drafts.set(active.key,{date:q('[data-transfer-date]').value,brand:q('[data-transfer-brand]').value,destination:q('[data-transfer-destination]').value,source:quantities('[data-source-lot]'),ack:q('[data-ack-id]')?{id:q('[data-ack-id]').value,action:q('[data-ack-action]').value,date:q('[data-ack-date]').value,reason:q('[data-ack-reason]').value,accepted:!!q('[data-accepted-inspection]')?.checked,quantities:quantities('[data-ack-line]')}:null});}
 function build(scope){
  root?.remove();root=document.createElement('section');root.id='acknowledgedBagTransfers';root.className='card';
- root.innerHTML='<h3>Transfer bags</h3><div data-transfer-pending></div><fieldset data-dispatch-fields disabled><div class="r3"><label>Brand<select data-transfer-brand><option value="">Choose brand</option></select></label><label>From<input readonly data-transfer-location></label><label>To<select data-transfer-destination><option value="">Choose destination</option></select></label><label>Date<input type="date" data-transfer-date></label><label>Bags<input inputmode="numeric" data-transfer-quantity></label><div data-transfer-stock role="status"></div></div><div class="actions"><button type="button" class="ok" data-dispatch-bags disabled>Dispatch bags</button></div></fieldset><button type="button" class="sec" data-transfer-refresh>Refresh stock</button><p role="status" data-transfer-message></p><div data-transfer-ack></div><h4>Transfer history</h4><div style="max-width:100%;overflow:auto" data-transfer-history></div>';
- (document.getElementById('ourExportBags')||document.getElementById('newbags'))?.append(root);
+ root.innerHTML='<h3>Transfer Empty Bags</h3><div data-transfer-pending></div><fieldset data-dispatch-fields disabled><div class="r3"><label>Brand<select data-transfer-brand><option value="">Choose brand</option></select></label><label>From<input readonly data-transfer-location></label><label>To<select data-transfer-destination><option value="">Choose destination</option></select></label><label>Date<input type="date" data-transfer-date></label><label>Bags<input inputmode="numeric" data-transfer-quantity></label><div data-transfer-stock role="status"></div></div><div class="actions"><button type="button" class="ok" data-dispatch-bags disabled>Confirm Transfer</button></div></fieldset><button type="button" class="sec" data-transfer-refresh>Refresh stock</button><p role="status" data-transfer-message></p><div data-transfer-ack></div><details><summary>Recent transfers</summary><div style="max-width:100%;overflow:auto" data-transfer-history></div></details>';
+ (document.getElementById('newbags')||document.getElementById('ourExportBags'))?.append(root);
  q('[data-transfer-location]').value=scope.millName;q('[data-transfer-date]').value=drafts.get(scope.key)?.date||today();
  q('[data-transfer-refresh]').onclick=()=>void refresh();
  q('[data-transfer-date]').onchange=()=>{updateDispatch();message('Refresh stock for the selected date.');};
  q('[data-transfer-brand]').onchange=()=>selectStockLot();
+ q('[data-transfer-destination]').onchange=updateDispatch;
+ q('[data-transfer-quantity]').oninput=updateDispatch;
  q('[data-dispatch-bags]').onclick=()=>void dispatch();return root;
 }
 function pending(){
@@ -30,8 +64,10 @@ function pending(){
  node.querySelector('button').onclick=()=>void send(intent.body,true);if(intent.editable){const discard=document.createElement('button');discard.type='button';discard.className='sec';discard.textContent='Discard refused request';discard.onclick=()=>{localStorage.removeItem(pendingKey(active));pending();message('Refused request discarded. Your current entry is retained.');};node.append(discard);}
 }
 function updateDispatch(){
- const selected=q('[data-transfer-brand]').value;
- q('[data-dispatch-bags]').disabled=!data?.canCreate||!selected||data.inventory.asOfDate!==q('[data-transfer-date]').value;
+ const lot=data?.inventory?.lots?.[q('[data-transfer-brand]').value],qty=Number(q('[data-transfer-quantity]').value);
+ const available=lot?.committableQty??lot?.availableQty,validQty=Number.isSafeInteger(qty)&&qty>0&&qty<=available;
+ if(lot)q('[data-transfer-stock]').textContent=available.toLocaleString()+' bags available'+(validQty?' · '+(available-qty).toLocaleString()+' left after transfer':'');
+ q('[data-dispatch-bags]').disabled=!data?.canCreate||!lot||!q('[data-transfer-destination]').value||!validQty||data.inventory.asOfDate!==q('[data-transfer-date]').value;
 }
 function selectStockLot(saved={}){
  const id=q('[data-transfer-brand]').value,lot=data.inventory.lots?.[id],input=q('[data-transfer-quantity]');
@@ -43,11 +79,10 @@ function selectStockLot(saved={}){
 function renderStock(saved={}){
  const lots=Object.values(data.inventory.lots||{}).filter(lot=>{
   const available=lot.committableQty??lot.availableQty;
-  return lot.sourceKind!=='OTHER_EXPORTER'&&!lot.hold&&Number.isSafeInteger(available)&&available>0;
+  return isFellow(lot)===(active.ownership==='other')&&!lot.hold&&Number.isSafeInteger(available)&&available>0;
  });
  const brand=q('[data-transfer-brand]'),priorBrand=brand.value||drafts.get(active.key)?.brand;
- const duplicate=new Map();lots.forEach(lot=>duplicate.set(lot.brand,(duplicate.get(lot.brand)||0)+1));
- brand.replaceChildren(new Option('Choose brand',''),...lots.map(lot=>new Option([lot.brand,...(duplicate.get(lot.brand)>1?[lot.packingSize,lot.poNo,lot.poLineKey]:[])].filter(Boolean).join(' · '),lot.id)));
+ brand.replaceChildren(new Option('Choose brand',''),...lots.map(lot=>new Option([lot.brand,lot.packingSize,lot.externalOwnerName,lot.sodaReference||lot.poNo,lot.poLineKey,lot.isTransferStock?lot.id.split('|')[1]:null].filter(Boolean).join(' · '),lot.id)));
  if(lots.some(lot=>lot.id===priorBrand))brand.value=priorBrand;else if(lots.length===1)brand.value=lots[0].id;
  q('[data-dispatch-fields]').disabled=false;
  brand.disabled=!lots.length;
@@ -62,7 +97,7 @@ function history(){
  const usage=record=>(record.shipmentBagUsage||[]).map(row=>'<p>'+esc(row.lotRef)+' · '+esc(row.packedQty)+' packed · '+esc(row.emptyQty)+' shipped empty</p>').join('')+(record.shipmentCandidates||[]).map((row,index)=>'<button type="button" class="sec" data-shipment-transfer="'+esc(record.id)+'" data-shipment-choice="'+index+'">Record bags used · '+esc(row.lotRef)+'</button>').join('');
  const buttons=record=>{const transit=remaining(record),held=remaining(record,'quarantined'),destination=record.canReceiveAtDestination??(data.canCreate&&record.destination.id===active.locationId),source=data.canCreate&&record.source.locationId===active.locationId;
  return (record.canCompleteExMillDispatch?'<button type="button" class="sec" data-complete-exmill="'+esc(record.id)+'">Complete Ex-Mill transfer</button>':'')+(destination&&transit&&!record.canCompleteExMillDispatch?'<button type="button" class="sec" data-receive-transfer="'+esc(record.id)+'">Receive accepted bags</button><button type="button" class="sec" data-hold-transfer="'+esc(record.id)+'">Reject / quarantine delivery</button>':'')+(source&&transit?'<button type="button" class="sec" data-return-transfer="'+esc(record.id)+'">Receive physical return</button>':'')+(destination&&held?'<button type="button" class="sec" data-release-transfer="'+esc(record.id)+'">Accept inspected quarantine</button>':'')+(source&&held?'<button type="button" class="sec" data-held-return="'+esc(record.id)+'">Receive quarantine return</button>':'');};
- const rows=(data.transfers||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+ const rows=(data.transfers||[]).filter(record=>record.lines.some(line=>isFellow(line.sourceSnapshot)===(active.ownership==='other'))).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
  q('[data-transfer-history]').innerHTML=rows.length?'<table><thead><tr><th>Date</th><th>Brand</th><th>Bags</th><th>From</th><th>To</th><th>Status</th></tr></thead><tbody>'+rows.map(record=>{
   const names=[...new Set(record.lines.map(line=>line.sourceSnapshot.brand))];
   const quantity=remaining(record,'dispatched');
@@ -105,7 +140,7 @@ async function refresh(){
  try{
   const next=await readStock(scope,date);
   if(request!==sequence||root!==node)return;if(q('[data-transfer-date]').value!==date){message('Date changed. Review stock again.');return;}
-  if(date===today())currentReceipts.set(scope.key,next.inventory.lots);
+  if(date===today())currentReceipts.set(scope.stockKey,next.inventory.lots);
   const previous=data;
   data=next;
   const counters=result=>Object.values(result?.inventory?.lots||{}).filter(lot=>!lot.isTransferStock&&lot.supplierReceivedQty!=null).map(lot=>[lot.originBagId,lot.supplierReceivedQty]);
@@ -114,15 +149,15 @@ async function refresh(){
  }catch(error){if(request===sequence&&root===node)message(error.message+' Your entry is retained.');}finally{if(request===sequence&&root===node)q('[data-transfer-refresh]').disabled=false;}
 }
 async function open(entity,expanded=true){
- remember();const owner=entity||(typeof stockEntityForView==='function'?stockEntityForView():'TTI');let scope;try{scope=place(owner);}catch(error){if(q('[data-transfer-message]')){message(error.message+' Previous entry retained; select a valid physical mill before continuing.');data=null;}else{if(!root){root=document.createElement('section');root.className='card';(document.getElementById('ourExportBags')||document.getElementById('newbags'))?.append(root);}root.textContent=error.message;}return;}
- if(!active||active.key!==scope.key||!q('[data-transfer-date]')){sequence++;active=scope;data=null;build(scope);}pending();if(expanded)window.TT_FORM_VIEWPORT?.open(root);const refreshed=await refresh();const saved=drafts.get(scope.key)?.ack;if(active?.key===scope.key&&data&&saved&&!q('[data-ack-id]'))ackForm(saved.id,saved.action||(saved.returned?'return_to_source':'receive'),saved);return refreshed;
+ remember();const owner=entity||(typeof stockEntityForView==='function'?stockEntityForView():'TTI');let scope;try{scope=place(owner);scope.stockKey=scope.key;scope.ownership=ownership();scope.key+='|'+scope.ownership;}catch(error){if(q('[data-transfer-message]')){message(error.message+' Previous entry retained; select a valid physical mill before continuing.');data=null;}else{if(!root){root=document.createElement('section');root.className='card';(document.getElementById('newbags')||document.getElementById('ourExportBags'))?.append(root);}root.textContent=error.message;}return;}
+ if(!active||active.key!==scope.key||!q('[data-transfer-date]')){sequence++;active=scope;data=null;build(scope);}root.hidden=false;pending();if(expanded)window.TT_FORM_VIEWPORT?.open(root);const refreshed=await refresh();const saved=drafts.get(scope.key)?.ack;if(active?.key===scope.key&&data&&saved&&!q('[data-ack-id]'))ackForm(saved.id,saved.action||(saved.returned?'return_to_source':'receive'),saved);return refreshed;
 }
 function whole(value){const n=Number(value);if(!String(value).trim()||!Number.isSafeInteger(n)||n<=0)throw Error('Enter positive whole bag quantities.');return n;}
 async function dispatch(){
  try{if(!data?.canCreate)throw Error('New Export Bags Create permission is required.');const date=q('[data-transfer-date]').value;if(data.inventory.asOfDate!==date)throw Error('Review source stock for the dispatch date first.');
   const destination=q('[data-transfer-destination]').value;if(!destination)throw Error('Choose the actual destination mill.');
   const allocations=[];for(const input of root.querySelectorAll('[data-source-lot]')){if(!input.value.trim()||Number(input.value)===0)continue;const qty=whole(input.value),lot=data.inventory.lots[input.dataset.sourceLot];if(!lot||lot.hold||!Number.isSafeInteger(lot.committableQty??lot.availableQty)||qty>(lot.committableQty??lot.availableQty))throw Error('A source lot is held or has insufficient bags. Review stock again.');allocations.push({lotId:lot.id,qty});}
-  if(!allocations.length)throw Error('Enter bags against the actual original source lots.');await send({action:'dispatch',entity:active.entity,sourceLocationId:active.locationId,destinationId:destination,date,sourceFingerprint:data.inventory.fingerprint,allocations});
+  if(!allocations.length)throw Error('Enter bags against the actual original source lots.');await send({action:'dispatch',entity:active.entity,sourceLocationId:active.locationId,destinationId:destination,date,sourceFingerprint:data.inventory.fingerprint,ownership:active.ownership,allocations});
  }catch(error){message(error.message);}
 }
 async function acknowledge(){
@@ -136,7 +171,7 @@ async function acknowledge(){
  }catch(error){message(error.message);}
 }
 async function send(body,recovery=false){
- if(busy)return;const scope={...active},node=root,storageKey=pendingKey(scope);let pendingIntent;try{pendingIntent=JSON.parse(localStorage.getItem(storageKey)||'null');}catch{message('The previous movement retry record needs review.');return;}
+ if(busy)return;const scope={...active},node=root,storageKey=pendingKey(scope);let pendingIntent,savedId;try{pendingIntent=JSON.parse(localStorage.getItem(storageKey)||'null');}catch{message('The previous movement retry record needs review.');return;}
  const ordered=value=>Array.isArray(value)?value.map(ordered):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).filter(key=>key!=='requestKey').sort().map(key=>[key,ordered(value[key])])):value;const compare=value=>JSON.stringify(ordered(value));
  if(pendingIntent?.editable&&!recovery){pendingIntent={body:{...body,requestKey:pendingIntent.body.requestKey}};}if(pendingIntent&&!recovery&&compare(pendingIntent.body)!==compare(body)){pending();message('Confirm the previous movement using its recovery control. Your current entry is retained.');return;}
  const intent=pendingIntent||{body:{...body,requestKey:crypto.randomUUID()}};try{localStorage.setItem(storageKey,JSON.stringify(intent));}catch{message('The movement retry identity could not be retained. No request was sent.');return;}
@@ -146,19 +181,18 @@ async function send(body,recovery=false){
   if(!response.ok||!saved.ok){if([403,422].includes(response.status)){intent.editable=true;localStorage.setItem(storageKey,JSON.stringify(intent));}throw Error(saved.error||'The bag movement was not confirmed.');}const record=saved.movement?.record;
   if(!record?.id||record.entity!==intent.body.entity||(intent.body.transferId&&record.id!==intent.body.transferId)||(intent.body.action==='dispatch'&&(record.source?.locationId!==intent.body.sourceLocationId||record.destination?.id!==intent.body.destinationId)))throw Error('The acknowledgement did not identify this movement. Confirm the same request.');
   if(intent.body.action==='shipment_usage'&&!(record.shipmentBagUsage||[]).some(row=>row.shipmentId===intent.body.shipmentId&&row.lineId===intent.body.lineId&&row.emptyQty===intent.body.emptyQty))throw Error('The confirmed shipment usage could not be matched. Retry the same request.');
-  acknowledged=true;localStorage.removeItem(storageKey);if(root!==node||active.key!==scope.key)return;pending();
+  acknowledged=true;savedId=record.id;localStorage.removeItem(storageKey);if(root!==node||active.key!==scope.key)return;pending();
   if(!recovery){if(intent.body.action==='dispatch'){root.querySelectorAll('[data-source-lot]').forEach(input=>input.value='');q('[data-transfer-destination]').value='';drafts.delete(scope.key);updateDispatch();}else q('[data-transfer-ack]').replaceChildren();}
   message('Movement '+record.id+' saved.'+(recovery?' Your current entry is retained.':''));
  }catch(error){if(root===node){message(error.message+' Your entry is retained; confirm the same movement before recording another.');pending();}}
  finally{busy=false;node.inert=wasInert;if(!acknowledged&&focus?.isConnected)focus.focus({preventScroll:true});}
- if(acknowledged&&root===node&&active.key===scope.key){await refresh();message('Movement '+(intent.body.transferId||'dispatch')+' saved. '+(q('[data-transfer-message]').textContent.includes('retained')?'Stock refresh could not be confirmed; your current entry is retained.':'Confirmed stock refreshed.'));}
+ if(acknowledged&&root===node&&active.key===scope.key){await refresh();message((intent.body.action==='dispatch'?'Transfer ':'Movement ')+savedId+(intent.body.action==='dispatch'?' completed. ':' saved. ')+(q('[data-transfer-message]').textContent.includes('retained')?'Stock refresh could not be confirmed; your current entry is retained.':'Confirmed stock refreshed.'));}
 }
 async function loadCurrentReceipts(){
  const scope=place(typeof stockEntityForView==='function'?stockEntityForView():'TTI');
- if(await open(scope.entity,false)&&q('[data-transfer-date]').value===today())return true;
- if(q('[data-transfer-date]')?.value===today())return false;
  const next=await readStock(scope,today());
  currentReceipts.set(scope.key,next.inventory.lots);
+ if(typeof currentBagOrder!=='undefined'&&currentBagOrder==null&&typeof renderBagOrders==='function'&&norm(currentMill?.name)===norm(scope.millName)&&stockEntityForView()===scope.entity)renderBagOrders();
  return true;
 }
 function receiptQuantity(order){
@@ -168,4 +202,8 @@ function receiptQuantity(order){
   return lot?.poNo===order.poNo&&lot?.poLineKey===order.poLineKey?lot.supplierReceivedQty:null;
  }catch{return null;}
 }
-window.TT_BAG_TRANSFERS={open,refresh,whole,receiptQuantity,loadCurrentReceipts,showStockError:error=>message(error.message)};})();
+window.TT_BAG_TRANSFERS={open,refresh,whole,receiptQuantity,loadCurrentReceipts,showStockError:error=>message(error.message),
+ ownershipChanged:()=>showAction(transferView,false),isTransferView:()=>transferView};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mountActions);
+else mountActions();
+})();

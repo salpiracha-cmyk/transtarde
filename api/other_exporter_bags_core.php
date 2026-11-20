@@ -70,11 +70,13 @@ function oeb_receive(array &$values,array &$state,array $masters,array $books,ar
 /** Explain every original brand; closed history remains stock history, never new demand. */
 function oeb_choices(array $values,array $inventory,array $books,array $scope): array {
     $exports=json_decode($values['transtrade_export_v3_operational']??'{}',true,512,JSON_THROW_ON_ERROR);$orders=bti_rows($values,'tt30bags');$choices=[];$diagnostics=[];
+    $lotsByOrigin=[];
+    foreach($inventory['lots'] as $lot)$lotsByOrigin[$lot['originBagId']][]=$lot;
     foreach($orders as $order){
         $reasons=[];$id=(string)($order['id']??'');
         // The inventory has already enforced canonical company/location identity.
-        $lot=null;foreach($inventory['lots'] as $candidate)if(($candidate['originBagId']??'')===$id){$lot=$candidate;break;}
-        if(!$lot)$reasons[]='Outside this company/mill or unverified source';
+        $lots=$lotsByOrigin[$id]??[];
+        if(!$lots)continue;
         $closed=false;
         if(($order['sourceKind']??'')==='OTHER_EXPORTER'){$d=$books['exporterDeals'][$order['exporterDealId']??'']??[];$closed=!$d||!oeb_active($d,(array)$exports);}
         else{
@@ -84,10 +86,13 @@ function oeb_choices(array $values,array $inventory,array $books,array $scope): 
             foreach((array)($exports['shipments']??[]) as $s)if(($order['ref']??'')!==''&&in_array($order['ref'],[$s['id']??null,$s['ref']??null],true))$closed=$closed||!empty($s['completed'])||(bool)preg_match('/^(closed|completed|cancelled)$/i',(string)($s['status']??''));
         }
         if($closed)$reasons[]='Completed/closed order — historical stock only';
-        if($lot&&(!is_int($lot['committableQty'])||$lot['committableQty']<=0))$reasons[]=$lot['hold']?:'No available received bags';
-        if(!$reasons&&$lot)$choices[]=['brand'=>$lot['brand'],'packingKg'=>$lot['packingKg'],'lotId'=>$lot['id'],'available'=>$lot['committableQty'],'exporterDealId'=>$order['exporterDealId']??'','contractRef'=>$order['contractRef']??'','owner'=>$order['externalOwnerName']??$scope['entity']];
-        // Return diagnostics only for the requested company/location; never leak other books.
-        if($lot)$diagnostics[]=['brand'=>$lot['brand'],'sourceId'=>$id,'reference'=>($order['sourceKind']??'')==='OTHER_EXPORTER'?($order['externalOwnerName']??'Fellow exporter'):(($order['poNo']??'')?:'Bag receipt'),'owner'=>$order['externalOwnerName']??$scope['entity'],'received'=>$lot['receivedQty'],'used'=>$lot['issuedQty'],'remaining'=>$lot['balanceBeforeUnallocated'],'reason'=>implode('. ',$reasons)?:'Available for production'];
+        foreach($lots as $lot){
+            $lotReasons=$reasons;
+            if(!is_int($lot['committableQty'])||$lot['committableQty']<=0)$lotReasons[]=$lot['hold']?:'No available received bags';
+            if(!$lotReasons)$choices[]=['brand'=>$lot['brand'],'packingKg'=>$lot['packingKg'],'lotId'=>$lot['id'],'available'=>$lot['committableQty'],'exporterDealId'=>$order['exporterDealId']??'','contractRef'=>$order['contractRef']??'','owner'=>$order['externalOwnerName']??$scope['entity']];
+            // Return diagnostics only for the requested company/location; never leak other books.
+            $diagnostics[]=['brand'=>$lot['brand'],'sourceId'=>$id,'reference'=>($order['sourceKind']??'')==='OTHER_EXPORTER'?($order['externalOwnerName']??'Fellow exporter'):(($order['poNo']??'')?:'Bag receipt'),'owner'=>$order['externalOwnerName']??$scope['entity'],'received'=>$lot['receivedQty'],'used'=>$lot['issuedQty'],'remaining'=>$lot['balanceBeforeUnallocated'],'reason'=>implode('. ',$lotReasons)?:'Available for production'];
+        }
     }
     return ['choices'=>$choices,'diagnostics'=>$diagnostics];
 }
@@ -97,8 +102,12 @@ function oeb_production_orders(array $values,array $books,array $scope,string $d
     $root=json_decode($values['transtrade_export_v3_operational']??'{}',true,512,JSON_THROW_ON_ERROR);$rows=[];
     $closed=static fn($r)=>!empty($r['completed'])||!empty($r['closed'])||(bool)preg_match('/^(closed|completed)$/i',(string)($r['status']??''));
     $active=static fn($r)=>empty($r['cancelled'])&&!preg_match('/^(cancelled|deleted)$/i',(string)($r['status']??''))&&!$closed($r)&&($r['date']??'')<=$date;
+    $transferredDeals=[];
+    foreach($inventory['lots']??[] as $lot){
+        if(!empty($lot['isTransferStock'])&&($lot['committableQty']??0)>0&&!empty($lot['exporterDealId']))$transferredDeals[$lot['exporterDealId']]=true;
+    }
     foreach((array)($books['exporterDeals']??[]) as $d){if(($d['direction']??'')!=='SALE'||($d['entity']??'')!==$scope['entity']||!oeb_active($d,(array)$root)||!$active($d)||($d['date']??'')>$date||(($d['commodity']??'RICE')!=='RICE'))continue;
-        if(!empty($d['productionMillName'])&&bti_norm($d['productionMillName'])!==bti_norm($scope['millName']))continue;
+        if(!empty($d['productionMillName'])&&bti_norm($d['productionMillName'])!==bti_norm($scope['millName'])&&!isset($transferredDeals[$d['id']]))continue;
         $rows[]=['orderId'=>'FELLOW|'.$d['id'],'sourceKind'=>'FELLOW','historicalClosed'=>$closed($d),'sourceId'=>$d['id'],'entity'=>$scope['entity'],'party'=>(string)($d['party']??''),'brand'=>(string)($d['brand']??''),'quantityMT'=>$d['quantityMT']??null,'product'=>(string)($d['product']??''),'reference'=>(string)($d['reference']??''),'fullSpecification'=>(string)($d['fullSpecification']??''),'specificationMode'=>(string)($d['specificationMode']??'BRIEF'),'productionVariety'=>(string)($d['productionVariety']??''),'productionStockName'=>(string)($d['productionStockName']??''),'packing'=>(string)($d['packing']??''),'contractRef'=>'','bagResponsibility'=>ba_physical_responsibility($d),'ready'=>!empty($d['productionReady']),'version'=>(int)($d['version']??0)];
     }
     $customers=[];foreach((array)($root['customers']??[]) as $c)$customers[(string)($c['id']??'')]=(string)($c['name']??'');

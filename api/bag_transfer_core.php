@@ -47,6 +47,7 @@ function bt_totals(array $transfer): array {
 }
 function bt_status(array $transfer): string {
     $rows=bt_totals($transfer);$pending=array_sum(array_column($rows,'inTransit'));$received=array_sum(array_column($rows,'received'));$returned=array_sum(array_column($rows,'returned'));$held=array_sum(array_column($rows,'quarantined'));
+    if(!empty($transfer['completedOnDispatch']))return 'Completed';
     if($held>0)return $pending>0?'Partly acknowledged — bags in transit and quarantine':'Quarantined — inspection or physical return pending';
     return $pending>0?($received||$returned?'Partly received / returned — balance in transit':'In transit'):($returned?($received?'Closed — received and returned':'Returned to source'):'Received');
 }
@@ -59,13 +60,13 @@ function bt_commit_request(array &$state,array $request,array $record,string $ac
     $state['requests'][$request['id']]=['fingerprint'=>$request['fingerprint'],'transferId'=>$record['id'],'action'=>$action,'at'=>$now]+$request['actor'];
     $state['audit'][]=['transferId'=>$record['id'],'action'=>$action,'at'=>$now]+$request['actor'];
 }
-/** An owned mill's confirmed dispatch to an outside mill posts both sides of the transfer. */
-function bt_record_exmill_receipt(array $record,array $actor,string $now): array {
+/** Post destination stock using the same receipt projection as historical transfers. */
+function bt_record_dispatch_receipt(array $record,array $actor,string $now,bool $legacyExMill=false): array {
     $record['receipts'][]=[
-        'id'=>'BTE-'.substr(hash('sha256',$record['id'].'|EXMILL_DISPATCH'),0,24),
+        'id'=>'BTE-'.substr(hash('sha256',$record['id'].($legacyExMill?'|EXMILL_DISPATCH':'|COMPLETED_TRANSFER')),0,24),
         'date'=>$record['date'],
         'lines'=>array_map(static fn($line)=>['lineId'=>$line['lineId'],'qty'=>$line['qty']],$record['lines']),
-        'reason'=>'Automatically received at the Ex-Mill from the confirmed mill dispatch.',
+        'reason'=>$legacyExMill?'Automatically received at the Ex-Mill from the confirmed mill dispatch.':'Destination stock posted on transfer confirmation.',
         'autoFromDispatch'=>true,'at'=>$now,
     ]+$actor;
     bt_totals($record);
@@ -77,7 +78,7 @@ function bt_complete_exmill_dispatch(array &$state,array $record,array $body,arr
     $request=bt_request($state,$body,$user,$action);
     if($replay=bt_replay($state,$request))return $replay;
     if(bt_status($record)!=='In transit')throw new DomainException('Only an untouched Ex-Mill dispatch can be completed automatically.');
-    $record=bt_record_exmill_receipt($record,$request['actor'],$now);
+    $record=bt_record_dispatch_receipt($record,$request['actor'],$now,true);
     $state['transfers'][$record['id']]=$record;
     bt_commit_request($state,$request,$record,$action,$now);
     return ['record'=>$record,'status'=>bt_status($record),'replayed'=>false];
@@ -94,23 +95,26 @@ function bt_dispatch(array &$state,array $inventory,array $destination,array $bo
     if($id===''||isset($state['transfers'][$id]))throw new DomainException('A unique transfer identity is required.');
     $date=bt_date((string)($body['date']??''),$now);
     if(($inventory['asOfDate']??'')!==$date||!preg_match('/^[a-f0-9]{64}$/D',(string)($inventory['fingerprint']??''))||!hash_equals((string)($inventory['fingerprint']??''),(string)($body['sourceFingerprint']??'')))throw new DomainException('Source stock changed or was not reviewed for the dispatch date. Review it again.');
-    if(empty($destination['id'])||empty($destination['name'])||($destination['status']??'')!=='Active'||(string)$destination['id']===(string)($source['locationId']??''))throw new DomainException('Select another active destination mill from the location master.');
+    if(empty($destination['id'])||empty($destination['name'])||($destination['status']??'')!=='Active'||strcasecmp(trim((string)($destination['type']??'')),'Office')===0||(string)$destination['id']===(string)($source['locationId']??''))throw new DomainException('Select another active destination mill from the location master.');
     if((string)($body['destinationId']??'')!==(string)$destination['id'])throw new DomainException('The reviewed destination identity changed.');
     $allocations=$body['allocations']??null;if(!is_array($allocations)||!array_is_list($allocations)||!$allocations)throw new DomainException('Select actual source bag lots and quantities.');
+    $ownership=(string)($body['ownership']??'');
+    if(!in_array($ownership,['','our','other'],true))throw new DomainException('Select the stock ownership for the transfer.');
     $lines=[];$seen=[];
     foreach($allocations as $a){
         $lotId=(string)($a['lotId']??'');if($lotId===''||isset($seen[$lotId]))throw new DomainException('Select each actual source lot once.');$seen[$lotId]=true;
         $lot=$inventory['lots'][$lotId]??null;if(!is_array($lot)||($lot['entity']??'')!==$entity||($lot['locationId']??'')!==($source['locationId']??''))throw new DomainException('The source lot does not belong to this company and mill.');
-        if(($lot['sourceKind']??'')==='OTHER_EXPORTER')throw new DomainException('Other exporter custody bags stay against their instructed SODA and physical mill.');
+        $fellow=($lot['sourceKind']??'')==='OTHER_EXPORTER';
+        if($ownership!==''&&$ownership!==($fellow?'other':'our'))throw new DomainException('This lot belongs to the other bag ownership choice.');
+        if($fellow&&(empty($lot['exporterDealId'])||empty($lot['externalOwnerId'])))throw new DomainException('Resolve the original fellow exporter and SODA before transferring these bags.');
         if(!empty($lot['hold'])||empty($lot['originBagId'])||empty($lot['skuKey']))throw new DomainException('Resolve the source lot identity, specifications or unallocated consumption before dispatch.');
         $qty=bt_qty($a['qty']??null);if(!isset($lot['availableQty'])||!is_int($lot['availableQty'])||($lot['committableQty']??$lot['availableQty'])<$qty)throw new DomainException('Insufficient verified source bags in the selected lot.');
         $lineId='BTL-'.substr(hash('sha256',$id.'|'.$lotId),0,24);
         $lines[]=['lineId'=>$lineId,'sourceLotId'=>$lotId,'originBagId'=>(string)$lot['originBagId'],'qty'=>$qty,'sourceSnapshot'=>array_intersect_key($lot,array_flip(['originBagId','poNo','poLineKey','contractRef','brand','packingSize','bagType','skuKey','entity','locationId','millName','sourceKind','exporterDealId','externalOwnerId','externalOwnerName','stockOwnerType','sodaReference']))];
     }
     $record=['id'=>$id,'entity'=>$entity,'date'=>$date,'source'=>$source,'destination'=>array_intersect_key($destination,array_flip(['id','name'])),'sourceFingerprint'=>$inventory['fingerprint'],'lines'=>$lines,'receipts'=>[],'returns'=>[],'createdAt'=>$now,'createdBy'=>$request['actor']];
-    if(strcasecmp(trim((string)($source['type']??'')),'Own Mill')===0&&strcasecmp(trim((string)($destination['type']??'')),'External Mill')===0){
-        $record=bt_record_exmill_receipt($record,$request['actor'],$now);
-    }
+    $record['completedOnDispatch']=true;
+    $record=bt_record_dispatch_receipt($record,$request['actor'],$now);
     $state['transfers'][$id]=$record;bt_commit_request($state,$request,$record,'DISPATCH',$now);
     return ['record'=>$record,'status'=>bt_status($record),'replayed'=>false];
 }
