@@ -20,6 +20,7 @@ function tt_require_login(){return ['id'=>($_GET['mode']??'')==='target'?8:7,'fu
 function tt_user_can_open_module($u,$m){return ($_GET['mode']??'')!=='no-mill';}
 function tt_user_can_module_action($u,$m,$i,$a){return ($_GET['mode']??'')!=='read'||$a==='View';}
 function tt_user_can_access_entity($u,$entity,$action){return ($_GET['mode']??'')!=='company'||$entity==='BRM';}
+function tt_user_can_master($u,$type,$action){return ($_GET['mode']??'')==='master'&&$type==='mills'&&$action==='Create';}
 function tt_verify_csrf($v){return $v==='fixture';}
 function tt_release_read_session(){}
 function tt_accounts_input(){return $GLOBALS['fixtureBody'];}
@@ -52,6 +53,13 @@ else{$out=['values'=>[],'meta'=>[]];foreach($p->query('SELECT storage_key,payloa
     before=snapshot();status,view=req();assert status==200,view;inventory=view['inventory'];lot='PO|123|mills-1';assert inventory['lots'][lot]['availableQty']==100
     assert snapshot()==before and books.read_bytes()==financial,'GET changed operational or financial stores'
     assert req(mode='read')[1]['canCreate'] is False
+    assert req()[1]['canAddDestination'] is False
+    assert req(mode='master')[1]['canAddDestination'] is True
+    add=dict(csrf='fixture',action='add_destination',entity='TTI',sourceLocationId='mills-1',name='HKM Warehouse',type='Warehouse')
+    assert req(add)[0]==403 and req(add,mode='other')[0]==403 and req(add,mode='read')[0]==403
+    assert req(dict(add,csrf='wrong'),mode='master')[0]==419
+    assert req(dict(add,type='Office'),mode='master')[0]==422
+
     assert req(mode='other')[0]==403 and req(mode='company')[0]==403 and req(mode='no-mill')[0]==403
     body=dict(csrf='fixture',action='dispatch',entity='TTI',sourceLocationId='mills-1',destinationId='mills-2',date=inventory['asOfDate'],sourceFingerprint=inventory['fingerprint'],requestKey='actual-dispatch-0001',allocations=[dict(lotId=lot,qty=10)])
     assert req(body,mode='read')[0]==403 and req(dict(body,csrf='wrong'))[0]==419 and req(body,mode='company')[0]==403

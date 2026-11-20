@@ -10,6 +10,7 @@ function place(entity){
  return {entity,locationId:String(matches[0].id),millName:matches[0].values[0],key:entity+'|'+String(matches[0].id)};
 }
 const ownership=()=>document.querySelector('[name=exportBagOwnership]:checked')?.value||'our';
+const ADD_DESTINATION='__add_destination__';
 const isFellow=lot=>lot.sourceKind==='OTHER_EXPORTER';
 function showAction(transfer,moveFocus=true){
  if(busy)return;
@@ -47,13 +48,30 @@ function quantities(selector){return Object.fromEntries([...(root?.querySelector
 function remember(){if(!active||!root||!q('[data-transfer-date]'))return;drafts.set(active.key,{date:q('[data-transfer-date]').value,brand:q('[data-transfer-brand]').value,destination:q('[data-transfer-destination]').value,source:quantities('[data-source-lot]'),ack:q('[data-ack-id]')?{id:q('[data-ack-id]').value,action:q('[data-ack-action]').value,date:q('[data-ack-date]').value,reason:q('[data-ack-reason]').value,accepted:!!q('[data-accepted-inspection]')?.checked,quantities:quantities('[data-ack-line]')}:null});}
 function build(scope){
  root?.remove();root=document.createElement('section');root.id='acknowledgedBagTransfers';root.className='card';
- root.innerHTML='<h3>Transfer Empty Bags</h3><div data-transfer-pending></div><fieldset data-dispatch-fields disabled><div class="r3"><label>Brand<select data-transfer-brand><option value="">Choose brand</option></select></label><label>From<input readonly data-transfer-location></label><label>To<select data-transfer-destination><option value="">Choose destination</option></select></label><label>Date<input type="date" data-transfer-date></label><label>Bags<input inputmode="numeric" data-transfer-quantity></label><div data-transfer-stock role="status"></div></div><div class="actions"><button type="button" class="ok" data-dispatch-bags disabled>Confirm Transfer</button></div></fieldset><button type="button" class="sec" data-transfer-refresh>Refresh stock</button><p role="status" data-transfer-message></p><div data-transfer-ack></div><details><summary>Recent transfers</summary><div style="max-width:100%;overflow:auto" data-transfer-history></div></details>';
+ root.innerHTML='<h3>Transfer Empty Bags</h3><div data-transfer-pending></div><fieldset data-dispatch-fields disabled><div class="r3"><label>Brand<select data-transfer-brand><option value="">Choose brand</option></select></label><label>From<input readonly data-transfer-location></label><label>To<select data-transfer-destination><option value="">Choose destination</option></select></label><label>Date<input type="date" data-transfer-date></label><label>Bags<input inputmode="numeric" data-transfer-quantity></label><div data-transfer-stock role="status"></div></div><div class="actions"><button type="button" class="ok" data-dispatch-bags disabled>Confirm Transfer</button></div></fieldset><form data-new-destination hidden><h4>Add destination</h4><div class="r3"><label>Physical location name<input data-destination-name maxlength="160" required></label><label>Location type<select data-destination-type required><option value="">Choose type</option><option>Warehouse</option><option>External Mill</option><option>Stock Location</option></select></label></div><div class="actions"><button type="submit" class="ok">Save destination</button><button type="button" class="sec" data-close-destination>Cancel</button></div><p role="status" data-destination-error></p></form><button type="button" class="sec" data-transfer-refresh>Refresh stock</button><p role="status" data-transfer-message></p><div data-transfer-ack></div><details><summary>Recent transfers</summary><div style="max-width:100%;overflow:auto" data-transfer-history></div></details>';
  (document.getElementById('newbags')||document.getElementById('ourExportBags'))?.append(root);
  q('[data-transfer-location]').value=scope.millName;q('[data-transfer-date]').value=drafts.get(scope.key)?.date||today();
  q('[data-transfer-refresh]').onclick=()=>void refresh();
  q('[data-transfer-date]').onchange=()=>{updateDispatch();message('Refresh stock for the selected date.');};
  q('[data-transfer-brand]').onchange=()=>selectStockLot();
- q('[data-transfer-destination]').onchange=updateDispatch;
+ const destination=q('[data-transfer-destination]'),editor=q('[data-new-destination]');
+ destination.onchange=()=>{
+  if(destination.value===ADD_DESTINATION){
+   destination.value=destination.dataset.selected||'';
+   if(data?.canAddDestination){
+    editor.hidden=false;
+    window.TT_FORM_VIEWPORT?.open(editor);
+    q('[data-destination-name]').focus({preventScroll:true});
+   }
+  }
+  updateDispatch();
+ };
+ editor.onsubmit=event=>{event.preventDefault();void addDestination();};
+ q('[data-close-destination]').onclick=()=>{
+  editor.hidden=true;
+  destination.focus({preventScroll:true});
+  updateDispatch();
+ };
  q('[data-transfer-quantity]').oninput=updateDispatch;
  q('[data-dispatch-bags]').onclick=()=>void dispatch();return root;
 }
@@ -66,8 +84,10 @@ function pending(){
 function updateDispatch(){
  const lot=data?.inventory?.lots?.[q('[data-transfer-brand]').value],qty=Number(q('[data-transfer-quantity]').value);
  const available=lot?.committableQty??lot?.availableQty,validQty=Number.isSafeInteger(qty)&&qty>0&&qty<=available;
+ const destination=q('[data-transfer-destination]');
+ destination.dataset.selected=destination.value;
  if(lot)q('[data-transfer-stock]').textContent=available.toLocaleString()+' bags available'+(validQty?' · '+(available-qty).toLocaleString()+' left after transfer':'');
- q('[data-dispatch-bags]').disabled=!data?.canCreate||!lot||!q('[data-transfer-destination]').value||!validQty||data.inventory.asOfDate!==q('[data-transfer-date]').value;
+ q('[data-dispatch-bags]').disabled=!data?.canCreate||!lot||!destination.value||destination.value===ADD_DESTINATION||!q('[data-new-destination]').hidden||!validQty||data.inventory.asOfDate!==q('[data-transfer-date]').value;
 }
 function selectStockLot(saved={}){
  const id=q('[data-transfer-brand]').value,lot=data.inventory.lots?.[id],input=q('[data-transfer-quantity]');
@@ -86,10 +106,48 @@ function renderStock(saved={}){
  if(lots.some(lot=>lot.id===priorBrand))brand.value=priorBrand;else if(lots.length===1)brand.value=lots[0].id;
  q('[data-dispatch-fields]').disabled=false;
  brand.disabled=!lots.length;
- const destination=q('[data-transfer-destination]'),prior=destination.value||drafts.get(active.key)?.destination||'';
- destination.replaceChildren(new Option('Choose destination',''),...(data.destinations||[]).map(row=>new Option(row.name,row.id)));
- if([...destination.options].some(option=>option.value===prior))destination.value=prior;
+ renderDestinations(q('[data-transfer-destination]').value||drafts.get(active.key)?.destination||'');
  selectStockLot(saved);
+}
+function renderDestinations(selected){
+ const destination=q('[data-transfer-destination]');
+ destination.replaceChildren(new Option('Choose destination',''),...(data.destinations||[]).map(row=>new Option(row.name,row.id)));
+ if(data.canAddDestination)destination.add(new Option('+ Add destination',ADD_DESTINATION));
+ if([...destination.options].some(option=>option.value===selected))destination.value=selected;
+}
+async function addDestination(){
+ if(busy||!data?.canAddDestination)return;
+ const node=root,scope=active,editor=q('[data-new-destination]');
+ const name=q('[data-destination-name]').value.trim(),type=q('[data-destination-type]').value;
+ if(!name){q('[data-destination-error]').textContent='Enter a physical location name.';return;}
+ busy=true;
+ sequence++;
+ q('[data-transfer-refresh]').disabled=false;
+ const previousInert=node.inert;
+ node.inert=true;
+ q('[data-destination-error]').textContent='';
+ try{
+  const response=await fetch('/api/bag_transfers.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({
+   action:'add_destination',csrf:window.TT_MODULE_ACCESS?.csrf,entity:scope.entity,sourceLocationId:scope.locationId,name,type
+  })});
+  const saved=await response.json(),place=saved.destination;
+  if(!response.ok||!saved.ok||!place?.id||!place?.name)throw Error(saved.error||'Destination could not be saved. Try the same location again.');
+  if(root!==node||active!==scope)return;
+  data.destinations=[...(data.destinations||[]).filter(row=>row.id!==place.id),place];
+  renderDestinations(place.id);
+  editor.reset();
+  editor.hidden=true;
+  message('Destination selected. Confirm Transfer when ready.');
+ }catch(error){
+  if(root===node&&active===scope)q('[data-destination-error]').textContent=error.message;
+ }finally{
+  busy=false;
+  node.inert=previousInert;
+  if(root===node&&active===scope){
+   updateDispatch();
+   (editor.hidden?q('[data-transfer-destination]'):q('[data-destination-name]')).focus({preventScroll:true});
+  }
+ }
 }
 function remaining(record,bucket='inTransit'){return Object.values(record.quantities||{}).reduce((n,line)=>n+Number(line[bucket]||0),0);}
 function history(){
@@ -155,7 +213,7 @@ async function open(entity,expanded=true){
 function whole(value){const n=Number(value);if(!String(value).trim()||!Number.isSafeInteger(n)||n<=0)throw Error('Enter positive whole bag quantities.');return n;}
 async function dispatch(){
  try{if(!data?.canCreate)throw Error('New Export Bags Create permission is required.');const date=q('[data-transfer-date]').value;if(data.inventory.asOfDate!==date)throw Error('Review source stock for the dispatch date first.');
-  const destination=q('[data-transfer-destination]').value;if(!destination)throw Error('Choose the actual destination mill.');
+  const destination=q('[data-transfer-destination]').value;if(!destination||destination===ADD_DESTINATION||!q('[data-new-destination]').hidden)throw Error('Choose the actual transfer destination.');
   const allocations=[];for(const input of root.querySelectorAll('[data-source-lot]')){if(!input.value.trim()||Number(input.value)===0)continue;const qty=whole(input.value),lot=data.inventory.lots[input.dataset.sourceLot];if(!lot||lot.hold||!Number.isSafeInteger(lot.committableQty??lot.availableQty)||qty>(lot.committableQty??lot.availableQty))throw Error('A source lot is held or has insufficient bags. Review stock again.');allocations.push({lotId:lot.id,qty});}
   if(!allocations.length)throw Error('Enter bags against the actual original source lots.');await send({action:'dispatch',entity:active.entity,sourceLocationId:active.locationId,destinationId:destination,date,sourceFingerprint:data.inventory.fingerprint,ownership:active.ownership,allocations});
  }catch(error){message(error.message);}
