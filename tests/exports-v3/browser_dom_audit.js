@@ -2,7 +2,7 @@ const fs=require('fs');
 const assert=require('assert');
 const {JSDOM,VirtualConsole}=require('jsdom');
 let app=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-app=app.replace('mount();',`window.__DOM_AUDIT__={openFI:openFIModal,state,makeShipment,makeLotRecord,render,openShipment,openContract,openFIAllocation,persistContractStepDraft,saveContract,commercialPaymentLabel,contractPaymentSectionText,getState:()=>state,setContractDraft:value=>contractDraft=value,getContractDraft:()=>contractDraft,setContractStep:value=>contractStep=value,showHome:()=>{contractDraft=null;view='home';render()},contractSpecRows,defaultDocsFor,millLocations,registerMillLocation};mount();`);
+app=app.replace('mount();',`window.__DOM_AUDIT__={openFI:openFIModal,state,makeShipment,makeLotRecord,render,openShipment,openContract,openFIAllocation,persistContractStepDraft,saveContract,commercialPaymentLabel,contractPaymentSectionText,getState:()=>state,setContractDraft:value=>contractDraft=value,getContractDraft:()=>contractDraft,setContractStep:value=>contractStep=value,showHome:()=>{contractDraft=null;view='home';render()},contractSpecRows,defaultDocsFor,millLocations,registerMillLocation,millActualsIssues};mount();`);
 const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');
 const html=`<!doctype html><html><head><style>${css}</style></head><body><div id="app"></div><div id="printRoot"></div></body></html>`;
 const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));
@@ -364,10 +364,10 @@ w.fetch=async(url,options)=>{
   assert.equal(fields.get('dealId'),'S-1');
   assert.equal(fields.get('bags'),'1080');
   assert.equal(fields.get('netKg'),'27000');
-  assert.equal(fields.get('seal'),'SEAL-1');
+  for(const optional of ['seal','truck','evidence'])assert.equal(fields.get(optional),'');
   outsideContainerPosts++;
-  outsideRow.actuals.push({number:fields.get('number'),seal:fields.get('seal'),bags:1080,netKg:27000,grossKg:Number(fields.get('grossKg')),location:outsideRow.site});
-  outsideRow.assignment={route:'EXPORTS',assigneeId:7,version:1};
+  outsideRow.actuals.push({number:fields.get('number'),seal:fields.get('seal'),outsideDealId:'S-1',bags:1080,netKg:27000,grossKg:Number(fields.get('grossKg')),location:outsideRow.site});
+  outsideRow.assignment={route:'EXPORTS',assigneeId:7,version:1,dealId:'S-1'};
   outsideRow.complete=fields.get('confirmComplete')==='yes';
  }
  loadingRefreshes++;
@@ -400,21 +400,21 @@ set(inline.elements.number,'TEST1234567');
 d.querySelector('#oelRefresh').click();
 await new Promise(resolve=>setImmediate(resolve));
 assert.equal(d.querySelector('#oelActual').elements.number.value,'TEST1234567','Reading the same loading preserves the container entry');
-set(inline.elements.seal,'SEAL-1');
-inline.dispatchEvent(new w.Event('submit',{cancelable:true}));
+assert.ok(inline.checkValidity(),'Blank seal, truck and loading reference do not block Exports container entry');
+inline.requestSubmit();
 await new Promise(resolve=>setImmediate(resolve));
 assert.equal(outsideContainerPosts,1);
 assert.equal(d.querySelector('#blVessel').value,'MV KEEP THIS DRAFT');
 assert.ok(d.querySelector('#saveBL').disabled);
 inline=d.querySelector('#oelActual');
 assert.equal(inline.elements.netKg.value,'27000');
-outsideRow.actuals.push({number:'TEST1234568',seal:'SEAL-2',bags:1080,netKg:27000,grossKg:27050,location:outsideRow.site});
+outsideRow.actuals.push({number:'TEST1234568',seal:'',outsideDealId:'S-1',bags:1080,netKg:27000,grossKg:27050,location:outsideRow.site});
 outsideRow.complete=true;
 w.TT_SHARED_SYNC.refresh=async options=>{
  assert.equal(options.outsideLoadingLot,outsideLot.id);
  assert.ok(options.stillOpen());
  const root=structuredClone(t.getState());
- Object.assign(root.shipments.find(lot=>lot.id===outsideLot.id),{millLoadingCompleted:true,millActuals:outsideRow.actuals});
+ Object.assign(root.shipments.find(lot=>lot.id===outsideLot.id),{millLoadingCompleted:true,millActuals:outsideRow.actuals,outsideLoading:outsideRow.assignment});
  return {values:{transtrade_export_v3_operational:JSON.stringify(root)}};
 };
 d.querySelector('#oelRefresh').click();
@@ -426,6 +426,11 @@ assert.match(d.querySelector('[data-bl-container-section]').textContent,/TEST123
 assert.match(d.querySelector('.lotPreviewPaper').textContent,/TEST1234568/);
 assert.equal(d.querySelector('#blVessel').value,'MV KEEP THIS DRAFT');
 assert.equal(d.querySelector('#blDesc').value,'Keep the edited goods description');
+const confirmedOutside=t.getState().shipments.find(lot=>lot.id===outsideLot.id);
+assert.equal(t.millActualsIssues(confirmedOutside).length,0,'Confirmed Exports SODA containers may have blank seals');
+assert.match(t.millActualsIssues({...confirmedOutside,outsideLoading:{...confirmedOutside.outsideLoading,route:'MILL'}}).join(' '),/seal number/,'Mill loading still requires seals');
+assert.match(t.millActualsIssues({...confirmedOutside,millActuals:confirmedOutside.millActuals.map((row,index)=>index?row:{...row,outsideDealId:'different-deal'})}).join(' '),/seal number/,'The exemption is restricted to the linked SODA');
+
 
 assert.equal(errors.length,0,errors.join('\n'));
 console.log('PASS browser DOM audit: clean home, hover summary, accordion, every process/lot tile, Production and multi-source Loading');

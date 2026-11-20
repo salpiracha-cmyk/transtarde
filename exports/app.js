@@ -813,7 +813,9 @@ function millActualsIssues(s){
  if(s?.loadingPlan?.outsideDirect&&!s.millLoadingCompleted)issues.push('Outside loading confirmation is pending');
  if(expected<=0)issues.push('loading plan container count is missing');
  if(rows.length!==expected)issues.push(`${rows.length}/${expected} mill loading row(s) received`);
- const missingNumbers=rows.filter(x=>!String(x.number||x.container||x.containerNo||'').trim()).length,invalidNumbers=numbers.filter(x=>x&&!CONTAINER_RE.test(x)).length,missingSeals=rows.filter(x=>!String(x.seal||'').trim()).length,duplicates=numbers.filter((x,i)=>x&&numbers.indexOf(x)!==i);
+ const missingNumbers=rows.filter(x=>!String(x.number||x.container||x.containerNo||'').trim()).length,invalidNumbers=numbers.filter(x=>x&&!CONTAINER_RE.test(x)).length,duplicates=numbers.filter((x,i)=>x&&numbers.indexOf(x)!==i);
+ const exportsOutsideDeal=s?.loadingPlan?.outsideDirect&&s.outsideLoading?.route==='EXPORTS'?s.outsideLoading.dealId:null;
+ const missingSeals=rows.filter(row=>!String(row.seal||'').trim()&&(!exportsOutsideDeal||row.outsideDealId!==exportsOutsideDeal)).length;
  if(missingNumbers)issues.push(`${missingNumbers} container number(s) missing`);
  if(invalidNumbers)issues.push(`${invalidNumbers} invalid container number(s)`);
  if(new Set(duplicates).size)issues.push(`${new Set(duplicates).size} duplicate container number(s)`);

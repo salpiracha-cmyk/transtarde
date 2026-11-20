@@ -62,8 +62,12 @@ try{
 ok(oel_deal_choices($reserved,['D1'=>array_replace($eligible,['quantityMT'=>27])],['M1'=>'Khan Rice Mills, Punjab'],'TTI','AMT',$today)===[],'Fully reserved SODAs are excluded');
 reject(fn()=>oel_change($reserved,$export,'Exports',$assign+['route'=>'EXPORTS'],['D1'=>array_replace($eligible,['outsideMillId'=>'M2'])],$today),'The lot cannot substitute a different mill at assignment');
 
-$automatic=oel_change($root,$export,'Exports',array_replace($actual,['version'=>0,'dealId'=>'D1','confirmComplete'=>'yes']),$deals,$today);
+$documentEntry=array_diff_key($actual,array_flip(['seal','truck','evidence']));
+$automatic=oel_change($root,$export,'Exports',array_replace($documentEntry,['version'=>0,'dealId'=>'D1','confirmComplete'=>'yes']),$deals,$today);
 ok($automatic['shipments'][0]['outsideLoading']['assigneeId']===1&&count($automatic['shipments'][0]['millActuals'])===1&&$automatic['shipments'][0]['millLoadingCompleted'],'Saving the final Exports container links the SODA and confirms loading in one mutation');
+$savedContainer=$automatic['shipments'][0]['millActuals'][0];
+ok($savedContainer['seal']===''&&$savedContainer['truck']===''&&$savedContainer['evidence']===''&&$savedContainer['outsideDealId']==='D1','Exports can confirm the linked container with the three optional fields blank');
+reject(fn()=>oel_change($root,$export,'Exports',array_replace($documentEntry,['version'=>0,'dealId'=>'D1','netKg'=>0]),$deals,$today),'Exports still requires valid weights');
 $draft=dt_confirmed_outside_contributions($deal,dt_lots($automatic,'TTI'),$today);
 ok(count($draft['loadings'])===1&&$draft['loadings'][0]['quantityMT']===27.&&$draft['loadings'][0]['supplierGoodsCostPKR']===null,'Confirmed B/L weights create one draft liability without guessing rice cost');
 ok(count(dt_confirmed_outside_contributions($draft,dt_lots($automatic,'TTI'),$today)['loadings'])===1,'Repeated views keep one draft liability');
@@ -73,6 +77,7 @@ $onSite=oel_change($root,$export,'Exports',$assign+['route'=>'MILL','assigneeId'
 ok(oel_rows($onSite,array_replace($mill,['id'=>3]),'Mill')===[],'Unassigned Mill users have no access');
 reject(fn()=>oel_change($onSite,$export,'Exports',$actual,$deals,$today),'Exports cannot write the assigned Mill load');
 reject(fn()=>oel_change($onSite,$mill,'Mill',$actual,$deals,$today),'Mill inspection cannot be omitted');
+reject(fn()=>oel_change($onSite,$mill,'Mill',$documentEntry+['inspection'=>'Broken 4.8%, moisture 13%','qualityAccepted'=>'yes'],$deals,$today),'On-site Mill entry still requires the truck, seal and loading reference');
 $onSite=oel_change($onSite,$mill,'Mill',$actual+['inspection'=>'Broken 4.8%, moisture 13%','qualityAccepted'=>'yes'],$deals,$today);
 ok($onSite['shipments'][0]['millActuals'][0]['enteredBy']==='Inspector','On-site inspector is recorded');
 $root=oel_change($root,$export,'Exports',$assign+['route'=>'EXPORTS'],$deals,$today);

@@ -165,8 +165,10 @@ function oel_change(array $root,array $user,string $module,array $body,array $de
         $bags=filter_var($body['bags']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1,'max_range'=>100000]]);
         $net=$body['netKg']??null;$gross=$body['grossKg']??null;
         if(!$bags||!is_numeric($net)||!is_numeric($gross)||!is_finite((float)$net)||!is_finite((float)$gross)||
-            (float)$net<.001||(float)$gross<(float)$net||(float)$gross>100000||$seal===''||$truck===''||$evidence===''||
-            ($module==='Mill'&&($inspection===''||($body['qualityAccepted']??'')!=='yes')))throw new DomainException('Complete truck, seal, bags, net and gross weights, evidence and any required inspection.');
+            (float)$net<.001||(float)$gross<(float)$net||(float)$gross>100000)throw new DomainException('Enter the bag count and valid net and gross weights.');
+        if($module==='Mill'&&($seal===''||$truck===''||$evidence===''||$inspection===''||($body['qualityAccepted']??'')!=='yes')){
+            throw new DomainException('Complete the truck, seal, loading reference and required inspection.');
+        }
         $existing=null;
         foreach($root['shipments'] as $other){
             if(!empty($other['cancelled']))continue;
