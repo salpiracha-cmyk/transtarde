@@ -1006,7 +1006,7 @@ let purchaseSodaFeed=[];
 function selectedPurchaseProduct(display=window.qVariety?.value||''){display=String(display);return ttMasterValues('purchase_products').map(v=>{let legacy=/^(RAW|READY|FINISHED)$/i.test(String(v[2]||'')),commodity=String(v[0]||'').toUpperCase(),base=String(v[1]||''),type=legacy?'':String(v[2]||''),stage=String(legacy?v[2]:v[3]||'').toUpperCase();return{commodity,baseVariety:base,riceType:type,brokenGrade:legacy?'':String(v[10]||''),productStage:stage,displayName:[base,type,legacy?'':String(v[10]||''),stage==='RAW'?'Raw Rice':stage==='READY'?'Ready Rice':''].filter(Boolean).join(' ')}}).find(x=>x.displayName===display)||null}
 function arrivalUsesApprovedKat(){let product=selectedPurchaseProduct();return !!product&&product.productStage==='RAW'&&/\bIRRI[\s-]?6\b/i.test(String(product.baseVariety||''))||!!product&&product.productStage==='READY'&&purchaseSodaFeed.some(s=>s.readyRoute==='DELIVER_TO_STOCK'&&sodaForCurrentMill(s)&&String(s.baseVariety||'').toLowerCase()===String(product.baseVariety||'').toLowerCase()&&String(s.riceType||'').toLowerCase()===String(product.riceType||'').toLowerCase()&&String(s.brokenGrade||'').toLowerCase()===String(product.brokenGrade||'').toLowerCase())}
 function toggleArrivalKats(){const approved=arrivalUsesApprovedKat(),d=arrivalDefaults();document.getElementById('brokenKatWrap')?.classList.toggle('hidden',!approved);if(!approved&&window.qBrokenKat)qBrokenKat.value='';[['moistKatWrap','qMoisture','moisture','qMoistureKat'],['damageKatWrap','qDamage','damage','qDamageKat'],['chalkyKatWrap','qChalky','chalky','qChalkyKat'],['paddyKatWrap','qPaddy','paddy','qPaddyKat']].forEach(([w,i,k,kat])=>{document.getElementById(w)?.classList.toggle('hidden',!approved||+(document.getElementById(i)?.value||0)<=d[k]);if(!approved){const input=document.getElementById(kat);if(input)input.value=''}});}
-function masterBrokerNames(){return ttMasterValues('business_parties').filter(v=>String(v[2]||'').split(';').map(x=>x.trim()).includes('Broker')&&!/inactive/i.test(String(v[10]||''))).map(v=>String(v[0]||'').trim()).filter(Boolean)}
+function masterBrokerNames(){return ttMasterValues('business_parties').filter(v=>String(v[2]||'').split(/[;,/|]/).some(role=>role.trim().toLowerCase()==='broker')&&!/inactive/i.test(String(v[10]||''))).map(v=>String(v[0]||'').trim()).filter(Boolean)}
 function millLocationIdentity(value){
  const name=String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
  return name==='ttiricemill'?'ttiricemills':name;
@@ -1101,11 +1101,30 @@ async function savePhysicalStockConfirmation(stockName,physicalKg,source={}){
 }
 
 function defaultMills(){return [{id:1,name:'TTI Rice Mills',type:'Own / Default'}]}
-function renderMillCards(){let mills=get(STORE_MILLS,defaultMills()),extra=mills.filter(m=>m.id!==1);millCards.innerHTML=`<div class="mill-card" onclick="chooseMill(1)"><div class="big">🏭</div><b>TTI Rice Mills</b><small>Own / Default</small></div><div class="mill-card" onclick="openExMillWorkspace()"><div class="big">🚚</div><b>Ex-Mill</b><small>Outside finished-rice locations</small></div>`+extra.map(m=>`<div class="mill-card" onclick="chooseMill(${Number(m.id)||0})"><div class="big">🏭</div><b>${escHtml(m.name)}</b><small>${escHtml(m.type)}</small></div>`).join('')+`<div class="add-card" onclick="addMillPrompt()"><div class="big">＋</div><b>Add Mill</b><small>External processing / reprocessing mill</small></div>`}
+function selectableMills(){
+ const saved=get(STORE_MILLS,defaultMills()), selectors=window.TT_MODULE_ACCESS?.workflowSelectors, catalog=selectors?.millLanding;
+ if(!Array.isArray(catalog))return saved;
+ const entity=selectors.millLandingDefaultEntity;
+ const byId=new Map(catalog.map(row=>[row.masterId,row]));
+ const byName=new Map(catalog.map(row=>[millLocationIdentity(row.name),row]));
+ const linked=new Set();
+ const mills=saved.flatMap(row=>{
+  const master=byId.get(row.masterId)||byName.get(millLocationIdentity(row.name));
+  if(!master)return [row];
+  if(!master.selectable||linked.has(master.masterId))return [];
+  linked.add(master.masterId);
+  return [{...row,masterId:master.masterId,name:master.name,type:row.id===1?row.type:master.type}];
+ });
+ for(const {selectable,...master} of catalog){
+  if(entity&&selectable&&!linked.has(master.masterId))mills.push({...master,entity});
+ }
+ return mills;
+}
+function renderMillCards(){let mills=selectableMills(),extra=mills.filter(m=>m.id!==1);millCards.innerHTML=(mills.some(m=>m.id===1)?`<div class="mill-card" onclick="chooseMill(1)"><div class="big">🏭</div><b>TTI Rice Mills</b><small>Own / Default</small></div>`:'')+`<div class="mill-card" onclick="openExMillWorkspace()"><div class="big">🚚</div><b>Ex-Mill</b><small>Outside finished-rice locations</small></div>`+extra.map(m=>`<div class="mill-card" onclick="chooseMill(${Number(m.id)||0})"><div class="big">🏭</div><b>${escHtml(m.name)}</b><small>${escHtml(m.type)}</small></div>`).join('')+`<div class="add-card" onclick="addMillPrompt()"><div class="big">＋</div><b>Add Mill</b><small>External processing / reprocessing mill</small></div>`}
 function openExMillWorkspace(){currentMill={id:'EXMILL',name:'Ex-Mill',type:'Outside Finished Rice'};millHeader.textContent='Working Area: Ex-Mill';openPanel('exmill')}
 function isReprocessingMill(){return !!currentMill&&/reprocess|external.*(?:milling|processing)/i.test(String(currentMill.type||''))}
 function renderHomeForCurrentMill(){let re=isReprocessingMill();document.querySelectorAll('[data-home-role="own-expense"]').forEach(x=>x.classList.toggle('hidden',re));document.querySelectorAll('[data-home-role="reprocess-bill"]').forEach(x=>x.classList.toggle('hidden',!re))}
-function chooseMill(id){let m=get(STORE_MILLS,defaultMills()).find(x=>x.id===id);if(!m)return;const exMillName=exMillInstructions().find(x=>String(x.mill||'').trim().toLowerCase()===String(m.name||'').trim().toLowerCase())?.mill;if(exMillName){openExMillWorkspace();selectExMill(exMillName);return}if(window.TT_ARRIVAL_DEVICE_GUARD?.switchMill(m)===false)return;if(currentMill?.id!==m.id)currentBagOrder=null;currentMill=m;millHeader.textContent='Working Mill: '+m.name;homeTitle.textContent=m.name;openPanel('home')}
+function chooseMill(id){let m=selectableMills().find(x=>x.id===id);if(!m)return;const exMillName=exMillInstructions().find(x=>String(x.mill||'').trim().toLowerCase()===String(m.name||'').trim().toLowerCase())?.mill;if(exMillName){openExMillWorkspace();selectExMill(exMillName);return}if(window.TT_ARRIVAL_DEVICE_GUARD?.switchMill(m)===false)return;if(currentMill?.id!==m.id)currentBagOrder=null;currentMill=m;millHeader.textContent='Working Mill: '+m.name;homeTitle.textContent=m.name;openPanel('home')}
 async function syncLocationMaster(name,type,source){
  const access=window.TT_MODULE_ACCESS||{};if(!access.csrf)throw new Error('Session expired. Refresh before adding a mill.');
  const response=await fetch('api/location-master.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,name,type,source})});
@@ -1120,7 +1139,7 @@ async function addMillPrompt(){
   const master=await syncLocationMaster(name.trim(),'Reprocessing Mill','Milling mill selector');
   const mills=get(STORE_MILLS,defaultMills()),canonical=String(master.values?.[0]||name).trim();
   let existing=mills.find(row=>String(row.masterId||'')===String(master.id)||String(row.name||'').trim().toLowerCase()===canonical.toLowerCase());
-  if(existing){existing.masterId=master.id;existing.name=canonical;}else mills.push({id:Date.now(),masterId:master.id,name:canonical,type:'External Milling / Processing'});
+  if(existing){existing.masterId=master.id;existing.name=canonical;}else mills.push({id:master.millRuntimeId||Date.now(),masterId:master.id,name:canonical,type:'External Milling / Processing'});
   set(STORE_MILLS,mills);await window.TT_SHARED_SYNC?.saveNow?.();renderMillCards();
  }catch(error){alert(error.message||'Mill was not saved. Retry the same name.');}
 }
@@ -1628,7 +1647,7 @@ visible.forEach(x=>{let issued=bagIssuedQty(x.brand),trans=bagTransferredQty(x),
 <label><input id="inlineKeepReceiptOpen" type="checkbox" ${x.keepReceiptOpen?'checked':''}> Keep PO open for remaining bags</label>
 </div>
 <div id="inlineActualTareWrap" class="r3 hidden"><label>Actual tare weight (g)<input id="inlineActualTare" inputmode="decimal"></label></div>
-<label class="bag-receipt-remarks">Remarks (optional)<textarea id="inlineBagRemarks" maxlength="1000" rows="2"></textarea></label><div class="actions"><button class="sec" onclick="window.TT_BAG_RECEIPTS?.reviewSelected()">Review receipt history / quarantine</button><button class="sec" onclick="saveBagReceiptStatus(event)">Save PO open / close choice</button><button class="ok" onclick="receiveBagsInline(event)">Bags Received</button></div>${bagReceiptHistoryHtml(x.id,x.received)}</td></tr>`:''}`});let brands=[...new Set(scoped.filter(x=>bagAvailableQty(x)>0).map(x=>x.brand))];transferBrand.innerHTML='<option value="">Select Brand</option>'+brands.map(b=>`<option>${escHtml(b)}</option>`).join('');let mills=get(STORE_MILLS,defaultMills());millNames.innerHTML=mills.map(m=>`<option value="${escHtml(m.name)}">`).join('')}
+<label class="bag-receipt-remarks">Remarks (optional)<textarea id="inlineBagRemarks" maxlength="1000" rows="2"></textarea></label><div class="actions"><button class="sec" onclick="window.TT_BAG_RECEIPTS?.reviewSelected()">Review receipt history / quarantine</button><button class="sec" onclick="saveBagReceiptStatus(event)">Save PO open / close choice</button><button class="ok" onclick="receiveBagsInline(event)">Bags Received</button></div>${bagReceiptHistoryHtml(x.id,x.received)}</td></tr>`:''}`});let brands=[...new Set(scoped.filter(x=>bagAvailableQty(x)>0).map(x=>x.brand))];transferBrand.innerHTML='<option value="">Select Brand</option>'+brands.map(b=>`<option>${escHtml(b)}</option>`).join('');let mills=selectableMills();millNames.innerHTML=mills.map(m=>`<option value="${escHtml(m.name)}">`).join('')}
 
 function bagOrderReceiptPosition(order){
  const quantity=window.TT_BAG_TRANSFERS?.receiptQuantity?.(order);

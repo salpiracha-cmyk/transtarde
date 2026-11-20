@@ -7,7 +7,7 @@ let data=null,scopeKey='',sequence=0,busy=false,pending=null,choiceData=null,cho
 const $=id=>document.getElementById(id),access=()=>window.TT_MODULE_ACCESS||{};
 function scope(production=false){
  const mill=typeof currentMill==='undefined'?null:currentMill;if(!mill)throw Error('Select the physical mill first.');
- const matches=(access().masters?.mills||[]).filter(r=>norm(r.values?.[0])===norm(mill.name));if(matches.length!==1)throw Error('Resolve the physical mill in Mills & Locations.');
+ const matches=(access().masters?.mills??access().workflowSelectors?.locations??[]).filter(r=>norm(r.values?.[0])===norm(mill.name));if(matches.length!==1)throw Error('Resolve the physical mill in Mills & Locations.');
  return {entity:production?($('prodEntity')?.value||mill.entity):stockEntityForView(),locationId:String(matches[0].id),millName:mill.name};
 }
 const key=s=>s.entity+'|'+s.locationId,storage=s=>'tt_ui_other_bags_'+access().userId+'_'+key(s);

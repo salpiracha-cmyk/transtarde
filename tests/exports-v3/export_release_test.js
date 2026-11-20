@@ -21,7 +21,7 @@ context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 const mutableExportOverrides=source.split('\n').filter(line=>/^[A-Za-z_$][\w$]*\s*=\s*function\s*\(/.test(line)).map(line=>line.match(/^([A-Za-z_$][\w$]*)/)[1]);
 assert.deepEqual(mutableExportOverrides,[],'Export module must not contain mutable function override assignments');
-source=source.replace('mount();','window.__EXPORT_TEST__={addDays,addBankDays,parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,documentsPresented,inspectionDocumentName,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,tgInternalCommercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,actualRows,millActualsComplete,fiGdRows,applyProductMaster,productLabel,productMasters,contractProductMasters,contractProductLabel,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
+source=source.replace('mount();','window.__EXPORT_TEST__={addDays,addBankDays,parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,documentsPresented,inspectionDocumentName,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,tgInternalCommercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,actualRows,millActualsComplete,fiGdRows,applyProductMaster,productLabel,productMasters,contractProductMasters,contractProductOptionsHTML,contractProductLabel,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
 assert.equal(t.addDays('',2),'','Blank contract date must not produce an invalid deadline');
@@ -133,6 +133,16 @@ t.applyProductMaster(basmatiDraft,'BAS-B100');
 assert.equal(basmatiDraft.productIdentityCode,'BAS-B100');
 assert.equal(basmatiDraft.brokenText,'100%');
 assert.ok(basmatiDraft.specRows.some(row=>row.name==='Moisture'&&row.value==='13% max'));
+basmatiBroken[5]='Contract specific – inactive';
+assert.equal(t.contractProductMasters().length,3,'Deactivated profiles leave new Sales Contract choices.');
+assert.doesNotMatch(t.contractProductOptionsHTML(''),/BAS-B100"/);
+assert.match(t.contractProductOptionsHTML('BAS-B100'),/value="BAS-B100" selected disabled>[^<]+\(saved\)/);
+const ownerProducts=window.TT_MODULE_ACCESS.masters.products;
+delete window.TT_MODULE_ACCESS.masters.products;
+window.TT_MODULE_ACCESS.workflowSelectors={products:[{id:'BAS1',values:basmatiWhole}]};
+assert.match(t.contractProductOptionsHTML(''),/BAS-W5/,'The transaction selector works without a Product Master grant.');
+delete window.TT_MODULE_ACCESS.workflowSelectors;
+window.TT_MODULE_ACCESS.masters.products=ownerProducts;
 window.TT_MODULE_ACCESS.masters.products.splice(1);
 assert.equal(t.normalizeBrokenEntry('15 - 20 %'),'15-20');
 assert.ok(t.brokenEntryValid('5%'));
@@ -277,6 +287,18 @@ assert.doesNotMatch(customsPacking,/NAME &amp; ADDRESS|NAME & ADDRESS/);
 const phytoComparable=phytosanitary.replaceAll('PHYTOSANITARY INVOICE','CUSTOMS INVOICE').replace(/<b class="phytoControlNumber">TC NUMBER<\/b><span class="phytoControlNumber"><strong>.*?<\/strong><\/span><b class="phytoControlNumber">EC NUMBER<\/b><span class="phytoControlNumber"><strong>.*?<\/strong><\/span>/,'');
 assert.equal(phytoComparable,customsInvoice,'Phytosanitary must retain the Customs Invoice structure apart from its title and dedicated TC/EC controls');
 
+window.TT_MODULE_ACCESS.masters.export_terms=[
+ {values:['BASE','New Master wording','Active']},
+ {values:['ADVANCE','Additional advance condition','Active']}
+];
+const scanOnly={...c,paymentCode:'ADV_SCAN',advancePct:0,issued:false,terms:[],termsInitialized:false};
+assert.match(t.salesContractPrint(scanOnly),/New Master wording/);
+assert.doesNotMatch(t.salesContractPrint(scanOnly),/Additional advance condition/);
+assert.match(t.salesContractPrint({...scanOnly,advancePct:20}),/Additional advance condition/);
+const issuedSnapshot={...scanOnly,issued:true,termsInitialized:true,terms:['Original issued wording']};
+assert.match(t.salesContractPrint(issuedSnapshot),/Original issued wording/);
+assert.doesNotMatch(t.salesContractPrint(issuedSnapshot),/New Master wording/);
+delete window.TT_MODULE_ACCESS.masters.export_terms;
 const cifContract={...c,incoterm:'CIF',insurance:"Seller's Account",showAllPrices:true,paymentCode:'ADV_CAD',advancePct:30,terms:["Insurance shall be for Buyer’s account."],termsInitialized:true,packings:c.packings.map(p=>({...p,contractRate:425,price:398,freight:25,insurance:2}))};
 const cifOutput=t.salesContractPrint(cifContract);
 assert.match(cifOutput,/USD\. 425\.00 P\/M\/T CIF/);assert.match(cifOutput,/TOTAL CIF VALUE/);

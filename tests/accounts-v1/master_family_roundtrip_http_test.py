@@ -53,6 +53,28 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
             status,data=request(); row=next(r for r in data['masters'][kind] if r['id']==record_id)
             assert row['values'][note_index]=='Amended fixture text',(kind,row)
             assert json.loads(books.read_text())['journals']==original_journals,'Master edits must not post financial entries'
+        mill_values=['Fixture Processing Mill','FIX-MILL','Reprocessing Mill','','','Active','','']
+        status,created_mill=save('mills',mill_values); assert status==200,created_mill
+        mill_id=created_mill['id']
+        def landing_choices():
+            status,body=request('/module.php?id=milling')
+            assert status==200
+            access=json.loads(body.split(b'window.TT_MODULE_ACCESS=',1)[1].split(b';</script>',1)[0])
+            return access['workflowSelectors']['millLanding']
+        mill=next(row for row in landing_choices() if row['masterId']==mill_id)
+        assert mill['selectable'] and mill['type']=='Reprocessing Mill'
+        mill_values[0]='Fixture Processing Mill Renamed'
+        assert save('mills',mill_values,mill_id)[0]==200
+        assert next(row for row in landing_choices() if row['masterId']==mill_id)['id']==mill['id']
+        assert request(body={'action':'delete','type':'mills','id':mill_id})[0]==200
+        assert not next(row for row in landing_choices() if row['masterId']==mill_id)['selectable']
+        assert not any(row['id']==mill_id for row in request('/api/location-master.php')[1]['locations'])
+        existing_code=copy.deepcopy(product); existing_code[1]='Another Fixture Quality'; existing_code[3]='ir6-w5'
+        unchanged_failure('products',existing_code)
+        existing_code[3]='FIXTURE-QUALITY-UNIQUE'
+        status,data=save('products',existing_code); assert status==200,(status,data)
+        existing_code[3]='IR6-W5'
+        unchanged_failure('products',existing_code,data['id'])
         selector='/api/masters.php?selector=export-payment-terms'
         status,data=request(selector)
         assert status==200 and [r['id'] for r in data['rows']]==['ADV_SCAN','ADV_CAD','ADV100','LC_SIGHT','LC_USANCE','CAD100','SCAN100']

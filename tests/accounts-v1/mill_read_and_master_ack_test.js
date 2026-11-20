@@ -23,5 +23,23 @@ const source=fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.h
  context.fetch=async()=>({ok:true,json:async()=>({ok:true,location:{id:'M1',values:['Fixture mill']}})});
  calls.push('Fixture mill','1','Fixture mill','1');await context.addMillPrompt();await context.addMillPrompt();
  assert.equal(values.get('mills').length,1);assert.equal(values.get('mills')[0].masterId,'M1');assert.equal(rendered,2);assert.equal(posted,2,'Only the explicit Add Mill actions commit shared state');
+ const locationStart=source.indexOf('function millLocationIdentity(');
+ vm.runInContext(source.slice(locationStart,source.indexOf('function sodaForCurrentMill',locationStart)),context);
+ const catalogStart=source.indexOf('function selectableMills(');
+ vm.runInContext(source.slice(catalogStart,source.indexOf('function renderMillCards(',catalogStart)),context);
+ const stored=[{id:2,masterId:'M1',name:'Old linked name'},{id:3,name:'Inactive mill'},{id:4,name:'Historical mill'}];
+ values.set('mills',stored);
+ context.window.TT_MODULE_ACCESS.workflowSelectors={millLandingDefaultEntity:'TTI',millLanding:[
+  {id:99,masterId:'M1',name:'Renamed mill',type:'Own Mill',selectable:true},
+  {id:100,masterId:'M2',name:'New processing mill',type:'Reprocessing Mill',selectable:true},
+  {id:101,masterId:'M3',name:'Inactive mill',type:'Own Mill',selectable:false}
+ ]};
+ const eligible=context.selectableMills();
+ assert.equal(eligible.find(row=>row.name==='Renamed mill').id,2);
+ assert.equal(eligible.find(row=>row.name==='New processing mill').id,100);
+ assert.equal(eligible.some(row=>row.name==='Inactive mill'),false);
+ assert.equal(eligible.find(row=>row.name==='Historical mill').id,4);
+ assert.equal(stored[0].name,'Old linked name');
+ assert.equal(posted,2,'Reading canonical location choices never writes operational stock');
  console.log('PASS Soda reads do not save, failed masters do not create local mills, acknowledged canonical IDs persist and retries do not duplicate');
 })().catch(error=>{console.error(error);process.exitCode=1});
