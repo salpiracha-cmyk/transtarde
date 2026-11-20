@@ -148,7 +148,6 @@ def run():
             original_orders=saved_ops['values']['tt30bags'];mill.evaluate("openPanel('newbags')")
             mill.locator('[data-export-bags-transfer]').click()
             mill.locator('[data-source-lot]').wait_for();mill.locator('[data-transfer-date]').fill('2026-10-17')
-            with mill.expect_response(lambda r:'/api/bag_transfers.php?' in r.url):mill.locator('[data-transfer-refresh]').click()
             mill.locator('[data-source-lot]').fill('10');mill.locator('[data-transfer-destination]').select_option('mills-2')
             transfer_blocked=[True];transfer_posts=[]
             def transfer_failure(route):
@@ -167,6 +166,7 @@ def run():
             assert dispatch_response.value.status==200 and dispatch['movement']['replayed'],dispatch
             mill.wait_for_function("!document.querySelector('[data-confirm-pending]')")
             assert len(transfer_posts)==2 and transfer_posts[0]==transfer_posts[1] and (data/'operations.json').read_bytes()==state_after_transfer
+            assert transfer_posts[0]['date']=='2026-10-17'
             transfer=dispatch['movement']['record'];transfer_id=transfer['id'];line_id=transfer['lines'][0]['lineId'];target_lot='BT|'+transfer_id+'|'+line_id
             stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json()
             target=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-2&asOf=2026-10-17').json()
