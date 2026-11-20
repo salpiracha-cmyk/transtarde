@@ -86,6 +86,7 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
   document:{getElementById:id=>id==='issueContract'?button:feedback},
   window:{TT_SHARED_SYNC:{}},validateContractStep:()=>'',contractNeedsPaymentDeadline:()=>false,
   documentsPresented:()=>[],incotermBase:()=> 'FOB',syncDocumentSources(){},paymentText:()=> '100% CAD',
+  effectiveTerms:()=>['Existing agreement retained'],
   customer:()=>({name:'QA Buyer'}),buyerOf:()=>({name:'QA Buyer'}),shipmentModeOf:()=> 'FCL',isBreakBulk:()=>false,
   refreshContractMillHandoffs(){},audit(){},save:()=>JSON.stringify(state),
   confirmSalesContract:async(payload,contract,processId)=>saves.push({payload,contract,processId}),
@@ -96,6 +97,8 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
  assert.equal(await saveAndPrint,false);
  assert.equal(saves[0].processId,'PROCESS-1');
  assert.equal(JSON.parse(saves[0].payload).contracts[0].qty,26);
+ assert.deepEqual(JSON.parse(saves[0].payload).contracts[0].terms,['Existing agreement retained']);
+ assert.equal(JSON.parse(saves[0].payload).contracts[0].termsInitialized,true);
  assert.equal(button.textContent,'PRINT SAVED CONTRACT');
  assert.equal(feedback.hidden,false);
  assert.equal(await button.onclick(),true);
