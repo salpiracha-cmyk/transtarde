@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
 const dom=new JSDOM('<body><div id="newbags"><fieldset><input type="radio" name="exportBagOwnership" value="our" checked><input type="radio" name="exportBagOwnership" value="other"></fieldset><div id="ourExportBags"></div><div id="otherExporterBags" hidden></div></div><input id="otherDraft" value="keep"></body>',{url:'https://fixture.invalid/module.php?id=milling',runScripts:'outside-only'}),w=dom.window;
-w.currentMill={name:'Source Mill',entity:'TTI'};w.stockEntityForView=()=> 'TTI';w.TT_MODULE_ACCESS={userId:7,csrf:'qa-only',masters:{mills:[{id:'M1',values:['Source Mill']},{id:'M2',values:['Destination Mill']}]}};let reads=0,posts=[],mode='success',accepted=0,commits=0,reviewWait=null;const requests=new Map();
+w.currentMill={name:'Source Mill',entity:'TTI'};w.stockEntityForView=()=> 'TTI';w.TT_MODULE_ACCESS={userId:7,csrf:'qa-only',masters:{mills:[{id:'M1',values:['Source Mill']},{id:'M2',values:['Destination Mill']}]}};let reads=0,posts=[],canAdd=false,added=[],mode='success',accepted=0,commits=0,reviewWait=null;const requests=new Map();
 const source={id:'PO|B1|M1',poNo:'PO-1',poLineKey:'L1',brand:'ASAS',packingSize:'50 kg',packingKg:50,bagType:'PP',availableQty:100,committableQty:100,balanceBeforeUnallocated:100,hold:''};
 const unavailable={
  'zero':{...source,id:'zero',brand:'ZERO STOCK',availableQty:0,committableQty:0},
@@ -11,8 +11,14 @@ const unavailable={
 const record={id:'BT-1',entity:'TTI',date:'2026-10-17',source:{locationId:'M1',millName:'Source Mill'},destination:{id:'M2',name:'Destination Mill'},lines:[{lineId:'L1',originBagId:'B1',sourceSnapshot:{poNo:'PO-1',brand:'ASAS',packingSize:'50 kg'}}],quantities:{L1:{dispatched:10,received:0,returned:0,inTransit:10}}};
 const response=(ok,body,status=ok?200:422)=>({ok,status,json:async()=>structuredClone(body)});
 w.fetch=async(url,options={})=>{
- if(!options.method){reads++;if(reviewWait)await reviewWait;const query=new URL(url,w.location.href).searchParams,id=query.get('locationId');return response(true,{ok:true,entity:query.get('entity'),locationId:id,canCreate:true,destinations:[{id:id==='M1'?'M2':'M1',name:id==='M1'?'Destination Mill':'Source Mill'}],inventory:{asOfDate:query.get('asOf'),fingerprint:'a'.repeat(64),lots:id==='M1'?{[source.id]:source,...unavailable}:unavailable,warnings:[]},transfers:[record]});}
- const body=JSON.parse(options.body);posts.push(body);assert.equal(body.csrf,'qa-only');if(mode==='refuse'){return response(false,{ok:false,error:'Review committed source stock again.'});}
+ if(!options.method){reads++;if(reviewWait)await reviewWait;const query=new URL(url,w.location.href).searchParams,id=query.get('locationId');return response(true,{ok:true,entity:query.get('entity'),locationId:id,canCreate:true,canAddDestination:canAdd,destinations:[{id:id==='M1'?'M2':'M1',name:id==='M1'?'Destination Mill':'Source Mill'},...added],inventory:{asOfDate:query.get('asOf'),fingerprint:'a'.repeat(64),lots:id==='M1'?{[source.id]:source,...unavailable}:unavailable,warnings:[]},transfers:[record]});}
+ const body=JSON.parse(options.body);posts.push(body);assert.equal(body.csrf,'qa-only');
+ if(body.action==='add_destination'){
+  assert.equal(body.sourceLocationId,'M1');
+  if(mode==='refuse')return response(false,{ok:false,error:'Select the existing location.'});
+  const row={id:'HKM',name:body.name};
+  added=[row];return response(true,{ok:true,destination:row});
+ }if(mode==='refuse'){return response(false,{ok:false,error:'Review committed source stock again.'});}
  if(mode==='network'){throw Error('Connection unavailable');}
  if(!requests.has(body.requestKey)){requests.set(body.requestKey,structuredClone(body));commits++;if(body.action==='receive'){accepted+=body.allocations.reduce((n,a)=>n+a.qty,0);record.quantities.L1.received=accepted;record.quantities.L1.inTransit=10-accepted;}if(body.action==='quarantine'){record.quantities.L1.inTransit-=body.allocations[0].qty;record.quantities.L1.quarantined=(record.quantities.L1.quarantined||0)+body.allocations[0].qty;}if(body.action==='accept_quarantine'){record.quantities.L1.received+=body.allocations[0].qty;record.quantities.L1.quarantined-=body.allocations[0].qty;}if(body.action==='return_quarantine'){record.quantities.L1.returned+=body.allocations[0].qty;record.quantities.L1.quarantined-=body.allocations[0].qty;}}
  else assert.deepEqual(body,requests.get(body.requestKey),'Retry changed the original movement facts');
@@ -60,6 +66,23 @@ w.eval(fs.readFileSync('accounts/bag-transfers-ui.js','utf8'));const api=w.TT_BA
  assert.match(q('[data-transfer-stock]').textContent,/80 left after transfer/);
  submit();await tick();
  assert.equal(posts.at(-1).ownership,'other');assert.equal(posts.at(-1).allocations[0].lotId,'external');
+ assert(!q('[value=__add_destination__]'));
+ canAdd=true;await api.refresh();
+ const select=q('[data-transfer-destination]'),editor=q('[data-new-destination]');
+ select.value='M2';select.dispatchEvent(new w.Event('change'));
+ qty().value='15';qty().dispatchEvent(new w.Event('input'));
+ select.value='__add_destination__';select.dispatchEvent(new w.Event('change'));
+ assert(!editor.hidden&&select.value==='M2'&&q('[data-dispatch-bags]').disabled);
+ q('[data-destination-name]').value='HKM Warehouse';q('[data-destination-type]').value='Warehouse';
+ const beforeAdd=commits;
+ mode='refuse';editor.dispatchEvent(new w.Event('submit',{cancelable:true}));await tick();
+ assert.match(q('[data-destination-error]').textContent,/existing location/);
+ assert.equal(q('[data-destination-name]').value,'HKM Warehouse');
+ mode='success';editor.dispatchEvent(new w.Event('submit',{cancelable:true}));await tick();
+ assert.equal(select.value,'HKM');assert.equal(qty().value,'15');assert(editor.hidden);
+ assert.equal(commits,beforeAdd,'Saving the destination must not perform a stock transfer');
+ await api.refresh();
+ assert.equal(select.value,'HKM');assert.equal(qty().value,'15');
  q('[data-export-bags-receive]').click();
  assert(!q('#otherExporterBags').hidden&&q('#acknowledgedBagTransfers').hidden);
  w.close();console.log('PASS acknowledged transfer UI: explicit source lots, whole counts, accepted receipts, stable retry identity, lost acknowledgements, editable refusals, focus and draft retention, latest typed quantities and physical scope');

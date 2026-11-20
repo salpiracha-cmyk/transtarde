@@ -69,12 +69,35 @@ try{
         $exclude=$productionView&&isset($_GET['excludeProductionId'])?(string)$_GET['excludeProductionId']:null;
         $result=bts_with_sources(false,$user,static fn($values,$state,$now)=>$productionView?['inventory'=>bti_project($values,$masters,$scope,$date,$today,$state,$exclude)]:bgt_view($values,$state,$masters,$scope,$date,$today,$user));
         $destinations=[];foreach((array)($masters['mills']??[]) as $r){$v=array_values((array)($r['values']??[]));if(($v[5]??'')==='Active'&&strcasecmp((string)($v[2]??''),'Office')!==0&&(string)$r['id']!==$location['id'])$destinations[]=['id'=>(string)$r['id'],'name'=>(string)($v[0]??'')];}
-        bgt_out(['ok'=>true,'entity'=>$entity,'locationId'=>$location['id'],'canCreate'=>bgt_can($user,$entity,$location,'Create'),'destinations'=>$productionView?[]:$destinations]+$result);
+        $canCreate=bgt_can($user,$entity,$location,'Create');
+        bgt_out(['ok'=>true,'entity'=>$entity,'locationId'=>$location['id'],'canCreate'=>$canCreate,
+            'canAddDestination'=>!$productionView&&$canCreate&&tt_user_can_master($user,'mills','Create'),
+            'destinations'=>$productionView?[]:$destinations]+$result);
     }
     if($method!=='POST')bgt_out(['ok'=>false,'error'=>'Method not allowed.'],405);
     $raw=(function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'';if(strlen($raw)>65536)bgt_out(['ok'=>false,'error'=>'Bag movement request too large.'],413);
     $body=json_decode($raw,true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))bgt_out(['ok'=>false,'error'=>'Refresh the session before saving the movement.'],419);
-    $action=(string)($body['action']??'');if(!in_array($action,['dispatch','receive','return_to_source','quarantine','accept_quarantine','return_quarantine','shipment_usage','complete_exmill_dispatch'],true))bgt_out(['ok'=>false,'error'=>'Choose an explicit supported bag movement action.'],422);
+    $action=(string)($body['action']??'');
+    if($action==='add_destination'){
+        $source=bgt_master($masters,(string)($body['sourceLocationId']??''));
+        bgt_access($user,(string)($body['entity']??''),$source,'Create');
+        if(!tt_user_can_master($user,'mills','Create'))throw new BagTransferAccessDenied('Mills & Locations Create permission is required.');
+        if($source['status']!=='Active')throw new DomainException('Choose an active sending mill.');
+        $type=$body['type']??'';
+        if(!in_array($type,['External Mill','Warehouse','Stock Location'],true))throw new DomainException('Choose External Mill, Warehouse, or Stock Location.');
+        $name=$body['name']??'';
+        if(!is_string($name)||tt_location_identity($name)===''||preg_match('/[[:cntrl:]]/',$name))throw new DomainException('Enter a valid physical location name.');
+        if(tt_location_identity($name)===tt_location_identity($source['name']))throw new DomainException('Choose a destination other than the sending mill.');
+        // The shared master upsert checks duplicates under lock and preserves existing records.
+        $row=tt_upsert_location_master($name,$type,'Mill Empty Bag Transfer','',true);
+        $destination=bgt_master(['mills'=>[$row]],(string)$row['id']);
+        if($destination['id']===$source['id']||$destination['status']!=='Active'||strcasecmp(trim($destination['type']),'Office')===0){
+            throw new DomainException('This name belongs to a location that cannot receive bag transfers. Choose an active physical destination.');
+        }
+        tt_audit((int)$user['id'],(string)($user['username']??''),'Selected or added bag transfer destination '.$destination['name']);
+        bgt_out(['ok'=>true,'destination'=>['id'=>$destination['id'],'name'=>$destination['name']]]);
+    }
+    if(!in_array($action,['dispatch','receive','return_to_source','quarantine','accept_quarantine','return_quarantine','shipment_usage','complete_exmill_dispatch'],true))bgt_out(['ok'=>false,'error'=>'Choose an explicit supported bag movement action.'],422);
     $result=bts_with_sources(true,$user,static function($values,array &$state,$now)use($body,$action,$user,$masters){
         $authorize=static function($entity,$historicalName,$right,$locationId)use($user,$masters){bgt_access($user,$entity,bgt_master($masters,$locationId),$right);};
         if($action==='complete_exmill_dispatch'){
