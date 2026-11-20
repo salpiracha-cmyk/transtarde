@@ -188,6 +188,12 @@ $sharedBootstrap = <<<'HTML'
     if(!pending.size&&!inFlight.size)return Promise.resolve({ok:true,revision});
     return new Promise((resolve,reject)=>{const waiter={resolve,reject,intent,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);if(!commitWaiters.length)waiting();reject(new Error('Save was not confirmed before the connection timed out. Reload and review the server state before retrying.'))}},120000);commitWaiters.push(waiter);waiting();flush()})
   }
+  let exportWorkspaceProjection;
+  function projectExportWorkspace(value){
+    const prior=pending.get(EXPORT_STORE);
+    localStorage.setItem(EXPORT_STORE,value);
+    if(!inFlight.has(EXPORT_STORE)&&!failedKeys.has(EXPORT_STORE)&&(prior===undefined||prior===exportWorkspaceProjection))exportWorkspaceProjection=value;
+  }
   function refreshNow(options){
     inboundTag='';
     const outsideLot=access.moduleId==='exports'&&typeof options?.outsideLoadingLot==='string'&&typeof options.stillOpen==='function'?options.outsideLoadingLot:'';
@@ -200,15 +206,20 @@ $sharedBootstrap = <<<'HTML'
     // A read-only report must not discard another icon's staged bridge data.
     // Keep the full-workspace guard for existing callers and reject any save
     // already in flight or staged edits to the requested report sources.
-    if(inFlight.size||(keys?[...keys].some(key=>pending.has(key)):pending.size))return Promise.reject(new Error('Finish the current save before refreshing.'));
+    const hasProjection=()=>!!outsideLot&&exportWorkspaceProjection!==undefined&&!failedKeys.has(EXPORT_STORE)&&pending.get(EXPORT_STORE)===exportWorkspaceProjection;
+    const blocked=()=>inFlight.size||(keys?[...keys].some(key=>pending.has(key)&&!(key===EXPORT_STORE&&hasProjection())):pending.size);
+    if(blocked())return Promise.reject(new Error('Finish the current save before refreshing.'));
     return fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin'}).then(r=>r.json()).then(data=>{
       if(!data?.ok)throw new Error(data?.error||'Shared data could not be refreshed.');
-      if(inFlight.size||(keys?[...keys].some(key=>pending.has(key)):pending.size))throw new Error('Finish the current save before refreshing.');
+      if(blocked())throw new Error('Finish the current save before refreshing.');
       const snapshot=keys?{...data,values:Object.fromEntries(Object.entries(data.values||{}).filter(([key])=>keys.has(key))),meta:Object.fromEntries(Object.entries(data.meta||{}).filter(([key])=>keys.has(key))),restrictedKeys:(data.restrictedKeys||[]).filter(key=>keys.has(key))}:data;
       if(outsideLot){
         const root=JSON.parse(snapshot.values?.[EXPORT_STORE]||'{}');
         if(!options.stillOpen())throw new Error('The B/L Draft was closed before loading could be refreshed.');
         if(!root.shipments?.some(lot=>lot.id===outsideLot&&lot.loadingPlan?.outsideDirect&&lot.millLoadingCompleted))throw new Error('Refresh containers to confirm the saved loading.');
+        // The editor reapplies these read-only workspace projections to the new
+        // snapshot. A real pending form save is never replaced here.
+        if(hasProjection()){pending.delete(EXPORT_STORE);queuedBase.delete(EXPORT_STORE);exportWorkspaceProjection=undefined;}
       }
       applyRemote(snapshot,false,!!outsideLot);return snapshot
     })
@@ -535,7 +546,7 @@ $sharedBootstrap = <<<'HTML'
       return identity?value:true;
     }finally{inFlight.delete(key);saveHolds--;waiting();}
   }
-  window.TT_SHARED_SYNC={deleteMillRecord,recoverLegacy,commitContractChanges,commitMillSettings,readVersion:key=>keyVersions.get(key)??null,commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,confirmExportSave:async(attempted,matches)=>{
+  window.TT_SHARED_SYNC={deleteMillRecord,recoverLegacy,commitContractChanges,commitMillSettings,readVersion:key=>keyVersions.get(key)??null,commitOtherBagReceipt,commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,projectExportWorkspace,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,confirmExportSave:async(attempted,matches)=>{
     if(access.moduleId!=='exports'||!allowed(EXPORT_STORE)||typeof matches!=='function')return false;
     const response=await fetch(endpoint+'?asset_refs=1&r='+Date.now(),{credentials:'same-origin',cache:'no-store'}),snapshot=await response.json();
     const value=snapshot.values?.[EXPORT_STORE],version=snapshot.meta?.[EXPORT_STORE]?.version;

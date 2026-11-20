@@ -114,10 +114,19 @@
       if(master){if(!local.masterId){local.masterId=master.masterId;touched=true}continue}
       try{
         const j=await request('upsert',{mode:'sync',customer:{masterId:local.masterId||'',name:local.name,code:local.code,address:local.address,country:local.country||'',email:local.email||'',phone:local.phone||'',tax:local.tax||'',packingDefault:local.packingDefault||'KG',notifies:local.notifies||[],roles:'Export Buyer',status:local.inactive?'Inactive':'Active',showCountry:!!local.showCountry,showEmail:!!local.showEmail,showPhone:!!local.showPhone,showTax:!!local.showTax}});
-        if(j.customer?.masterId){local.masterId=j.customer.masterId;touched=true}
+        if(j.customer?.masterId){
+          local.masterId=j.customer.masterId;touched=true;
+          if(!listCache.some(row=>row.masterId===j.customer.masterId))listCache.push(j.customer);
+        }
       }catch(e){console.warn('Customer master sync:',e)}
     }
-    if(touched){writing=true;localStorage.setItem(ROOT,JSON.stringify(root));writing=false}
+    if(touched){
+      writing=true;
+      try{
+        if(window.TT_APPLY_EXPORT_CUSTOMER_MASTERS)mergeMastersIntoLocal(listCache);
+        else localStorage.setItem(ROOT,JSON.stringify(root));
+      }finally{writing=false;}
+    }
   }
 
   function queueSync(){clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncLocalCustomers(),180)}
