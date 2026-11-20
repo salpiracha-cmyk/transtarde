@@ -70,20 +70,21 @@ function render(){
   form.onsubmit=e=>{e.preventDefault();save(row,'assign',Object.fromEntries(new FormData(form)),form.querySelector('button'));};
  }
  if(edit){
+  const handoffFieldsRequired=cfg.origin==='mill'?'required':'';
   function container(a={}){
    const editing=!!a.number,finalContainer=cfg.origin==='exports'&&!editing&&row.actuals.length+1===row.expected;
    if(!editing&&documentMode)a={...a,...cfg.defaults(row.actuals.length)};
    const heading=documentMode?'h4':'h3';
    q('oelContainer').innerHTML=`<form id="oelActual"><${heading}>${editing?'Correct container details':'Add container'}</${heading}>${documentMode&&a.netKg&&!editing?'<p class="metaText">Bags and weights use the Customs Invoice calculation. Check them against the loading sheet.</p>':''}<div class="${cfg.milling?'r3':documentMode?'grid3':'grid'}">
     ${field('number','Container number',a.number,'text',editing?'readonly':'required maxlength="16"')}
-    ${field('seal','Seal',a.seal,'text','required maxlength="40"')}
+    ${field('seal','Seal',a.seal,'text',handoffFieldsRequired+' maxlength="40"')}
     ${documentMode?'':field('site','Loading location',row.site,'text','readonly')}
     ${field('bags','Bags',a.bags,'number','required min="1" step="1"')}
     ${field('netKg','Net kg',a.netKg,'number','required min=".001" step=".001"')}
     ${field('grossKg','Gross kg',a.grossKg,'number','required min=".001" step=".001"')}
     ${field('date','Actual loading date',a.loadingDate||data.today,'date','required')}
-    ${field('truck','Truck',a.truck,'text','required maxlength="40"')}
-    <label>Loading sheet / weighbridge / gate-pass reference<textarea name="evidence" maxlength="500" required>${esc(a.evidence)}</textarea></label><label>Attach evidence (PDF or image)<input type="file" name="evidenceUpload" accept="application/pdf,image/png,image/jpeg,image/webp"></label>
+    ${field('truck','Truck',a.truck,'text',handoffFieldsRequired+' maxlength="40"')}
+    <label>Loading sheet / weighbridge / gate-pass reference<textarea name="evidence" maxlength="500" ${handoffFieldsRequired}>${esc(a.evidence)}</textarea></label><label>Attach evidence (PDF or image)<input type="file" name="evidenceUpload" accept="application/pdf,image/png,image/jpeg,image/webp"></label>
     ${cfg.origin==='mill'?`<label>Measured quality and inspection findings<textarea name="inspection" maxlength="2000" required>${esc(a.inspection)}</textarea></label><label><input type="checkbox" name="qualityAccepted" value="yes" required> Quality meets the lot specification</label>`:''}
     </div><button>${finalContainer?'Save last container &amp; confirm loading':'Save container'}</button></form>`;
    const form=q('oelActual');form.onsubmit=e=>{e.preventDefault();const values=new FormData(form);values.delete('site');if(automaticDeal)values.set('dealId',automaticDeal.id);if(finalContainer)values.set('confirmComplete','yes');save(row,'container',values,form.querySelector('button'));};
