@@ -146,6 +146,7 @@ def run():
             assert books.read_bytes()==financial_before,'Production Save or retry wrote financial journals'
             # Native transfer UI -> actual acknowledged controller. No PO or books rewrite.
             original_orders=saved_ops['values']['tt30bags'];mill.evaluate("openPanel('newbags')")
+            mill.locator('[data-export-bags-transfer]').click()
             mill.locator('[data-source-lot]').wait_for();mill.locator('[data-transfer-date]').fill('2026-10-17')
             with mill.expect_response(lambda r:'/api/bag_transfers.php?' in r.url):mill.locator('[data-transfer-refresh]').click()
             mill.locator('[data-source-lot]').fill('10');mill.locator('[data-transfer-destination]').select_option('mills-2')
@@ -153,65 +154,32 @@ def run():
             def transfer_failure(route):
                 if route.request.method=='POST':
                     transfer_posts.append(route.request.post_data_json)
-                    if transfer_blocked[0]:transfer_blocked[0]=False;route.abort();return
+                    if transfer_blocked[0]:
+                        transfer_blocked[0]=False
+                        response=route.fetch();assert response.status==200 and response.json()['movement']['status']=='Completed'
+                        route.abort();return
                 route.continue_()
             context.route('**/api/bag_transfers.php',transfer_failure)
             mill.locator('[data-dispatch-bags]').click();mill.locator('[data-confirm-pending]').wait_for();assert mill.locator('[data-source-lot]').input_value()=='10'
-            with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as dispatch_response:mill.locator('[data-dispatch-bags]').click()
-            dispatch=dispatch_response.value.json();assert dispatch_response.value.status==200,dispatch
-            mill.wait_for_function("document.querySelector('[data-source-lot]').value === ''")
-            assert len(transfer_posts)==2 and transfer_posts[0]==transfer_posts[1],'Failed dispatch changed its retry identity'
+            state_after_transfer=(data/'operations.json').read_bytes()
+            with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as dispatch_response:mill.locator('[data-confirm-pending]').click()
+            dispatch=dispatch_response.value.json()
+            assert dispatch_response.value.status==200 and dispatch['movement']['replayed'],dispatch
+            mill.wait_for_function("!document.querySelector('[data-confirm-pending]')")
+            assert len(transfer_posts)==2 and transfer_posts[0]==transfer_posts[1] and (data/'operations.json').read_bytes()==state_after_transfer
             transfer=dispatch['movement']['record'];transfer_id=transfer['id'];line_id=transfer['lines'][0]['lineId'];target_lot='BT|'+transfer_id+'|'+line_id
             stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json()
             target=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-2&asOf=2026-10-17').json()
-            assert stock['inventory']['lots']['PO|100|mills-1']['availableQty']==78 and target['inventory']['lots'][target_lot]['availableQty']==0
+            assert stock['inventory']['lots']['PO|100|mills-1']['availableQty']==78 and target['inventory']['lots'][target_lot]['availableQty']==10
+            assert target['transfers'][0]['status']=='Completed'
             context.unroute('**/api/bag_transfers.php',transfer_failure)
-            mill.evaluate("chooseMill(2);openPanel('newbags')");mill.locator('[data-receive-transfer]').wait_for(state='attached');mill.locator('[data-receive-transfer]').locator('xpath=ancestor::details[1]/summary[1]').click();mill.locator('[data-receive-transfer]').click();mill.locator('[data-ack-line]').fill('6')
-            mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-accepted-inspection]').check()
-            receipt_lost=[True];receipt_posts=[]
-            def receipt_lost_ack(route):
-                if route.request.method=='POST':
-                    receipt_posts.append(route.request.post_data_json)
-                    if receipt_lost[0]:
-                        receipt_lost[0]=False;response=route.fetch();assert response.status==200,response.text();route.abort();return
-                route.continue_()
-            context.route('**/api/bag_transfers.php',receipt_lost_ack)
-            mill.locator('[data-save-ack]').click();mill.locator('[data-confirm-pending]').wait_for();assert mill.locator('[data-ack-line]').input_value()=='6'
-            state_after_receipt=(data/'operations.json').read_bytes()
-            with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as receipt_response:mill.locator('[data-confirm-pending]').click()
-            assert receipt_response.value.status==200 and receipt_response.value.json()['movement']['replayed']
-            mill.wait_for_function("!document.querySelector('[data-confirm-pending]')")
-            assert len(receipt_posts)==2 and receipt_posts[0]==receipt_posts[1] and (data/'operations.json').read_bytes()==state_after_receipt,'Lost acknowledgement changed receipt stock/version'
-            target=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-2&asOf=2026-10-17').json()
-            assert target['inventory']['lots'][target_lot]['availableQty']==6
-            context.unroute('**/api/bag_transfers.php',receipt_lost_ack)
-            mill.evaluate("chooseMill(1);openPanel('newbags')");mill.locator('[data-return-transfer]').wait_for(state='attached');mill.locator('[data-return-transfer]').locator('xpath=ancestor::details[1]/summary[1]').click();mill.locator('[data-return-transfer]').click()
-            mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-ack-line]').fill('2');mill.locator('[data-ack-reason]').fill('Actually returned and counted at source')
-            with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as return_response:mill.locator('[data-save-ack]').click()
-            assert return_response.value.status==200,return_response.value.text()
-            mill.wait_for_function("!document.querySelector('[data-ack-line]')")
-            stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json()
-            assert stock['inventory']['lots']['PO|100|mills-1']['availableQty']==80
+            mill.evaluate("chooseMill(2);openPanel('newbags')")
+            mill.get_by_text('Completed',exact=True).wait_for(state='attached')
+            assert mill.locator('[data-receive-transfer], [data-hold-transfer]').count()==0
+            mill.evaluate("chooseMill(1);openPanel('newbags')")
+            mill.locator('[data-export-bags-receive]').click()
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json()
             assert saved_ops['values']['tt30bags']==original_orders and books.read_bytes()==financial_before,'Native transfer UI changed supplier PO or financial records'
-            # Rejected delivery remains physically held until inspected acceptance or actual return.
-            mill.evaluate("chooseMill(2);openPanel('newbags')");mill.locator('[data-hold-transfer]').wait_for(state='attached');mill.locator('[data-hold-transfer]').locator('xpath=ancestor::details[1]/summary[1]').click();mill.locator('[data-hold-transfer]').click()
-            mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-ack-line]').fill('2');mill.locator('[data-ack-reason]').fill('Damaged bags held at destination')
-            with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as held_transfer:mill.locator('[data-save-ack]').click()
-            assert held_transfer.value.status==200,held_transfer.value.text();mill.locator('[data-release-transfer]').wait_for(state='attached');mill.locator('[data-release-transfer]').locator('xpath=ancestor::details[1]/summary[1]').click()
-            target=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-2&asOf=2026-10-17').json()['inventory']['lots'][target_lot]
-            assert target['availableQty']==6 and target['quarantinedQty']==2
-            mill.locator('[data-release-transfer]').click();mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-ack-line]').fill('1');mill.locator('[data-ack-reason]').fill('One bag corrected and inspected');mill.locator('[data-accepted-inspection]').check()
-            with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as accepted_transfer:mill.locator('[data-save-ack]').click()
-            assert accepted_transfer.value.status==200,accepted_transfer.value.text();mill.wait_for_function("!document.querySelector('[data-ack-line]')")
-            mill.evaluate("chooseMill(1);openPanel('newbags')");mill.locator('[data-held-return]').wait_for(state='attached');mill.locator('[data-held-return]').locator('xpath=ancestor::details[1]/summary[1]').click();mill.locator('[data-held-return]').click()
-            mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-ack-line]').fill('1');mill.locator('[data-ack-reason]').fill('Damaged bag physically received at source')
-            with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as returned_hold:mill.locator('[data-save-ack]').click()
-            assert returned_hold.value.status==200,returned_hold.value.text();mill.wait_for_function("!document.querySelector('[data-ack-line]')")
-            stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json()
-            target=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-2&asOf=2026-10-17').json()['inventory']['lots'][target_lot]
-            assert stock['inventory']['lots']['PO|100|mills-1']['availableQty']==81 and target['availableQty']==7 and target['quarantinedQty']==0
-            assert books.read_bytes()==financial_before,'Quarantine acknowledgement changed money'
             # Actual native supplier receipt: failed acknowledgement retains entry; accepted/quarantined counters commit together.
             mill.locator('#bagOrdersBody tr.clickrow').first.click();mill.locator('#inlineBagDate').fill('2026-10-17');mill.locator('#inlineBagQty').fill('10')
             receipt_failed=[True];supplier_posts=[]
@@ -232,7 +200,7 @@ def run():
             assert held_response.value.status==200,held_response.value.text();mill.wait_for_function("!document.querySelector('#inlineBagQty')")
             assert held_response.value.json()['receipt']['quarantinedQty']==4 and held_response.value.json()['order']['received']==114
             stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json();source_lot=stock['inventory']['lots']['PO|100|mills-1']
-            assert source_lot['availableQty']==91 and source_lot['quarantinedQty']==4,source_lot
+            assert source_lot['availableQty']==88 and source_lot['quarantinedQty']==4,source_lot
             assert books.read_bytes()==financial_before,'Supplier receipt created a financial posting'
             immutable_receipts=context.request.get(base+'/api/operations.mysql.php').json()['values']['tt33bagreceipts']
             mill.locator('#bagOrdersBody tr.clickrow').first.click();mill.get_by_role('button',name='Review receipt history / quarantine',exact=True).click();mill.locator('[data-correct-receipt]').wait_for();mill.locator('[data-correct-receipt]').click()
@@ -242,7 +210,7 @@ def run():
             mill.locator('[data-disposition-date]').fill('2026-10-17');mill.locator('[data-disposition-qty]').fill('2');mill.locator('[data-disposition-reason]').fill('Actually returned remaining rejected bags to supplier');mill.locator('[data-disposition-confirm]').check()
             with mill.expect_response(lambda r:'/api/bag_receipts.php' in r.url and r.request.method=='POST') as supplier_return_response:mill.locator('[data-save-disposition]').click()
             assert supplier_return_response.value.status==200,supplier_return_response.value.text()
-            stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json();source_lot=stock['inventory']['lots']['PO|100|mills-1'];assert source_lot['availableQty']==93 and source_lot['quarantinedQty']==0,source_lot
+            stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json();source_lot=stock['inventory']['lots']['PO|100|mills-1'];assert source_lot['availableQty']==90 and source_lot['quarantinedQty']==0,source_lot
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json();assert saved_ops['values']['tt33bagreceipts']==immutable_receipts and json.loads(saved_ops['values']['tt30bags'])[0]['received']==114 and books.read_bytes()==financial_before
             # Rent reference uses the actual native form and links an existing original payment.
             canonical=json.loads(books.read_text())

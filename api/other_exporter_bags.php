@@ -34,7 +34,7 @@ try {
             $result=bts_with_sources(false,$u,static function($values,$state,$now)use($masters,$books,$scope,$date,$today){
                 $inventory=bti_project($values,$masters,$scope,$date,$today,$state);$exports=json_decode($values['transtrade_export_v3_operational']??'{}',true,512,JSON_THROW_ON_ERROR);$deals=[];
                 foreach((array)($books['exporterDeals']??[]) as $d)if(($d['date']??'')<=$date&&oeb_active($d,(array)$exports)){try{oeb_deal($books,$scope,(string)$d['id']);}catch(DomainException){continue;}$deals[]=oeb_instruction_projection($d);}
-                $ids=[];foreach($inventory['lots'] as $lot)if(($lot['sourceKind']??'')==='OTHER_EXPORTER')$ids[(string)$lot['originBagId']]=true;
+                $ids=[];foreach($inventory['lots'] as $lot)if(($lot['sourceKind']??'')==='OTHER_EXPORTER'&&empty($lot['isTransferStock']))$ids[(string)$lot['originBagId']]=true;
                 $history=[];foreach(bti_rows($values,'tt33bagreceipts') as $r)if(isset($ids[(string)($r['bagId']??'')])&&($r['date']??'')<=$date)$history[]=array_intersect_key($r,array_flip(['id','bagId','date','qty','brand','inspectionStatus','actualTareGrams','sourceSnapshot']))+br_position($r,(array)($state['receiptDispositions']??[]),$date);
                 return ['productionOrders'=>oeb_production_orders($values,$books,$scope,$date,$inventory),'deals'=>$deals,'inventory'=>$inventory,'receiptHistory'=>$history]+oeb_choices($values,$inventory,$books,$scope);
             });

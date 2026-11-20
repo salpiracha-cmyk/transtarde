@@ -49,6 +49,31 @@ require_once dirname(__DIR__,2).'/api/directors_trading_links.php';
     $check($repeat['replayed']&&serialize([$values,$state])===$after,'Actual receipt retry duplicated stock');
     $alter=json_decode($values['tt30bags'],true);$alter[0]['externalOwnerId']='TTI';try{br_guard_write($values,'tt30bags',json_encode($alter));throw new RuntimeException('External owner could be changed by generic save');}catch(DomainException){}
     $check(bti_project($values,$masters,['entity'=>'BRM','locationId'=>'M1','millName'=>'Own Mill'],'2026-11-03','2026-11-03',$state)['lots']===[],'External bags leaked into another operating company');
+    $masters['mills'][]=['id'=>'M2','values'=>['Other Mill','','Own Mill','','','Active']];
+    $destination=['entity'=>'TTI','locationId'=>'M2','millName'=>'Other Mill','status'=>'Active'];
+    $transferSource=$lots['Amros']['id'];$now='2026-11-03T11:00:00Z';$date='2026-11-03';
+    $transfer=bt_dispatch($state,$inventory,['id'=>'M2','name'=>'Other Mill','status'=>'Active'],[
+        'ownership'=>'other','entity'=>'TTI','sourceLocationId'=>'M1','destinationId'=>'M2','date'=>$date,
+        'sourceFingerprint'=>$inventory['fingerprint'],'requestKey'=>'fellow-production-transfer-001',
+        'allocations'=>[['lotId'=>$transferSource,'qty'=>30]],
+    ],$user,$now,'BT-FELLOW',$authorize);
+    $check($transfer['status']==='Completed','Fellow transfer did not complete immediately');
+    $atDestination=bti_project($values,$masters,$destination,$date,$date,$state);
+    $destinationChoices=oeb_choices($values,$atDestination,$books,$destination)['choices'];
+    $destinationOrders=array_column(oeb_production_orders($values,$books,$destination,$date,$atDestination),null,'orderId');
+    $check(count($destinationChoices)===1&&$destinationChoices[0]['exporterDealId']==='HKM-1'&&$destinationChoices[0]['available']===30,'Transferred SODA lot missing from destination Production choices');
+    $check(($destinationOrders['FELLOW|HKM-1']['bagsAvailable']??null)===30,'Destination Production lost the original SODA link');
+    $destinationLot=$destinationChoices[0]['lotId'];
+    $productionValues=$values+['tt41bagtransfers'=>json_encode($state)];
+    $destinationRun=array_replace($run,['id'=>'PROD2','locationId'=>'M2','millName'=>'Other Mill','bagStockFingerprint'=>$atDestination['fingerprint'],
+        'rows'=>[['product'=>'Ready Rice — Amros','bags'=>10,'bagWeight'=>50,'bagSourceLotId'=>$destinationLot,'exporterDealId'=>'HKM-1']],
+        'bagAllocations'=>[['lotId'=>$destinationLot,'qty'=>10]],
+    ]);
+    $productionValues['tt30prod']=bti_prepare_production($productionValues,json_encode([$prepared,$destinationRun]),$masters,$user,$now);
+    $used=bti_project($productionValues,$masters,$destination,$date,$date,$state)['lots'][$destinationLot];
+    $atSource=bti_project($productionValues,$masters,$scope,$date,$date,$state)['lots'][$transferSource];
+    $check($used['availableQty']===20&&$used['issuedQty']===10&&$used['externalOwnerId']==='HKM'&&$atSource['availableQty']===60,'Destination Production consumed the wrong stock or changed external ownership');
+    try{oeb_deal($books,$destination,'HKM-1');throw new RuntimeException('A transfer changed the original authorized supplier receipt mill');}catch(DomainException){}
     echo "PASS other exporter bags: instructed source, external ownership, actual multi-receipts, replay, quarantine, source allocation/consumption, closed history, protected identity and company isolation\n";
 })();
 

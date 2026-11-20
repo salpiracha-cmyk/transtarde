@@ -59,15 +59,14 @@ $values['tt30bags']=json_encode([$order]);$values['tt33bagreceipts']=json_encode
 $dispatch=['entity'=>'TTI','sourceLocationId'=>'mills-1','destinationId'=>'mills-2','date'=>$today,'sourceFingerprint'=>$view['fingerprint'],'requestKey'=>'inventory-dispatch-0001','allocations'=>[['lotId'=>$id,'qty'=>100]]];
 $record=bt_dispatch($state,$view,['id'=>'mills-2','name'=>'Indus Rice Mill','status'=>'Active'],$dispatch,$actor,$today.'T10:00:00Z','BT-1',$auth)['record'];$line=$record['lines'][0]['lineId'];$targetId='BT|BT-1|'.$line;
 $sourceBefore=serialize($values);$atSource=bti_project($values,$masters,$scope,$today,$today,$state);$atTarget=bti_project($values,$masters,$dest,$today,$today,$state);
-bi_check($atSource['lots'][$id]['availableQty']===800,'Dispatch did not deduct source once');bi_check($atTarget['lots'][$targetId]['availableQty']===0,'Dispatch invented destination stock before receiving');
-$ack=['entity'=>'TTI','transferId'=>'BT-1','date'=>$today,'requestKey'=>'inventory-receipt-0001','allocations'=>[['lineId'=>$line,'qty'=>40]]];bt_receive($state,$ack,['id'=>8,'full_name'=>'Actual receiver'],$today.'T11:00:00Z',$auth);
-$atTarget=bti_project($values,$masters,$dest,$today,$today,$state);bi_check($atTarget['lots'][$targetId]['availableQty']===40&&$atTarget['lots'][$targetId]['originBagId']==='123','Partial receipt lost the original PO or created extra stock');bi_check($atTarget['lots'][$targetId]['locationId']==='mills-2','Source snapshot replaced actual destination location');
-$return=['entity'=>'TTI','transferId'=>'BT-1','date'=>$today,'requestKey'=>'inventory-return-0001','reason'=>'Physically returned to original source','allocations'=>[['lineId'=>$line,'qty'=>20]]];bt_receive($state,$return,$actor,$today.'T12:00:00Z',$auth,true);
-$atSource=bti_project($values,$masters,$scope,$today,$today,$state);bi_check($atSource['lots'][$id]['availableQty']===820,'Physical return failed to restore the same source lot');bi_check(serialize($values)===$sourceBefore,'Transfer/receipt projection manufactured or changed a purchase order');
+bi_check($atSource['lots'][$id]['availableQty']===800,'Transfer did not deduct source once');
+bi_check($atTarget['lots'][$targetId]['availableQty']===100&&$atTarget['lots'][$targetId]['originBagId']==='123','Transfer failed to credit the destination exactly once against the original PO');
+bi_check($atTarget['lots'][$targetId]['locationId']==='mills-2','Source snapshot replaced actual destination location');
+bi_check(serialize($values)===$sourceBefore,'Transfer projection manufactured or changed a purchase order');
 // Use acknowledged stock at its actual destination; do not consume another company's PO.
 $destRun=['id'=>'P2','entity'=>'TTI','millName'=>'Indus Rice Mill','date'=>$today,'rows'=>[['product'=>'Ready Rice — ASAS','bags'=>40,'bagWeight'=>50]],'bagAllocationVersion'=>1,'bagAllocations'=>[['lotId'=>$targetId,'qty'=>40]]];$values['tt30prod']=json_encode([$run,$destRun]);
 $foreign=array_replace($order,['id'=>789,'entity'=>'BRM','mill'=>'Indus Rice Mill','poNo'=>'BRM-1','received'=>999]);$values['tt30bags']=json_encode([$order,$foreign]);$values['tt33bagreceipts']=json_encode([$receipt,['id'=>'RF','bagId'=>789,'date'=>'2026-10-01','qty'=>999]]);
-$atTarget=bti_project($values,$masters,$dest,$today,$today,$state);bi_check($atTarget['lots'][$targetId]['availableQty']===0&&count($atTarget['lots'])===1,'Destination production mixed company/PO balances');
+$atTarget=bti_project($values,$masters,$dest,$today,$today,$state);bi_check($atTarget['lots'][$targetId]['availableQty']===60&&count($atTarget['lots'])===1,'Destination production mixed company/PO balances');
 // Undated quantities are retained without assigning them to a historical month.
 $undated=['tt30bags'=>json_encode([$order])];$v=bti_project($undated,$masters,$scope,$today,$today);bi_check($v['lots'][$id]['availableQty']===1000&&$v['lots'][$id]['undatedReceivedQty']===1000,'Undated current quantity disappeared');$v=bti_project($undated,$masters,$scope,'2026-10-01',$today);bi_check($v['lots'][$id]['availableQty']===null&&$v['lots'][$id]['receivedQty']===0,'Undated receipt assigned to guessed historical date');
 // Source ownership may come from one actual issued PO, never a default company.
@@ -80,7 +79,7 @@ $v=bti_project($amb,$masters,$scope,$today,$today);bi_check($v['lots'][$id]['ava
 $fakeLot=$view['lots'][$id];$fakeLot['brand']='OTHER BRAND';$forged=[['lotId'=>$id,'qty'=>100,'sourceSnapshot'=>['brand'=>'ASAS','packingSize'=>'50 kg']]];
 try{bti_validate_allocations($run,$forged,[$id=>$fakeLot],$masters);throw new RuntimeException('Forged source SKU snapshot accepted');}catch(DomainException){}
 bi_check(bti_location($masters,'Historical old name','mills-1')['millName']==='TTI Rice Mills','Stable location identity lost after a name correction');
-echo "PASS actual bag inventory projection: immutable reads, original PO/packing separation, historical allocation holds, later-receipt exclusion, source/destination partial/return conservation, acknowledged production stock, company isolation, undated history and exact PO ownership\n";
+echo "PASS actual bag inventory projection: immutable reads, original PO/packing separation, historical allocation holds, later-receipt exclusion, immediate source/destination conservation, linked production stock, company isolation, undated history and exact PO ownership\n";
 
 require __DIR__.'/other_exporter_bags_test.php';
 

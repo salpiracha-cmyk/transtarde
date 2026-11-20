@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
-const dom=new JSDOM('<body><div id="newbags"></div><input id="otherDraft" value="keep"></body>',{url:'https://fixture.invalid/module.php?id=milling',runScripts:'outside-only'}),w=dom.window;
+const dom=new JSDOM('<body><div id="newbags"><fieldset><input type="radio" name="exportBagOwnership" value="our" checked><input type="radio" name="exportBagOwnership" value="other"></fieldset><div id="ourExportBags"></div><div id="otherExporterBags" hidden></div></div><input id="otherDraft" value="keep"></body>',{url:'https://fixture.invalid/module.php?id=milling',runScripts:'outside-only'}),w=dom.window;
 w.currentMill={name:'Source Mill',entity:'TTI'};w.stockEntityForView=()=> 'TTI';w.TT_MODULE_ACCESS={userId:7,csrf:'qa-only',masters:{mills:[{id:'M1',values:['Source Mill']},{id:'M2',values:['Destination Mill']}]}};let reads=0,posts=[],mode='success',accepted=0,commits=0,reviewWait=null;const requests=new Map();
 const source={id:'PO|B1|M1',poNo:'PO-1',poLineKey:'L1',brand:'ASAS',packingSize:'50 kg',packingKg:50,bagType:'PP',availableQty:100,committableQty:100,balanceBeforeUnallocated:100,hold:''};
 const unavailable={
@@ -29,13 +29,14 @@ w.eval(fs.readFileSync('accounts/bag-transfers-ui.js','utf8'));const api=w.TT_BA
  assert.equal(q('[data-dispatch-fields]').hidden,false);
  q('#acknowledgedBagTransfers').open=true;
  assert.throws(()=>api.whole('1.5'),/whole/);assert.throws(()=>api.whole(''),/whole/);assert.throws(()=>api.whole('Infinity'),/whole/);
- const qty=()=>q('[data-source-lot]');qty().value='10';q('[data-transfer-destination]').value='M2';assert.equal(reads,1,'Typing dispatched stock review');
+ const qty=()=>q('[data-source-lot]');
+ const submit=()=>{qty().dispatchEvent(new w.Event('input'));q('[data-dispatch-bags]').click();};qty().value='10';q('[data-transfer-destination]').value='M2';assert.equal(reads,1,'Typing dispatched stock review');
  let finish;reviewWait=new Promise(resolve=>{finish=resolve;});const reviewing=api.refresh();await Promise.resolve();qty().value='11';finish();await reviewing;reviewWait=null;assert.equal(qty().value,'11','Review response erased entered dispatch');qty().value='10';
- mode='network';q('[data-dispatch-bags]').focus();q('[data-dispatch-bags]').click();await tick();assert.equal(posts.length,1);assert.equal(qty().value,'10');assert.equal(q('[data-transfer-destination]').value,'M2');assert.equal(w.document.activeElement,q('[data-dispatch-bags]'));assert(w.localStorage.getItem(key));const original=posts[0];assert.equal(original.sourceLocationId,'M1');assert.equal(original.allocations[0].lotId,source.id);
- mode='success';q('[data-dispatch-bags]').click();await tick();assert.deepEqual(posts[1],original);assert.equal(commits,1);assert.equal(w.localStorage.getItem(key),null);assert.equal(qty().value,'');assert.equal(q('[data-transfer-destination]').value,'');
- qty().value='3';q('[data-transfer-destination]').value='M2';mode='refuse';q('[data-dispatch-bags]').click();await tick();const refusedKey=posts.at(-1).requestKey;assert.equal(JSON.parse(w.localStorage.getItem(key)).editable,true);assert.equal(qty().value,'3');
- qty().value='4';mode='success';q('[data-dispatch-bags]').click();await tick();assert.equal(posts.at(-1).requestKey,refusedKey);assert.equal(posts.at(-1).allocations[0].qty,4);assert.equal(commits,2);assert.equal(w.localStorage.getItem(key),null);
- qty().value='2';q('[data-transfer-destination]').value='M2';mode='lost';q('[data-dispatch-bags]').click();await tick();const lostKey=posts.at(-1).requestKey;assert.equal(commits,3);assert.equal(qty().value,'2');qty().value='7';q('[data-dispatch-bags]').click();await tick();assert.equal(commits,3,'Different facts sent over uncertain movement');assert.equal(posts.at(-1).requestKey,lostKey);
+ mode='network';qty().dispatchEvent(new w.Event('input'));q('[data-dispatch-bags]').focus();submit();await tick();assert.equal(posts.length,1);assert.equal(qty().value,'10');assert.equal(q('[data-transfer-destination]').value,'M2');assert.equal(w.document.activeElement,q('[data-dispatch-bags]'));assert(w.localStorage.getItem(key));const original=posts[0];assert.equal(original.sourceLocationId,'M1');assert.equal(original.allocations[0].lotId,source.id);
+ mode='success';submit();await tick();assert.deepEqual(posts[1],original);assert.equal(commits,1);assert.equal(w.localStorage.getItem(key),null);assert.equal(qty().value,'');assert.equal(q('[data-transfer-destination]').value,'');
+ qty().value='3';q('[data-transfer-destination]').value='M2';mode='refuse';submit();await tick();const refusedKey=posts.at(-1).requestKey;assert.equal(JSON.parse(w.localStorage.getItem(key)).editable,true);assert.equal(qty().value,'3');
+ qty().value='4';mode='success';submit();await tick();assert.equal(posts.at(-1).requestKey,refusedKey);assert.equal(posts.at(-1).allocations[0].qty,4);assert.equal(commits,2);assert.equal(w.localStorage.getItem(key),null);
+ qty().value='2';q('[data-transfer-destination]').value='M2';mode='lost';submit();await tick();const lostKey=posts.at(-1).requestKey;assert.equal(commits,3);assert.equal(qty().value,'2');qty().value='7';submit();await tick();assert.equal(commits,3,'Different facts sent over uncertain movement');assert.equal(posts.at(-1).requestKey,lostKey);
  q('[data-confirm-pending]').click();await tick();assert.equal(commits,3,'Lost acknowledgement duplicated movement');assert.equal(qty().value,'7','Recovery erased newer current draft');assert.equal(w.localStorage.getItem(key),null);
  w.currentMill={name:'Destination Mill',entity:'TTI'};await api.open();assert.equal(q('[data-dispatch-fields]').hidden,false);assert(q('[data-dispatch-bags]').disabled);assert.match(q('[data-transfer-stock]').textContent,/No bags available for transfer/);assert.match(q('[data-transfer-history]').textContent,/BT-1/);assert.equal(q('[data-return-transfer]'),null);assert(q('[data-receive-transfer]'));q('[data-receive-transfer]').click();q('[data-ack-line]').value='6';const before=posts.length;q('[data-save-ack]').click();await tick();assert.equal(posts.length,before,'Uninspected receipt posted');assert.match(q('[data-transfer-message]').textContent,/inspection/);
  q('[data-accepted-inspection]').checked=true;mode='lost';q('[data-save-ack]').click();await tick();assert.equal(accepted,6);assert.equal(q('[data-ack-line]').value,'6');const receiptKey=posts.at(-1).requestKey;q('[data-confirm-pending]').click();await tick();assert.equal(accepted,6,'Lost receipt response duplicated destination stock');assert.equal(posts.at(-1).requestKey,receiptKey);assert.equal(q('[data-ack-line]').value,'6','Recovery erased current receipt entry');
@@ -48,5 +49,18 @@ w.eval(fs.readFileSync('accounts/bag-transfers-ui.js','utf8'));const api=w.TT_BA
  assert(q('[data-release-transfer]'));q('[data-release-transfer]').click();q('[data-ack-line]').value='2';q('[data-ack-reason]').value='Inspected and accepted';n=posts.length;q('[data-save-ack]').click();await tick();assert.equal(posts.length,n,'Quarantine accepted without inspection');
  q('[data-accepted-inspection]').checked=true;q('[data-save-ack]').click();await tick();assert.equal(record.quantities.L1.received,8);assert.equal(record.quantities.L1.quarantined,2);
  w.currentMill={name:'Source Mill',entity:'TTI'};await api.open();assert(q('[data-held-return]'));assert.equal(q('[data-release-transfer]'),null);q('[data-held-return]').click();q('[data-ack-line]').value='2';q('[data-ack-reason]').value='Physically received back';q('[data-save-ack]').click();await tick();assert.equal(record.quantities.L1.returned,2);assert.equal(record.quantities.L1.quarantined,0);assert.equal(q('[data-held-return]'),null);
+ assert(q('[data-export-bags-transfer]'));
+ q('[data-export-bags-transfer]').click();await tick();
+ assert(q('#ourExportBags').hidden&&q('#otherExporterBags').hidden);
+ q('[value=other]').checked=true;api.ownershipChanged();await tick();
+ assert.equal(q('[data-transfer-brand]').value,'external');
+ assert.doesNotMatch(q('[data-transfer-brand]').textContent,/ASAS|HELD|RESERVED/);
+ qty().value='20';q('[data-transfer-destination]').value='M2';
+ qty().dispatchEvent(new w.Event('input'));
+ assert.match(q('[data-transfer-stock]').textContent,/80 left after transfer/);
+ submit();await tick();
+ assert.equal(posts.at(-1).ownership,'other');assert.equal(posts.at(-1).allocations[0].lotId,'external');
+ q('[data-export-bags-receive]').click();
+ assert(!q('#otherExporterBags').hidden&&q('#acknowledgedBagTransfers').hidden);
  w.close();console.log('PASS acknowledged transfer UI: explicit source lots, whole counts, accepted receipts, stable retry identity, lost acknowledgements, editable refusals, focus and draft retention, latest typed quantities and physical scope');
 })().catch(error=>{console.error(error);process.exitCode=1;w.close();});
