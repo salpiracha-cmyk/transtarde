@@ -20,26 +20,29 @@ async function choose(){
 async function access(){return null}
 async function uploadBlob(doc){if(doc.dataUrl)return(await fetch(doc.dataUrl)).blob();const url=new URL(doc.downloadUrl,location.href);if(url.origin!==location.origin||!url.pathname.endsWith('/api/export_documents.php'))throw new Error('Invalid shipment document download.');const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);try{const response=await fetch(url.href,{credentials:'same-origin',signal:controller.signal});if(!response.ok)throw new Error('Could not download '+doc.name+'. Your office folder was not updated.');return response.blob()}catch(error){if(error.name==='AbortError')throw new Error('Timed out downloading '+(doc.name||'a shipment upload')+'. Retry Queue Office Folder.');throw error}finally{clearTimeout(timer)}}
 async function libraries(){for(const [ready,path] of [[()=>window.html2canvas,'/api/export_pdf_assets.php?asset=html2canvas&v=1.4.1'],[()=>window.jspdf,'/api/export_pdf_assets.php?asset=jspdf&v=4.2.1'],[()=>window.PDFLib,'/api/export_pdf_assets.php?asset=pdf-lib&v=1.17.1']])if(!ready())await withTimeout(new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=window.TT_TAX_ENTITY?'/api/monthly_tax_assets.php?entity='+encodeURIComponent(window.TT_TAX_ENTITY)+'&asset='+new URL(path,location.href).searchParams.get('asset'):path;script.onload=resolve;script.onerror=()=>reject(new Error('PDF generation could not load. Retry saving the files.'));document.head.appendChild(script)}),45000,'PDF generation tools did not load. Retry Queue Office Folder.')}
-async function pdf(markup,fit){
+async function pdf(markup,fit,{pageSize,preview=false}={}){
+ const [pageWidth,pageHeight]=pageSize||[210,297];
+ const retry=preview?'Retry downloading the preview.':'Retry Queue Office Folder.';
  await libraries();const root=document.createElement('div');root.className='shipmentPdfRoot printModeWith';root.style.cssText='position:absolute;left:-10000px;top:0;width:210mm;background:white';root.innerHTML=markup;document.body.appendChild(root);
+ root.style.width=pageWidth+'mm';
  try{
-  await withTimeout(document.fonts.ready,30000,'Document fonts did not finish loading. Retry Queue Office Folder.');
-  await Promise.all([...root.querySelectorAll('img')].map(image=>withTimeout(image.decode(),30000,'A document image did not finish loading. Retry Queue Office Folder.')));
+  await withTimeout(document.fonts.ready,30000,'Document fonts did not finish loading. '+retry);
+  await Promise.all([...root.querySelectorAll('img')].map(image=>withTimeout(image.decode(),30000,'A document image did not finish loading. '+retry)));
   if(fit&&!fit(root))throw new Error('This document does not fit on its pages. Review the content before saving.');
   const pages=[...root.querySelectorAll('.docPage')];if(!pages.length)throw new Error('No document pages were generated.');
-  const output=new window.jspdf.jsPDF({unit:'mm',format:'a4',compress:true});
+  const output=new window.jspdf.jsPDF({unit:'mm',format:pageSize||'a4',compress:true});
   for(let i=0;i<pages.length;i++){
-   const page=pages[i];page.style.height='297mm';page.style.minHeight='297mm';page.style.margin='0';page.style.boxShadow='none';
+   const page=pages[i];page.style.height=pageHeight+'mm';page.style.minHeight=pageHeight+'mm';page.style.margin='0';page.style.boxShadow='none';
    const overflowY=Math.max(0,page.scrollHeight-page.clientHeight),overflowX=Math.max(0,page.scrollWidth-page.clientWidth);
    if(overflowY>2||overflowX>2){
-    const canvas=await withTimeout(window.html2canvas(page,{scale:2,backgroundColor:'#fff',logging:false,imageTimeout:30000}),60000,'A document page could not be rendered within one minute. Retry Queue Office Folder.');
+    const canvas=await withTimeout(window.html2canvas(page,{scale:2,backgroundColor:'#fff',logging:false,imageTimeout:30000}),60000,'A document page could not be rendered within one minute. '+retry);
     if(i)output.addPage();
-    const ratio=Math.min(210/(canvas.width/2),297/(canvas.height/2));
+    const ratio=Math.min(pageWidth/(canvas.width/2),pageHeight/(canvas.height/2));
     const width=(canvas.width/2)*ratio,height=(canvas.height/2)*ratio;
-    output.addImage(canvas,'PNG',(210-width)/2,(297-height)/2,width,height,undefined,'FAST');
+    output.addImage(canvas,'PNG',(pageWidth-width)/2,(pageHeight-height)/2,width,height,undefined,'FAST');
     continue;
    }
-   if(i)output.addPage();const canvas=await withTimeout(window.html2canvas(page,{scale:2,backgroundColor:'#fff',logging:false,imageTimeout:30000}),60000,'A document page could not be rendered within one minute. Retry Queue Office Folder.');output.addImage(canvas,'PNG',0,0,210,297,undefined,'FAST');
+   if(i)output.addPage();const canvas=await withTimeout(window.html2canvas(page,{scale:2,backgroundColor:'#fff',logging:false,imageTimeout:30000}),60000,'A document page could not be rendered within one minute. '+retry);output.addImage(canvas,'PNG',0,0,pageWidth,pageHeight,undefined,'FAST');
   }
   return output.output('blob');
  }finally{root.remove()}
