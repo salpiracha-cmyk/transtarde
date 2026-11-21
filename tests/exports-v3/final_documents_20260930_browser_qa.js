@@ -1,6 +1,7 @@
 const fs=require('fs');
 const vm=require('vm');
 const assert=require('assert');
+const applyScopedDocumentChanges=require('./scoped_document_fixture');
 
 class Element{
   constructor(id=''){this.id=id;this.dataset={};this.style={setProperty(){}};this.attributes={};this.value='';this.checked=false;this.files=[];}
@@ -92,12 +93,18 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
  await page.goto('http://tt.local/exports/qa.html');await page.addStyleTag({content:fs.readFileSync(path.join(root,'exports/app.css'),'utf8')});
  let app=fs.readFileSync(path.join(root,'exports/app.js'),'utf8').replace('mount();restoreContractCheckpoint();',`const qaNativePrint=printShipmentDoc;window.__qa={restorePrint(){printShipmentDoc=qaNativePrint},fixture(root){state=root;currentShipmentId=root.shipments.find(row=>row.kind==='lot').id;localStorage.setItem(STORE,JSON.stringify(root));window.__committed=JSON.stringify(root);renderShipmentWorkspace=()=>{}},uploads(){renderUploadDocuments(document.getElementById('qa-editor'))},bl(){renderBL(document.getElementById('qa-editor'))},final(){renderDocumentOutput(document.getElementById('qa-editor'))},commercial(){renderCommercial(document.getElementById('qa-editor'))},cover(){renderBankCoveringEditor(document.getElementById('qa-editor'),shipment(),contractByRef(shipment().contractRef),shipment().covering)},missing(){return completionMissing(shipment(),contractByRef(shipment().contractRef))},capturePrint(){printShipmentDoc=(title,html)=>{window.__invoicePrinted={title,html,serverSaves:window.__invoiceServerSaves}}},rows(){return finalShipmentDocuments(shipment(),contractByRef(shipment().contractRef))},state(){return state},upload(file,name){return uploadDocument(file,name,shipment())},packing(){return commercialCopyLabel(packingListDoc(shipment(),contractByRef(shipment().contractRef)),'ORIGINAL')},save(optional=false){return saveShipmentFolder(shipment(),contractByRef(shipment().contractRef),optional)}};`);
  await page.evaluate(()=>{window.TT_MODULE_ACCESS={user:'QA'};window.TT_SHARED_SYNC={saveNow:async()=>{window.__committed=localStorage.getItem('transtrade_export_v3_operational');return{ok:true}},readCommitted:()=>window.__committed??null,flush(){}};window.alert=message=>{throw Error(message)}});
+ await page.addScriptTag({content:`window.applyScopedDocumentChanges=${applyScopedDocumentChanges.toString()}`});
+ await page.evaluate(()=>{window.TT_SHARED_SYNC.commitContractChanges=async(changes,matches)=>{
+  window.__invoiceServerSaves++;
+  window.__committed=window.applyScopedDocumentChanges(window.__committed,changes,matches);
+  localStorage.setItem('transtrade_export_v3_operational',window.__committed);
+ }});
  await page.addScriptTag({content:app});await page.evaluate(data=>window.__qa.fixture(data),JSON.parse(JSON.stringify(t.state)));
  await page.addScriptTag({content:fs.readFileSync(path.join(root,'exports/shipment-files.js'),'utf8')});
  // Exercise the supported legacy/progressive copy mode here. Strict final archive exclusions are checked in shipment_package_20261001_browser_qa.js.
  await page.evaluate(()=>{const save=window.TT_SHIPMENT_FILES.save;window.TT_SHIPMENT_FILES.save=options=>save({...options,strictFinal:false})});
  const invoiceFixture=structuredClone(t.state),invoiceLot=invoiceFixture.shipments.find(row=>row.kind==='lot');invoiceLot.commercial.saved=false;invoiceLot.commercial.status='Draft';invoiceLot.commercial.bankInvoices=[];
- await page.evaluate(data=>{window.__qa.fixture(data);window.__invoiceServerSaves=0;window.TT_SHARED_SYNC.saveNow=async()=>{window.__invoiceServerSaves++;window.__committed=localStorage.getItem('transtrade_export_v3_operational');return{ok:true}};window.__qa.capturePrint();window.__qa.commercial()},invoiceFixture);
+ await page.evaluate(data=>{window.__qa.fixture(data);window.__invoiceServerSaves=0;window.__wholeSave=window.TT_SHARED_SYNC.saveNow;window.TT_SHARED_SYNC.saveNow=async()=>{throw Error('A cached bag order blocked a workspace save')};window.__qa.capturePrint();window.__qa.commercial()},invoiceFixture);
  assert.equal(await page.locator('#createBankInvoice').innerText(),'EDIT FOR RETENTION');assert.equal(await page.locator('#printRetentionInvoice').innerText(),'PRINT RETENTION INVOICE');
  assert.ok(await page.locator('#createBankInvoice').evaluate(node=>node.closest('.commercialRetentionControls').previousElementSibling.classList.contains('commercialPrintControls')),'retention actions must appear below main invoice print controls');
  await page.locator('#coNo').fill('TG/AMT/13-EDITED');await page.locator('#saveCommercial').click();await page.waitForFunction(()=>window.__invoiceServerSaves>=1);
@@ -105,12 +112,14 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
  await page.locator('#coNo').fill('TG/AMT/13-PRINT');await page.locator('#printCommercial').click();await page.waitForFunction(()=>window.__invoicePrinted);
  assert.ok(await page.evaluate(()=>window.__invoicePrinted.serverSaves>=2),'printing must wait for server-save');assert.equal(await page.evaluate(()=>window.__qa.state().shipments.find(row=>row.kind==='lot').commercial.saved),true);
  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('transtrade_export_v3_operational')).shipments.find(row=>row.kind==='lot').commercial.invoiceNo),'TG/AMT/13-PRINT');
+ await page.evaluate(()=>{window.TT_SHARED_SYNC.saveNow=window.__wholeSave});
  await page.locator('#createBankInvoice').click();await page.locator('#bankRetention').fill('1000');await page.locator('#bankInvoiceReason').fill('Bank retention');await page.locator('#saveBankInvoiceVersion').click();await page.locator('#saveBankInvoiceVersion').waitFor({state:'detached'});await page.evaluate(()=>window.__qa.commercial());await page.locator('#printRetentionInvoice').click();
  assert.equal(await page.evaluate(()=>window.__invoicePrinted.title),'RETENTION INVOICE');assert.match(await page.evaluate(()=>window.__invoicePrinted.html),/LESS RETENTION AMOUNT/);
  const coverFixture=structuredClone(invoiceFixture),coverLot=coverFixture.shipments.find(row=>row.kind==='lot');coverLot.covering={bank:'QA BANK',bankAddress:'QA Branch',dispatchDate:'2026-10-01',frozen:true,saved:true,notes:[]};
- await page.evaluate(data=>{window.__qa.fixture(data);window.__invoicePrinted=null;window.__qa.cover()},coverFixture);
+ await page.evaluate(data=>{window.__qa.fixture(data);window.__invoicePrinted=null;window.TT_SHARED_SYNC.saveNow=async()=>{throw Error('A cached bag order blocked a workspace save')};window.__qa.cover()},coverFixture);
  assert.equal(await page.locator('#saveCover').count(),0,'freeze button is removed');assert.equal(await page.locator('#printCover').innerText(),'SAVE / PRINT');await page.locator('#printCover').click();await page.waitForFunction(()=>window.__invoicePrinted?.title==='BANK COVERING LETTER');
  const savedCover=await page.evaluate(()=>JSON.parse(localStorage.getItem('transtrade_export_v3_operational')).shipments.find(row=>row.kind==='lot').covering);assert.equal(savedCover.saved,true);assert.equal(savedCover.frozen,false);assert.equal(savedCover.versions.length,1,'old saved letter is retained without requiring a freeze or amendment reason');
+ await page.evaluate(()=>{window.TT_SHARED_SYNC.saveNow=window.__wholeSave});
  const uploadedFumigation=structuredClone(invoiceFixture);uploadedFumigation.contracts[0].docs=['Fumigation Certificate'];const fumigationLot=uploadedFumigation.shipments.find(row=>row.kind==='lot');fumigationLot.certs=[];fumigationLot.uploadedDocuments=[{name:'Fumigation Certificate',finalDocument:{id:'FUM-QA'}}];fumigationLot.covering={dispatched:true,frozen:true,documentCounts:{'Fumigation Certificate':{originals:1,copies:1}}};
  await page.evaluate(data=>window.__qa.fixture(data),uploadedFumigation);assert.ok(!(await page.evaluate(()=>window.__qa.missing())).some(name=>/fumigation/i.test(name)),'uploaded fumigation original must satisfy completion');
  fumigationLot.covering.documentCounts['Fumigation Certificate'].originals=0;await page.evaluate(data=>window.__qa.fixture(data),uploadedFumigation);assert.ok(!(await page.evaluate(()=>window.__qa.missing())).some(name=>/dispatch|covering|frozen/.test(name)),'dispatch and covering letters must not block lot completion');
@@ -127,20 +136,6 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
  const blFixture=structuredClone(uploadBaseline);const blLot=blFixture.shipments.find(row=>row.kind==='lot');blLot.customs.gdRefs=[];blLot.bl.gdRefs=[];
  await page.evaluate(data=>{
   window.__qa.fixture(data);
-  window.TT_SHARED_SYNC.commitContractChanges=async(changes,matches)=>{
-   const root=JSON.parse(window.__committed);
-   for(const {action,path,value} of changes){
-    if(action==='prepend'&&path[0]==='audits'){root.audits.unshift(...value);continue;}
-    const lot=root.shipments.find(row=>row.id===path[1]?.id);
-    if(action!=='set'||path[0]!=='shipments'||!lot)throw Error('Unexpected B/L fixture write');
-    if(path.length===4)lot[path[2]][path[3]]=value;
-    else lot[path[2]]=value;
-   }
-   const result=JSON.stringify(root);
-   if(!matches(result))throw Error('Fixture B/L save was not acknowledged');
-   window.__committed=result;
-   localStorage.setItem('transtrade_export_v3_operational',result);
-  };
   window.__qa.bl();
  },blFixture);await page.locator('[data-bl-gd-number="0"]').fill('KPEX-SB-37338');await page.locator('[data-bl-gd-date="0"]').fill('2026-09-12');await page.locator('#blDesc').fill('AMENDED WHITE RICE FROM SAVED B/L DRAFT');await page.locator('#saveBL').click();await page.waitForFunction(()=>window.__qa.state().shipments.find(row=>row.kind==='lot').bl.description==='AMENDED WHITE RICE FROM SAVED B/L DRAFT');assert.ok(await page.evaluate(()=>window.__qa.rows().filter(row=>['commercial','packing'].includes(row.key)).every(row=>row.render().includes('AMENDED WHITE RICE FROM SAVED B/L DRAFT'))),'saved B/L description must reach final generated documents');
  await page.evaluate(()=>window.__qa.uploads());await page.locator('#uploadDocumentType').selectOption('Goods Declaration (GD)');assert.equal(await page.locator('[data-upload-gd-number="0"]').inputValue(),'KPEX-SB-37338');assert.equal(await page.locator('[data-upload-gd-date="0"]').inputValue(),'2026-09-12','GD selected and saved in B/L Draft must flow to uploads');
@@ -195,13 +190,13 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
   assert.ok(paths.some(path=>path.endsWith('/GD - GD.pdf')),route+' GD must be a separate PDF');
   if(route==='TG'){assert.ok(paths.some(path=>path.includes('/BANK DOCUMENTS/Sales Contract - Proforma ')),'Standalone TG bank proforma belongs in BANK DOCUMENTS');assert.ok(paths.some(path=>path.includes('/BANK DOCUMENTS/Bank Shipment Documents ')),'Combined TG pack belongs in BANK DOCUMENTS');assert.ok(!paths.some(path=>path.includes('/TG docs/')),'No loose legacy TG copies');}
  }
- // Completed reprints must bypass workspace writes; active documents still save before print.
+ // Final Output reads the saved document on both active and completed lots.
  await page.evaluate(()=>{window.__qa.restorePrint();window.__reprintSaves=0;window.TT_SHARED_SYNC.saveNow=async()=>{window.__reprintSaves++;return{ok:true}};window.print=()=>{const label=document.querySelector('#printRoot .commercialCopyLabel'),buyer=document.querySelector('#printRoot .packingParties');window.__reprintResult={label:label?.textContent,clear:label&&buyer?label.getBoundingClientRect().bottom<=buyer.getBoundingClientRect().top:true};};});
  for(const completed of [true,false]){
   const fixture=structuredClone(uploadBaseline);const current=fixture.shipments.find(row=>row.kind==='lot');current.completed=completed;current.status=completed?'Completed':'Active';current.commercial.saved=true;current.commercial.status='Final';
   await page.evaluate(data=>{window.__qa.fixture(data);window.__reprintResult=null;window.__qa.final();},fixture);
   const before=await page.evaluate(()=>window.__reprintSaves);await page.locator('#qa-editor tr').filter({has:page.getByText('Packing List',{exact:true})}).getByRole('button',{name:'PRINT / SAVE PDF',exact:true}).click();await page.locator('#printWith').click();await page.waitForFunction(()=>window.__reprintResult);
-  assert.equal(await page.evaluate(()=>window.__reprintSaves),before+(completed?0:1),completed?'Completed reprint saved the workspace':'Active document skipped save-before-print');assert.equal(await page.evaluate(()=>window.__reprintResult.label),'ORIGINAL');assert.equal(await page.evaluate(()=>window.__reprintResult.clear),true,'Packing copy label overlaps buyer during actual print');await page.waitForTimeout(300);
+  assert.equal(await page.evaluate(()=>window.__reprintSaves),before,'Final Output reprint submitted a workspace save');assert.equal(await page.evaluate(()=>window.__reprintResult.label),'ORIGINAL');assert.equal(await page.evaluate(()=>window.__reprintResult.clear),true,'Packing copy label overlaps buyer during actual print');await page.waitForTimeout(300);
  }
  await page.evaluate(()=>{const root={name:'Transtrade software shipment documents',async queryPermission(){return'granted'},async getDirectoryHandle(){return this},async getFileHandle(){throw Error('Office share offline')}};window.showDirectoryPicker=async()=>root});await page.evaluate(()=>window.TT_SHIPMENT_FILES.choose().catch(()=>{}));
 	 const failure=await page.evaluate(async png=>{try{await window.TT_SHIPMENT_FILES.save({customer:'QA',contract:'TTI/QA/01',lot:'TTI/QA/01/L01',rows:[],uploads:[{id:'fixture',name:'fixture.png',dataUrl:png}]});return''}catch(error){return error.message}},png);assert.match(failure,/0 of \d+ files saved/,'failed share write must never report success');

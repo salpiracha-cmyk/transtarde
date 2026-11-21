@@ -15,8 +15,8 @@ for(const completed of [true,false]){
  const permissions={completed:['View'],print:['View']};
  w.TT_MODULE_ACCESS={moduleId:'exports',user:'Fixture',role:'Staff',permissions};w.alert=message=>alerts.push(message);
  w.eval('var modalStack=[];var uid=()=>"fixture-modal";var esc=String;var num=Number;var SELLER_DETAILS={TTI:{}};');
- w.shipment=()=>({completed,status:completed?'Completed':'Draft',contractRef:'TTI/FIX/01'});w.contractByRef=()=>({seller:'TTI'});
- w.finalShipmentDocuments=()=>[{name:'Packing List',source:'System',status:'Ready',ready:true,render:()=>'<saved-packing>'}];
+ w.shipment=()=>({completed,status:completed?'Completed':'Draft',contractRef:'TTI/FIX/01'});w.contractByRef=()=>({seller:'TTI'});w.savedDocumentLot=w.shipment;
+ w.finalShipmentDocuments=()=>[{key:'packing',name:'Packing List',source:'System',status:'Ready',ready:true,render:()=>'<saved-packing>'}];
  w.completionMissing=()=>[];w.directPrint=(title,html,mode,readOnly)=>prints.push({mode,readOnly});
  w.eval([lineFunction('openModal'),lineFunction('closeModal'),lineFunction('printShipmentDoc__legacy_v0')].join('\n'));
  w.printShipmentDoc=w.printShipmentDoc__legacy_v0;

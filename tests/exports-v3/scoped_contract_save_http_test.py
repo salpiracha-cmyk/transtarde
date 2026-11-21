@@ -21,9 +21,10 @@ with tempfile.TemporaryDirectory(prefix='exports-scoped-save-') as tmp:
 define('TT_DATA_DIR', __DIR__.'/data');
 function tt_require_login(){
     if(($_GET['actor']??'')==='operator')return ['role'=>'Exports','id'=>9,'full_name'=>'Fixture Operator','permissions'=>['Exports'=>['View','Create','Edit']]];
-    if(in_array($_GET['actor']??'',['staff','bl'],true)){
+    if(in_array($_GET['actor']??'',['staff','bl','documents'],true)){
         $permissions=['bags'=>['View','Create','Edit']];
         if($_GET['actor']==='bl')$permissions+=['bl'=>['View','Create','Edit'],'customs'=>['View','Create','Edit']];
+        if($_GET['actor']==='documents')$permissions=['commercial'=>['View','Create','Edit'],'cover'=>['View','Create','Edit'],'tg'=>['View','Create','Edit']];
         return ['role'=>'Staff','id'=>8,'full_name'=>'Fixture Exports Staff','permissions'=>['Exports'=>$permissions]];
     }
     return ['role'=>'Super Admin','id'=>7,'full_name'=>'Fixture Owner'];
@@ -51,13 +52,13 @@ function tt_user_can_open_module($u,$m){return true;}
     server = subprocess.Popen(['php','-d','memory_limit=256M','-S',f'127.0.0.1:{port}','-t',str(app)],env=env,stdout=log,stderr=log)
     url = f'http://127.0.0.1:{port}/api/operations.mysql.php?asset_refs=1'
 
-    def send(version, changes, identity=None, staff=False, operator=False, bl=False):
+    def send(version, changes, identity=None, staff=False, operator=False, bl=False, documents=False):
         body = dict(csrf='fixture',key=KEY,sourceModule='Exports',baseVersion=version,contractChanges=json.dumps(changes))
         if identity: body['contractSave']=identity
         data = json.dumps(body).encode()
         assert len(data)<4096
         try:
-            with urlopen(Request(url+('&actor=bl' if bl else '&actor=operator' if operator else '&actor=staff' if staff else ''),data=data,headers={'Content-Type':'application/json'}),timeout=20) as response:
+            with urlopen(Request(url+('&actor=documents' if documents else '&actor=bl' if bl else '&actor=operator' if operator else '&actor=staff' if staff else ''),data=data,headers={'Content-Type':'application/json'}),timeout=20) as response:
                 return response.status, json.load(response)
         except HTTPError as error:
             return error.code, json.load(error)
@@ -239,6 +240,26 @@ function tt_user_can_open_module($u,$m){return true;}
         assert all_shipments[:-1]==after_amendment['shipments'][:-1]
         assert all_shipments[-1]['bl']==bl_draft and all_shipments[-1]['customs']['gdRefs']==gd_refs
         print('PASS B/L save preserves cached Mill bag orders, carrier references and unrelated shipments')
+        # Document output can save its fields without B/L edit rights or a Mill write.
+        commercial={'saved':True,'status':'Final','invoiceNo':'CI-QA','date':'2026-11-20'}
+        cover={'saved':True,'bank':'QA BANK','dispatchDate':'2026-11-20','frozen':False}
+        for version, field, value in [(51,'commercial',commercial),(52,'covering',cover),(53,'tgdocs',{'saved':True,'covering':cover})]:
+            event={'id':'AUD-QA-'+field,'area':field,'action':'Saved for printing','contractRef':'A/001'}
+            changes=[
+                {'action':'set','path':bl_path+[field],'value':value},
+                {'action':'prepend','path':['audits',None],'value':[event]},
+            ]
+            assert send(version,changes,staff=True)[0]==403
+            status,result=send(version,changes,documents=True)
+            assert status==200 and result['keyVersion']==version+1,result
+        store=json.loads(source.read_text())
+        updated=json.loads(store['values'][KEY])['shipments']
+        assert store['values']['tt30bags']==mill_bags and store['meta']['tt30bags']['version']==1
+        assert updated[:-1]==all_shipments[:-1]
+        assert updated[-1]['bl']==bl_draft and updated[-1]['customs']['gdRefs']==gd_refs
+        assert updated[-1]['commercial']==commercial and updated[-1]['covering']==cover
+        assert updated[-1]['tgdocs']['covering']==cover
+        print('PASS document-scoped writes preserve permissions, carrier references, GDs, hidden Mill bags and other shipments')
         print('PASS actual Bag PO handler with legacy duplicate and hidden audit history, stable retry and immutable saved history')
         print('PASS restricted Exports staff can issue and update one Bag PO, preserve hidden POs and all distinct lines, and reject duplicate lines')
         print('PASS scoped Exports HTTP saves: 17 MiB book, draft and issue receipts, linked amendments, unrelated concurrent writes, retry and real conflicts')

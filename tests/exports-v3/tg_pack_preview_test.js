@@ -1,9 +1,20 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
+const applyScopedDocumentChanges=require('./scoped_document_fixture');
 const dom=new JSDOM('<div id="app"></div><div id="editor"></div><div id="printRoot"></div>',{url:'https://fixture.test/exports/',runScripts:'outside-only'}),w=dom.window;
 const theme=w.document.createElement('style');theme.textContent=fs.readFileSync('brand-theme.css','utf8');w.document.head.append(theme);
 w.structuredClone=structuredClone;w.setInterval=()=>0;w.confirm=()=>true;let alerts=[];w.alert=s=>alerts.push(s);w.TT_MODULE_ACCESS={user:'Fixture',masters:{}};
-let syncs=0,failSave=false,printed=[],delaySave=false,releaseSave;w.TT_SHARED_SYNC={flush(){},saveNow:async()=>{syncs++;if(failSave)throw Error('Fixture save refused');if(delaySave)await new Promise(resolve=>releaseSave=resolve);}};
+let syncs=0,failSave=false,printed=[],delaySave=false,releaseSave,acknowledged;
+w.TT_SHARED_SYNC={
+ flush(){},readCommitted:()=>acknowledged,
+ saveNow:async()=>{throw Error('A cached bag order blocked a workspace save');},
+ async commitContractChanges(changes,matches){
+  syncs++;
+  if(failSave)throw Error('Fixture save refused');
+  if(delaySave)await new Promise(resolve=>releaseSave=resolve);
+  acknowledged=applyScopedDocumentChanges(acknowledged,changes,matches);
+ }
+};
 let source=fs.readFileSync('exports/app.js','utf8');source=source.replace('mount();restoreContractCheckpoint();','window.__tg={state,makeShipment,renderTG,renderOfficeDocumentRefresh,tgProformaDoc,fitTGProformaPages,coveringDocumentRows,tgRelationshipLetterDoc,tgRelationshipWording,tgRelationshipValidation,tgRelationshipValues,tgInternalCommercialInvoiceDoc,packingListDoc,coveringDoc,setCurrent:id=>{currentShipmentId=id},officeSetup:fn=>{saveShipmentFolder=fn;closeLotEditor=()=>{}},printer:fn=>{printShipmentDoc=fn}};');w.eval(source);
 const t=w.__tg,customer={id:'BUYER',name:'New Buyer',address:'New Buyer Address',notifies:[{name:'Receiver Two',address:'Receiver Two Address'}]};
 const c={id:'C',ref:'TG/QA/01',seller:'TG',customerId:'BUYER',date:'2026-10-01',product:'White Rice',variety:'IRRI-6',riceType:'White Rice',hsCode:'1006.30',qty:27,containers:1,tolerance:5,pol:'Port Qasim',podPort:'Banjul',podCountry:'Gambia',packingUnit:'KG',currency:'USD',incoterm:'CFR',paymentCode:'CAD100',terms:[],docs:[],packings:[{size:50,type:'P.P. Bags',brand:'QA',tare:100,containers:1,weightPer:27,price:450,masterBag:{enabled:false}}]};
@@ -27,6 +38,7 @@ const d=w.document.getElementById('editor'),q=x=>d.querySelector(x),input=(id,va
 const defaults=t.coveringDocumentRows(bankLot,originalContract,{docs:[{name:'Fumigation Certificate',originals:1,copies:1},{name:'Certificate of Origin',originals:1,copies:3},{name:'Commercial Invoice',originals:1,copies:2}]},true);
 assert.equal(defaults.some(row=>/fumigation|certificate of origin/i.test(row.name)),false);assert.deepEqual(Array.from(defaults.slice(-3),r=>r.name),['FI — FI-A, FI-B','Relationship Letter','Sales Contract / Proforma Invoice']);
 assert.ok(defaults.slice(-3).every(row=>row.originals===0&&row.copies===1));
+acknowledged=JSON.stringify(t.state);
 const before=JSON.stringify(s.tgdocs.relationship);assert.match(t.tgRelationshipLetterDoc(s,c),/OLD BUYER/);assert.equal(JSON.stringify(s.tgdocs.relationship),before,'Reading historical letter does not migrate or rewrite it');
 t.renderTG(d);assert.equal(syncs,0);assert.equal(d.querySelectorAll('.lotSplitWorkspace').length,1);assert.ok(q('#tgPreviewPaper .docPage'),'First tab renders a real document');
 assert.ok(s.tgdocs.covering.dispatchDate,'The whole pack has its bank date before the covering tab is ever opened');
@@ -89,7 +101,7 @@ assert.equal(syncs,0,'Typing, selecting and switching tabs never save');
    const proformaPdf=await page.evaluate(async()=>{const t=window.__tg,s=t.state.shipments[0],c=t.state.contracts[0],pdf=await TT_SHIPMENT_FILES.pdf(t.tgProformaDoc(s,c),t.fitTGProformaPages);return Array.from(new Uint8Array(await pdf.arrayBuffer()))});
    fs.writeFileSync('tmp/qa/tg-pack/proforma-notify.pdf',Buffer.from(proformaPdf));
    await page.locator('[data-tg-tab="relationship"]').click();
-   await page.evaluate(()=>{window.TT_SHARED_SYNC.saveNow=async()=>{throw new Error('Fixture save refused')}});await page.locator('#tgPrintCurrent').click();await page.locator('#exportSaveError').waitFor({state:'visible'});
+   await page.evaluate(()=>{window.TT_SHARED_SYNC.readCommitted=()=>JSON.stringify(window.__tg.state);window.TT_SHARED_SYNC.commitContractChanges=async()=>{throw new Error('Fixture save refused')}});await page.locator('#tgPrintCurrent').click();await page.locator('#exportSaveError').waitFor({state:'visible'});
    assert.equal(await page.locator('#exportSaveError').evaluate(el=>getComputedStyle(el).color),'rgb(165, 29, 36)','Actual browser error text must be red');
    fs.mkdirSync('tmp/qa/tg-pack',{recursive:true});await page.setViewportSize({width:1450,height:1000});await page.screenshot({path:'tmp/qa/tg-pack/relationship-preview.png',fullPage:true});
   }finally{await browser.close();}
