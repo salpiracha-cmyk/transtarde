@@ -432,25 +432,48 @@ assert.match(t.millActualsIssues({...confirmedOutside,outsideLoading:{...confirm
 assert.match(t.millActualsIssues({...confirmedOutside,millActuals:confirmedOutside.millActuals.map((row,index)=>index?row:{...row,outsideDealId:'different-deal'})}).join(' '),/seal number/,'The exemption is restricted to the linked SODA');
 const blPrint=d.querySelector('#printBL'),down=d.querySelector('.lotPreviewHead .previewDownload');
 assert.ok(down,'Outside SODA B/L has the same downloadable preview');
-let printSaves=0,printed=0,allowPrintSave;
+let printSaves=0,printed=0,allowPrintSave,scopedCommit;
+let blAcknowledged=JSON.stringify(t.getState());
 w.print=()=>{printed++;assert.match(d.querySelector('#printRoot').textContent,/TEST1234568/);};
-w.TT_SHARED_SYNC.saveNow=async()=>{printSaves++;await new Promise(resolve=>{allowPrintSave=resolve;});};
+w.TT_SHARED_SYNC.saveNow=async()=>{throw Error('Linked bag orders: A cached record is outside your current access and cannot be changed.');};
+w.TT_SHARED_SYNC.readCommitted=()=>blAcknowledged;
+scopedCommit=async(changes,matches)=>{
+ printSaves++;
+ const root=JSON.parse(blAcknowledged),lot=root.shipments.find(row=>row.id===outsideLot.id);
+ assert.deepEqual(JSON.parse(JSON.stringify(changes.map(change=>change.path))),[
+  ['shipments',{id:outsideLot.id},'bl'],['shipments',{id:outsideLot.id},'customs','gdRefs'],
+  ['shipments',{id:outsideLot.id},'documentActivity'],['audits',null]
+ ]);
+ lot.bl=changes[0].value;lot.customs.gdRefs=changes[1].value;
+ lot.documentActivity=changes[2].value;root.audits.push(...changes[3].value);
+ const saved=JSON.stringify(root);assert.ok(matches(saved));blAcknowledged=saved;
+};
+w.TT_SHARED_SYNC.commitContractChanges=async(...args)=>{
+ await new Promise(resolve=>{allowPrintSave=resolve;});
+ return scopedCommit(...args);
+};
 set(d.querySelector('[data-bl-gd-number]'),'GD-PRINT-QA');
 set(d.querySelector('[data-bl-gd-date]'),'2026-09-09','change');
 const pendingPrint=blPrint.onclick();
 await new Promise(resolve=>setImmediate(resolve));
 assert.equal(printed,0,'Printing waits for the server acknowledgement');
-assert.equal(printSaves,1,'One click must issue a single B/L save');
+assert.equal(typeof allowPrintSave,'function','The request goes through the scoped B/L save');
 allowPrintSave();
 assert.equal(await pendingPrint,true);
+assert.equal(printSaves,1,'One click must issue a single B/L save');
 assert.equal(printed,1);
-let exported=null,clickedFile='';
-w.TT_SHARED_SYNC.saveNow=async()=>{throw Error('Fixture save refused');};
+let exported=null,clickedFile='',archiveRequests=0;
+set(d.querySelector('#blVessel'),'MV RETRY SCOPED');
+w.TT_SHARED_SYNC.commitContractChanges=async()=>{throw Error('Fixture save refused');};
 assert.equal(await blPrint.onclick(),false);
 assert.equal(printed,1,'A refused save cannot print');
 assert.match(d.querySelector('#exportSaveError').textContent,/Fixture save refused/);
-w.TT_SHARED_SYNC.saveNow=async()=>{printSaves++;};
-w.TT_SHIPMENT_FILES={pdf:async markup=>{exported=markup;return new w.Blob(['%PDF-fixture'],{type:'application/pdf'});}};
+assert.equal(d.querySelector('#blVessel').value,'MV RETRY SCOPED');
+w.TT_SHARED_SYNC.commitContractChanges=scopedCommit;
+w.TT_SHIPMENT_FILES={
+ pdf:async markup=>{exported=markup;return new w.Blob(['%PDF-fixture'],{type:'application/pdf'});},
+ save:async()=>{archiveRequests++;return {skipped:true};}
+};
 w.URL.createObjectURL=()=> 'blob:https://exports.audit.local/pdf';
 w.URL.revokeObjectURL=()=>{};
 const nativeAnchorClick=w.HTMLAnchorElement.prototype.click,downloadTimeout=w.setTimeout;
@@ -462,6 +485,17 @@ w.setTimeout=downloadTimeout;
 assert.match(exported,/TEST1234568/);
 assert.equal(clickedFile,'B-L Draft.pdf');
 assert.equal(printed,1,'A preview download never opens the printer dialog');
+assert.equal(printSaves,2,'Preview download saves changed B/L fields only');
+assert.equal(archiveRequests,0,'Downloading the preview does not queue the office archive');
+set(d.querySelector('#blVessel'),'MV ARCHIVE SCOPED');
+assert.equal(await blPrint.onclick(),true);
+assert.equal(printed,2);
+assert.equal(printSaves,3);
+await new Promise(resolve=>setImmediate(resolve));
+assert.equal(archiveRequests,1,'The office archive reads the confirmed draft without flushing cached bag orders');
+assert.equal(await blPrint.onclick(),true);
+assert.equal(printed,3);
+assert.equal(printSaves,3,'Reprinting the same saved draft is read-only');
 
 
 

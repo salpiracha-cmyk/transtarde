@@ -21,7 +21,11 @@ with tempfile.TemporaryDirectory(prefix='exports-scoped-save-') as tmp:
 define('TT_DATA_DIR', __DIR__.'/data');
 function tt_require_login(){
     if(($_GET['actor']??'')==='operator')return ['role'=>'Exports','id'=>9,'full_name'=>'Fixture Operator','permissions'=>['Exports'=>['View','Create','Edit']]];
-    if(($_GET['actor']??'')==='staff')return ['role'=>'Staff','id'=>8,'full_name'=>'Fixture Exports Staff','permissions'=>['Exports'=>['bags'=>['View','Create','Edit']]]];
+    if(in_array($_GET['actor']??'',['staff','bl'],true)){
+        $permissions=['bags'=>['View','Create','Edit']];
+        if($_GET['actor']==='bl')$permissions+=['bl'=>['View','Create','Edit'],'customs'=>['View','Create','Edit']];
+        return ['role'=>'Staff','id'=>8,'full_name'=>'Fixture Exports Staff','permissions'=>['Exports'=>$permissions]];
+    }
     return ['role'=>'Super Admin','id'=>7,'full_name'=>'Fixture Owner'];
 }
 function tt_verify_csrf($v){return $v==='fixture';}
@@ -29,7 +33,7 @@ function tt_ensure_data_dir(){}
 function tt_release_read_session(){}
 function tt_list_masters(){return [];}
 function tt_user_business_entity($u,$e,$a){return $u['role']!=='Staff'||$e==='TTI';}
-function tt_user_can_module_action($u,$m,$i,$a){return $u['role']==='Super Admin'||($m==='Exports'&&($u['role']==='Exports'||$i==='bags'));}
+function tt_user_can_module_action($u,$m,$i,$a){return $u['role']==='Super Admin'||($m==='Exports'&&($u['role']==='Exports'||in_array($a,$u['permissions']['Exports'][$i]??[],true)));}
 function tt_user_can_master($u,$i,$a){return false;}
 function tt_user_can_open_module($u,$m){return true;}
 """)
@@ -47,13 +51,13 @@ function tt_user_can_open_module($u,$m){return true;}
     server = subprocess.Popen(['php','-d','memory_limit=256M','-S',f'127.0.0.1:{port}','-t',str(app)],env=env,stdout=log,stderr=log)
     url = f'http://127.0.0.1:{port}/api/operations.mysql.php?asset_refs=1'
 
-    def send(version, changes, identity=None, staff=False, operator=False):
+    def send(version, changes, identity=None, staff=False, operator=False, bl=False):
         body = dict(csrf='fixture',key=KEY,sourceModule='Exports',baseVersion=version,contractChanges=json.dumps(changes))
         if identity: body['contractSave']=identity
         data = json.dumps(body).encode()
         assert len(data)<4096
         try:
-            with urlopen(Request(url+('&actor=operator' if operator else '&actor=staff' if staff else ''),data=data,headers={'Content-Type':'application/json'}),timeout=20) as response:
+            with urlopen(Request(url+('&actor=bl' if bl else '&actor=operator' if operator else '&actor=staff' if staff else ''),data=data,headers={'Content-Type':'application/json'}),timeout=20) as response:
                 return response.status, json.load(response)
         except HTTPError as error:
             return error.code, json.load(error)
@@ -210,6 +214,31 @@ function tt_user_can_open_module($u,$m){return true;}
         assert after_amendment['audits'][:4]==persisted['audits']
         assert after_amendment['shipments']==persisted['shipments']
         assert after_amendment['contracts'][1]['paymentText']=='Concurrent unrelated change'
+        # Export B/L output must not submit a cached Mill collection or change another company's PO.
+        lot={'id':'LOT-BL','kind':'lot','parentProcessId':'S1','contractRef':'A/001','lotId':'A/001/L01','seller':'TTI',
+             'bl':{'blNo':'CARRIER-ISSUED-1','draftSaved':False},'customs':{'saved':True,'gdRefs':[]}}
+        after_amendment['shipments'].append(lot)
+        mill_bags=json.dumps([{'id':42,'entity':'BRM','poNo':'PO-260006','mill':'BRM Rice Mills','received':12}])
+        source.write_text(json.dumps({'revision':51,'values':{KEY:json.dumps(after_amendment),'tt30bags':mill_bags},
+                                      'meta':{KEY:{'version':50},'tt30bags':{'version':1}}}))
+        gd_refs=[{'number':'GD-QA','date':'2026-11-20'}]
+        bl_draft={**lot['bl'],'draftSaved':True,'vessel':'MV FIXTURE','gdRefs':gd_refs}
+        bl_event={'id':'AUD-QA-BL','area':'B/L Draft','action':'Saved','contractRef':'A/001'}
+        bl_path=['shipments',{'id':'LOT-BL'}]
+        bl_activity=[{'document':'B/L Draft','action':'Saved'}]
+        status,result=send(50,[
+            {'action':'set','path':bl_path+['bl'],'value':bl_draft},
+            {'action':'set','path':bl_path+['customs','gdRefs'],'value':gd_refs},
+            {'action':'set','path':bl_path+['documentActivity'],'value':bl_activity},
+            {'action':'prepend','path':['audits',None],'value':[bl_event]},
+        ],bl=True)
+        assert status==200 and result['keyVersion']==51,result
+        store=json.loads(source.read_text())
+        assert store['values']['tt30bags']==mill_bags and store['meta']['tt30bags']['version']==1
+        all_shipments=json.loads(store['values'][KEY])['shipments']
+        assert all_shipments[:-1]==after_amendment['shipments'][:-1]
+        assert all_shipments[-1]['bl']==bl_draft and all_shipments[-1]['customs']['gdRefs']==gd_refs
+        print('PASS B/L save preserves cached Mill bag orders, carrier references and unrelated shipments')
         print('PASS actual Bag PO handler with legacy duplicate and hidden audit history, stable retry and immutable saved history')
         print('PASS restricted Exports staff can issue and update one Bag PO, preserve hidden POs and all distinct lines, and reject duplicate lines')
         print('PASS scoped Exports HTTP saves: 17 MiB book, draft and issue receipts, linked amendments, unrelated concurrent writes, retry and real conflicts')
