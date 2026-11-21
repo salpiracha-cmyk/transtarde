@@ -1383,17 +1383,38 @@ function renderBL(d){
    if(fiRows.some(row=>!String(row.number||'').trim()||!String(row.date||'').trim()))throw Error('Every FI used in Customs must have both FI Number and FI Date before creating the B/L PDF.');
    if(!gdRows.length&&!fiRows.length)throw Error('Enter a GD Number and Date or allocate a dated FI before creating the B/L PDF. The B/L draft may still be saved.');
   }
+  const sync=window.TT_SHARED_SYNC;
+  const saved=committedExportSnapshot()?.shipments?.find(row=>row.id===s.id&&row.kind==='lot');
+  if(!sync?.commitContractChanges||!saved)throw Error('The saved lot is unavailable. Reopen Exports before saving the B/L Draft.');
+  const draft={...saved.bl,...readBL(),gdRefs:structuredClone(gdRows),gdRefsInitialized:true,draftSaved:true};
+  const fieldsChanged=exportWorkspaceChanges({bl:saved.bl,gdRefs:saved.customs?.gdRefs||[]},{bl:draft,gdRefs:gdRows}).length>0;
   saving=true;
   saveButton.disabled=printButton.disabled=true;
   try{
-   Object.assign(b,readBL(),{draftSaved:true});
-   s.customs.gdRefs=structuredClone(gdRows);
-   s.loadingPlan={...(s.loadingPlan||{}),loadingProgrammeNo:loadingProgrammeFor(s),bookingNumber:loadingProgrammeFor(s)};
-   const markup=output?blDraftDoc({...s,customs:{...s.customs,fiAllocations:fiRows}},c):null;
-   audit('B/L Draft','Saved',s.contractRef,false);
-   await acknowledgeExport();
+   const markup=output?blDraftDoc({...saved,bl:draft,customs:{...saved.customs,gdRefs:gdRows,fiAllocations:fiRows}},c):null;
+   if(fieldsChanged){
+    const previousActivity=s.documentActivity;
+    s.documentActivity=(saved.documentActivity||[]).slice();
+    audit('B/L Draft','Saved',s.contractRef,false);
+    const activity=s.documentActivity,event=state.audits.shift();
+    s.documentActivity=previousActivity;
+    const path=['shipments',{id:s.id}];
+    const changes=[
+     {action:'set',path:[...path,'bl'],value:draft},
+     {action:'set',path:[...path,'customs','gdRefs'],value:gdRows},
+     {action:'set',path:[...path,'documentActivity'],value:activity},
+     {action:'prepend',path:['audits',null],value:[event]}
+    ];
+    await sync.commitContractChanges(changes,raw=>{
+     const snapshot=JSON.parse(raw),lot=snapshot.shipments?.find(row=>row.id===s.id);
+     return snapshot.audits?.some(row=>row.id===event.id)&&lot?.bl?.draftSaved&&
+      !exportWorkspaceChanges({bl:draft,gdRefs:gdRows},{bl:lot.bl,gdRefs:lot.customs?.gdRefs||[]}).length;
+    },undefined,'B/L Draft');
+    Object.assign(b,{...draft,gdRefs:b.gdRefs});
+    s.documentActivity=activity;state.audits.unshift(event);
+   }
    d.querySelector('#exportSaveError')?.remove();
-   if(archive)void copyCommittedShipmentFiles(s,c);
+   if(archive&&fieldsChanged)void copyCommittedShipmentFiles(s,c,true);
    return {markup,...outputDetails()};
   }finally{saving=false;saveButton.disabled=printButton.disabled=false;}
  };
@@ -1965,9 +1986,9 @@ async function saveShipmentFolder(s,c,optional=false,onProgress=null,refreshExis
  const bagOrders=customsOnly?[]:(process?.bagOrders||[]).filter(order=>order.issuedAt&&!order.cancelled);
  return window.TT_SHIPMENT_FILES.save({bagOrders,customer:name,contract:lot.contractRef,lot:lot.lotId,rows,uploads:customsOnly?[]:shipmentUploadedFiles(lot),fit:fitTGProformaPages,optional,committedSnapshot:saved,strictFinal:true,onProgress,refreshExisting,customsOnly,bankDocumentRows:customsOnly?null:coveringDocumentRows(lot,contract,lot.seller==='TG'?(lot.tgdocs?.covering||lot.covering):lot.covering,lot.seller==='TG')});
 }
-async function copyCommittedShipmentFiles(s,c){
+async function copyCommittedShipmentFiles(s,c,alreadyCommitted=false){
  if(!window.TT_SHIPMENT_FILES)return;
- try{if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow();const result=await saveShipmentFolder(s,c,true);if(result.skipped)return;const host=document.getElementById('workspaceDetail')||document.getElementById('lotEditorForm');host?.insertAdjacentHTML('afterbegin',`<div class="notice" role="status">${esc(result.count)} shipment files queued for the Office Agent at ${esc(result.path)}.${result.warnings?.length?`<p class="notice danger">${result.warnings.map(esc).join('<br>')}</p>`:''}</div>`)}
+ try{if(!alreadyCommitted){if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow();}const result=await saveShipmentFolder(s,c,true);if(result.skipped)return;const host=document.getElementById('workspaceDetail')||document.getElementById('lotEditorForm');host?.insertAdjacentHTML('afterbegin',`<div class="notice" role="status">${esc(result.count)} shipment files queued for the Office Agent at ${esc(result.path)}.${result.warnings?.length?`<p class="notice danger">${result.warnings.map(esc).join('<br>')}</p>`:''}</div>`)}
  catch(error){const host=document.getElementById('workspaceDetail')||document.getElementById('lotEditorForm');host?.insertAdjacentHTML('afterbegin',`<div class="notice warn" role="status">Office archive was not queued. Retry the document Save action or LOT COMPLETE. ${esc(error.message)}</div>`)}
 }
 async function checkCompletedOfficeDelivery(button,s){
