@@ -125,7 +125,24 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
  await page.locator('#lotDocumentFile').setInputFiles({name:'phyto.png',mimeType:'image/png',buffer:Buffer.from(png.split(',')[1],'base64')});await page.locator('#saveLotDocument').click();await page.waitForFunction(()=>window.__qa.state().certs===undefined&&window.__qa.state().shipments.find(row=>row.kind==='lot').certs.some(row=>row.reference==='PC-2026-999'));
  const uploadBaseline=await page.evaluate(()=>JSON.parse(localStorage.getItem('transtrade_export_v3_operational')));
  const blFixture=structuredClone(uploadBaseline);const blLot=blFixture.shipments.find(row=>row.kind==='lot');blLot.customs.gdRefs=[];blLot.bl.gdRefs=[];
- await page.evaluate(data=>window.__qa.fixture(data),blFixture);await page.evaluate(()=>window.__qa.bl());await page.locator('[data-bl-gd-number="0"]').fill('KPEX-SB-37338');await page.locator('[data-bl-gd-date="0"]').fill('2026-09-12');await page.locator('#blDesc').fill('AMENDED WHITE RICE FROM SAVED B/L DRAFT');await page.locator('#saveBL').click();assert.ok(await page.evaluate(()=>window.__qa.rows().filter(row=>['commercial','packing'].includes(row.key)).every(row=>row.render().includes('AMENDED WHITE RICE FROM SAVED B/L DRAFT'))),'saved B/L description must reach final generated documents');
+ await page.evaluate(data=>{
+  window.__qa.fixture(data);
+  window.TT_SHARED_SYNC.commitContractChanges=async(changes,matches)=>{
+   const root=JSON.parse(window.__committed);
+   for(const {action,path,value} of changes){
+    if(action==='prepend'&&path[0]==='audits'){root.audits.unshift(...value);continue;}
+    const lot=root.shipments.find(row=>row.id===path[1]?.id);
+    if(action!=='set'||path[0]!=='shipments'||!lot)throw Error('Unexpected B/L fixture write');
+    if(path.length===4)lot[path[2]][path[3]]=value;
+    else lot[path[2]]=value;
+   }
+   const result=JSON.stringify(root);
+   if(!matches(result))throw Error('Fixture B/L save was not acknowledged');
+   window.__committed=result;
+   localStorage.setItem('transtrade_export_v3_operational',result);
+  };
+  window.__qa.bl();
+ },blFixture);await page.locator('[data-bl-gd-number="0"]').fill('KPEX-SB-37338');await page.locator('[data-bl-gd-date="0"]').fill('2026-09-12');await page.locator('#blDesc').fill('AMENDED WHITE RICE FROM SAVED B/L DRAFT');await page.locator('#saveBL').click();await page.waitForFunction(()=>window.__qa.state().shipments.find(row=>row.kind==='lot').bl.description==='AMENDED WHITE RICE FROM SAVED B/L DRAFT');assert.ok(await page.evaluate(()=>window.__qa.rows().filter(row=>['commercial','packing'].includes(row.key)).every(row=>row.render().includes('AMENDED WHITE RICE FROM SAVED B/L DRAFT'))),'saved B/L description must reach final generated documents');
  await page.evaluate(()=>window.__qa.uploads());await page.locator('#uploadDocumentType').selectOption('Goods Declaration (GD)');assert.equal(await page.locator('[data-upload-gd-number="0"]').inputValue(),'KPEX-SB-37338');assert.equal(await page.locator('[data-upload-gd-date="0"]').inputValue(),'2026-09-12','GD selected and saved in B/L Draft must flow to uploads');
  for(const source of ['customs','bl','missing']){
   const fixture=structuredClone(uploadBaseline),shipment=fixture.shipments.find(row=>row.kind==='lot');shipment.customs.gdRefs=[];shipment.bl.gdRefs=[];
