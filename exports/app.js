@@ -1379,9 +1379,9 @@ function renderBL(d){
    return {...row,number:number||savedFI?.number,date:row?.date||savedFI?.date};
   });
   if(output){
-   if(gdRows.some(row=>!String(row.number||'').trim()||!String(row.date||'').trim()))throw Error('Complete both GD Number and GD Date for every GD row.');
-   if(fiRows.some(row=>!String(row.number||'').trim()||!String(row.date||'').trim()))throw Error('Complete the FI Number and FI Date for every FI allocated in Customs.');
-   if(!gdRows.length&&!fiRows.length)throw Error('Enter a GD Number and Date or allocate a dated FI in Customs.');
+   if(gdRows.some(row=>!String(row.number||'').trim()||!String(row.date||'').trim()))throw Error('Complete both GD Number and GD Date for every GD row before creating the B/L PDF.');
+   if(fiRows.some(row=>!String(row.number||'').trim()||!String(row.date||'').trim()))throw Error('Every FI used in Customs must have both FI Number and FI Date before creating the B/L PDF.');
+   if(!gdRows.length&&!fiRows.length)throw Error('Enter a GD Number and Date or allocate a dated FI before creating the B/L PDF. The B/L draft may still be saved.');
   }
   saving=true;
   saveButton.disabled=printButton.disabled=true;
