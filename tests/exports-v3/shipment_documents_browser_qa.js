@@ -29,7 +29,8 @@ app = app.replace(
       blInstructions:blDraftDoc(shipment,contract),
       coo:cooDoc(shipment,contract,false)
     };
-  };`
+  };
+  window.__fitExportPreview=root=>fitCOOPages(root)&&fitTGProformaPages(root);`
 );
 assert.match(app, /window\.__renderShipmentDocuments/, 'shipment document renderer test hook was not installed');
 const css = fs.readFileSync(path.join(root, 'exports', 'app.css'), 'utf8');
@@ -81,6 +82,24 @@ const css = fs.readFileSync(path.join(root, 'exports', 'app.css'), 'utf8');
     if (name === 'blInstructions') assert.ok(report[name].blBackgrounds.every(value => value === 'rgb(255, 255, 255)' || value === 'rgba(0, 0, 0, 0)'), 'B/L Draft must remain plain white without coloured bands');
     await page.screenshot({ path: path.join(outputDir, `${name}.png`), fullPage: true });
     if(name!=='coo') await page.pdf({ path: path.join(outputDir, `${name}.pdf`), format: 'A4', printBackground: true, preferCSSPageSize: true, margin: { top: '0', right: '0', bottom: '0', left: '0' } });
+  }
+  for (const file of ['html2canvas-1.4.1.min.js','jspdf-4.2.1.umd.min.js','pdf-lib-1.17.1.min.js']) {
+    await page.addScriptTag({path:path.join(root,'exports','vendor',file)});
+  }
+  await page.addScriptTag({path:path.join(root,'exports','shipment-files.js')});
+  const previewSizes=await page.evaluate(async docs=>{
+    const results={};
+    for(const [key,size] of [['blInstructions',[210,297]],['coo',[213.36,281.94]]]){
+      const blob=await window.TT_SHIPMENT_FILES.pdf(docs[key],window.__fitExportPreview,{pageSize:key==='coo'?size:undefined,preview:true});
+      const pdf=await window.PDFLib.PDFDocument.load(await blob.arrayBuffer());
+      results[key]={pageCount:pdf.getPageCount(),...pdf.getPage(0).getSize()};
+    }
+    return results;
+  },documents);
+  for(const [key,[width,height]] of Object.entries({blInstructions:[210,297],coo:[213.36,281.94]})){
+    assert.equal(previewSizes[key].pageCount,1);
+    assert.ok(Math.abs(previewSizes[key].width-width*72/25.4)<.1);
+    assert.ok(Math.abs(previewSizes[key].height-height*72/25.4)<.1);
   }
   fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify(Object.fromEntries(Object.entries(report).map(([name, value]) => [name, { ...value, text: undefined }])), null, 2));
   await browser.close();

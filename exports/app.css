@@ -538,3 +538,8 @@
 .outsideLoadingWorkspace table{width:100%;border-collapse:collapse}
 .outsideLoadingWorkspace th,.outsideLoadingWorkspace td{padding:8px;text-align:left;border-bottom:1px solid #e2e8f0}
 .outsideLoadingWorkspace .dtError{color:#a21a1a}
+
+.previewDownloadActions{display:flex;align-items:center;justify-content:flex-end;gap:.5rem}
+.previewDownload{min-width:2rem;font-size:1.2rem;line-height:1;padding:.35rem .55rem}
+.previewDownloadFeedback:empty{display:none}
+.previewDownloadFeedback.error{color:#a21a1a}
