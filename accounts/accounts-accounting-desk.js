@@ -185,6 +185,7 @@
       .tt-queue-row button:disabled{opacity:.55;cursor:wait}
       .tt-attention-details{display:grid;grid-template-columns:max-content 1fr;gap:6px 12px}
       .tt-attention-details dd{margin:0}
+      .tt-summary-pop .tt-broker-due{display:flex;justify-content:space-between;gap:12px;padding-top:6px}.tt-broker-due>span:first-child{min-width:0;overflow-wrap:anywhere}.tt-broker-due>span:last-child{white-space:nowrap}
       .tt-inside-area .tt-home-activity{display:none}
       @media(max-width:1000px){.tt-home-activity .tt-recent-row{grid-template-columns:78px minmax(0,1fr);height:auto;min-height:86px}.tt-home-activity .tt-recent-row>b:last-child{text-align:left}}
       @media(max-width:700px){.tt-home-activity{grid-template-columns:1fr}#ttAccountingDesk .tt-area-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#ttAccountingDesk .tt-area-card{padding:10px;gap:8px}#ttAccountingDesk .tt-area-card b{font-size:14px}.tt-home-activity .tt-recent-scroll,.tt-home-activity .tt-queue{height:240px}}
@@ -476,6 +477,28 @@
     showAreasHome();
   }
 
+  function commodityDueDetail(rows) {
+    const dates=new Map();
+    for(const row of rows){
+      const date=/^\d{4}-\d{2}-\d{2}$/.test(row.date||'')?row.date:'';
+      const broker=String(row.broker||'Broker not recorded').trim(),currency=row.currency||'PKR';
+      if(!dates.has(date))dates.set(date,new Map());
+      const brokers=dates.get(date),key=JSON.stringify([broker,currency]);
+      if(!brokers.has(key))brokers.set(key,{broker,currency,cents:0});
+      brokers.get(key).cents+=Math.round(Number(row.amount||0)*100);
+    }
+    return [...dates].sort(([a],[b])=>a&&b?a.localeCompare(b):a?-1:b?1:0).map(([date,brokers])=>
+      `<div><b>${esc(date?date.split('-').reverse().join('-'):'Due date not recorded')}</b>${[...brokers.values()].sort((a,b)=>a.broker.localeCompare(b.broker)||a.currency.localeCompare(b.currency)).map(row=>`<span class="tt-broker-due"><span>${esc(row.broker)}</span><span>${esc(row.currency)} ${money(row.cents/100)}</span></span>`).join('')}</div>`
+    ).join('')||'<div>No open balance.</div>';
+  }
+
+  function attentionSummary(row) {
+    if(row.kind!=='SODA'||!row.statement)return esc(row.message)+(row.reference?' · '+esc(row.reference):'');
+    const statement=row.statement,due=statement.dueDate||'',days=Math.floor((Date.parse(today()+'T00:00:00Z')-Date.parse(due+'T00:00:00Z'))/86400000);
+    const quantity=Number(statement.shortKg||0)/1000;
+    return `SODA ${esc(row.reference)} · ${esc(statement.broker||'Broker not recorded')} · ${esc(quantity.toLocaleString('en-PK',{minimumFractionDigits:3,maximumFractionDigits:3}))} MT outstanding · Due ${esc(/^\d{4}-\d{2}-\d{2}$/.test(due)?due.split('-').reverse().join('-'):due)}${days>0?' · '+days+' days overdue':''}`;
+  }
+
   function homeDataNeeded(){return q('#entityHome')?.style.display!=='none'&&!q('#ttAccountingDesk')?.classList.contains('tt-inside-area');}
   let dashboardLoad=0;
   async function loadDashboardSummary() {
@@ -495,6 +518,7 @@
         const first=rows[0],defaultBank=rows.find(row=>row.isDefault&&row.currency===(entity()==='TG'?'AED':'PKR'))||rows.find(row=>row.isDefault);
         const headline=def.key==='bank'?(defaultBank?`${esc(defaultBank.currency||'PKR')} ${money(defaultBank.amount)}`:'No default account'):def.key==='due'?(first?`${esc(first.label)} · ${esc(first.currency||'PKR')} ${money(first.amount)} · ${esc(first.dateDisplay||first.date||'')}`:'No due payments'):Object.keys(totals).length?Object.entries(totals).map(([cur,value])=>`${esc(cur)} ${money(value)}`).join(' · '):(company==='TG'?'AED':'PKR')+' 0.00';
         let detail=rows.length?rows.slice(0,20).map(row=>`<div><b>${esc(row.entity?row.entity+' · ':'')}${esc(row.label||row.reference||'Account')}</b><br>${esc(row.reference||'')}${row.dateDisplay?' · '+esc(row.dateDisplay):''} · ${esc(row.currency||'PKR')} ${money(row.amount)}</div>`).join(''):'<div>No open balance.</div>';
+        if(def.key==='commodity'&&company!=='TG')detail=commodityDueDetail(rows);
         if(def.key==='export'){detail+=`<div>Companies: ${esc((data.customerReceivables?.entities||[]).join(', '))}</div>`;if(data.customerReceivables?.drafts?.length)detail+=`<div>${data.customerReceivables.drafts.length} draft invoice(s) excluded from the due total.</div>`;}
         return `<button type="button" class="tt-summary ${def.key==='due'&&first&&first.date<=today()?'tt-due-alert':''}" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><span class="tt-summary-pop">${detail}</span></button>`;
       }).join('');
@@ -505,7 +529,7 @@
         q('#ttPendingCount').textContent='Pending Work ('+rows.length+')';
         error.hidden=true;
         queue.innerHTML=rows.length?rows.map((row,i)=>`<div class="tt-queue-row">
-          <span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b>
+          <span>${esc(row.type)}</span><b>${attentionSummary(row)}</b>
           <div class="tt-attention-actions"><button type="button" data-attention-review="${i}">Review</button>${row.canApprove?`<button type="button" data-attention-approve="${i}"${row.kind==='LATE'?' title="Approve late Pohanch and release its automatic late-delivery hold, if present"':''}>Approve</button>`:''}</div>
         </div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';
         qa('[data-attention-review]',queue).forEach(button=>button.onclick=()=>reviewAttention(rows[Number(button.dataset.attentionReview)]));
