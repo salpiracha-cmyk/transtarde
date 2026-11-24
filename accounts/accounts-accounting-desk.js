@@ -481,9 +481,9 @@
     const dates=new Map();
     for(const row of rows){
       const date=/^\d{4}-\d{2}-\d{2}$/.test(row.date||'')?row.date:'';
-      const broker=String(row.broker||'Broker not recorded').trim(),currency=row.currency||'PKR';
+      const broker=String(row.broker||'Broker not recorded').trim().replace(/\s+/g,' '),currency=row.currency||'PKR';
       if(!dates.has(date))dates.set(date,new Map());
-      const brokers=dates.get(date),key=JSON.stringify([broker,currency]);
+      const brokers=dates.get(date),key=JSON.stringify([broker.toUpperCase(),currency]);
       if(!brokers.has(key))brokers.set(key,{broker,currency,cents:0});
       brokers.get(key).cents+=Math.round(Number(row.amount||0)*100);
     }

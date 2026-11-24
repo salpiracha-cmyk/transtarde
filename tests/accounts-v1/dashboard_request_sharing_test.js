@@ -7,7 +7,7 @@
  v.createContext(scope);v.runInContext(source.slice(source.indexOf('  function commodityDueDetail('),source.indexOf('  function homeDataNeeded(')),scope);
  const rows=[{broker:'Shams Broker',date:'2026-12-07',currency:'PKR',amount:4658855,reference:'LATE-BILL'},
   {broker:'Shams Broker',date:'2026-11-29',currency:'PKR',amount:4961000,reference:'BILL-A'},
-  {broker:'Shams Broker',date:'2026-11-29',currency:'PKR',amount:4627597.30,reference:'BILL-B'},
+  {broker:'shams  broker',date:'2026-11-29',currency:'PKR',amount:4627597.30,reference:'BILL-B'},
   {broker:'Other Broker',date:'2026-11-29',currency:'PKR',amount:.10},
   {broker:'Other Broker',date:'2026-11-29',currency:'PKR',amount:.20},
   {broker:'Other Broker',date:'2026-11-29',currency:'USD',amount:7},
