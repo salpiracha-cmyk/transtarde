@@ -35,6 +35,7 @@ with tempfile.TemporaryDirectory(prefix='dashboard-dues-') as directory:
         status,data=request('/api/accounts_dashboard.php?entity=TTI');assert status==200,(status,data)
         rows=data['summaries']['commodity'];assert sum(r['amount'] for r in rows)==625,(rows,data)
         assert {r['reference'] for r in rows}=={'PART','HELD'} and all(r['label']=='Indus Rice Mill' and r['date']=='2026-09-20' for r in rows),rows
+        assert all(r['broker']=='JJ Broker' for r in rows),'Display broker must come from the bill, not its different supplier/payee'
         status,data=request('/api/accounts_dashboard.php?entity=BRM');assert status==200 and sum(r['amount'] for r in data['summaries']['commodity'])==90,(status,data)
         assert books.read_bytes()==before,'Dashboard reads must never write or allocate financial records'
         fixture['supplierSettlements']['FINAL']={'entity':'TTI','status':'Posted','allocations':[{'billId':'PART','sourceKey':'PART-TRUCK','amount':600},{'billId':'HELD','sourceKey':'HELD-TRUCK','amount':25}]};books.write_text(json.dumps(fixture));before=books.read_bytes()
