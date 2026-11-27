@@ -26,6 +26,7 @@ jobs:
           php tests/security/backup_compression_retention_test.php
           php tests/security/master_migration_noop_backup_test.php
   optimise:
+    environment: live-qa
     needs: boundaries
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest

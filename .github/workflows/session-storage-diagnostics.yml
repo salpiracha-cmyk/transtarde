@@ -29,6 +29,7 @@ jobs:
           print('PASS read-only diagnostic shell syntax; production credentials remain unavailable on pull requests')
           PY
   diagnose:
+    environment: live-qa
     needs: boundaries
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest

@@ -26,6 +26,7 @@ jobs:
           php tests/security/backup_expiry_safety_test.php
           php tests/security/master_migration_noop_backup_test.php
   maintain:
+    environment: live-qa
     needs: boundaries
     if: github.event_name == 'schedule' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
