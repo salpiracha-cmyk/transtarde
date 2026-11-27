@@ -402,6 +402,7 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Director role supplies full business actions and company scope automatically, including posting own JVs and completing an existing own pending JV. Ordinary preparers retain separate approval. Director does not become Super Admin; owner-security controls and business validation remain enforced.
 - Bank Receipt labels identify the receiving bank as Received into bank and the payer as Received from. Payment labels retain Pay from bank. Mode changes retain unfinished values and make no posting.
 - Accounts Mill Bill Review distinguishes Rice labour from Maize / Corn / Makai labour using the saved source commodity. Both retain the same source-linked payable review and correction safeguards, with separate agreed work/rates.
+- A new Rice labour bill carries each task’s latest confirmed rate from a previous billing period for the same contractor, company, mill, commodity and rate basis. A newer effective Labour Rate Master agreement controls its standard work. Show the source bill in Labour Rate Master. For Paltai 50 kg, a rate per 50 kg matches the rate per 50 kg bag. Keep the saved quantities and rates on historical bills.
 
 - Users assigned several modules have a Home link from Accounts, Milling, Exports and Directors to a server-rendered chooser containing only their current authorised workspaces. A Director receives operational navigation without access to owner-only user/security administration. Home also uses the same private JV decision notices.
 
