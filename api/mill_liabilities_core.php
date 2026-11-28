@@ -71,7 +71,7 @@ function ml_source(array $values,array $masters,string $kind,string $id,string $
         elseif ($commodity!=='RICE') throw new DomainException('Choose a supported labour commodity.');
         $total=0.0;$lines=(array)($r['lines']??[]);if (!$lines) throw new DomainException('The saved labour work lines are missing.');
         foreach ($lines as $line) {
-            $qty=ml_quantity($line['qty']??null);$rate=ml_quantity($line['rate']??null);$basis=(string)($line['basis']??'');
+            $qty=ml_quantity($line['qty']??null);$rate=ml_quantity($line['rate']??null,$commodity==='RICE');$basis=(string)($line['basis']??'');
             if ($basis==='') throw new DomainException('Saved labour rate basis is required.');
             $total+=$qty/(str_contains($basis,'100 kg')?100:(str_contains($basis,'50 kg')?50:1))*$rate;
         }

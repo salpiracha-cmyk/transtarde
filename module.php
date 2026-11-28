@@ -481,7 +481,7 @@ $sharedBootstrap = <<<'HTML'
       const result=await window.TT_MILL_SOURCE_SAVE.append({endpoint,access,key,record,prefix});
       // A confirmed server save updates this collection only, without rebuilding forms.
       if(!pending.has(key)&&localStorage.getItem(key)===before){directSet(key,result.value);committedValues.set(key,result.value);receipts.set(key,result.value);keyVersions.set(key,result.version);remoteKeys.add(key)}
-      return result.record;
+      return result.posting?{...result.record,labourPosting:result.posting}:result.record;
     }finally{inFlight.delete(key);saveHolds--;waiting()}
   }
   async function amendMillBill(key,body){

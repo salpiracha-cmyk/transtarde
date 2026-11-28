@@ -1,6 +1,19 @@
 <?php
 declare(strict_types=1);
 
+function sop_uses_running_ledger(array $store,string $entity,string $partyId,string $party=''): bool {
+    $nameKey=static fn(string $name): string => strtolower(trim((string)preg_replace('/\s+/',' ',$name)));
+    foreach ((array)($store['paymentPayees']??[]) as $payee) {
+        if (($payee['entity']??'')!==$entity||($payee['kind']??'')!=='BUSINESS'||empty($payee['active'])||($payee['accountCode']??'')!=='2190') continue;
+        if ($partyId!==''?($payee['id']??'')==='PARTY|'.$partyId:($party!==''&&$nameKey((string)($payee['name']??''))===$nameKey($party))) return true;
+    }
+    return false;
+}
+function sop_bill_uses_running_ledger(array $store,string $entity,array $bill): bool {
+    return ($bill['category']??'')==='MILL_LABOUR'&&($bill['payableAccount']??'')==='2190'
+        &&sop_uses_running_ledger($store,$entity,(string)($bill['sourceRecord']['partyId']??''),(string)($bill['vendor']??''));
+}
+
 function sop_party_name(array $line,array $meta=[]):string {
     $raw='';foreach([$line,$meta] as $row)foreach(['subledger','counterparty','party','supplier','broker','vendor','openingParty'] as $key)if(trim((string)($row[$key]??''))!==''){$raw=trim((string)$row[$key]);break 2;}
     if($raw===''||!function_exists('tt_list_masters'))return $raw;

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__ . '/accounts_source_store.php';
+require_once __DIR__ . '/supplier_opening_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -116,7 +117,7 @@ function pp_rows(array $store,string $entity,string $commodity=''): array {
         }
     }
     if($commodity==='')foreach((array)($store['supplierBills']??[]) as $bill){
-        if(!is_array($bill)||($bill['entity']??'')!==$entity)continue;
+        if(!is_array($bill)||($bill['entity']??'')!==$entity||sop_bill_uses_running_ledger($store,$entity,$bill))continue;
         $billId=(string)($bill['id']??'');$gross=pp_money($bill['supplierPayableTotal']??0);$paid=pp_settlement_allocated($store,$entity,'',$billId);$out=max(0,round($gross-$paid,2));if($out<=.005)continue;
         $allocation=(array)(($bill['receiptAllocations'][0]??[]));$sourceKey=(string)($allocation['sourceKey']??'');$hold=pp_hold($store,$entity,$sourceKey!==''?$sourceKey:'BILL|'.$billId);
         $rows[]=['entity'=>$entity,'commodity'=>(string)($bill['category']??'SERVICE'),'billId'=>$billId,'billNo'=>(string)($bill['billNo']??''),'broker'=>(string)($bill['vendor']??''),'soda'=>'','sourceKey'=>$sourceKey,'pohanch'=>(string)($allocation['reference']??''),'truck'=>'','receiptDate'=>(string)($bill['billDate']??''),'creditDays'=>0,'dueDate'=>(string)($bill['dueDate']??$bill['billDate']??''),'grossPayable'=>$gross,'settled'=>$paid,'outstanding'=>$out,'held'=>$hold!==null,'holdReason'=>(string)($hold['reason']??''),'holdAt'=>(string)($hold['createdAt']??'')];

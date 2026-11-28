@@ -49,7 +49,8 @@ function ml_review_rows(array $values,array $masters,array $store,string $entity
             $canonical=$store['supplierBills'][$summary['posted']['billId']]??null;
             if (is_array($canonical)&&($canonical['entity']??'')===$entity) {
                 $allocation=$canonical['receiptAllocations'][0]??[];$capacity=ss_component_capacity($store,$entity,$canonical,$allocation);
-                $summary['posted']['outstandingAmount']=$capacity['total'];
+                $summary['partyLedger']=sop_bill_uses_running_ledger($store,$entity,$canonical);
+                if (!$summary['partyLedger']) $summary['posted']['outstandingAmount']=$capacity['total'];
                 $summary['posted']['settledAmount']=ss_previous_allocation_components($store,$entity,$canonical['id'],(string)($allocation['sourceKey']??''))['total'];
             } else {$summary['blocker']='The linked canonical supplier bill is missing. Reconcile its original posting.';}
         }
@@ -64,7 +65,7 @@ try {
         if (!in_array($entity,['TTI','BRM'],true)||!ml_permission($user,$entity,'View')) ml_out(['ok'=>false,'error'=>'Accounts expense review and company View permission required.'],403);
         if (function_exists('tt_release_read_session')) tt_release_read_session();
         $result=ml_with_sources(static fn($values)=>array_values(array_filter(ml_review_rows($values,tt_list_masters(),ml_read_accounts(),$entity),static fn($r)=>ml_location_allowed($user,$r['millName']))));
-        ml_out(['ok'=>true,'entity'=>$entity,'rows'=>$result,'canPost'=>ml_permission($user,$entity,'Create'),'canCorrect'=>ml_permission($user,$entity,'Edit')&&ml_permission($user,$entity,'Approve')]);
+        ml_out(['ok'=>true,'entity'=>$entity,'rows'=>$result,'canPost'=>ml_permission($user,$entity,'Create'),'canAmendLabour'=>ml_permission($user,$entity,'Edit'),'canCorrect'=>ml_permission($user,$entity,'Edit')&&ml_permission($user,$entity,'Approve')]);
     }
     if ($method!=='POST') ml_out(['ok'=>false,'error'=>'Method not allowed.'],405);
     $raw=function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input');
