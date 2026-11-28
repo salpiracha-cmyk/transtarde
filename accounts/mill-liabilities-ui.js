@@ -20,7 +20,7 @@
     const commodity=r=>String(r.commodity||'').trim().toUpperCase(),isMaize=r=>['MAIZE','CORN','MAKAI'].includes(commodity(r));
     const billType=r=>r.kind==='LABOUR'?(isMaize(r)?'Maize / Corn / Makai labour':commodity(r)==='RICE'?'Rice labour':'Labour — commodity unverified'):r.kind;
     function close(){if(busy)return;host.remove();document.removeEventListener('keydown',escape,true);}
-    function escape(e){if(!host.isConnected){document.removeEventListener('keydown',escape,true);return;}if(e.key==='Escape'&&!busy){e.preventDefault();e.stopImmediatePropagation();close();}}
+    function escape(e){if(!host.isConnected){document.removeEventListener('keydown',escape,true);return;}if(e.key==='Escape'&&!busy&&!document.querySelector('[data-mill-source-amend]')){e.preventDefault();e.stopImmediatePropagation();close();}}
     document.addEventListener('keydown',escape,true);q('[data-close]').onclick=close;q('[data-reference-review]').onclick=()=>{if(busy)return;close();window.TT_MILL_REFERENCES?.open();};
     function remember(){reason=q('[data-reason]')?.value??reason;correctionDate=q('[data-correction-date]')?.value??correctionDate;}
     function detail(row) {

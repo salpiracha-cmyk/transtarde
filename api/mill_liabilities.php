@@ -49,7 +49,7 @@ function ml_review_rows(array $values,array $masters,array $store,string $entity
             $canonical=$store['supplierBills'][$summary['posted']['billId']]??null;
             if (is_array($canonical)&&($canonical['entity']??'')===$entity) {
                 $allocation=$canonical['receiptAllocations'][0]??[];$capacity=ss_component_capacity($store,$entity,$canonical,$allocation);
-                $summary['partyLedger']=ml_bill_uses_party_ledger($store,$entity,$canonical);
+                $summary['partyLedger']=sop_bill_uses_running_ledger($store,$entity,$canonical);
                 if (!$summary['partyLedger']) $summary['posted']['outstandingAmount']=$capacity['total'];
                 $summary['posted']['settledAmount']=ss_previous_allocation_components($store,$entity,$canonical['id'],(string)($allocation['sourceKey']??''))['total'];
             } else {$summary['blocker']='The linked canonical supplier bill is missing. Reconcile its original posting.';}

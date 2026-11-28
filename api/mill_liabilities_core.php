@@ -21,17 +21,6 @@ function ml_quantity(mixed $value,bool $allowZero=false): float {
 }
 function ml_money(mixed $amount): float {return round(ml_quantity($amount),2);}
 function ml_name(string $name): string {return strtolower(trim((string)preg_replace('/\s+/',' ',$name)));}
-function ml_uses_party_ledger(array $store,string $entity,string $partyId,string $party=''): bool {
-    foreach ((array)($store['paymentPayees']??[]) as $payee) {
-        if (($payee['entity']??'')!==$entity||($payee['kind']??'')!=='BUSINESS'||empty($payee['active'])||($payee['accountCode']??'')!=='2190') continue;
-        if ($partyId!==''?($payee['id']??'')==='PARTY|'.$partyId:($party!==''&&ml_name((string)($payee['name']??''))===ml_name($party))) return true;
-    }
-    return false;
-}
-function ml_bill_uses_party_ledger(array $store,string $entity,array $bill): bool {
-    return ($bill['category']??'')==='MILL_LABOUR'&&($bill['payableAccount']??'')==='2190'
-        &&ml_uses_party_ledger($store,$entity,(string)($bill['sourceRecord']['partyId']??''),(string)($bill['vendor']??''));
-}
 function ml_rows(array $values,string $key): array {
     $rows=$values[$key]??'[]';if (is_string($rows)) $rows=json_decode($rows,true,512,JSON_THROW_ON_ERROR);
     if (!is_array($rows)||!array_is_list($rows)) throw new DomainException('Saved Mill source must be a list.');
