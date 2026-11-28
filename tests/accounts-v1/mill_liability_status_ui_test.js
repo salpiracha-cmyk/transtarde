@@ -5,12 +5,15 @@ w.openPanel=()=>{formBuilds++;};w.renderProcessingExpenses=()=>renders++;w.rende
 w.fetch=(url,opt={})=>new Promise(resolve=>{assert.notEqual(opt.method,'POST');calls.push({url,resolve});});w.setInterval=()=>{throw Error('Timed refresh forbidden');};
 w.eval(fs.readFileSync(path.join(__dirname,'../../accounts/mill-liability-status.js'),'utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,0));
-function finish(i,mill,id){calls[i].resolve({ok:true,json:async()=>({ok:true,entity:'TTI',millName:mill,checkedAt:'2026-10-17T11:00:00Z',rows:[{entity:'TTI',millName:mill,collection:'tt38kebills',sourceId:'KE1',status:'Posted',postId:id,postedAmount:1000,outstanding:400,sourceNeedsReview:false,reversalPostId:''}]})});}
+function finish(i,mill,id){calls[i].resolve({ok:true,json:async()=>({ok:true,entity:'TTI',millName:mill,checkedAt:'2026-10-17T11:00:00Z',rows:[{entity:'TTI',millName:mill,collection:'tt38kebills',sourceId:'KE1',status:'Posted',postId:id,postedAmount:1000,outstanding:400,sourceNeedsReview:false,reversalPostId:''},{entity:'TTI',millName:mill,collection:'tt38labourbills',sourceId:'LB-1',status:'Posted',postId:id,postedAmount:486872.60,partyLedger:true,outstanding:null,sourceNeedsReview:false,reversalPostId:''}]})});}
 (async()=>{
  assert.equal(calls.length,0,'Script loading read financial state');w.openPanel('labour');assert.equal(calls.length,1);
  w.document.querySelector('#draft').value='typing during read';
  w.currentMill={name:'Mill B',entity:'TTI'};w.openPanel('labour');assert.equal(calls.length,2,'New mill was blocked behind the previous read');
  finish(1,'Mill B','POST-B');await tick();assert.match(w.TT_MILL_BILL_STATUS.text({id:'KE1',readFrom:'2026-10-01'}),/POST-B/);
+ const labour=w.TT_MILL_BILL_STATUS.text({id:'LB-1',contractor:'Azad'});
+ assert.equal(labour,'Posted · POST-B · Rs 486,872.60 · Balance in Accounts party ledger');
+ assert.match(w.TT_MILL_BILL_STATUS.text({id:'KE1',readFrom:'2026-10-01'}),/outstanding Rs 400/);
  finish(0,'Mill A','POST-A');await tick();assert.doesNotMatch(w.TT_MILL_BILL_STATUS.text({id:'KE1',readFrom:'2026-10-01'}),/POST-A/,'Late previous-mill response replaced current status');
  assert.equal(formBuilds,2,'Status response rebuilt the entry form');assert.equal(w.document.querySelector('#draft').value,'typing during read');assert.equal(renders,2);
  w.document.querySelector('#draft').dispatchEvent(new w.Event('input'));await tick();assert.equal(calls.length,2,'Typing read or saved financial data');

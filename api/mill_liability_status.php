@@ -40,13 +40,17 @@ try {
             $current=null;try {$current=ml_source($values,$masters,$kind,(string)$record['sourceRecordId'],$entity);}catch (DomainException $e) {}
             $changed=!$current||!hash_equals((string)$record['fingerprint'],$current['fingerprint']);
             $bill=$store['supplierBills'][$record['billId']??'']??null;$outstanding=null;
-            if (is_array($bill)&&($bill['entity']??'')===$entity) $outstanding=ss_component_capacity($store,$entity,$bill,(array)($bill['receiptAllocations'][0]??[]))['total'];
+            $partyLedger=false;
+            if (is_array($bill)&&($bill['entity']??'')===$entity) {
+                $partyLedger=sop_bill_uses_running_ledger($store,$entity,$bill);
+                if (!$partyLedger) $outstanding=ss_component_capacity($store,$entity,$bill,(array)($bill['receiptAllocations'][0]??[]))['total'];
+            }
             $status=$verified?'Posted':'Posting unverified';
             if (($record['status']??'')==='Reversed') {
                 $reverse=$store['journals'][$record['reversalJournalId']??'']??null;
                 $status=is_array($reverse)&&($reverse['reversalOf']??'')===($record['journalId']??'')?'Reversed':'Reversal unverified';
             }
-            $result[]=['collection'=>$record['sourceCollection'],'sourceId'=>(string)$record['sourceRecordId'],'entity'=>$entity,'millName'=>$mill,'status'=>$status,'postId'=>(string)($journal['meta']['publicPostId']??$record['journalId']??''),'reversalPostId'=>(string)($record['reversalJournalId']??''),'postedAmount'=>(float)$record['amount'],'outstanding'=>$outstanding,'sourceNeedsReview'=>$changed];
+            $result[]=['collection'=>$record['sourceCollection'],'sourceId'=>(string)$record['sourceRecordId'],'entity'=>$entity,'millName'=>$mill,'status'=>$status,'postId'=>(string)($journal['meta']['publicPostId']??$record['journalId']??''),'reversalPostId'=>(string)($record['reversalJournalId']??''),'postedAmount'=>(float)$record['amount'],'outstanding'=>$outstanding,'partyLedger'=>$partyLedger,'sourceNeedsReview'=>$changed];
         }
         if($labour)foreach(mref_policies() as $kind=>$collection)foreach(ml_rows($values,$collection) as $r){
             if(!is_array($r)||($r['entity']??'')!==$entity||ml_name((string)($r['millName']??''))!==ml_name($mill))continue;

@@ -19,17 +19,50 @@ function msa_scope(array $user,array $row,string $kind,string $action): void {
     $grants=(array)($user['permissions']['Accounts']??[]);
     foreach(['entity-tti','entity-brm','entity-tg'] as $key)if(array_key_exists($key,$grants)){if(!tt_user_can_access_entity($user,$entity,$action))throw new DomainException('Company '.$action.' permission is required.');break;}
 }
+function msa_labour_period_scope(array $bill): string {
+    $commodity=ml_name((string)($bill['commodity']??$bill['commodityName']??'Rice'));
+    if(in_array($commodity,['corn','makai'],true))$commodity='maize';
+    return json_encode([
+        strtoupper((string)($bill['entity']??'TTI')),
+        ml_name((string)($bill['millName']??$bill['mill']??'')),
+        ml_name((string)($bill['party']??$bill['contractor']??'')),
+        $commodity
+    ],JSON_THROW_ON_ERROR);
+}
+function msa_guard_labour_periods(array $saved,array $added): void {
+    if(!$added)return;
+    $last=[];
+    foreach($saved as $bill){
+        if(!empty($bill['cancelled'])||in_array($bill['status']??'',['Cancelled','Reversed','Deleted'],true))continue;
+        $till=(string)($bill['till']??'');
+        try{ml_date($till);}catch(DomainException $e){continue;}
+        $scope=msa_labour_period_scope($bill);
+        $last[$scope]=max($last[$scope]??'',$till);
+    }
+    usort($added,static fn($a,$b)=>strcmp((string)($a['from']??''),(string)($b['from']??'')));
+    foreach($added as $bill){
+        $from=ml_date((string)($bill['from']??''));$till=ml_date((string)($bill['till']??''));
+        if($till<$from)throw new DomainException('The labour bill period is invalid.');
+        $scope=msa_labour_period_scope($bill);$previous=$last[$scope]??'';
+        if($previous!==''&&$from<=$previous){
+            $next=(new DateTimeImmutable($previous))->modify('+1 day')->format('d-m-Y');
+            throw new DomainException('The next labour bill must start on or after '.$next.'.');
+        }
+        $last[$scope]=$till;
+    }
+}
 /** The shared collection writer may append facts; amendments use the audited row route. */
 function msa_guard_append(array $values,string $key,string $json,array $user): string {
-    $kind=msa_kind($key);$old=ml_rows($values,$key);$incoming=ml_rows([$key=>$json],$key);$index=[];$seen=[];
+    $kind=msa_kind($key);$old=ml_rows($values,$key);$incoming=ml_rows([$key=>$json],$key);$index=[];$seen=[];$added=[];
     foreach($old as $r){$id=(string)($r['id']??'');if($id===''||isset($index[$id]))throw new DomainException('Existing Mill bill identities require review.');$index[$id]=$r;}
     foreach($incoming as $r){
         if(!is_array($r)||!is_string($r['id']??null)&&!is_int($r['id']??null))throw new DomainException('Each Mill bill needs a stable identity.');
         $id=(string)$r['id'];if($id===''||isset($seen[$id]))throw new DomainException('Mill bill identities must be unique.');$seen[$id]=true;
         if(isset($index[$id])){if(!hash_equals(ml_fingerprint($index[$id]),ml_fingerprint($r)))throw new DomainException('Use Amend saved bill to preserve the original source and its audit history.');}
-        else{if(isset($r['_sourceAmendments']))throw new DomainException('Bill amendment history is server-owned.');msa_scope($user,$r,$kind,'Create');if($kind==='LABOUR'&&in_array(strtoupper(trim((string)($r['commodity']??''))),['MAIZE','CORN','MAKAI'],true)){require_once __DIR__.'/maize_labour_core.php';maize_labour_validate($r);}}
+        else{if(isset($r['_sourceAmendments']))throw new DomainException('Bill amendment history is server-owned.');msa_scope($user,$r,$kind,'Create');$added[]=$r;if($kind==='LABOUR'&&in_array(strtoupper(trim((string)($r['commodity']??''))),['MAIZE','CORN','MAKAI'],true)){require_once __DIR__.'/maize_labour_core.php';maize_labour_validate($r);}}
     }
     if(array_diff_key($index,$seen))throw new DomainException('Saved Mill sources cannot be removed through a collection save. Use the explicit correction workflow.');
+    if($kind==='LABOUR')msa_guard_labour_periods($old,$added);
     return $json;
 }
 function msa_dependencies(array $books,array $source,string $collection): void {

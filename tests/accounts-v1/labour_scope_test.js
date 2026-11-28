@@ -3,6 +3,7 @@ const source=fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.h
 const ctx={millSourceAmendButton:()=>'',canPrintMillBill:()=>false,STORE_LABOURRATES:'rates',STORE_SLIPS:'slips',STORE_PROD:'prod',STORE_SHIP:'ship',STORE_LABOURFEED:'feed',STORE_LABOURBILLS:'bills',STORE_KEBILLS:'ke',STORE_EXPENSES:'expenses',currentMill:{id:1,name:'TTI Rice Mills',entity:'TTI'},labFrom:{value:'2026-09-01'},labTill:{value:'2026-09-30'},labCommodity:{value:'Rice'},get:(k,d)=>data.get(k)||d,set:()=>writes++,millLocationIdentity:v=>String(v).toLowerCase().replace(/[^a-z0-9]/g,''),stockEntityForView:()=> 'TTI',defaultShipments:()=>[],renderLabourDraft:()=>rendered++,alert:m=>alerts.push(m),today:()=> '2026-10-17',Date,console,window:{},document:{getElementById:id=>id==='labContractor'?{value:'Azad Labour Contractor'}:null}};vm.createContext(ctx);
 for(const name of ['dateInRange','stockScopeMatches','defaultLabourRates','labourRateState','labourCommodityMatches','labourBillMessage','generateLabourDraft','nextOperationalDay','previousLabourTill','operationalAccountsStatus','allProcessingBills','renderProcessingExpenses']){const start=source.indexOf('function '+name+'('),end=source.indexOf('\n',start);vm.runInContext(source.slice(start,end),ctx);}
 vm.runInContext(source.slice(source.indexOf('const labourText='),source.indexOf('function labourAmount(')),ctx);
+vm.runInContext(source.slice(source.indexOf('function labourPeriodMinimum('),source.indexOf('function nextLabourTill(')),ctx);
 const own={entity:'TTI',millId:1,millName:'TTI Rice Mills'},otherMill={entity:'TTI',millId:2,millName:'Other mill'},otherCompany={entity:'BRM',millId:1,millName:'TTI Rice Mills'};
 data.set('rates',{...own,effective:'2026-09-01',thresholdMT:27.5,rates:ctx.defaultLabourRates()});data.set('slips',[{...own,arrivalDate:'2026-09-10',payableWeight:1000},{...otherMill,arrivalDate:'2026-09-10',payableWeight:9000},{...otherCompany,arrivalDate:'2026-09-10',payableWeight:4000}]);data.set('prod',[{...own,date:'2026-09-10',rows:[{product:'Ready Rice — A',bagWeight:25,bags:5}]},{...otherMill,date:'2026-09-10',rows:[{product:'Ready Rice — B',bagWeight:25,bags:500}]}]);data.set('ship',[{...own,containers:[{date:'2026-09-10',weight:30000},{date:'2026-09-11',weight:27000}]},{...otherMill,containers:[{date:'2026-09-10',weight:90000}]}]);data.set('feed',[{...own,date:'2026-09-10',particular:'50 kg',quantity:3},{...otherCompany,date:'2026-09-10',particular:'50 kg',quantity:900},{...own,particular:'50 kg',quantity:700}]);
 ctx.labourDraftLines=[{key:'manual',qty:1,rate:5,auto:false}];ctx.generateLabourDraft();assert.equal(rendered,1);assert.equal(ctx.labourDraftLines.some(line=>line.key==='manual'),true);const lines=ctx.labourDraftLines;assert.equal(lines.find(x=>x.key==='milling').qty,1000);assert.equal(lines.find(x=>x.key==='small').qty,5);assert.equal(lines.find(x=>x.key==='paper').qty,2);assert.equal(lines.find(x=>x.key==='extra').qty,1);assert.equal(lines.find(x=>x.key==='paltai50').qty,3,'Undated work is not assigned a guessed period');
@@ -23,10 +24,14 @@ const later={...azad,id:2,till:'2026-12-01',billNo:'LB-00002',lines:[{...azad.li
 const unrelated={...later,lines:[{...later.lines[0],rate:999}]};
 const saved=[azad,later,{...unrelated,...otherMill,id:3},{...unrelated,...otherCompany,id:4},{...unrelated,id:5,contractor:'Other Contractor'},{...unrelated,id:6,commodity:'Maize'}];
 const before=JSON.stringify(saved);
-ctx.window.TT_SHARED_SYNC={readCommitted:()=>before};
+ctx.window.TT_SHARED_SYNC={readCommitted:()=>JSON.stringify([azad,...saved.slice(2)])};
 data.set('bills',[{...azad,lines:azad.lines.map(row=>({...row,rate:900}))}]);
 data.delete('rates');
-ctx.labFrom.value='2026-11-25';ctx.labTill.value='2026-11-30';
+ctx.labFrom.value='2026-11-24';ctx.labTill.value='2026-11-30';
+assert.equal(ctx.labourPeriodMinimum('Azad Labour Contractor','Rice'),'2026-11-25');
+ctx.generateLabourDraft();
+assert.match(alerts.at(-1),/start on or after 25-11-2026/);
+ctx.labFrom.value='2026-11-25';
 data.set('slips',[{...own,arrivalDate:'2026-11-28',payableWeight:500}]);
 data.set('feed',[{...own,date:'2026-11-28',particular:'50 kg',quantity:3}]);
 data.set('ship',[{...own,containers:[{date:'2026-11-28',weight:28000}]}]);
@@ -41,6 +46,7 @@ assert.equal(ctx.draftSavedLabourRates().get(ctx.labourRateIdentity({label:'Toke
 assert.equal(ctx.draftSavedLabourRates().get(ctx.labourRateIdentity({label:'Token Selai Emrooz',basis:'Per task'})),undefined);
 assert.equal(ctx.savedLabourRates('Someone Else','Rice','2026-11-25').size,0);
 assert.equal(ctx.savedLabourRates('AZAD LABOUR CONTRACTOR','Rice','2026-11-24').size,0);
+ctx.window.TT_SHARED_SYNC={readCommitted:()=>before};
 ctx.labFrom.value='2026-12-02';
 assert.equal(ctx.rateByKey('milling').rate,58);
 assert.equal(ctx.rateByKey('paltai50').rate,20,'A task can retain its last saved rate when omitted from a later bill');

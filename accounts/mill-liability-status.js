@@ -2,12 +2,13 @@
   'use strict';
   let checkedScope='',checkedAt='',records=new Map(),busy=false,activeScope='',generation=0;
   function context(){const mill=typeof currentMill!=='undefined'?currentMill:null;return {entity:typeof stockEntityForView==='function'?stockEntityForView():String(mill?.entity||''),millName:String(mill?.name||'')};}
-  const scope=c=>c.entity+'|'+c.millName, money=v=>Number(v).toLocaleString('en-PK',{maximumFractionDigits:2});
+  const scope=c=>c.entity+'|'+c.millName, money=(v,minimumFractionDigits=0)=>Number(v).toLocaleString('en-PK',{minimumFractionDigits,maximumFractionDigits:2});
   function text(row){
     if(checkedScope!==scope(context()))return '';
     const collection=row._sourceCollection||(row.readFrom?'tt38kebills':row.contractor?'tt38labourbills':row.billableKg!==undefined?'tt38reprocessbills':'');
     const result=records.get(collection+'|'+String(row.id));if(!result)return '';
-    return result.status+' · '+result.postId+' · Rs '+money(result.postedAmount)+(result.reversalPostId?' · reversal '+result.reversalPostId:'')+(result.outstanding!==null?' · outstanding Rs '+money(result.outstanding):' · payable link unverified')+(result.sourceNeedsReview?' · source needs review':'');
+    const balance=result.partyLedger?' · Balance in Accounts party ledger':(result.outstanding!==null?' · outstanding Rs '+money(result.outstanding):' · payable link unverified');
+    return result.status+' · '+result.postId+' · Rs '+money(result.postedAmount,result.partyLedger?2:0)+(result.reversalPostId?' · reversal '+result.reversalPostId:'')+balance+(result.sourceNeedsReview?' · source needs review':'');
   }
   function referenceText(collection,row){
     if(checkedScope!==scope(context()))return 'Accounts link not checked';
