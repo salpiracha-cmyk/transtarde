@@ -25,7 +25,7 @@ function msa_labour_period_scope(array $bill): string {
     return json_encode([
         strtoupper((string)($bill['entity']??'TTI')),
         ml_name((string)($bill['millName']??$bill['mill']??'')),
-        ml_name((string)($bill['contractor']??$bill['party']??'')),
+        ml_name((string)($bill['party']??$bill['contractor']??'')),
         $commodity
     ],JSON_THROW_ON_ERROR);
 }

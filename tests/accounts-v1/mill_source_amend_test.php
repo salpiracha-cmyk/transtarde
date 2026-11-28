@@ -35,7 +35,8 @@ foreach(['2026-11-24','2026-10-29'] as $from){
     catch(DomainException $e){check_msa(str_contains($e->getMessage(),'25-11-2026'),'Earliest valid start missing');}
 }
 check_msa($append($next)===json_encode([$closed,$next]),'Day after last billed period was blocked');
-check_msa($append(array_replace($next,['from'=>'2026-11-24','contractor'=>'Another contractor']))!=='','The prior period crossed contractors');
+reject_msa(fn()=>$append(array_replace($next,['from'=>'2026-11-24','contractor'=>'Another contractor'])),'The contractor label bypassed the canonical payee period');
+check_msa($append(array_replace($next,['from'=>'2026-11-24','contractor'=>'Another contractor','party'=>'Another contractor']))!=='','The prior period crossed contractors');
 $overlap=array_replace($next,['id'=>'L3','from'=>'2026-11-30','till'=>'2026-12-01']);
 reject_msa(fn()=>msa_guard_append($labourValues,'tt38labourbills',json_encode([$overlap,$closed,$next]),$u),'Two new labour bills overlap');
 $body=['collection'=>'tt38labourbills','entity'=>'TTI','sourceId'=>'L1','fingerprint'=>ml_fingerprint($lab),'requestKey'=>'fixture-lab-amend-001','reason'=>'Correct agreed unit rate','changes'=>['lines'=>[['label'=>'Work','qty'=>100,'rate'=>1.235,'basis'=>'100 kg']]]];

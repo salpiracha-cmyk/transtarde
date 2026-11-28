@@ -2177,7 +2177,7 @@ function previousLabourTill(commodity='Rice'){let a=get(STORE_LABOURBILLS,[]).fi
 function labourPeriodMinimum(contractor,commodity){
  const name=labourText(contractor);
  if(!name)return '';
- const last=savedLabourBills().filter(bill=>!bill.cancelled&&!['Cancelled','Reversed','Deleted'].includes(bill.status)&&labourText(bill.contractor??bill.party)===name&&labourCommodityMatches(bill,commodity)).reduce((date,bill)=>bill.till>date?bill.till:date,'');
+ const last=savedLabourBills().filter(bill=>!bill.cancelled&&!['Cancelled','Reversed','Deleted'].includes(bill.status)&&labourText(bill.party??bill.contractor)===name&&labourCommodityMatches(bill,commodity)).reduce((date,bill)=>bill.till>date?bill.till:date,'');
  return last?nextOperationalDay(last):'';
 }
 function labourPeriodError(){
