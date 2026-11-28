@@ -31,6 +31,7 @@ $files = [
     'rent-salary-ui.js',
     'donations-ui.js',
     'expenses-v1-ui.js',
+    'mill-source-amend-ui.js',
     'mill-liabilities-ui.js',
     'mill-reference-ui.js',
     'expense-desk-ui.js',

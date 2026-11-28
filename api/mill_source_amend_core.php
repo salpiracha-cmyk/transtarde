@@ -10,7 +10,10 @@ function msa_scope(array $user,array $row,string $kind,string $action): void {
     $entity=(string)($row['entity']??'');$mill=(string)($row['millName']??$row['mill']??'');
     if(!in_array($entity,['TTI','BRM'],true)||$mill===''||empty($row['millId']))throw new DomainException('The source company and mill must be explicit.');
     $icon=$kind==='REPROCESSING'?'reprocessbill':'labour';
-    if(!tt_user_can_open_module($user,'Mill')||!tt_user_can_module_action($user,'Mill',$icon,$action))throw new DomainException('Mill bill '.$action.' permission is required.');
+    $millAccess=tt_user_can_open_module($user,'Mill')&&tt_user_can_module_action($user,'Mill',$icon,$action);
+    $accountsAccess=$kind==='LABOUR'&&$action!=='Create'&&tt_user_can_open_module($user,'Accounts')&&
+        tt_user_can_module_action($user,'Accounts','expenses',$action)&&tt_user_can_access_entity($user,$entity,$action);
+    if(!$millAccess&&!$accountsAccess)throw new DomainException('Mill bill '.$action.' permission is required.');
     $scope=ml_name((string)($user['location']??''));
     if(($user['role']??'')!=='Super Admin'&&!in_array($scope,['','all locations','all authorized locations'],true)&&$scope!==ml_name($mill))throw new DomainException('This bill belongs to another assigned location.');
     $grants=(array)($user['permissions']['Accounts']??[]);
@@ -79,7 +82,8 @@ function msa_amend(array $values,array $masters,array $books,array $user,array $
     if($kind==='ELECTRICITY'){$after['units']=ml_quantity($after['units']??0,true);$after['amount']=ml_money($after['amount']??null);}
     if($kind==='LABOUR'){
         $after['party']=$after['contractor'];$total=0.0;
-        foreach((array)($after['lines']??[]) as $line){$basis=(string)($line['basis']??'');$total+=ml_quantity($line['qty']??null)/(str_contains($basis,'100 kg')?100:(str_contains($basis,'50 kg')?50:1))*ml_quantity($line['rate']??null);}
+        $rice=strcasecmp((string)($after['commodity']??''),'Rice')===0;
+        foreach((array)($after['lines']??[]) as $line){$basis=(string)($line['basis']??'');$total+=ml_quantity($line['qty']??null)/(str_contains($basis,'100 kg')?100:(str_contains($basis,'50 kg')?50:1))*ml_quantity($line['rate']??null,$rice);}
         $after['amount']=round($total,2);
     }
     if($kind==='REPROCESSING'){

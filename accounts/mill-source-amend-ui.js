@@ -1,14 +1,15 @@
 (() => {
   'use strict';
-  const access=window.TT_MODULE_ACCESS||{},esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const access=window.TT_MODULE_ACCESS||window.TT_ACCOUNT_ACCESS||{},esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money=v=>Number(v||0).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2});
   const kinds={tt37processingexpenses:'PROCESSING',tt38kebills:'ELECTRICITY',tt38labourbills:'LABOUR',tt38reprocessbills:'REPROCESSING'};
   function canEdit(collection){const p=access.permissions||{},a=p==='all'?['Edit']:Array.isArray(p)?p:p[collection==='tt38reprocessbills'?'reprocessbill':'labour']||[];return access.super||a.includes('Edit');}
   function canView(collection){const p=access.permissions||{},a=p==='all'?['View']:Array.isArray(p)?p:p[collection==='tt38reprocessbills'?'reprocessbill':'labour']||[];return access.super||a.includes('View');}
-  async function open(collection,id) {
+  async function open(collection,id,options={}) {
     if(!kinds[collection])return;
     const existing=document.querySelector('[data-mill-source-amend]');if(existing){existing.querySelector('input,button')?.focus();return;}
-    const company=typeof stockEntityForView==='function'?stockEntityForView():'';
+    const company=options.company||(typeof stockEntityForView==='function'?stockEntityForView():'');
+    const endpoint=(options.company?'../api/':'api/')+'mill_source_amend.php';
     const host=document.createElement('div');host.dataset.millSourceAmend='';host.setAttribute('role','dialog');host.setAttribute('aria-modal','true');host.setAttribute('aria-label','Amend saved Mill bill');
     host.style.cssText='position:fixed;inset:0;z-index:100050;background:#102a4688;display:grid;place-items:center;padding:4vh 4vw';
     host.innerHTML='<section class="card" style="background:white;color:#102a46;width:min(1100px,92vw);max-height:92vh;overflow:auto"><h2>Amend saved Mill bill</h2><button type="button" data-close>Close</button><p role="status" data-message>Loading saved source…</p><div data-form></div></section>';
@@ -19,7 +20,7 @@
     host.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close();}if(event.key==='Tab'){const items=[...host.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled)')],first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}});
     async function read(extra={}) {
       const params=new URLSearchParams({collection,sourceId:String(id),entity:company,...extra});
-      const response=await fetch('api/mill_source_amend.php?'+params,{credentials:'same-origin',headers:{Accept:'application/json'}}),data=await response.json();
+      const response=await fetch(endpoint+'?'+params,{credentials:'same-origin',headers:{Accept:'application/json'}}),data=await response.json();
       if(!response.ok||!data.ok)throw Error(data.error||'The saved source could not be loaded.');
       if(data.collection!==collection||data.entity!==company||String(data.record?.id)!==String(id))throw Error('The saved source identity did not match this review.');
       return data;
@@ -74,9 +75,15 @@
       }
       busy=true;q('[data-form]').inert=true;
       try{
-        const response=await window.TT_SHARED_SYNC.amendMillBill(collection,body);if(!host.isConnected)return;localStorage.removeItem(token);pending=null;
+        let response;
+        if(options.company){
+          const result=await fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({...body,csrf:access.csrf})});
+          const data=await result.json();
+          if(!result.ok||!data.ok)throw Object.assign(Error(data.error||'The source amendment was not confirmed.'),{definitive:[403,422].includes(result.status)});
+          response=data.result;
+        }else response=await window.TT_SHARED_SYNC.amendMillBill(collection,body);if(!host.isConnected)return;localStorage.removeItem(token);pending=null;
         q('[data-message]').textContent='Source amendment confirmed for '+(response.record.ref||response.record.billNo)+' · PKR '+money(response.record.amount)+(retry?'. Current fields are retained; reopen to review the saved version.':'')+'. Accounts review is required before paying a changed liability.';
-        q('[data-save]').disabled=true;q('[data-retry]')?.remove();window.renderProcessingExpenses?.();window.renderReprocessHistory?.();
+        q('[data-save]').disabled=true;q('[data-retry]')?.remove();window.renderProcessingExpenses?.();window.renderReprocessHistory?.();options.onSaved?.();
       }catch(error){if(error.definitive){localStorage.removeItem(token);pending=null;q('[data-retry]')?.remove();q('[data-message]').textContent=error.message+' Your fields are retained for correction.';return;}q('[data-message]').textContent=error.message+' Your amendment is retained. Retry confirms the same amendment.';if(!q('[data-retry]')){const button=document.createElement('button');button.type='button';button.dataset.retry='';button.textContent='Confirm previous amendment';button.onclick=()=>save(true);q('[data-form]').appendChild(button);}}
       finally{busy=false;if(q('[data-form]'))q('[data-form]').inert=false;}
     }

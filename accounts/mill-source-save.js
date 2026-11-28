@@ -29,7 +29,7 @@
     if(typeof saved.value!=='string'||!Number.isInteger(saved.keyVersion)||saved.keyVersion<=baseVersion)throw Error('The bill acknowledgement is incomplete. Retry the same save before clearing your entry.');
     const value=saved.value,confirmed=rows(value).filter(r=>String(r.id)===String(candidate.id));
     if(confirmed.length!==1||!same(confirmed[0],candidate))throw Error('The server did not confirm the intended bill details. Retry the same save.');
-    return {record:confirmed[0],value,version:Number(saved.keyVersion||0)};
+    return {record:confirmed[0],value,version:Number(saved.keyVersion||0),posting:saved.labourPostings?.[record.id]};
   }
   const access=()=>window.TT_MODULE_ACCESS||{};
   const pendingKey=(key,rec)=>'tt_ui_mill_bill_pending_'+access().userId+'_'+key+'_'+rec.entity+'_'+rec.millId;
@@ -45,7 +45,9 @@
       if(busy)return;busy=true;box.querySelector('button').disabled=true;
       try{const key=token.split('_').find(v=>collections.has(v)),prefix=key==='tt38labourbills'?'LB-':key==='tt38reprocessbills'?'RPB-':'';
         const saved=await window.TT_SHARED_SYNC.appendMillBill(key,intent.record,prefix);localStorage.removeItem(token);
-        box.innerHTML='<p role="status">Bill '+esc(saved.ref||saved.billNo)+' saved. Accounts review is pending. Your current draft has been retained.</p>';
+        const posting=saved.labourPosting;
+        const status=posting?.status==='Posted'?'Posted in Accounts · '+posting.postId:'Check Accounts status in Mill Bill Review.';
+        box.innerHTML='<p role="status">Bill '+esc(saved.ref||saved.billNo)+' saved. '+esc(status)+' Your current draft has been retained.</p>';
         window.renderProcessingExpenses?.();window.renderReprocessHistory?.();
       }catch(error){box.querySelector('[role="status"]').textContent=error.message;box.querySelector('button').disabled=false}finally{busy=false}
     };
@@ -76,7 +78,8 @@
       // Only an acknowledged source may clear its form or produce a printout.
       try{onSaved?.(saved);}catch{alert('Bill '+(saved.ref||saved.billNo)+' is saved. Reopen the bill history to update its display.');}
       if(printAfter){try{if(target)print(saved,target);else alert('Bill saved. Allow pop-ups and use the saved bill Print action.');}catch{target?.close();alert('Bill is saved. Printing failed; use Print in the saved bill history.');}}
-      window.showNonBlockingMessage?.('Bill '+(saved.ref||saved.billNo)+' saved. Accounts review is pending.');
+      const posting=saved.labourPosting;
+      window.showNonBlockingMessage?.('Bill '+(saved.ref||saved.billNo)+' saved. '+(posting?.status==='Posted'?'Posted in Accounts · '+posting.postId:posting?.error||'Check Accounts status in saved bills.'));
       return saved;
     }catch(error){target?.close();if(error.editable){intent.editable=true;try{localStorage.setItem(token,JSON.stringify(intent));}catch{}}showPending(token,intent);alert(error.message+' Your bill entry is retained. Retry Save to confirm the same bill.');}
     finally{busy=false;if(form)form.inert=wasInert;if(!acknowledged&&focus?.isConnected)focus.focus({preventScroll:true});if(acknowledged&&form)window.TT_FORM_VIEWPORT?.open(form);}

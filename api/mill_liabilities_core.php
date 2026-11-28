@@ -21,6 +21,17 @@ function ml_quantity(mixed $value,bool $allowZero=false): float {
 }
 function ml_money(mixed $amount): float {return round(ml_quantity($amount),2);}
 function ml_name(string $name): string {return strtolower(trim((string)preg_replace('/\s+/',' ',$name)));}
+function ml_uses_party_ledger(array $store,string $entity,string $partyId,string $party=''): bool {
+    foreach ((array)($store['paymentPayees']??[]) as $payee) {
+        if (($payee['entity']??'')!==$entity||($payee['kind']??'')!=='BUSINESS'||empty($payee['active'])||($payee['accountCode']??'')!=='2190') continue;
+        if ($partyId!==''?($payee['id']??'')==='PARTY|'.$partyId:($party!==''&&ml_name((string)($payee['name']??''))===ml_name($party))) return true;
+    }
+    return false;
+}
+function ml_bill_uses_party_ledger(array $store,string $entity,array $bill): bool {
+    return ($bill['category']??'')==='MILL_LABOUR'&&($bill['payableAccount']??'')==='2190'
+        &&ml_uses_party_ledger($store,$entity,(string)($bill['sourceRecord']['partyId']??''),(string)($bill['vendor']??''));
+}
 function ml_rows(array $values,string $key): array {
     $rows=$values[$key]??'[]';if (is_string($rows)) $rows=json_decode($rows,true,512,JSON_THROW_ON_ERROR);
     if (!is_array($rows)||!array_is_list($rows)) throw new DomainException('Saved Mill source must be a list.');
@@ -71,7 +82,7 @@ function ml_source(array $values,array $masters,string $kind,string $id,string $
         elseif ($commodity!=='RICE') throw new DomainException('Choose a supported labour commodity.');
         $total=0.0;$lines=(array)($r['lines']??[]);if (!$lines) throw new DomainException('The saved labour work lines are missing.');
         foreach ($lines as $line) {
-            $qty=ml_quantity($line['qty']??null);$rate=ml_quantity($line['rate']??null);$basis=(string)($line['basis']??'');
+            $qty=ml_quantity($line['qty']??null);$rate=ml_quantity($line['rate']??null,$commodity==='RICE');$basis=(string)($line['basis']??'');
             if ($basis==='') throw new DomainException('Saved labour rate basis is required.');
             $total+=$qty/(str_contains($basis,'100 kg')?100:(str_contains($basis,'50 kg')?50:1))*$rate;
         }
