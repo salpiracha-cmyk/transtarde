@@ -107,4 +107,18 @@ register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_cod
     status,d=req(endpoint='mill_liability_status.php');assert status==200 and d['rows'][0]['collection']=='tt37processingexpenses' and d['rows'][0]['outstanding']==400,d
     s=json.loads(books.read_text());assert sum(l.get('debit',0)-l.get('credit',0) for j in s['journals'].values() for l in j['lines'] if l['account']=='5200')==700
     assert source.read_bytes()==source_before,'Canonical review/payment rewrote the physical cost source'
+    masters['business_parties'].append({'id':'LAB','values':['Azad Labour Contractor','','Labour Contractor','','','','','','','','Active']})
+    (root/'masters.json').write_text(json.dumps(masters))
+    labour=dict(id='LAB-1',entity='TTI',millId=1,millName='TTI Rice Mills',date='2026-11-27',**{'from':'2026-10-30'},till='2026-11-24',ref='LB-00001',contractor='Azad Labour Contractor',commodity='Rice',amount=486872.60,lines=[{'qty':100,'rate':486872.60,'basis':'Per 100 kg'}])
+    source.write_text(json.dumps({'values':{'tt38labourbills':json.dumps([labour])}}))
+    books.write_text(json.dumps({'revision':0,'journals':{},'supplierBills':{},'paymentPayees':{'TTI|PARTY|LAB':{'id':'PARTY|LAB','entity':'TTI','kind':'BUSINESS','accountCode':'2190','active':True}}}))
+    row=req()[1]['rows'][0]
+    status,posted=req(dict(post,kind='LABOUR',sourceId='LAB-1',fingerprint=row['fingerprint'],requestKey='fixture-party-ledger-bill'))
+    assert status==200,posted
+    books_before=books.read_bytes();source_before=source.read_bytes()
+    status,d=req(endpoint='mill_liability_status.php')
+    entry=d['rows'][0]
+    assert status==200 and entry['partyLedger'] is True and entry['outstanding'] is None and entry['postedAmount']==486872.60,entry
+    assert entry['postId']==posted['result']['record']['journalId'],entry
+    assert books.read_bytes()==books_before and source.read_bytes()==source_before,'Mill history rewrote the bill or Accounts'
     print('PASS real Mill liability GET zero writes, company/permission/CSRF checks, source-owned amount, stale/reforged requests, canonical post, immutable amendment, lost-ack replay, actual supplier partial/full settlement, outstanding balances and no duplicate expense')

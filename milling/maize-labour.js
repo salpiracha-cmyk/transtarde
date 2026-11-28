@@ -51,6 +51,7 @@
     try{
       if(!q('labFrom').value||!q('labTill').value||q('labTill').value<q('labFrom').value||q('labBillDate').value<q('labTill').value)throw Error('Set a valid period and a bill date on or after its end.');
       const contractor=q('labContractor').value.trim();if(!ttMasterValues('business_parties').some(v=>String(v[0]||'').trim().toLowerCase()===contractor.toLowerCase()&&String(v[2]||'').split(/[;,|]/).some(r=>r.trim().toLowerCase()==='labour contractor')&&String(v[10]||'').toLowerCase()==='active'))throw Error('Select an active Labour Contractor from Business Parties.');
+      const periodError=labourPeriodError();if(periodError)throw Error(periodError);
       if(!lines.length||lines.some(l=>!Number.isFinite(l.rate)||l.rate<=0))throw Error('Every maize charge needs its confirmed agreed rate before bill saving.');
       if(lines.some(l=>l.workDate<q('labFrom').value||l.workDate>q('labTill').value))throw Error('A work date is outside the current bill period. Review the period.');
       if(!q('maizeConfirmed').checked)throw Error('Confirm that the maize labour rates are agreed with the contractor.');

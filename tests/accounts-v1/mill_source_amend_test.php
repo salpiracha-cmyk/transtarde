@@ -26,6 +26,18 @@ reject_msa(fn()=>msa_guard_append($values,'tt38kebills','[]',$u),'Collection del
 reject_msa(fn()=>msa_guard_append($values,'tt38kebills',json_encode([array_replace($r,['amount'=>1200])]),$u),'Collection mutation bypassed source audit');
 $r2=array_replace($r,['id'=>'KE2','ref'=>'KE-OCT']);check_msa(msa_guard_append($values,'tt38kebills',json_encode([$r,$r2]),$u)===json_encode([$r,$r2]),'Legitimate scoped append blocked');
 $lab=['id'=>'L1','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','party'=>'Contractor','contractor'=>'Contractor','date'=>'2026-10-17','from'=>'2026-09-01','till'=>'2026-09-30','commodity'=>'Rice','billNo'=>'LB-1','ref'=>'LB-1','lines'=>[['label'=>'Work','qty'=>100,'rate'=>1,'basis'=>'100 kg']],'amount'=>1];
+$closed=array_replace($lab,['from'=>'2026-10-30','till'=>'2026-11-24']);
+$next=array_replace($lab,['id'=>'L2','from'=>'2026-11-25','till'=>'2026-11-30']);
+$labourValues=['tt38labourbills'=>json_encode([$closed])];
+$append=fn($row)=>msa_guard_append($labourValues,'tt38labourbills',json_encode([$closed,$row]),$u);
+foreach(['2026-11-24','2026-10-29'] as $from){
+    try{$append(array_replace($next,['from'=>$from]));throw new RuntimeException('An already billed labour period was accepted');}
+    catch(DomainException $e){check_msa(str_contains($e->getMessage(),'25-11-2026'),'Earliest valid start missing');}
+}
+check_msa($append($next)===json_encode([$closed,$next]),'Day after last billed period was blocked');
+check_msa($append(array_replace($next,['from'=>'2026-11-24','contractor'=>'Another contractor']))!=='','The prior period crossed contractors');
+$overlap=array_replace($next,['id'=>'L3','from'=>'2026-11-30','till'=>'2026-12-01']);
+reject_msa(fn()=>msa_guard_append($labourValues,'tt38labourbills',json_encode([$overlap,$closed,$next]),$u),'Two new labour bills overlap');
 $body=['collection'=>'tt38labourbills','entity'=>'TTI','sourceId'=>'L1','fingerprint'=>ml_fingerprint($lab),'requestKey'=>'fixture-lab-amend-001','reason'=>'Correct agreed unit rate','changes'=>['lines'=>[['label'=>'Work','qty'=>100,'rate'=>1.235,'basis'=>'100 kg']]]];
 $amended=msa_amend(['tt38labourbills'=>json_encode([$lab])],$masters,[],$u,$body,'now');check_msa($amended['record']['amount']===1.24&&$amended['record']['lines'][0]['rate']===1.235,'Unit rate prematurely rounded');
 $rp=['id'=>'RP1','entity'=>'TTI','millId'=>2,'millName'=>'External Mill','mill'=>'External Mill','party'=>'External Mill','date'=>'2026-10-17','from'=>'2026-09-01','till'=>'2026-09-30','billNo'=>'RPB-1','ref'=>'RPB-1','arrivalKg'=>1000,'rawRemovedKg'=>0,'billableKg'=>1000,'rate'=>2,'loadingExtra'=>0,'other'=>0,'amount'=>2000,'paid'=>0,'payments'=>[]];
